@@ -1,0 +1,161 @@
+<div class="settings-container">
+  <div class="settings-header">
+    <div>
+      <h1>Interview Kits</h1>
+      <p>Pre-configured interview question sets organized by role and competency</p>
+    </div>
+    <button class="btn-primary">+ Create New Kit</button>
+  </div>
+
+  <!-- Kits Grid -->
+  <div class="kits-grid">
+    <div *ngFor="let kit of kits" class="kit-card" [class.inactive]="!kit.isActive">
+      <div class="kit-header">
+        <div class="kit-title">
+          <h3>{{ kit.name }}</h3>
+          <span *ngIf="!kit.isActive" class="badge inactive-badge">Inactive</span>
+        </div>
+        <label class="toggle-switch">
+          <input
+            type="checkbox"
+            [checked]="kit.isActive"
+            (change)="toggleKit(kit)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="kit-meta">
+        <span class="meta-tag">{{ kit.role }}</span>
+        <span class="meta-item">⏱️ {{ kit.duration }} min</span>
+        <span class="meta-item">❓ {{ kit.questions.length }} questions</span>
+      </div>
+
+      <p class="kit-description">{{ kit.description }}</p>
+
+      <div class="kit-actions">
+        <button class="btn-secondary" (click)="viewKit(kit)">View Questions</button>
+        <button class="btn-icon" (click)="editKit(kit)">✏️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Kit Modal -->
+  <div *ngIf="selectedKit" class="modal-overlay" (click)="closeView()">
+    <div class="modal-content large" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div>
+          <h2>{{ selectedKit.name }}</h2>
+          <p class="modal-subtitle">{{ selectedKit.role }} • {{ selectedKit.duration }} minutes</p>
+        </div>
+        <button class="btn-close" (click)="closeView()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="questions-list">
+          <div *ngFor="let q of selectedKit.questions; let i = index" class="question-item">
+            <div class="question-number">{{ i + 1 }}</div>
+            <div class="question-content">
+              <p class="question-text">{{ q.question }}</p>
+              <div class="question-meta">
+                <span class="category-badge">{{ q.category }}</span>
+                <span [class]="getDifficultyClass(q.difficulty)" class="difficulty-badge">
+                  {{ q.difficulty }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeView()">Close</button>
+        <button class="btn-primary" (click)="editKit(selectedKit); closeView()">Edit Kit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Kit Modal -->
+  <div *ngIf="editMode && editingKit" class="modal-overlay" (click)="cancelEdit()">
+    <div class="modal-content large" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Edit Interview Kit</h2>
+        <button class="btn-close" (click)="cancelEdit()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Kit Name</label>
+          <input
+            type="text"
+            [(ngModel)]="editingKit.name"
+            class="form-input"
+            placeholder="e.g., Frontend Engineer Loop">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Role</label>
+            <input
+              type="text"
+              [(ngModel)]="editingKit.role"
+              class="form-input"
+              placeholder="e.g., Software Engineer">
+          </div>
+
+          <div class="form-group">
+            <label>Duration (minutes)</label>
+            <input
+              type="number"
+              [(ngModel)]="editingKit.duration"
+              class="form-input"
+              min="15"
+              max="120"
+              step="15">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+          <textarea
+            [(ngModel)]="editingKit.description"
+            class="form-textarea"
+            rows="2"
+            placeholder="Brief description of this interview kit"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Questions ({{ editingKit.questions.length }})</label>
+          <div class="questions-edit-list">
+            <div *ngFor="let q of editingKit.questions; let i = index" class="question-edit-item">
+              <span class="question-index">{{ i + 1 }}</span>
+              <div class="question-edit-content">
+                <input
+                  type="text"
+                  [(ngModel)]="q.question"
+                  class="form-input"
+                  placeholder="Enter question">
+                <div class="question-edit-meta">
+                  <input
+                    type="text"
+                    [(ngModel)]="q.category"
+                    class="form-input small"
+                    placeholder="Category">
+                  <select [(ngModel)]="q.difficulty" class="form-select small">
+                    <option value="Easy">Easy</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Hard">Hard</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="cancelEdit()">Cancel</button>
+        <button class="btn-primary" (click)="saveKit()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>

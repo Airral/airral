@@ -1,0 +1,5 @@
+.container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; min-height: 100vh; }
+.container h1 { font-size: 32px; color: #0f172a; }
+.container p { color: #64748b; }
+.container a { color: #6d28d9; text-decoration: none; }
+.container a:hover { text-decoration: underline; }

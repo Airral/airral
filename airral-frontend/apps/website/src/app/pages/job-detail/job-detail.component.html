@@ -1,0 +1,32 @@
+<airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
+<main class="job-detail-container">
+  <div class="container">
+    <a routerLink="/jobs" class="back-link">← Back to Jobs</a>
+    <div class="job-header">
+      <h1>{{ job.title }}</h1>
+      <span class="dept-badge">{{ job.department }}</span>
+    </div>
+    <div class="job-meta">
+      <span>{{ job.company }}</span> • <span>{{ job.location }}</span> • <span>{{ job.type }}</span> • <span>{{ job.salary }}</span>
+    </div>
+    <div class="job-content">
+      <div class="job-main">
+        <h2>About the Role</h2>
+        <p>{{ job.description }}</p>
+        <h2>Requirements</h2>
+        <ul>
+          <li *ngFor="let req of job.requirements">{{ req }}</li>
+        </ul>
+        <h2>Benefits</h2>
+        <ul>
+          <li *ngFor="let benefit of job.benefits">{{ benefit }}</li>
+        </ul>
+      </div>
+      <div class="job-sidebar">
+        <button class="btn btn-primary" [routerLink]="['/apply']" [queryParams]="{ jobId: job.id }">Apply Now</button>
+        <button class="btn btn-secondary">Save Job</button>
+      </div>
+    </div>
+  </div>
+</main>
+<airral-footer></airral-footer>

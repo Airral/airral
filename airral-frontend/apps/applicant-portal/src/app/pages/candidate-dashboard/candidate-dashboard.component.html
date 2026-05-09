@@ -1,0 +1,88 @@
+<div class="candidate-dashboard">
+  <mat-toolbar class="portal-topbar">
+    <div class="toolbar-inner">
+      <div class="brand-search">
+        <div class="brand-mark">AR</div>
+        <div class="search-wrap">
+          <mat-icon class="search-icon">search</mat-icon>
+          <input type="text" placeholder="Search companies, roles, and people" readonly>
+        </div>
+      </div>
+
+      <nav class="top-nav" *ngIf="!loading" aria-label="Applicant navigation">
+        <button mat-button class="nav-item" [class.active]="activeView === 'feed'" (click)="setView('feed')">Community</button>
+        <button mat-button class="nav-item" [class.active]="activeView === 'applications'" [matBadge]="applications.length || null" matBadgeColor="warn" matBadgeSize="small" (click)="setView('applications')">My Jobs</button>
+        <button mat-button class="nav-item" [class.active]="activeView === 'tracker'" [matBadge]="getInterviewCount() || null" matBadgeColor="warn" matBadgeSize="small" (click)="setView('tracker')">Progress</button>
+        <button mat-button class="nav-item" [class.active]="activeView === 'profile'" (click)="setView('profile')">Portfolio</button>
+        <button mat-flat-button color="primary" class="easy-apply-btn" (click)="openJobsBoard()">Quick Apply</button>
+        <button mat-icon-button class="nav-avatar" (click)="logout()">{{ profile?.firstName?.charAt(0) || 'A' }}</button>
+      </nav>
+    </div>
+  </mat-toolbar>
+
+  <div class="content-shell">
+    <div *ngIf="error" class="error-banner">{{ error }}</div>
+
+    <div *ngIf="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Loading your dashboard...</p>
+    </div>
+
+    <div *ngIf="!loading" [ngSwitch]="activeView" class="view-shell">
+      <app-candidate-feed
+        *ngSwitchCase="'feed'"
+        [viewerName]="profile?.firstName || 'You'"
+        (openJobsBoard)="openJobsBoard()"
+        (openProfile)="setView('profile')"
+      />
+
+      <section *ngSwitchCase="'applications'" class="subpage-card">
+        <div class="subpage-head">
+          <h2>My Jobs</h2>
+          <button mat-flat-button color="primary" (click)="openJobsBoard()">Open matching roles</button>
+        </div>
+
+        <article *ngFor="let app of applications | slice:0:8" class="list-item">
+          <div>
+            <h3>{{ app.jobTitle }}</h3>
+            <p>{{ app.department }} · Applied {{ formatDate(app.appliedAt) }}</p>
+          </div>
+          <span class="item-status">{{ app.status }}</span>
+        </article>
+      </section>
+
+      <section *ngSwitchCase="'tracker'" class="subpage-card">
+        <h2>Progress Board</h2>
+        <div class="tracker-grid">
+          <article class="tracker-stat">
+            <strong>{{ applications.length }}</strong>
+            <span>Applied</span>
+          </article>
+          <article class="tracker-stat">
+            <strong>{{ getActiveApplicationsCount() }}</strong>
+            <span>Active</span>
+          </article>
+          <article class="tracker-stat">
+            <strong>{{ getInterviewCount() }}</strong>
+            <span>Interviews</span>
+          </article>
+          <article class="tracker-stat">
+            <strong>{{ getOfferCount() }}</strong>
+            <span>Offers</span>
+          </article>
+        </div>
+      </section>
+
+      <section *ngSwitchCase="'profile'" class="subpage-card profile-card">
+        <h2>Your Portfolio</h2>
+        <div class="profile-grid" *ngIf="profile">
+          <p><span>Name</span><strong>{{ profile.firstName }} {{ profile.lastName }}</strong></p>
+          <p><span>Email</span><strong>{{ profile.email }}</strong></p>
+          <p><span>Phone</span><strong>{{ profile.phone || 'Add your phone' }}</strong></p>
+          <p><span>Location</span><strong>{{ profile.location || 'Add your location' }}</strong></p>
+        </div>
+        <button mat-flat-button color="primary" (click)="openJobsBoard()">Find roles matching profile</button>
+      </section>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,81 @@
+{
+  "name": "hr-portal",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "app",
+  "sourceRoot": "apps/hr-portal/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/apps/hr-portal",
+        "browser": "apps/hr-portal/src/main.ts",
+        "tsConfig": "apps/hr-portal/tsconfig.app.json",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/hr-portal/public"
+          }
+        ],
+        "styles": [
+          "apps/hr-portal/src/styles.css"
+        ]
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "500kb",
+              "maximumError": "1mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "8kb",
+              "maximumError": "15kb"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      },
+      "defaultConfiguration": "production"
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@angular/build:dev-server",
+      "options": {
+        "port": 4202
+      },
+      "configurations": {
+        "production": {
+          "buildTarget": "hr-portal:build:production"
+        },
+        "development": {
+          "buildTarget": "hr-portal:build:development"
+        }
+      },
+      "defaultConfiguration": "development"
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "serve-static": {
+      "continuous": true,
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "hr-portal:build",
+        "staticFilePath": "dist/apps/hr-portal/browser",
+        "spa": true
+      }
+    }
+  }
+}

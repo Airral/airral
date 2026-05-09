@@ -1,0 +1,297 @@
+.left-rail {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  position: sticky;
+  top: 72px;
+}
+
+.profile-card,
+.tracker-card {
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+
+.avatar {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #0f9d78;
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #ffffff;
+  margin-top: -20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.profile-location {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #527465;
+  margin: 4px 0 12px;
+}
+
+.loc-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #0f9d78;
+}
+
+.completion-wrap {
+  margin-bottom: 8px;
+}
+
+.completion-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #527465;
+  margin-bottom: 6px;
+}
+
+.completion-pct {
+  color: #0f9d78;
+  font-weight: 700;
+}
+
+.meta-divider {
+  margin: 10px 0;
+}
+
+.profile-meta {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #1d4e3e;
+}
+
+.meta-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #0f9d78;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.stat-item {
+  background: #f2f7f4;
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.stat-item strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f9d78;
+}
+
+.stat-item span {
+  font-size: 11px;
+  color: #527465;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.panel {
+  background: #ffffff;
+  border: 1px solid #d8e6de;
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.profile-panel {
+  overflow: hidden;
+  padding: 0;
+}
+
+.profile-cover {
+  height: 58px;
+  background: linear-gradient(120deg, #0f9d78, #158f67);
+}
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -20px 12px 10px;
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #12372a;
+  color: #ffffff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.identity-copy {
+  min-width: 0;
+}
+
+.identity-copy h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #12372a;
+}
+
+.identity-copy p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #527465;
+}
+
+.identity-copy small {
+  display: block;
+  margin-top: 3px;
+  color: #6b8a7c;
+  font-size: 11px;
+}
+
+.completion-wrap {
+  margin: 0 12px 10px;
+}
+
+.completion-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.completion-label strong {
+  color: #10b981;
+}
+
+.completion-bar {
+  width: 100%;
+  height: 7px;
+  background: #dde3eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.completion-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0f9d78, #2ea67f);
+  border-radius: 999px;
+}
+
+.profile-meta {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 10px;
+}
+
+.profile-meta div {
+  background: #f6faf8;
+  border: 1px solid #e2ece7;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.profile-meta span {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.profile-meta strong {
+  font-size: 12px;
+  color: #1f2937;
+}
+
+.rail-actions {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #e2ece7;
+  margin-top: 4px;
+}
+
+.text-btn {
+  border: 0;
+  background: #ffffff;
+  color: #1d4e3e;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.text-btn:hover {
+  background: #ecf7f1;
+}
+
+.tracker-stats h3 {
+  margin: 0 0 12px;
+  color: #12372a;
+  font-size: 14px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.stat-item {
+  background: #f6faf8;
+  border: 1px solid #e2ece7;
+  border-radius: 8px;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.stat-item strong {
+  display: block;
+  font-size: 20px;
+  color: #111827;
+}
+
+.stat-item span {
+  font-size: 11px;
+  color: #6b7280;
+  text-transform: uppercase;
+}
+
+@media (max-width: 768px) {
+  .left-rail {
+    position: static;
+    top: auto;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}

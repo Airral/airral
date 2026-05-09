@@ -1,0 +1,205 @@
+<div class="interviews-container">
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div>
+      <h1>Interview Calendar</h1>
+      <p class="subtitle">{{ upcomingInterviews.length }} upcoming &nbsp;·&nbsp; {{ completedInterviews.length }} completed</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline" (click)="view = view === 'calendar' ? 'list' : 'calendar'">
+        {{ view === 'calendar' ? '≡ List View' : '⊞ Calendar' }}
+      </button>
+      <button class="btn btn-primary" (click)="openScheduleForm()">+ Schedule Interview</button>
+    </div>
+  </div>
+
+  <div *ngIf="error" class="error-banner">{{ error }}</div>
+
+  <!-- ────── CALENDAR VIEW ────── -->
+  <div *ngIf="view === 'calendar'" class="calendar-layout">
+
+    <!-- Monthly Grid -->
+    <div class="calendar-panel">
+      <div class="cal-nav">
+        <button class="nav-btn" (click)="prevMonth()">&#8249;</button>
+        <span class="month-label">{{ monthLabel }}</span>
+        <button class="nav-btn" (click)="nextMonth()">&#8250;</button>
+      </div>
+
+      <div class="cal-grid">
+        <div class="cal-weekday" *ngFor="let d of WEEKDAYS">{{ d }}</div>
+        <div
+          *ngFor="let day of calendarDays"
+          class="cal-day"
+          [class.other-month]="!day.isCurrentMonth"
+          [class.today]="day.isToday"
+          [class.selected]="selectedDay !== null && selectedDay !== undefined && selectedDay.date.toDateString() === day.date.toDateString()"
+          [class.has-events]="day.interviews.length > 0"
+          (click)="selectDay(day)"
+        >
+          <span class="day-num">{{ day.date.getDate() }}</span>
+          <div class="event-dots">
+            <span
+              *ngFor="let inv of day.interviews.slice(0, 3)"
+              class="dot"
+              [class.done]="inv.status === 'COMPLETED'"
+            ></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="side-panel">
+
+      <!-- No day selected → show upcoming list -->
+      <ng-container *ngIf="!selectedDay || selectedDay.interviews.length === 0">
+        <h3 class="side-heading">Upcoming</h3>
+        <div *ngIf="upcomingInterviews.length === 0" class="empty-text">No upcoming interviews — click a date to explore.</div>
+        <div
+          *ngFor="let inv of upcomingInterviews"
+          class="interview-card"
+           (click)="selectInterviewAsFocus(inv)"
+        >
+          <div class="avatar">{{ getInitials(inv.candidateName) }}</div>
+          <div class="card-body">
+            <strong>{{ inv.candidateName }}</strong>
+            <span>{{ inv.jobTitle }}</span>
+            <span class="card-time">{{ formatDate(inv.interviewDate) }} · {{ formatTime(inv.interviewDate) }}</span>
+          </div>
+          <span class="pill" [class]="getStatusClass(inv.status)">{{ inv.status }}</span>
+        </div>
+      </ng-container>
+
+      <!-- Day selected with interviews -->
+      <ng-container *ngIf="selectedDay && selectedDay.interviews.length > 0">
+        <div class="day-header">
+          <h3>{{ selectedDay.date | date:'MMMM d, y' }}</h3>
+          <button class="link-btn" (click)="selectedDay = null">← Back</button>
+        </div>
+
+        <div *ngFor="let inv of selectedDay.interviews" class="detail-card">
+          <div class="detail-top">
+            <div class="avatar">{{ getInitials(inv.candidateName) }}</div>
+            <div>
+              <strong>{{ inv.candidateName }}</strong>
+              <p>{{ inv.jobTitle }}</p>
+            </div>
+            <span class="pill ml-auto" [class]="getStatusClass(inv.status)">{{ inv.status }}</span>
+          </div>
+
+          <div class="detail-meta">
+            <span>🕐 {{ formatTime(inv.interviewDate) }} &nbsp;(1 hour)</span>
+          </div>
+
+          <div *ngIf="inv.feedback" class="feedback-box">
+            <strong>Feedback:</strong> {{ inv.feedback }}
+            <span *ngIf="inv.rating" class="rating"> ★ {{ inv.rating }}/5</span>
+          </div>
+
+          <!-- Calendar Sync -->
+          <div class="sync-row">
+            <span class="sync-label">Add to calendar:</span>
+            <a [href]="getGoogleCalendarLink(inv)" target="_blank" rel="noopener" class="cal-btn gcal">Google</a>
+            <a [href]="getOutlookLink(inv)" target="_blank" rel="noopener" class="cal-btn outlook">Outlook</a>
+            <button (click)="downloadICS(inv)" class="cal-btn ics">.ics</button>
+          </div>
+        </div>
+      </ng-container>
+
+    </div>
+  </div>
+
+  <!-- ────── LIST VIEW ────── -->
+  <div *ngIf="view === 'list'" class="list-layout">
+
+    <section>
+      <h3 class="section-heading">Upcoming ({{ upcomingInterviews.length }})</h3>
+      <div *ngIf="upcomingInterviews.length === 0" class="empty-section">No upcoming interviews scheduled.</div>
+      <div *ngFor="let inv of upcomingInterviews" class="list-row">
+        <div class="avatar">{{ getInitials(inv.candidateName) }}</div>
+        <div class="row-info">
+          <strong>{{ inv.candidateName }}</strong>
+          <span>{{ inv.jobTitle }}</span>
+        </div>
+        <div class="row-time">
+          <span>{{ formatDate(inv.interviewDate) }}</span>
+          <span>{{ formatTime(inv.interviewDate) }}</span>
+        </div>
+        <span class="pill" [class]="getStatusClass(inv.status)">{{ inv.status }}</span>
+        <div class="row-sync">
+          <a [href]="getGoogleCalendarLink(inv)" target="_blank" rel="noopener" class="cal-btn gcal">Google</a>
+          <a [href]="getOutlookLink(inv)" target="_blank" rel="noopener" class="cal-btn outlook">Outlook</a>
+          <button (click)="downloadICS(inv)" class="cal-btn ics">.ics</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h3 class="section-heading">Completed ({{ completedInterviews.length }})</h3>
+      <div *ngIf="completedInterviews.length === 0" class="empty-section">No completed interviews yet.</div>
+      <div *ngFor="let inv of completedInterviews" class="list-row faded">
+        <div class="avatar done-avatar">{{ getInitials(inv.candidateName) }}</div>
+        <div class="row-info">
+          <strong>{{ inv.candidateName }}</strong>
+          <span>{{ inv.jobTitle }}</span>
+        </div>
+        <div class="row-time">
+          <span>{{ formatDate(inv.interviewDate) }}</span>
+          <span>{{ formatTime(inv.interviewDate) }}</span>
+        </div>
+        <span class="pill status-completed">COMPLETED</span>
+        <div *ngIf="inv.feedback" class="row-feedback">
+          {{ inv.feedback }}
+          <span *ngIf="inv.rating" class="rating"> ★ {{ inv.rating }}/5</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ────── SCHEDULE MODAL ────── -->
+  <div *ngIf="showScheduleForm" class="modal-overlay" (click)="cancelSchedule()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h2>Schedule Interview</h2>
+        <button class="close-btn" (click)="cancelSchedule()">&#x2715;</button>
+      </div>
+
+      <form [formGroup]="scheduleForm" (ngSubmit)="submitSchedule()">
+        <div class="form-group">
+          <label>Candidate</label>
+          <select formControlName="applicationId" class="form-control">
+            <option value="">— Select Application —</option>
+            <option *ngFor="let app of applications" [value]="app.id">
+              {{ app.applicantEmail }} &nbsp;·&nbsp; {{ app.jobTitle }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" formControlName="interviewDate" class="form-control" />
+          </div>
+          <div class="form-group">
+            <label>Time</label>
+            <input type="time" formControlName="interviewTime" class="form-control" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes / Zoom link <span class="opt">(optional)</span></label>
+          <textarea formControlName="notes" class="form-control" rows="3" placeholder="Add a video call link or preparation notes…"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" (click)="cancelSchedule()">Cancel</button>
+          <button type="submit" class="btn btn-primary" [disabled]="!scheduleForm.valid">Schedule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>

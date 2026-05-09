@@ -1,0 +1,20 @@
+.job-detail-container { min-height: 100vh; }
+.container { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+.back-link { color: #6d28d9; text-decoration: none; font-weight: 500; margin-bottom: 24px; display: inline-block; }
+.back-link:hover { text-decoration: underline; }
+.job-header { margin: 32px 0 16px 0; display: flex; align-items: center; gap: 16px; }
+.job-header h1 { margin: 0; font-size: 36px; color: #0f172a; }
+.dept-badge { background: #e0e7ff; color: #4c1d95; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.job-meta { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+.job-content { display: grid; grid-template-columns: 1fr 300px; gap: 40px; }
+.job-main h2 { font-size: 20px; color: #0f172a; margin-top: 32px; margin-bottom: 16px; }
+.job-main p { color: #475569; line-height: 1.8; }
+.job-main ul { color: #475569; line-height: 1.8; }
+.job-main li { margin-bottom: 8px; }
+.job-sidebar { position: sticky; top: 100px; height: fit-content; }
+.btn { width: 100%; padding: 12px 16px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-bottom: 12px; font-size: 14px; }
+.btn-primary { background: linear-gradient(135deg, #6d28d9, #0891b2); color: white; }
+.btn-primary:hover { opacity: 0.9; }
+.btn-secondary { background: white; color: #6d28d9; border: 2px solid #6d28d9; }
+.btn-secondary:hover { background: #f3f4f6; }
+@media (max-width: 768px) { .job-content { grid-template-columns: 1fr; } }

@@ -1,0 +1,6 @@
+.panel { padding: 24px; }
+.panel h1 { margin: 0; font-size: 30px; color: #0f172a; }
+.panel p { margin: 8px 0 16px; color: #64748b; }
+.cards { display: grid; gap: 10px; }
+.cards a { display: block; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; text-decoration: none; color: #0f172a; font-weight: 600; }
+.cards a:hover { border-color: #67e8f9; background: #ecfeff; }

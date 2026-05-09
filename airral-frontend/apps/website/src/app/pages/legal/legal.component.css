@@ -1,0 +1,8 @@
+.container { max-width: 900px; margin: 0 auto; padding: 40px 24px; min-height: 100vh; }
+.legal-content h1 { font-size: 32px; color: #0f172a; margin-bottom: 32px; }
+.legal-nav { display: flex; gap: 24px; margin-bottom: 40px; flex-wrap: wrap; }
+.legal-nav a { color: #6d28d9; text-decoration: none; font-weight: 500; }
+.legal-nav a:hover { text-decoration: underline; }
+.legal-body h2 { font-size: 24px; color: #0f172a; margin-top: 32px; margin-bottom: 16px; }
+.legal-body h3 { font-size: 18px; color: #0f172a; margin-top: 24px; margin-bottom: 12px; }
+.legal-body p { color: #475569; line-height: 1.8; margin-bottom: 16px; }

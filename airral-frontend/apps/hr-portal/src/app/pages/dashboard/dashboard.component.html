@@ -1,0 +1,42 @@
+<div class="hr-dashboard">
+  <header class="dashboard-header">
+    <div>
+      <p class="eyebrow">Recruiting Command Center</p>
+      <h1>Hiring Operations</h1>
+      <p class="subtitle">Track funnel health, unblock hiring teams, and keep requisitions moving.</p>
+    </div>
+    <div class="header-actions">
+      <a routerLink="/jobs" class="btn-ghost">Manage requisitions</a>
+      <a routerLink="/hire" class="btn-primary">Open pipeline board</a>
+    </div>
+  </header>
+
+  <app-kpi-cards
+    [openPositions]="12"
+    [totalApplications]="applications.length"
+    [scheduledInterviews]="countByStatus('INTERVIEW_SCHEDULED')"
+    [hires]="countByStatus('HIRED')"
+  ></app-kpi-cards>
+
+  <section class="split-layout">
+    <app-priority-queue></app-priority-queue>
+
+    <app-pipeline-mix
+      [submitted]="countByStatus('SUBMITTED')"
+      [underReview]="countByStatus('UNDER_REVIEW')"
+      [shortlisted]="countByStatus('SHORTLISTED')"
+      [interviewed]="countByStatus('INTERVIEWED')"
+    ></app-pipeline-mix>
+  </section>
+
+  <app-application-review-table
+    [loading]="loading"
+    [errorMessage]="errorMessage"
+    [filters]="filters"
+    [selectedFilter]="selectedFilter"
+    [applications]="applications"
+    (filterChange)="onFilterChange($event)"
+    (statusUpdate)="onStatusUpdate($event)"
+    (retry)="loadApplications()"
+  ></app-application-review-table>
+</div>

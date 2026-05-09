@@ -1,0 +1,141 @@
+<section class="panel">
+  <div *ngIf="error" class="empty-state">{{ error }}</div>
+
+  <div *ngIf="!error">
+  <header class="candidates-header">
+    <div>
+      <h1>Applicants</h1>
+      <p>Review and manage job applications</p>
+    </div>
+
+    <div class="header-actions">
+      <input
+        type="search"
+        [(ngModel)]="searchQuery"
+        placeholder="Search applicants..."
+        class="search-input"
+      />
+
+      @if (permissions.canViewAllApplicants && belowThresholdCount > 0) {
+        <label class="toggle-filter">
+          <input
+            type="checkbox"
+            [(ngModel)]="showBelowThreshold"
+          />
+          Show {{ belowThresholdCount }} below threshold
+        </label>
+      }
+    </div>
+  </header>
+
+  <div class="candidates-layout">
+    <!-- Applicant List -->
+    <div class="candidate-list">
+      @for (app of filteredApplications; track app.id) {
+        <div
+          class="candidate-card"
+          [class.selected]="selectedApplication?.id === app.id"
+          [class.below-threshold]="!app.visibleToHR"
+          (click)="selectApplication(app)"
+        >
+          <div class="candidate-info">
+            <h3>{{ app.applicantName }}</h3>
+            <p class="candidate-email">{{ app.applicantEmail }}</p>
+            <p class="candidate-role">{{ app.job?.title }}</p>
+          </div>
+          <div class="candidate-meta">
+            <div class="ats-score" [style.backgroundColor]="getScoreColor(app.atsScore)">
+              {{ app.atsScore }}%
+            </div>
+            <span class="candidate-stage">{{ app.status }}</span>
+          </div>
+        </div>
+      } @empty {
+        <p class="empty-state">No applicants found</p>
+      }
+    </div>
+
+    <!-- Applicant Detail Panel -->
+    @if (selectedApplication; as app) {
+      <div class="detail-panel">
+        <div class="detail-header">
+          <div>
+            <h2>{{ app.applicantName }}</h2>
+            <p>{{ app.applicantEmail }}</p>
+            @if (app.applicantPhone) {
+              <p>{{ app.applicantPhone }}</p>
+            }
+          </div>
+          <button class="close-btn" (click)="closeDetail()">✕</button>
+        </div>
+
+        <div class="detail-content">
+          <!-- ATS Score Section -->
+          <div class="detail-section ats-section">
+            <h3>ATS Match Analysis</h3>
+            <div class="ats-score-large" [style.color]="getScoreColor(app.atsScore)">
+              {{ app.atsScore }}%
+              <span class="score-label">{{ getScoreLabel(app.atsScore) }}</span>
+            </div>
+
+            @if (app.atsMatchedKeywords.length > 0) {
+              <div class="keywords-section">
+                <h4>✓ Matched Keywords</h4>
+                <div class="keyword-tags matched">
+                  @for (keyword of app.atsMatchedKeywords; track keyword) {
+                    <span class="keyword-tag">{{ keyword }}</span>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (app.atsMissingKeywords.length > 0) {
+              <div class="keywords-section">
+                <h4>✗ Missing Keywords</h4>
+                <div class="keyword-tags missing">
+                  @for (keyword of app.atsMissingKeywords; track keyword) {
+                    <span class="keyword-tag">{{ keyword }}</span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+          <div class="detail-section">
+            <h3>Application Info</h3>
+            <p><strong>Position:</strong> {{ app.job?.title }}</p>
+            <p><strong>Status:</strong> {{ app.status }}</p>
+            <p><strong>Applied:</strong> {{ app.appliedAt | date: 'medium' }}</p>
+            @if (app.resumeUrl) {
+              <button
+                (click)="downloadResume(app)"
+                class="btn-download"
+              >
+                📎 Download Resume
+              </button>
+            }
+          </div>
+
+          <!-- Notes & Activity -->
+          @if (permissions.canAddApplicantNotes) {
+            <app-candidate-notes
+              [candidateId]="app.id"
+            ></app-candidate-notes>
+          }
+
+          @if (permissions.canViewActivityLog) {
+            <app-activity-log
+              [candidateId]="app.id"
+            ></app-activity-log>
+          }
+        </div>
+      </div>
+    } @else {
+      <!-- Empty State when no applicant selected -->
+      <div class="detail-empty">
+        <p>Select an applicant to view details</p>
+      </div>
+    }
+  </div>
+  </div>
+</section>

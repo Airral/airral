@@ -1,0 +1,12 @@
+.DS_Store
+node_modules/
+dist/
+build/
+coverage/
+.nx/
+.angular/
+tmp/
+
+airral-backend/build/
+airral-frontend/dist/
+airral-frontend/node_modules/

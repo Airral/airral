@@ -1,0 +1,82 @@
+<section class="panel">
+  <h1>Hiring Analytics</h1>
+  <p>Real-time trendline for conversion, throughput, and team-level velocity.</p>
+
+  <div *ngIf="hasProAccess">
+    <div *ngIf="loading" class="loading-state">Loading analytics...</div>
+
+    <ng-container *ngIf="!loading">
+      <div class="cards" *ngIf="dashboard">
+        <article *ngFor="let metric of metrics">
+          <p>{{ metric.label }}</p>
+          <strong>{{ metric.value }}</strong>
+          <span *ngIf="metric.delta">{{ metric.delta }} vs last month</span>
+        </article>
+      </div>
+
+      <div class="charts-grid" *ngIf="pipeline">
+
+        <!-- Funnel Chart -->
+        <section class="chart-card">
+          <h2>Pipeline Funnel</h2>
+          <div class="funnel-chart" *ngIf="funnelData.length > 0; else emptyFunnel">
+            <div *ngFor="let stage of funnelData" class="funnel-stage">
+              <div class="funnel-bar" [style.width.%]="stage.percentage || 1">
+                <span class="stage-label">{{ stage.stage }}</span>
+                <span class="stage-count">{{ stage.count }}</span>
+              </div>
+              <span class="stage-percentage">{{ stage.percentage }}%</span>
+            </div>
+          </div>
+          <ng-template #emptyFunnel>
+            <p class="empty-note">No pipeline data yet.</p>
+          </ng-template>
+        </section>
+
+        <!-- Applications by Status -->
+        <section class="chart-card">
+          <h2>Applications by Status</h2>
+          <div class="source-chart" *ngIf="statusData.length > 0; else emptyStatus">
+            <div *ngFor="let row of statusData" class="source-row">
+              <div class="source-name">{{ row.label }}</div>
+              <div class="source-stats">
+                <span class="stat-item">{{ row.count }} applications</span>
+                <span class="conversion-rate" [class.high]="row.percentage > 30">
+                  {{ row.percentage }}%
+                </span>
+              </div>
+              <div class="bar-container">
+                <div class="bar-fill" [style.width.%]="row.percentage"></div>
+              </div>
+            </div>
+          </div>
+          <ng-template #emptyStatus>
+            <p class="empty-note">No applications yet.</p>
+          </ng-template>
+        </section>
+
+      </div>
+
+      <div *ngIf="!dashboard && !pipeline" class="empty-state">
+        No analytics data available yet.
+      </div>
+    </ng-container>
+  </div>
+
+  <div *ngIf="!hasProAccess" class="upgrade-prompt">
+    <div class="upgrade-content">
+      <h2>🔒 Analytics is a Pro Feature</h2>
+      <p>{{ tierGuard.getUpgradeMessage('pro') }}</p>
+      <ul>
+        <li>Real-time hiring metrics</li>
+        <li>Pipeline conversion tracking</li>
+        <li>Applications by status</li>
+        <li>Time-to-hire trends</li>
+        <li>Team velocity reports</li>
+      </ul>
+      <button class="btn-upgrade" (click)="tierGuard.showUpgradePrompt('pro')">
+        Upgrade to Professional
+      </button>
+    </div>
+  </div>
+</section>

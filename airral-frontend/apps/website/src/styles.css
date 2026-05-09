@@ -1,0 +1,85 @@
+/* =========================================================
+   AIRRAL — Website global styles & design tokens
+   ========================================================= */
+
+:root {
+  /* Color palette */
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f1f5f9;
+  --color-text: #0f172a;
+  --color-muted: #475569;
+  --color-subtle: #94a3b8;
+  --color-border: #e2e8f0;
+
+  --color-primary: #6d28d9;
+  --color-primary-2: #4f46e5;
+  --color-accent: #0891b2;
+  --color-success: #16a34a;
+  --color-danger: #dc2626;
+
+  --gradient-brand: linear-gradient(135deg, #6d28d9 0%, #4f46e5 45%, #0891b2 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(124, 92, 255, 0.15), rgba(34, 211, 238, 0.15));
+
+  /* Effects */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --shadow-sm: 0 4px 14px -8px rgba(15, 23, 42, 0.18);
+  --shadow-md: 0 14px 40px -22px rgba(15, 23, 42, 0.35);
+  --shadow-lg: 0 30px 80px -30px rgba(79, 70, 229, 0.35);
+
+  /* Layout */
+  --container: 1200px;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont,
+    'Helvetica Neue', Arial, sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.55;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: inherit;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  font-family: inherit;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 24px;
+}

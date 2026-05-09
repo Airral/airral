@@ -1,0 +1,60 @@
+<aside class="right-rail">
+
+  <mat-card class="rail-card">
+    <mat-card-header>
+      <mat-card-title>Community Trends</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <mat-list class="trend-list">
+        <mat-list-item *ngFor="let topic of trendingTopics" class="trend-item">
+          <button mat-button (click)="editProfile.emit()" class="trend-btn">#{{ topic.name }}</button>
+          <span class="trend-count">{{ topic.posts }} posts</span>
+        </mat-list-item>
+      </mat-list>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="rail-card">
+    <mat-card-header>
+      <mat-card-title>Your Next Actions</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <mat-list class="action-list">
+        <mat-list-item *ngFor="let item of getPendingActionItems()" class="action-item">
+          <mat-icon matListItemIcon class="action-icon">arrow_right</mat-icon>
+          <span matListItemTitle class="action-text">{{ item }}</span>
+        </mat-list-item>
+      </mat-list>
+      <button mat-button color="primary" (click)="openJobsBoard.emit()" class="more-btn">Explore matching roles</button>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="rail-card boost-card">
+    <mat-card-content>
+      <div class="boost-content">
+        <mat-icon class="boost-icon">rocket_launch</mat-icon>
+        <h4>Career Boost</h4>
+        <p>Keep your profile complete and prep for upcoming interviews to stay ahead.</p>
+        <button mat-stroked-button (click)="editProfile.emit()" class="boost-btn">Improve profile</button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="rail-card">
+    <mat-card-header>
+      <mat-card-title>Live Sessions</mat-card-title>
+    </mat-card-header>
+    <mat-card-content class="sessions-content">
+      <div class="session-item" *ngFor="let session of liveSessions">
+        <div class="session-dot"></div>
+        <div>
+          <h4>{{ session.title }}</h4>
+          <p>{{ session.host }}</p>
+          <span class="session-time">{{ session.time }}</span>
+        </div>
+      </div>
+      <button mat-flat-button color="primary" (click)="editProfile.emit()" class="join-btn">Join a session</button>
+    </mat-card-content>
+  </mat-card>
+
+</aside>

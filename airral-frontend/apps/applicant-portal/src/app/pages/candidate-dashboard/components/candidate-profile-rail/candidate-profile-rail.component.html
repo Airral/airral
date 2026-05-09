@@ -1,0 +1,70 @@
+<aside class="left-rail" *ngIf="profile">
+
+  <mat-card class="profile-card">
+    <div class="profile-cover"></div>
+    <mat-card-header>
+      <div mat-card-avatar class="avatar">{{ getInitials() }}</div>
+      <mat-card-title>{{ profile.firstName }} {{ profile.lastName }}</mat-card-title>
+      <mat-card-subtitle>{{ profile.email }}</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <p class="profile-location" *ngIf="profile.location">
+        <mat-icon class="loc-icon">location_on</mat-icon>{{ profile.location }}
+      </p>
+
+      <div class="completion-wrap">
+        <div class="completion-label">
+          <span>Profile completion</span>
+          <strong class="completion-pct">{{ getProfileCompletion() }}%</strong>
+        </div>
+        <mat-progress-bar mode="determinate" [value]="getProfileCompletion()" class="profile-bar"></mat-progress-bar>
+      </div>
+
+      <mat-divider class="meta-divider"></mat-divider>
+
+      <div class="profile-meta">
+        <div class="meta-row">
+          <mat-icon class="meta-icon">phone</mat-icon>
+          <span>{{ profile.phone || 'Add phone' }}</span>
+        </div>
+        <div class="meta-row">
+          <mat-icon class="meta-icon">description</mat-icon>
+          <span>Resume {{ profile.resume ? 'Uploaded' : '— Missing' }}</span>
+        </div>
+      </div>
+    </mat-card-content>
+
+    <mat-card-actions align="start">
+      <button mat-flat-button color="primary" (click)="editProfile.emit()">Edit Profile</button>
+      <button mat-button (click)="logout.emit()">Sign out</button>
+    </mat-card-actions>
+  </mat-card>
+
+  <mat-card class="tracker-card">
+    <mat-card-header>
+      <mat-card-title>Your Tracker</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <strong>{{ applications.length }}</strong>
+          <span>Applied</span>
+        </div>
+        <div class="stat-item">
+          <strong>{{ getActiveApplicationsCount() }}</strong>
+          <span>Active</span>
+        </div>
+        <div class="stat-item">
+          <strong>{{ getInterviewCount() }}</strong>
+          <span>Interviews</span>
+        </div>
+        <div class="stat-item">
+          <strong>{{ getOfferCount() }}</strong>
+          <span>Offers</span>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+</aside>

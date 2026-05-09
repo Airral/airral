@@ -1,0 +1,68 @@
+<section class="panel">
+  <div *ngIf="error" class="empty-state">
+    <p>{{ error }}</p>
+  </div>
+
+  <div *ngIf="!error">
+  <header class="head">
+    <div>
+      <h1>Employee Referrals</h1>
+      <p>Track your submitted referrals and monitor progress in the hiring funnel.</p>
+    </div>
+    <button type="button" class="btn-submit">+ Submit Referral</button>
+  </header>
+
+  <!-- Summary Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <span class="stat-label">Total Referrals</span>
+      <strong class="stat-value">{{ allReferrals.length }}</strong>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Active Referrals</span>
+      <strong class="stat-value">{{ allReferrals.filter(r => !['Hired', 'Declined'].includes(r.status)).length }}</strong>
+    </div>
+    <div class="stat-card success">
+      <span class="stat-label">Successfully Hired</span>
+      <strong class="stat-value">{{ allReferrals.filter(r => r.status === 'Hired').length }}</strong>
+    </div>
+    <div class="stat-card earnings">
+      <span class="stat-label">Total Earnings</span>
+      <strong class="stat-value">${{ totalEarnings.toLocaleString() }}</strong>
+    </div>
+    <div class="stat-card pending">
+      <span class="stat-label">Pending Earnings</span>
+      <strong class="stat-value">${{ pendingEarnings.toLocaleString() }}</strong>
+    </div>
+  </div>
+
+  <!-- Filter -->
+  <div class="filter-section">
+    <label>Filter by status:</label>
+    <select [(ngModel)]="filterStatus" class="filter-select">
+      <option *ngFor="let status of statusOptions" [value]="status">{{ status }}</option>
+    </select>
+  </div>
+
+  <!-- Referrals List -->
+  <div class="referrals-list">
+    <article *ngFor="let item of referrals" class="referral-card">
+      <div class="card-header">
+        <div>
+          <h3>{{ item.candidate }}</h3>
+          <p class="role">{{ item.role }} · {{ item.department }}</p>
+        </div>
+        <span [class]="getStatusClass(item.status)" class="status-badge">{{ item.status }}</span>
+      </div>
+      <div class="card-footer">
+        <span class="submitted-date">Submitted: {{ item.submittedDate }}</span>
+        <strong class="reward" [class.earned]="item.status === 'Hired'">{{ item.reward }} reward</strong>
+      </div>
+    </article>
+
+    <div *ngIf="referrals.length === 0" class="empty-state">
+      <p>No referrals found with status "{{ filterStatus }}"</p>
+    </div>
+  </div>
+  </div>
+</section>

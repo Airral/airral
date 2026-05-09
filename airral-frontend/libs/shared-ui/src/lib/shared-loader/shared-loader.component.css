@@ -1,0 +1,35 @@
+.shared-loader {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+  background: linear-gradient(90deg, #e5e7eb 0%, #f3f4f6 50%, #e5e7eb 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.skeleton-line:last-of-type {
+  margin-bottom: 0;
+}
+
+.loading-message {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

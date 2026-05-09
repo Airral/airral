@@ -1,0 +1,95 @@
+<main class="company-feed">
+  <mat-card class="composer-card">
+    <mat-card-content>
+      <div class="composer-top">
+        <div class="composer-avatar">{{ viewerName.charAt(0) }}</div>
+        <button mat-stroked-button class="composer-trigger" (click)="openProfile.emit()">Share with Community</button>
+      </div>
+
+      <div class="composer-actions">
+        <button mat-button class="compose-btn" (click)="openProfile.emit()">
+          <mat-icon>smart_display</mat-icon>
+          Quick Clip
+        </button>
+        <button mat-button class="compose-btn" (click)="openProfile.emit()">
+          <mat-icon>image</mat-icon>
+          Snapshot
+        </button>
+        <button mat-button class="compose-btn" (click)="openProfile.emit()">
+          <mat-icon>article</mat-icon>
+          Career Note
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <div class="sort-row">
+    <mat-divider></mat-divider>
+    <button mat-button>
+      View: <strong>AIRRAL Pulse</strong>
+      <mat-icon>expand_more</mat-icon>
+    </button>
+  </div>
+
+  <mat-card *ngFor="let post of companyPosts" class="feed-card">
+    <mat-card-content>
+      <header class="post-head">
+        <div class="post-avatar">{{ post.company.charAt(0) }}</div>
+        <div class="post-copy">
+          <h3>{{ post.company }}</h3>
+          <p>{{ post.headline }}</p>
+          <span>{{ post.timeAgo }} · {{ post.topic }}</span>
+        </div>
+        <button mat-icon-button class="head-action" aria-label="More post options">
+          <mat-icon>more_horiz</mat-icon>
+        </button>
+      </header>
+
+      <p class="post-content">{{ post.content }}</p>
+
+      <div class="post-preview">
+        <div class="preview-chart"></div>
+        <div>
+          <h4>Role Spotlight by {{ post.company }}</h4>
+          <p>Company Signal: what teams are building and where hiring is accelerating.</p>
+          <button mat-button color="primary" (click)="openJobsBoard.emit()">Explore roles</button>
+        </div>
+      </div>
+
+      <div class="post-meta">
+        <span>{{ post.likes }} useful signals</span>
+        <span>{{ post.comments }} community responses</span>
+        <span>{{ post.reposts }} people following</span>
+      </div>
+
+      <mat-divider></mat-divider>
+
+      <div class="post-actions">
+        <button mat-button class="action-btn" [class.active]="post.selectedReaction === 'useful'" (click)="toggleReaction(post.id, 'useful')">
+          <mat-icon>thumb_up</mat-icon>
+          Useful
+        </button>
+        <button mat-button class="action-btn" [class.active]="post.selectedReaction === 'inspiring'" (click)="toggleReaction(post.id, 'inspiring')">
+          <mat-icon>lightbulb</mat-icon>
+          Inspiring
+        </button>
+        <button mat-button class="action-btn" [class.active]="post.selectedReaction === 'practical'" (click)="toggleReaction(post.id, 'practical')">
+          <mat-icon>rule</mat-icon>
+          Practical
+        </button>
+        <button mat-button class="action-btn">
+          <mat-icon>bookmark</mat-icon>
+          Save Role
+        </button>
+        <button mat-button class="action-btn">
+          <mat-icon>forum</mat-icon>
+          Ask Recruiter
+        </button>
+        <button mat-button class="action-btn">
+          <mat-icon>add_circle_outline</mat-icon>
+          Follow Company
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</main>

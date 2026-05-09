@@ -1,0 +1,84 @@
+<airral-header
+  [links]="headerLinks"
+  [ctas]="headerCtas">
+</airral-header>
+
+<main>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-content">
+      <h1>Building the Future of Hiring</h1>
+      <p class="hero-subtitle">We're on a mission to make hiring fairer, faster, and more human.</p>
+    </div>
+  </section>
+
+  <!-- Mission -->
+  <section class="mission-section">
+    <div class="container">
+      <div class="mission-card">
+        <h2>Our Mission</h2>
+        <p class="mission-statement">{{ mission }}</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Values -->
+  <section class="values-section">
+    <div class="container">
+      <h2>Our Core Values</h2>
+      <div class="values-grid">
+        <div class="value-card" *ngFor="let value of values">
+          <h3>{{ value.title }}</h3>
+          <p>{{ value.description }}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Timeline -->
+  <section class="timeline-section">
+    <div class="container">
+      <h2>Our Journey</h2>
+      <div class="timeline">
+        <div class="timeline-item" *ngFor="let milestone of milestones">
+          <div class="timeline-marker">{{ milestone.year }}</div>
+          <div class="timeline-content">
+            <p>{{ milestone.event }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Team -->
+  <section class="team-section">
+    <div class="container">
+      <h2>Meet the Team</h2>
+      <div class="team-grid">
+        <div class="team-card" *ngFor="let member of team">
+          <img *ngIf="member.image" [src]="member.image" [alt]="member.name" class="team-image" />
+          <div class="team-avatar" *ngIf="!member.image">{{ member.name.charAt(0) }}</div>
+          <h3>{{ member.name }}</h3>
+          <p class="team-role">{{ member.role }}</p>
+          <p class="team-bio">{{ member.bio }}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-card">
+        <h2>Ready to Join Our Team?</h2>
+        <p>We're always looking for talented people to help us revolutionize hiring.</p>
+        <div class="cta-actions">
+          <a routerLink="/apply" class="btn btn-primary">Explore Opportunities</a>
+          <a routerLink="/contact" class="btn btn-secondary">Get in Touch</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<airral-footer></airral-footer>

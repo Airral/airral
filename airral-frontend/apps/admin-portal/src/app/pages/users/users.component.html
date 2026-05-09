@@ -1,0 +1,97 @@
+<div class="admin-users">
+  <div class="page-header">
+    <h1>User Management 👥</h1>
+    <button (click)="showCreateForm = !showCreateForm" class="btn-primary">+ Add User</button>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-box">
+      <h4>{{ users.length }}</h4>
+      <p>Total Users</p>
+    </div>
+    <div class="stat-box">
+      <h4>{{ activeUsersCount }}</h4>
+      <p>Active Users</p>
+    </div>
+    <div class="stat-box">
+      <h4>{{ hrUsersCount }}</h4>
+      <p>HR Managers</p>
+    </div>
+  </div>
+
+  <div class="table-controls">
+    <input
+      type="search"
+      [(ngModel)]="searchTerm"
+      placeholder="Search by name or email"
+      class="search-input"
+    />
+
+    <select [(ngModel)]="selectedRole" class="role-filter">
+      <option value="ALL">All roles</option>
+      <option value="ADMIN">Admin</option>
+      <option value="HR_MANAGER">HR Manager</option>
+      <option value="APPLICANT">Applicant</option>
+    </select>
+  </div>
+
+  <div *ngIf="showCreateForm" class="create-form">
+    <h3>Create New User</h3>
+    <div class="form-group">
+      <label>Email:</label>
+      <input type="email" [(ngModel)]="newUser.email" placeholder="user@example.com">
+    </div>
+    <div class="form-group">
+      <label>Name:</label>
+      <input type="text" [(ngModel)]="newUser.name" placeholder="Full Name">
+    </div>
+    <div class="form-group">
+      <label>Role:</label>
+      <select [(ngModel)]="newUser.role">
+        <option value="APPLICANT">Applicant</option>
+        <option value="HR_MANAGER">HR Manager</option>
+        <option value="ADMIN">Admin</option>
+      </select>
+    </div>
+    <div class="form-actions">
+      <button (click)="createUser()" class="btn-success">Create</button>
+      <button (click)="showCreateForm = false" class="btn-secondary">Cancel</button>
+    </div>
+  </div>
+
+  <div class="users-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Name</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let user of filteredUsers" [class.inactive]="!user.active">
+          <td>{{ user.email }}</td>
+          <td>{{ user.name }}</td>
+          <td>
+            <span class="role-badge" [ngClass]="user.role.toLowerCase()">
+              {{ user.role }}
+            </span>
+          </td>
+          <td>
+            <span class="status" [ngClass]="user.active ? 'active' : 'inactive'">
+              {{ user.active ? 'Active' : 'Inactive' }}
+            </span>
+          </td>
+          <td class="actions">
+            <button (click)="toggleUserActive(user.id)" class="btn-toggle">
+              {{ user.active ? 'Disable' : 'Enable' }}
+            </button>
+            <button (click)="deleteUser(user.id)" class="btn-delete">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

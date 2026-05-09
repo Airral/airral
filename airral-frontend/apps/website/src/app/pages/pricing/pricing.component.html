@@ -1,0 +1,97 @@
+<airral-header
+  [links]="headerLinks"
+  [ctas]="headerCtas">
+</airral-header>
+
+<main>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-content">
+      <h1>Simple, Transparent Pricing</h1>
+      <p class="hero-subtitle">No hidden fees. No surprises. Scale as you grow.</p>
+    </div>
+  </section>
+
+  <div class="container">
+    <!-- Pricing Grid -->
+    <section class="pricing-section">
+      <div class="pricing-grid">
+        <div class="pricing-card" *ngFor="let plan of plans" [class.highlighted]="plan.highlighted">
+          <div *ngIf="plan.popular" class="popular-badge">Most Popular</div>
+          <h3>{{ plan.name }}</h3>
+          <div class="price">
+            {{ plan.price }}<span class="period">{{ plan.period }}</span>
+          </div>
+          <p class="plan-description">{{ plan.description }}</p>
+          <ul class="features-list">
+            <li *ngFor="let feature of plan.features">✓ {{ feature }}</li>
+          </ul>
+          <a href="#" class="btn btn-primary">{{ plan.cta }}</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Comparison -->
+    <section class="comparison-section">
+      <h2>Compare Plans</h2>
+      <div class="comparison-table">
+        <div class="table-header">
+          <div class="feature-name">Feature</div>
+          <div class="plan-col">Starter</div>
+          <div class="plan-col">Professional</div>
+          <div class="plan-col">Enterprise</div>
+        </div>
+        <div class="table-row">
+          <div class="feature-name">Applications per month</div>
+          <div>5</div>
+          <div>Unlimited</div>
+          <div>Unlimited</div>
+        </div>
+        <div class="table-row">
+          <div class="feature-name">Resume Builder</div>
+          <div>-</div>
+          <div>✓</div>
+          <div>✓</div>
+        </div>
+        <div class="table-row">
+          <div class="feature-name">Interview Prep</div>
+          <div>-</div>
+          <div>✓</div>
+          <div>✓</div>
+        </div>
+        <div class="table-row">
+          <div class="feature-name">Application Tracking</div>
+          <div>-</div>
+          <div>✓</div>
+          <div>✓</div>
+        </div>
+        <div class="table-row">
+          <div class="feature-name">Support</div>
+          <div>Email</div>
+          <div>Priority Email</div>
+          <div>24/7 Phone</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQs -->
+    <section class="faq-section">
+      <h2>Frequently Asked Questions</h2>
+      <div class="faq-list">
+        <details class="faq-item" *ngFor="let faq of faqs">
+          <summary>{{ faq.question }}</summary>
+          <p>{{ faq.answer }}</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+      <h2>Ready to Get Started?</h2>
+      <p>Join thousands of users finding their perfect fit on AIRRAL.</p>
+      <a routerLink="/apply" class="btn btn-primary">Start Free</a>
+    </section>
+  </div>
+</main>
+
+<airral-footer></airral-footer>

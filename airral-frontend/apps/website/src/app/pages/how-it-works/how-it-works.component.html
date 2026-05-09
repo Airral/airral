@@ -1,0 +1,79 @@
+<airral-header
+  [links]="headerLinks"
+  [ctas]="headerCtas">
+</airral-header>
+
+<main>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-content">
+      <h1>How AIRRAL Works</h1>
+      <p class="hero-subtitle">Whether you're looking for your dream job or building the perfect team, we make the process simple and transparent.</p>
+    </div>
+  </section>
+
+  <div class="container">
+    <!-- For Candidates -->
+    <section class="process-section">
+      <h2>For Job Seekers</h2>
+      <p class="section-subtitle">Find work that matches your passion and skills</p>
+      <div class="steps-container">
+        <div class="process-step" *ngFor="let step of candidateSteps; let i = index">
+          <div class="step-badge">{{ step.number }}</div>
+          <h3>{{ step.title }}</h3>
+          <p>{{ step.description }}</p>
+          <div class="arrow" *ngIf="i < candidateSteps.length - 1">↓</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- For Employers -->
+    <section class="process-section">
+      <h2>For Employers</h2>
+      <p class="section-subtitle">Build great teams with less effort</p>
+      <div class="steps-container">
+        <div class="process-step" *ngFor="let step of employerSteps; let i = index">
+          <div class="step-badge">{{ step.number }}</div>
+          <h3>{{ step.title }}</h3>
+          <p>{{ step.description }}</p>
+          <div class="arrow" *ngIf="i < employerSteps.length - 1">↓</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Features -->
+    <section class="features-section">
+      <h2>What Makes AIRRAL Different</h2>
+      <div class="features-grid">
+        <div class="feature-item">
+          <h3>🧠 AI-Powered Matching</h3>
+          <p>Our machine learning algorithm learns from successful hires to find better matches every time.</p>
+        </div>
+        <div class="feature-item">
+          <h3>⚡ Lightning Fast</h3>
+          <p>What traditionally takes months now takes weeks. Speed without sacrificing quality.</p>
+        </div>
+        <div class="feature-item">
+          <h3>🤝 Built for Collaboration</h3>
+          <p>Real-time communication tools keep everyone aligned throughout the hiring process.</p>
+        </div>
+        <div class="feature-item">
+          <h3>📊 Data-Driven Insights</h3>
+          <p>Analytics and dashboards give you full visibility into your hiring pipeline.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+      <h2>Ready to Get Started?</h2>
+      <p>Join thousands of job seekers and employers using AIRRAL every day.</p>
+      <div class="cta-buttons">
+        <a routerLink="/apply" class="btn btn-primary">I'm Looking for Work</a>
+        <a routerLink="/for-employers" class="btn btn-secondary">I'm Hiring</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<airral-footer></airral-footer>

@@ -1,0 +1,152 @@
+<div class="benefits-container">
+  <div class="benefits-header">
+    <div>
+      <h1>My Benefits</h1>
+      <p class="subtitle">View your health insurance, retirement, PTO, and perks</p>
+    </div>
+  </div>
+
+  <div *ngIf="!benefits" class="loading-state">
+    Benefits data is not available yet because there is no backend benefits endpoint connected for this page.
+  </div>
+
+  <div *ngIf="benefits" class="benefits-content">
+
+    <!-- Health Insurance -->
+    <section class="benefit-section">
+      <h2>🏥 Health Insurance</h2>
+      <div class="benefit-card">
+        <div class="benefit-row">
+          <div class="benefit-detail">
+            <label>Plan</label>
+            <p>{{ benefits.healthInsurance.name }}</p>
+          </div>
+          <div class="benefit-detail">
+            <label>Provider</label>
+            <p>{{ benefits.healthInsurance.provider }}</p>
+          </div>
+          <div class="benefit-detail">
+            <label>Coverage</label>
+            <p>{{ benefits.healthInsurance.coverage }}</p>
+          </div>
+          <div class="benefit-detail">
+            <label>Status</label>
+            <p><span class="status-badge active">{{ benefits.healthInsurance.status }}</span></p>
+          </div>
+        </div>
+        <div class="cost-breakdown">
+          <div class="cost-item">
+            <span>Monthly Premium:</span>
+            <strong>${{ benefits.healthInsurance.premium }}</strong>
+          </div>
+          <div class="cost-item employer">
+            <span>Employer Contribution:</span>
+            <strong>-${{ benefits.healthInsurance.employerContribution }}</strong>
+          </div>
+          <div class="cost-item total">
+            <span>Your Cost:</span>
+            <strong>${{ benefits.healthInsurance.premium - benefits.healthInsurance.employerContribution }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dental & Vision -->
+      <div class="insurance-grid">
+        <div class="insurance-mini">
+          <h3>🦷 Dental</h3>
+          <p class="provider">{{ benefits.dentalInsurance.provider }}</p>
+          <p class="coverage">{{ benefits.dentalInsurance.coverage }}</p>
+          <p class="cost">Fully paid by employer</p>
+        </div>
+        <div class="insurance-mini">
+          <h3>👁️ Vision</h3>
+          <p class="provider">{{ benefits.visionInsurance.provider }}</p>
+          <p class="coverage">{{ benefits.visionInsurance.coverage }}</p>
+          <p class="cost">Fully paid by employer</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Retirement -->
+    <section class="benefit-section">
+      <h2>💰 Retirement (401k)</h2>
+      <div class="benefit-card">
+        <div class="retirement-summary">
+          <div class="balance-display">
+            <label>Current Balance</label>
+            <h3>${{ benefits.retirement.currentBalance.toLocaleString() }}</h3>
+            <p class="ytd">YTD Contributions: ${{ benefits.retirement.ytdContributions.toLocaleString() }}</p>
+          </div>
+          <div class="contribution-grid">
+            <div class="contribution-item">
+              <span>Your Contribution</span>
+              <strong>{{ benefits.retirement.employeeContribution }}%</strong>
+            </div>
+            <div class="contribution-item">
+              <span>Employer Match</span>
+              <strong>{{ benefits.retirement.employerMatch }}%</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PTO -->
+    <section class="benefit-section">
+      <h2>🏖️ Time Off (PTO)</h2>
+      <div class="pto-grid">
+        <div *ngFor="let pto of benefits.ptoBalances" class="pto-card">
+          <h3>{{ pto.type }}</h3>
+          <div class="pto-stats">
+            <div class="pto-stat">
+              <label>Accrued</label>
+              <p>{{ pto.accrued }} days</p>
+            </div>
+            <div class="pto-stat">
+              <label>Used</label>
+              <p>{{ pto.used }} days</p>
+            </div>
+            <div class="pto-stat balance">
+              <label>Balance</label>
+              <p class="balance-value">{{ pto.balance }} days</p>
+            </div>
+          </div>
+          <div class="pto-bar">
+            <div class="pto-used" [style.width.%]="(pto.used / pto.accrued) * 100"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Perks -->
+    <section class="benefit-section">
+      <h2>✨ Company Perks</h2>
+      <div class="benefit-card">
+        <div class="perks-grid">
+          <div *ngFor="let perk of benefits.perks" class="perk-item">
+            <span class="perk-icon">✓</span>
+            <span>{{ perk }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pro Tier Upgrade Prompt (if Free tier) -->
+    <section *ngIf="!isPro" class="upgrade-prompt">
+      <div class="upgrade-content">
+        <h3>🔒 Unlock Advanced Benefits Tracking</h3>
+        <p>Upgrade to Professional to access:</p>
+        <ul>
+          <li>Benefits enrollment wizard</li>
+          <li>Healthcare cost calculator</li>
+          <li>Retirement planning tools</li>
+          <li>Benefit comparison charts</li>
+        </ul>
+        <button class="btn-upgrade" (click)="tierGuard.showUpgradePrompt('pro')">
+          Upgrade to Pro
+        </button>
+      </div>
+    </section>
+
+  </div>
+</div>

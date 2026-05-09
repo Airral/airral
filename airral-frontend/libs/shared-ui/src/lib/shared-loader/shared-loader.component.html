@@ -1,0 +1,4 @@
+<div class="shared-loader" role="status" aria-live="polite">
+  <div class="skeleton-line" *ngFor="let width of widths" [style.width.%]="width"></div>
+  <p class="loading-message">{{ message }}</p>
+</div>

@@ -1,0 +1,115 @@
+<div *ngIf="visible && application" class="modal-overlay" (click)="close.emit()">
+  <div class="modal-shell" (click)="$event.stopPropagation()">
+    <mat-card class="modal-card">
+      <mat-card-header>
+        <mat-card-title>{{ application.jobTitle }}</mat-card-title>
+        <mat-card-subtitle>{{ application.department }}</mat-card-subtitle>
+        <button mat-icon-button class="close-btn" (click)="close.emit()" aria-label="Close details">
+          <mat-icon>close</mat-icon>
+        </button>
+      </mat-card-header>
+
+      <mat-card-content>
+        <section class="section-block">
+          <h3>Application Status</h3>
+          <div class="status-timeline">
+            <div class="timeline-item completed">
+              <mat-icon class="timeline-icon">check_circle</mat-icon>
+              <div>
+                <p class="timeline-label">Submitted</p>
+                <p class="timeline-date">{{ formatDate(application.appliedAt) }}</p>
+              </div>
+            </div>
+            <div class="timeline-item" [class.completed]="application.status !== 'Application Received'">
+              <mat-icon class="timeline-icon">hourglass_top</mat-icon>
+              <p class="timeline-label">Under Review</p>
+            </div>
+            <div class="timeline-item" [class.completed]="application.status === 'Offer Extended' || application.status === 'Offer Accepted'">
+              <mat-icon class="timeline-icon">record_voice_over</mat-icon>
+              <p class="timeline-label">Interview</p>
+            </div>
+            <div class="timeline-item" [class.completed]="application.status === 'Offer Accepted'">
+              <mat-icon class="timeline-icon">workspace_premium</mat-icon>
+              <p class="timeline-label">Offer</p>
+            </div>
+          </div>
+        </section>
+
+        <mat-divider></mat-divider>
+
+        <section class="section-block">
+          <h3>Next Step</h3>
+          <p class="next-step-text">{{ application.nextStep }}</p>
+          <p *ngIf="application.nextStepDate" class="next-step-date">Expected: {{ formatDate(application.nextStepDate) }}</p>
+        </section>
+
+        <mat-divider *ngIf="application.interviews.length > 0"></mat-divider>
+
+        <section *ngIf="application.interviews.length > 0" class="section-block">
+          <h3>Interview Schedule</h3>
+          <div *ngFor="let interview of application.interviews" class="interview-detail">
+            <div class="interview-top">
+              <strong>{{ interview.stage }}</strong>
+              <mat-chip-set>
+                <mat-chip [class]="'status-chip ' + interview.status.toLowerCase()">{{ interview.status }}</mat-chip>
+              </mat-chip-set>
+            </div>
+            <p *ngIf="interview.scheduledDate" class="interview-line">
+              <mat-icon>event</mat-icon>
+              {{ formatDate(interview.scheduledDate) }}
+            </p>
+            <p *ngIf="interview.feedback" class="interview-line">
+              <mat-icon>chat_bubble_outline</mat-icon>
+              {{ interview.feedback }}
+            </p>
+          </div>
+        </section>
+
+        <mat-divider *ngIf="application.currentOffer"></mat-divider>
+
+        <section *ngIf="application.currentOffer" class="section-block offer-section">
+          <h3>Offer Details</h3>
+          <div class="offer-grid">
+            <div class="offer-row">
+              <span class="label">Position</span>
+              <span>{{ application.currentOffer.jobTitle }}</span>
+            </div>
+            <div class="offer-row">
+              <span class="label">Salary</span>
+              <strong class="salary">{{ formatCurrency(application.currentOffer.salary, application.currentOffer.currency) }}</strong>
+            </div>
+            <div class="offer-row">
+              <span class="label">Start Date</span>
+              <span>{{ formatDate(application.currentOffer.startDate) }}</span>
+            </div>
+            <div class="offer-row">
+              <span class="label">Status</span>
+              <mat-chip [class]="'status-chip ' + application.currentOffer.status.toLowerCase()">
+                {{ application.currentOffer.status }}
+              </mat-chip>
+            </div>
+            <div class="offer-row" *ngIf="application.currentOffer.status === 'SENT'">
+              <span class="label">Response By</span>
+              <span>{{ formatDate(application.currentOffer.acceptanceDeadline) }}</span>
+            </div>
+          </div>
+
+          <div *ngIf="application.currentOffer.status === 'SENT'" class="offer-actions">
+            <button mat-flat-button color="primary" (click)="acceptOffer.emit(application)">
+              <mat-icon>check</mat-icon>
+              Accept Offer
+            </button>
+            <button mat-stroked-button color="warn" (click)="declineOffer.emit(application)">
+              <mat-icon>close</mat-icon>
+              Decline Offer
+            </button>
+          </div>
+        </section>
+      </mat-card-content>
+
+      <mat-card-actions align="end">
+        <button mat-button (click)="close.emit()">Close</button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</div>

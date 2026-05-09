@@ -1,0 +1,148 @@
+<div class="profile-container">
+  <div class="profile-header">
+    <div>
+      <h1>My Profile</h1>
+      <p class="subtitle">View and manage your personal information</p>
+    </div>
+    <div class="header-actions">
+      <button *ngIf="!editing" (click)="toggleEdit()" class="btn-edit">
+        ✏️ Edit Profile
+      </button>
+      <button *ngIf="editing" (click)="saveProfile()" class="btn-save">
+        💾 Save Changes
+      </button>
+      <button *ngIf="editing" (click)="cancelEdit()" class="btn-cancel">
+        Cancel
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="profile" class="profile-content">
+
+    <!-- Personal Information -->
+    <section class="profile-section">
+      <h2>Personal Information</h2>
+      <div class="info-grid">
+        <div class="info-field">
+          <label>First Name</label>
+          <input
+            *ngIf="editing"
+            [(ngModel)]="profile.firstName"
+            type="text"
+            class="form-input"
+          />
+          <p *ngIf="!editing" class="info-value">{{ profile.firstName }}</p>
+        </div>
+
+        <div class="info-field">
+          <label>Last Name</label>
+          <input
+            *ngIf="editing"
+            [(ngModel)]="profile.lastName"
+            type="text"
+            class="form-input"
+          />
+          <p *ngIf="!editing" class="info-value">{{ profile.lastName }}</p>
+        </div>
+
+        <div class="info-field">
+          <label>Email</label>
+          <input
+            *ngIf="editing"
+            [(ngModel)]="profile.email"
+            type="email"
+            class="form-input"
+          />
+          <p *ngIf="!editing" class="info-value">{{ profile.email }}</p>
+        </div>
+
+        <div class="info-field">
+          <label>Phone</label>
+          <input
+            *ngIf="editing"
+            [(ngModel)]="profile.phone"
+            type="tel"
+            class="form-input"
+          />
+          <p *ngIf="!editing" class="info-value">{{ profile.phone }}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Employment Information -->
+    <section class="profile-section">
+      <h2>Employment Information</h2>
+      <div class="info-grid">
+        <div class="info-field">
+          <label>Job Title</label>
+          <p class="info-value">{{ profile.jobTitle }}</p>
+        </div>
+
+        <div class="info-field">
+          <label>Department</label>
+          <p class="info-value">{{ profile.department }}</p>
+        </div>
+
+        <div class="info-field">
+          <label>Manager</label>
+          <p class="info-value">{{ profile.manager }}</p>
+        </div>
+
+        <div class="info-field">
+          <label>Employment Type</label>
+          <p class="info-value">{{ profile.employmentType }}</p>
+        </div>
+
+        <div class="info-field">
+          <label>Start Date</label>
+          <p class="info-value">{{ profile.startDate }}</p>
+        </div>
+
+        <div class="info-field">
+          <label>Location</label>
+          <p class="info-value">{{ profile.location }}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Emergency Contact -->
+    <section class="profile-section">
+      <h2>Emergency Contact</h2>
+      <div class="info-grid">
+        <div class="info-field">
+          <label>Contact Name</label>
+          <input
+            *ngIf="editing"
+            [(ngModel)]="profile.emergencyContact.name"
+            type="text"
+            class="form-input"
+          />
+          <p *ngIf="!editing" class="info-value">{{ profile.emergencyContact.name }}</p>
+        </div>
+
+        <div class="info-field">
+          <label>Relationship</label>
+          <input
+            *ngIf="editing"
+            [(ngModel)]="profile.emergencyContact.relationship"
+            type="text"
+            class="form-input"
+          />
+          <p *ngIf="!editing" class="info-value">{{ profile.emergencyContact.relationship }}</p>
+        </div>
+
+        <div class="info-field">
+          <label>Contact Phone</label>
+          <input
+            *ngIf="editing"
+            [(ngModel)]="profile.emergencyContact.phone"
+            type="tel"
+            class="form-input"
+          />
+          <p *ngIf="!editing" class="info-value">{{ profile.emergencyContact.phone }}</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>

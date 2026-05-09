@@ -1,0 +1,19 @@
+<section class="panel">
+  <h1>Workspace Settings</h1>
+  <p>Configure hiring workflows, permissions, and integrations for your HR team.</p>
+
+  <div class="settings-section">
+    <app-tier-settings></app-tier-settings>
+  </div>
+
+  <div class="stack">
+    <h2>Advanced Configuration</h2>
+    <article *ngFor="let section of sections">
+      <div>
+        <h3>{{ section.title }}</h3>
+        <p>{{ section.description }}</p>
+      </div>
+      <button type="button" (click)="configure(section)">Configure</button>
+    </article>
+  </div>
+</section>

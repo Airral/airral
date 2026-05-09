@@ -1,0 +1,102 @@
+<airral-header
+  [links]="headerLinks"
+  [ctas]="headerCtas">
+</airral-header>
+
+<main>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-content">
+      <h1>Hire the Best Talent, Faster</h1>
+      <p class="hero-subtitle">Stop wasting time with recruiting agencies. Use AI-powered matching to find perfect candidates in days, not months.</p>
+      <div class="hero-cta">
+        <a routerLink="/sign-up" class="btn btn-primary">Start Free Trial</a>
+        <a routerLink="/contact" class="btn btn-secondary">Schedule Demo</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="container">
+    <!-- Benefits -->
+    <section class="benefits-section">
+      <h2>Why Choose AIRRAL for Hiring?</h2>
+      <div class="benefits-grid">
+        <div class="benefit-card" *ngFor="let benefit of benefits">
+          <div class="benefit-icon">{{ benefit.icon }}</div>
+          <h3>{{ benefit.title }}</h3>
+          <p>{{ benefit.description }}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works for Employers -->
+    <section class="how-it-works-section">
+      <h2>Hiring Made Simple</h2>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">1</div>
+          <h3>Post a Job</h3>
+          <p>Write a job description. Our AI learns what you're looking for and finds similar candidates automatically.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">2</div>
+          <h3>Get Matches</h3>
+          <p>Review pre-screened, qualified candidates ranked by fit. No more sifting through hundreds of resumes.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">3</div>
+          <h3>Collaborate & Decide</h3>
+          <p>Use our tools to interview, evaluate, and decide as a team. Hire the best in record time.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="pricing-section">
+      <h2>Simple, Transparent Pricing</h2>
+      <p class="pricing-subtitle">No setup fees. No hidden charges. Scale as you grow.</p>
+      <div class="pricing-grid">
+        <div class="pricing-card" *ngFor="let plan of plans" [class.highlighted]="plan.highlighted">
+          <h3>{{ plan.name }}</h3>
+          <div class="price">{{ plan.price }}<span class="period">{{ plan.period }}</span></div>
+          <p class="plan-description">{{ plan.description }}</p>
+          <ul class="features-list">
+            <li *ngFor="let feature of plan.features">✓ {{ feature }}</li>
+          </ul>
+          <a href="#" class="btn btn-plan">{{ plan.cta }}</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats-section">
+      <div class="stat">
+        <div class="stat-value">50K+</div>
+        <div class="stat-label">Companies Hiring</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">500K+</div>
+        <div class="stat-label">Positions Filled</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">92%</div>
+        <div class="stat-label">Hiring Success Rate</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">14 days</div>
+        <div class="stat-label">Average Time to Hire</div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+      <div class="cta-card">
+        <h2>Ready to Transform Your Hiring?</h2>
+        <p>Join 50,000+ companies using AIRRAL to build better teams.</p>
+        <a routerLink="/sign-up" class="btn btn-primary">Start Your Free Trial Today</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<airral-footer></airral-footer>

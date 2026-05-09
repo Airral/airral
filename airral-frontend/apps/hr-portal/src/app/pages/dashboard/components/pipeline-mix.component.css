@@ -1,0 +1,34 @@
+.activity-panel {
+  background: #ffffff;
+  border: 1px solid #dbe9e0;
+  border-radius: 14px;
+  padding-bottom: 10px;
+}
+
+.section-head {
+  padding: 14px;
+  border-bottom: 1px solid #eef4f0;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #123226;
+}
+
+.mix-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f6f2;
+}
+
+.mix-row span {
+  color: #4e6e5f;
+  font-size: 13px;
+}
+
+.mix-row strong {
+  color: #143427;
+}

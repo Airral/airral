@@ -1,0 +1,134 @@
+<div class="settings-container">
+  <div class="settings-header">
+    <div>
+      <h1>Hiring Stages</h1>
+      <p>Configure your hiring pipeline stages and customize the candidate journey</p>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-cards">
+    <div class="summary-card">
+      <span class="label">Active Stages</span>
+      <strong class="value">{{ activeStagesCount }}</strong>
+    </div>
+    <div class="summary-card">
+      <span class="label">Total Pipeline Duration</span>
+      <strong class="value">{{ totalPipelineDays }} days</strong>
+    </div>
+    <div class="summary-card">
+      <span class="label">Approval Gates</span>
+      <strong class="value">{{ stages.filter(s => s.requiresApproval).length }}</strong>
+    </div>
+  </div>
+
+  <!-- Stages List -->
+  <div class="stages-list">
+    <div *ngFor="let stage of stages; let i = index" class="stage-card" [class.inactive]="!stage.isActive">
+      <div class="stage-order">
+        <div class="order-controls">
+          <button
+            class="order-btn"
+            (click)="moveUp(stage)"
+            [disabled]="i === 0"
+            title="Move up">
+            ▲
+          </button>
+          <span class="order-number">{{ stage.order }}</span>
+          <button
+            class="order-btn"
+            (click)="moveDown(stage)"
+            [disabled]="i === stages.length - 1"
+            title="Move down">
+            ▼
+          </button>
+        </div>
+      </div>
+
+      <div class="stage-content">
+        <div class="stage-info">
+          <div class="stage-name-row">
+            <h3>{{ stage.name }}</h3>
+            <div class="stage-badges">
+              <span *ngIf="stage.requiresApproval" class="badge approval">Requires Approval</span>
+              <span *ngIf="!stage.isActive" class="badge inactive-badge">Inactive</span>
+            </div>
+          </div>
+          <p class="stage-description">{{ stage.description }}</p>
+          <div class="stage-meta">
+            <span class="meta-item">⏱️ {{ stage.duration }} days</span>
+          </div>
+        </div>
+
+        <div class="stage-actions">
+          <button class="btn-icon" (click)="editStage(stage)" title="Edit stage">
+            ✏️
+          </button>
+          <label class="toggle-switch">
+            <input
+              type="checkbox"
+              [checked]="stage.isActive"
+              (change)="toggleStage(stage)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div *ngIf="editMode && editingStage" class="modal-overlay" (click)="cancelEdit()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Edit Stage</h2>
+        <button class="btn-close" (click)="cancelEdit()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Stage Name</label>
+          <input
+            type="text"
+            [(ngModel)]="editingStage.name"
+            class="form-input"
+            placeholder="e.g., Phone Screen">
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+          <textarea
+            [(ngModel)]="editingStage.description"
+            class="form-textarea"
+            rows="3"
+            placeholder="Describe what happens in this stage"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Duration (days)</label>
+            <input
+              type="number"
+              [(ngModel)]="editingStage.duration"
+              class="form-input"
+              min="1"
+              max="30">
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                [(ngModel)]="editingStage.requiresApproval">
+              <span>Requires approval to proceed</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="cancelEdit()">Cancel</button>
+        <button class="btn-save" (click)="saveStageEdit()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>

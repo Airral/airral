@@ -1,0 +1,53 @@
+<section class="review-panel">
+  <div class="review-top">
+    <h2>Application Review Board</h2>
+    <div class="filters">
+      <button
+        *ngFor="let filter of filters"
+        (click)="filterChange.emit(filter)"
+        [class.active]="selectedFilter === filter"
+        class="filter-btn"
+      >
+        {{ formatFilterLabel(filter) | titlecase }}
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="errorMessage || filteredApplications.length === 0" class="no-data">
+    <p>No applications to review right now.</p>
+    <button *ngIf="errorMessage" type="button" class="retry-btn" (click)="retry.emit()">Try again</button>
+  </div>
+
+  <div *ngIf="!errorMessage && filteredApplications.length > 0" class="table-container">
+    <table class="applications-table">
+      <thead>
+        <tr>
+          <th>Candidate</th>
+          <th>Role</th>
+          <th>Submitted</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let app of filteredApplications">
+          <td class="candidate-info">
+            <div class="name">{{ app.applicantEmail }}</div>
+            <small>Candidate ID {{ app.applicantId }}</small>
+          </td>
+          <td>{{ app.jobTitle }}</td>
+          <td>{{ app.submittedAt | date: 'mediumDate' }}</td>
+          <td>
+            <span class="status-badge" [style.backgroundColor]="getStatusColor(app.status)">
+              {{ app.status }}
+            </span>
+          </td>
+          <td class="actions">
+            <button (click)="onUpdate(app.id, 'SHORTLISTED')" class="btn-success">Shortlist</button>
+            <button (click)="onUpdate(app.id, 'REJECTED')" class="btn-danger">Reject</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,52 @@
+.work-queue {
+  background: #ffffff;
+  border: 1px solid #dbe9e0;
+  border-radius: 14px;
+}
+
+.section-head {
+  padding: 14px;
+  border-bottom: 1px solid #eef4f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #123226;
+}
+
+.section-head a {
+  font-size: 12px;
+  color: #216e53;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.queue-list {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.queue-item {
+  border: 1px solid #e3eee8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fafdfb;
+}
+
+.queue-item strong {
+  display: block;
+  color: #15382b;
+  font-size: 14px;
+}
+
+.queue-item span {
+  display: block;
+  margin-top: 4px;
+  color: #537564;
+  font-size: 12px;
+}

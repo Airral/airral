@@ -1,0 +1,139 @@
+<div class="hire-tool">
+  <header class="tool-header">
+    <h1>Hire Tool</h1>
+    <p>Purpose: move candidates from application to final decision with one clear next step at every stage.</p>
+
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <span class="kpi-label">Total Candidates</span>
+        <strong class="kpi-value">{{ totalCandidates() }}</strong>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Interviews In Progress</span>
+        <strong class="kpi-value">{{ interviewsInFlight() }}</strong>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Offers Open</span>
+        <strong class="kpi-value">{{ offersInFlight() }}</strong>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Hires</span>
+        <strong class="kpi-value">{{ hiresCount() }}</strong>
+      </div>
+    </div>
+
+    <div class="mode-switch">
+      <button type="button" [class.active]="boardMode === 'team'" (click)="setBoardMode('team')">Team View</button>
+      <button type="button" [class.active]="boardMode === 'stage'" (click)="setBoardMode('stage')">Stage View</button>
+    </div>
+
+    <p class="error-banner" *ngIf="error">{{ error }}</p>
+  </header>
+
+  <div class="pipeline-scroll" *ngIf="boardMode === 'stage'">
+    <div class="pipeline">
+    <div class="stage" *ngFor="let stage of pipeline" [style.borderTopColor]="stage.color">
+      <div class="stage-header">
+        <h3>{{ stage.label }}</h3>
+        <span class="count">{{ inStage(stage.key).length }}</span>
+      </div>
+      <div class="stage-body">
+        <div class="candidate-card" *ngFor="let app of inStage(stage.key)" (click)="select(app)" [class.active]="selected?.id === app.id">
+          <div class="candidate-name">{{ app.applicantEmail }}</div>
+          <div class="candidate-job">{{ app.jobTitle }}</div>
+          <div class="candidate-hint compact">{{ getPurposeHint(app) }}</div>
+          <div class="candidate-actions">
+            <button
+              *ngIf="primaryActionLabel(app)"
+              class="primary-mini"
+              (click)="runPrimaryAction(app); $event.stopPropagation()"
+            >
+              {{ primaryActionLabel(app) }}
+            </button>
+            <button class="ghost-mini" (click)="select(app); $event.stopPropagation()">Details</button>
+          </div>
+        </div>
+        <div class="empty" *ngIf="inStage(stage.key).length === 0">No candidates</div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="pipeline-scroll" *ngIf="boardMode === 'team'">
+    <div class="pipeline">
+    <div class="stage" *ngFor="let team of teamColumns">
+      <div class="stage-header">
+        <h3>{{ team }}</h3>
+        <span class="count">{{ inTeam(team).length }}</span>
+      </div>
+      <div class="stage-body">
+        <div class="candidate-card" *ngFor="let app of inTeam(team)" (click)="select(app)" [class.active]="selected?.id === app.id">
+          <div class="candidate-name">{{ app.applicantEmail }}</div>
+          <div class="candidate-job">{{ app.jobTitle }}</div>
+          <div class="candidate-status">{{ app.status }}</div>
+          <div class="candidate-hint compact">{{ getPurposeHint(app) }}</div>
+          <div class="candidate-actions">
+            <button
+              *ngIf="primaryActionLabel(app)"
+              class="primary-mini"
+              (click)="runPrimaryAction(app); $event.stopPropagation()"
+            >
+              {{ primaryActionLabel(app) }}
+            </button>
+            <button class="ghost-mini" (click)="select(app); $event.stopPropagation()">Details</button>
+          </div>
+        </div>
+        <div class="empty" *ngIf="inTeam(team).length === 0">No candidates</div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <aside class="detail-panel" *ngIf="selected">
+    <div class="detail-header">
+      <h2>{{ selected.applicantEmail }}</h2>
+      <span class="badge" [style.background]="stageColor(selected.status)">{{ selected.status }}</span>
+      <button class="close-btn" (click)="selected = null">x</button>
+    </div>
+
+    <div class="detail-body">
+      <section>
+        <h4>Application</h4>
+        <p><strong>Position:</strong> {{ selected.jobTitle }}</p>
+        <p><strong>Applied:</strong> {{ selected.submittedAt | date:'mediumDate' }}</p>
+        <p><strong>Recommended Next Step:</strong> {{ getPurposeHint(selected) }}</p>
+        <p><strong>Cover letter:</strong> {{ selected.coverLetter || '-' }}</p>
+      </section>
+
+      <section *ngIf="selected.status === 'SHORTLISTED'">
+        <h4>Schedule Interview</h4>
+        <input type="datetime-local" [(ngModel)]="interviewDate" />
+        <textarea [(ngModel)]="interviewNotes" placeholder="Interview notes..."></textarea>
+        <button class="primary" (click)="schedule()" [disabled]="!interviewDate">Schedule Interview</button>
+      </section>
+
+      <section *ngIf="selected.status === 'INTERVIEW_SCHEDULED' || selected.status === 'INTERVIEWED'">
+        <h4>Interview Feedback</h4>
+        <label>Rating: {{ rating }}/5</label>
+        <input type="range" min="1" max="5" [(ngModel)]="rating" />
+        <textarea [(ngModel)]="feedback" placeholder="How did the interview go?"></textarea>
+        <button class="primary" (click)="submitFeedback()" [disabled]="!selectedInterviewId">Save Feedback</button>
+        <small *ngIf="!selectedInterviewId">No interview found yet for this application.</small>
+      </section>
+
+      <section *ngIf="selected.status === 'OFFER_EXTENDED'">
+        <h4>Finalize Hiring Decision</h4>
+        <button class="hire-big" (click)="hire(selected)">Hire Candidate</button>
+      </section>
+
+      <section *ngIf="selected.status === 'HIRED'">
+        <div class="hired-banner">Candidate has been marked as hired.</div>
+      </section>
+
+      <section *ngIf="canReject(selected)">
+        <h4>Close Application</h4>
+        <button class="reject-detail" (click)="reject(selected)">Reject Candidate</button>
+      </section>
+    </div>
+  </aside>
+</div>

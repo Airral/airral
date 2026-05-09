@@ -1,0 +1,353 @@
+main {
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Hero */
+.hero {
+  padding: 72px 24px 88px;
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.1), rgba(8, 145, 178, 0.1));
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 80% 80%, rgba(34, 211, 238, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.hero-content h1 {
+  font-size: clamp(36px, 6vw, 64px);
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #0f172a;
+}
+
+.hero-subtitle {
+  font-size: 18px;
+  color: #64748b;
+}
+
+/* Pricing Section */
+.pricing-section {
+  padding: 72px 0;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 28px;
+}
+
+.pricing-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  text-align: center;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.pricing-card.highlighted {
+  border: 2px solid var(--color-primary);
+  transform: scale(1.05);
+  box-shadow: var(--shadow-lg);
+}
+
+.popular-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  color: white;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pricing-card h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #0f172a;
+}
+
+.price {
+  font-size: 42px;
+  font-weight: 700;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
+}
+
+.period {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.plan-description {
+  color: #64748b;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.features-list {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 32px;
+  text-align: left;
+}
+
+.features-list li {
+  color: #475569;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.btn {
+  padding: 12px 32px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  width: 100%;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(109, 40, 217, 0.3);
+}
+
+/* Comparison */
+.comparison-section {
+  padding: 72px 0;
+  background: #f8fafc;
+  margin: 0 -24px;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.comparison-section h2 {
+  font-size: 32px;
+  text-align: center;
+  margin-bottom: 48px;
+  color: #0f172a;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.comparison-table {
+  max-width: 900px;
+  margin: 0 auto;
+  background: white;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 200px repeat(3, 1fr);
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.table-header > div,
+.table-row > div {
+  padding: 16px;
+  text-align: center;
+  border-right: 1px solid #e2e8f0;
+}
+
+.table-header > div:last-child,
+.table-row > div:last-child {
+  border-right: none;
+}
+
+.feature-name {
+  text-align: left;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 200px repeat(3, 1fr);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.table-row > div {
+  padding: 16px;
+  text-align: center;
+  color: #64748b;
+}
+
+.table-row .feature-name {
+  text-align: left;
+  color: #0f172a;
+  font-weight: 500;
+}
+
+/* FAQ Section */
+.faq-section {
+  padding: 72px 0;
+}
+
+.faq-section h2 {
+  font-size: 32px;
+  text-align: center;
+  margin-bottom: 48px;
+  color: #0f172a;
+}
+
+.faq-list {
+  max-width: 700px;
+  margin: 0 auto;
+  display: grid;
+  gap: 12px;
+}
+
+.faq-item {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.faq-item summary {
+  padding: 20px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #0f172a;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-item summary::after {
+  content: '+';
+  color: var(--color-primary);
+  font-size: 24px;
+}
+
+.faq-item[open] summary {
+  background: rgba(109, 40, 217, 0.05);
+}
+
+.faq-item[open] summary::after {
+  content: '−';
+}
+
+.faq-item p {
+  padding: 20px;
+  color: #64748b;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* CTA Section */
+.cta-section {
+  padding: 72px 0;
+  text-align: center;
+}
+
+.cta-section h2 {
+  font-size: 32px;
+  margin-bottom: 16px;
+  color: #0f172a;
+}
+
+.cta-section p {
+  font-size: 16px;
+  color: #64748b;
+  margin-bottom: 32px;
+}
+
+.cta-section .btn {
+  width: auto;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .pricing-card.highlighted {
+    transform: scale(1);
+  }
+
+  .table-header,
+  .table-row {
+    grid-template-columns: 140px repeat(3, 1fr);
+  }
+
+  .table-header > div,
+  .table-row > div {
+    padding: 12px 8px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: 48px 24px 64px;
+  }
+
+  .pricing-grid {
+    gap: 20px;
+  }
+
+  .comparison-section {
+    padding: 48px 0;
+  }
+
+  .table-header,
+  .table-row {
+    grid-template-columns: 100px repeat(3, 1fr);
+  }
+
+  .table-header > div,
+  .table-row > div {
+    padding: 8px 4px;
+    font-size: 12px;
+  }
+}

@@ -1,0 +1,271 @@
+.company-feed {
+  display: grid;
+  gap: 10px;
+}
+
+.composer-card,
+.feed-card {
+  border-radius: 12px !important;
+  border: 1px solid #d4e6dc !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04) !important;
+}
+
+.composer-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.composer-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #0f9d78, #34d399);
+  color: #ffffff;
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 16px rgba(15, 157, 120, 0.22);
+}
+
+.composer-trigger {
+  flex: 1;
+  justify-content: flex-start !important;
+  text-align: left;
+  border-radius: 999px !important;
+  border-color: #c8ded2 !important;
+  color: #3f6154 !important;
+  height: 42px !important;
+}
+
+.composer-actions {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.compose-btn {
+  justify-content: center !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+  color: #325447 !important;
+  font-weight: 600 !important;
+  min-height: 40px;
+}
+
+.compose-btn mat-icon {
+  margin-right: 4px;
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  color: #0f9d78;
+}
+
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sort-row mat-divider {
+  flex: 1;
+}
+
+.sort-row button {
+  color: #5b776a !important;
+  font-size: 12px !important;
+}
+
+.sort-row strong {
+  color: #173c2f;
+  margin-left: 2px;
+}
+
+.sort-row mat-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  margin-left: 2px;
+}
+
+.post-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.post-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #e8f6ef;
+  color: #0f9d78;
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.post-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.post-copy h3 {
+  margin: 0;
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 17px;
+  line-height: 1.2;
+  color: #143729;
+}
+
+.post-copy p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: #4f6f62;
+}
+
+.post-copy span {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: #6d897d;
+}
+
+.head-action {
+  color: #6a8479 !important;
+}
+
+.post-content {
+  margin: 10px 0;
+  font-size: 15px;
+  line-height: 1.42;
+  color: #1e4335;
+}
+
+.post-preview {
+  border: 1px solid #d8e8df;
+  border-radius: 12px;
+  background: #f9fcfb;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 34% 1fr;
+}
+
+.preview-chart {
+  min-height: 130px;
+  background:
+    linear-gradient(180deg, rgba(15, 157, 120, 0.15), rgba(15, 157, 120, 0.02)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(15, 157, 120, 0.25) 0,
+      rgba(15, 157, 120, 0.25) 16px,
+      rgba(255, 255, 255, 0) 16px,
+      rgba(255, 255, 255, 0) 30px
+    );
+}
+
+.post-preview > div:last-child {
+  padding: 10px;
+}
+
+.post-preview h4 {
+  margin: 0;
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 14px;
+  color: #173c2f;
+}
+
+.post-preview p {
+  margin: 6px 0 7px;
+  font-size: 12px;
+  color: #5a776b;
+}
+
+.post-meta {
+  margin: 8px 0;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #628073;
+}
+
+.post-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding-top: 4px;
+}
+
+.action-btn {
+  border-radius: 10px !important;
+  color: #38594c !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+}
+
+.action-btn.active {
+  background: #e7f5ee !important;
+  color: #0f9d78 !important;
+}
+
+.action-btn mat-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  margin-right: 4px;
+}
+
+@media (max-width: 768px) {
+  .composer-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .compose-btn {
+    font-size: 11px !important;
+    padding: 0 6px !important;
+  }
+
+  .compose-btn mat-icon {
+    margin-right: 2px;
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+  }
+
+  .post-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-chart {
+    min-height: 96px;
+  }
+
+  .post-copy h3 {
+    font-size: 17px;
+  }
+
+  .post-content {
+    font-size: 15px;
+    line-height: 1.4;
+    margin: 10px 0;
+  }
+
+  .post-meta {
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .post-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

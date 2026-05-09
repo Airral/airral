@@ -1,0 +1,103 @@
+<div class="dialog-overlay" *ngIf="integration" (click)="onDismiss()">
+  <div class="dialog" (click)="$event.stopPropagation()">
+    <!-- Header -->
+    <header class="dialog-header">
+      <div class="header-content">
+        <div class="integration-badge" [class]="integration.icon">
+          <span class="icon">{{ integration.icon }}</span>
+        </div>
+        <div>
+          <h2>Connect {{ integration.name }}</h2>
+          <p>{{ integration.description }}</p>
+        </div>
+      </div>
+      <button class="btn-close" (click)="onDismiss()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Body -->
+    <div class="dialog-body">
+      <!-- OAuth Provider Info -->
+      <div class="info-card" *ngIf="isOAuthProvider">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        <div>
+          <strong>Secure OAuth 2.0 Connection</strong>
+          <p>You'll be redirected to {{ integration.name }} to authorize securely. We never see your password.</p>
+        </div>
+      </div>
+
+      <!-- API Key Provider Info -->
+      <div class="info-card" *ngIf="isApiKeyProvider">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <div>
+          <strong>API Key Required</strong>
+          <p>You'll need your {{ integration.name }} API credentials to connect.</p>
+        </div>
+      </div>
+
+      <!-- Requirements Form -->
+      <form class="requirements-form">
+        <div *ngFor="let req of requirements" class="form-group">
+          <!-- Info Section -->
+          <div *ngIf="req.type === 'info'" class="info-section">
+            <h4>{{ req.label }}</h4>
+            <p class="help-text" [style.white-space]="'pre-line'">{{ req.helpText }}</p>
+          </div>
+
+          <!-- Input Fields -->
+          <div *ngIf="req.type !== 'info'">
+            <label [for]="req.field">
+              {{ req.label }}
+              <span class="required" *ngIf="req.required">*</span>
+            </label>
+            <input
+              [id]="req.field"
+              [type]="req.type"
+              [placeholder]="req.placeholder || ''"
+              [(ngModel)]="formData[req.field]"
+              [name]="req.field"
+              [required]="req.required"
+            />
+            <small class="help-text" *ngIf="req.helpText">{{ req.helpText }}</small>
+          </div>
+        </div>
+      </form>
+
+      <!-- Features List -->
+      <div class="features-section">
+        <h4>What you'll get:</h4>
+        <ul>
+          <li *ngFor="let feature of integration.features">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            {{ feature }}
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="dialog-footer">
+      <button class="btn-secondary" (click)="onDismiss()">Cancel</button>
+      <button class="btn-primary" (click)="onConnect()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+        </svg>
+        Connect {{ integration.name }}
+      </button>
+    </footer>
+  </div>
+</div>

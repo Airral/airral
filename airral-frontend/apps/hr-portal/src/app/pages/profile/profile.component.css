@@ -1,0 +1,158 @@
+.profile-container {
+  padding: 32px 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.profile-header h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.subtitle {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-edit, .btn-save, .btn-cancel {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn-edit {
+  background: #0f9d78;
+  color: white;
+}
+
+.btn-edit:hover {
+  background: #0d8a69;
+  transform: translateY(-1px);
+}
+
+.btn-save {
+  background: #10b981;
+  color: white;
+}
+
+.btn-save:hover {
+  background: #059669;
+}
+
+.btn-cancel {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.btn-cancel:hover {
+  background: #e5e7eb;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+  font-size: 16px;
+}
+
+.profile-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.profile-section {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.profile-section h2 {
+  margin: 0 0 20px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.info-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.info-value {
+  margin: 0;
+  font-size: 15px;
+  color: #111827;
+  padding: 8px 0;
+}
+
+.form-input {
+  padding: 10px 14px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 15px;
+  color: #111827;
+  background: white;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #0f9d78;
+  box-shadow: 0 0 0 3px rgba(15, 157, 120, 0.1);
+}
+
+@media (max-width: 768px) {
+  .profile-container {
+    padding: 24px 20px;
+  }
+
+  .profile-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+}

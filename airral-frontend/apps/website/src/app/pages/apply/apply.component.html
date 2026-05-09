@@ -1,0 +1,55 @@
+<airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
+
+<main class="auth-page">
+  <section class="auth-hero">
+    <h1>Create Your Candidate Account</h1>
+    <p>Apply faster, track every application, and manage interviews in one place.</p>
+  </section>
+
+  <section class="auth-card-wrap">
+    <form class="auth-card" (ngSubmit)="onSubmit()" #registerForm="ngForm">
+      <h2>Get started</h2>
+
+      <div class="row-2">
+        <div>
+          <label for="firstName">First name</label>
+          <input id="firstName" name="firstName" required [(ngModel)]="firstName" />
+        </div>
+        <div>
+          <label for="lastName">Last name</label>
+          <input id="lastName" name="lastName" required [(ngModel)]="lastName" />
+        </div>
+      </div>
+
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required [(ngModel)]="email" />
+
+      <label for="phone">Phone (optional)</label>
+      <input id="phone" name="phone" type="tel" [(ngModel)]="phone" />
+
+      <div class="row-2">
+        <div>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" required [(ngModel)]="password" />
+        </div>
+        <div>
+          <label for="confirmPassword">Confirm password</label>
+          <input id="confirmPassword" name="confirmPassword" type="password" required [(ngModel)]="confirmPassword" />
+        </div>
+      </div>
+
+      <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+      <button class="btn-primary" type="submit" [disabled]="isLoading || !registerForm.form.valid">
+        {{ isLoading ? 'Creating account...' : 'Create account' }}
+      </button>
+
+      <p class="alt-action">
+        Hiring for a team?
+        <a routerLink="/sign-up">Create employer account</a>
+      </p>
+    </form>
+  </section>
+</main>
+
+<airral-footer></airral-footer>

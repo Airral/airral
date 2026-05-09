@@ -1,0 +1,23 @@
+<app-quick-hire-home *ngIf="isQuickHire && isHr"></app-quick-hire-home>
+
+<section class="panel" *ngIf="!isQuickHire">
+  <h1>{{ title }}</h1>
+  <p>Role-aware home with quick links to the workflows your team uses every day.</p>
+
+  <div class="cards" *ngIf="isEmployee">
+    <a routerLink="/referrals">Track my referrals</a>
+    <a routerLink="/jobs">Browse internal job postings</a>
+  </div>
+
+  <div class="cards" *ngIf="isManager">
+    <a routerLink="/team-review">Review hiring contribution by team</a>
+    <a routerLink="/jobs">View internal and external openings</a>
+    <a routerLink="/interviews">Follow interview schedule</a>
+  </div>
+
+  <div class="cards" *ngIf="isHr">
+    <a routerLink="/dashboard">Open hiring dashboard</a>
+    <a routerLink="/hire">Manage pipeline stages</a>
+    <a routerLink="/analytics">See funnel analytics</a>
+  </div>
+</section>

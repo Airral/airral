@@ -1,0 +1,77 @@
+<header class="site-header" [class.is-scrolled]="scrolled()" [class.is-open]="menuOpen()">
+  <div class="header-inner">
+    <a class="brand" [routerLink]="'/'" (click)="closeMenu()">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="28" height="28" fill="none">
+          <defs>
+            <linearGradient id="airral-logo" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#7c5cff" />
+              <stop offset="1" stop-color="#22d3ee" />
+            </linearGradient>
+          </defs>
+          <rect x="2" y="2" width="28" height="28" rx="9" fill="url(#airral-logo)" />
+          <path d="M10 22 L16 10 L22 22" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+          <path d="M12.5 18 H19.5" stroke="white" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">{{ brand }}</span>
+        <span class="brand-tagline">{{ tagline }}</span>
+      </span>
+    </a>
+
+    <button
+      type="button"
+      class="menu-toggle"
+      [attr.aria-expanded]="menuOpen()"
+      aria-controls="primary-nav"
+      aria-label="Toggle navigation"
+      (click)="toggleMenu()"
+    >
+      <span class="bar"></span>
+      <span class="bar"></span>
+      <span class="bar"></span>
+    </button>
+
+    <nav id="primary-nav" class="primary-nav" [class.open]="menuOpen()">
+      <ul class="nav-links">
+        <li *ngFor="let link of links">
+          <ng-container *ngIf="link.external; else internal">
+            <a [href]="link.path" (click)="closeMenu()">{{ link.label }}</a>
+          </ng-container>
+          <ng-template #internal>
+            <a
+              [routerLink]="link.path"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: !!link.exact }"
+              (click)="closeMenu()"
+            >{{ link.label }}</a>
+          </ng-template>
+        </li>
+      </ul>
+
+      <div class="nav-ctas">
+        <ng-container *ngFor="let cta of ctas">
+          <ng-container *ngIf="cta.external; else internalCta">
+            <a
+              [href]="cta.path"
+              class="btn"
+              [class.btn-primary]="cta.variant !== 'ghost'"
+              [class.btn-ghost]="cta.variant === 'ghost'"
+              (click)="closeMenu()"
+            >{{ cta.label }}</a>
+          </ng-container>
+          <ng-template #internalCta>
+            <a
+              [routerLink]="cta.path"
+              class="btn"
+              [class.btn-primary]="cta.variant !== 'ghost'"
+              [class.btn-ghost]="cta.variant === 'ghost'"
+              (click)="closeMenu()"
+            >{{ cta.label }}</a>
+          </ng-template>
+        </ng-container>
+      </div>
+    </nav>
+  </div>
+</header>

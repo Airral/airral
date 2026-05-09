@@ -1,0 +1,70 @@
+<section class="panel">
+  <div class="header-section">
+    <div>
+      <h1>Manager Team Review</h1>
+      <p>Directors and managers can monitor hiring contribution by team and interview quality.</p>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-group">
+        <label>Team:</label>
+        <select [(ngModel)]="selectedTeam" (change)="filterByTeam(selectedTeam)" class="filter-select">
+          <option *ngFor="let team of teams" [value]="team">{{ team }}</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Sort by:</label>
+        <select [(ngModel)]="sortBy" class="filter-select">
+          <option value="score">Score (High to Low)</option>
+          <option value="referrals">Referrals (High to Low)</option>
+          <option value="name">Name (A-Z)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="summary-cards">
+    <div class="summary-card">
+      <span class="summary-label">Total Team Members</span>
+      <strong class="summary-value">{{ members.length }}</strong>
+    </div>
+    <div class="summary-card">
+      <span class="summary-label">Avg Review Score</span>
+      <strong class="summary-value">{{ (members.reduce((sum, m) => sum + m.score, 0) / members.length).toFixed(1) }}</strong>
+    </div>
+    <div class="summary-card">
+      <span class="summary-label">Total Referrals</span>
+      <strong class="summary-value">{{ members.reduce((sum, m) => sum + m.referrals, 0) }}</strong>
+    </div>
+    <div class="summary-card">
+      <span class="summary-label">Interviews Completed</span>
+      <strong class="summary-value">{{ members.reduce((sum, m) => sum + m.interviewsCompleted, 0) }}</strong>
+    </div>
+  </div>
+
+  <div class="table">
+    <header>
+      <span>Team Member</span>
+      <span>Team</span>
+      <span>Referrals</span>
+      <span>Interviews</span>
+      <span>Panel</span>
+      <span>Score</span>
+      <span>Last Activity</span>
+    </header>
+
+    <article *ngFor="let member of members" [class.high-performer]="member.score >= 90">
+      <span class="member-name">{{ member.name }}</span>
+      <span class="team-badge">{{ member.team }}</span>
+      <span class="metric">{{ member.referrals }}</span>
+      <span class="metric">{{ member.interviewsCompleted }}</span>
+      <span class="panel-name">{{ member.interviewPanel }}</span>
+      <strong class="score" [class.excellent]="member.score >= 90" [class.good]="member.score >= 85 && member.score < 90">
+        {{ member.score }}
+      </strong>
+      <span class="last-activity">{{ member.lastActivity }}</span>
+    </article>
+  </div>
+</section>

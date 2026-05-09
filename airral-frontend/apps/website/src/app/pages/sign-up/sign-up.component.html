@@ -1,0 +1,42 @@
+<airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
+
+<main class="auth-page">
+  <section class="auth-hero">
+    <h1>Create Employer Account</h1>
+    <p>Post roles, manage candidates, and run hiring pipelines with your team.</p>
+  </section>
+
+  <section class="auth-card-wrap">
+    <form class="auth-card" (ngSubmit)="onSubmit()" #employerForm="ngForm">
+      <h2>Start hiring on AIRRAL</h2>
+
+      <label for="companyName">Company name</label>
+      <input id="companyName" name="companyName" required [(ngModel)]="companyName" />
+
+      <label for="fullName">Your full name</label>
+      <input id="fullName" name="fullName" required [(ngModel)]="fullName" />
+
+      <label for="workEmail">Work email</label>
+      <input id="workEmail" name="workEmail" type="email" required [(ngModel)]="workEmail" />
+
+      <label for="phone">Work phone (optional)</label>
+      <input id="phone" name="phone" type="tel" [(ngModel)]="phone" />
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" required [(ngModel)]="password" />
+
+      <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+      <button class="btn-primary" type="submit" [disabled]="isLoading || !employerForm.form.valid">
+        {{ isLoading ? 'Creating account...' : 'Create employer account' }}
+      </button>
+
+      <p class="alt-action">
+        Looking for jobs?
+        <a routerLink="/apply">Create candidate account</a>
+      </p>
+    </form>
+  </section>
+</main>
+
+<airral-footer></airral-footer>

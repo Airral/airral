@@ -1,0 +1,17 @@
+.panel { padding: 24px; }
+.panel h1 { margin: 0; font-size: 28px; color: #0f172a; }
+.panel p { margin: 8px 0 16px; color: #64748b; }
+
+.settings-section {
+  margin-bottom: 3rem;
+  padding-bottom: 3rem;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.stack { display: grid; gap: 10px; }
+.stack h2 { margin: 0 0 16px; font-size: 20px; color: #0f172a; }
+.stack article { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.stack h3 { margin: 0; font-size: 16px; color: #0f172a; }
+.stack p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+.stack button { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 9px; padding: 8px 12px; font-weight: 600; cursor: pointer; }
+@media (max-width: 760px) { .stack article { flex-direction: column; align-items: flex-start; } }

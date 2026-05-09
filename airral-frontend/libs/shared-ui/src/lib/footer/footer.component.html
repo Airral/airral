@@ -1,0 +1,54 @@
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="brand-row">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="28" height="28" fill="none">
+            <defs>
+              <linearGradient id="footer-logo" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#a78bfa" />
+                <stop offset="1" stop-color="#22d3ee" />
+              </linearGradient>
+            </defs>
+            <rect x="2" y="2" width="28" height="28" rx="9" fill="url(#footer-logo)" />
+            <path d="M10 22 L16 10 L22 22" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+            <path d="M12.5 18 H19.5" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" />
+          </svg>
+        </span>
+        <span class="brand-name">{{ brand }}</span>
+      </div>
+      <p class="brand-tagline">{{ tagline }}</p>
+
+      <form class="newsletter" (submit)="$event.preventDefault()">
+        <label for="footer-email" class="sr-only">Email address</label>
+        <input id="footer-email" type="email" placeholder="your@email.com" autocomplete="email" />
+        <button type="submit">Subscribe</button>
+      </form>
+    </div>
+
+    <div class="footer-columns">
+      <div *ngFor="let col of columns" class="footer-col">
+        <h4>{{ col.title }}</h4>
+        <ul>
+          <li *ngFor="let link of col.links">
+            <ng-container *ngIf="link.external; else internal">
+              <a [href]="link.path">{{ link.label }}</a>
+            </ng-container>
+            <ng-template #internal>
+              <a [routerLink]="link.path">{{ link.label }}</a>
+            </ng-template>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <p>&copy; {{ year }} {{ brand }}. All rights reserved.</p>
+    <div class="socials" aria-label="Social links">
+      <a href="#" aria-label="Twitter" title="Twitter">𝕏</a>
+      <a href="#" aria-label="LinkedIn" title="LinkedIn">in</a>
+      <a href="#" aria-label="GitHub" title="GitHub">gh</a>
+    </div>
+  </div>
+</footer>

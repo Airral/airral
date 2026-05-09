@@ -1,0 +1,39 @@
+@import '@angular/material/prebuilt-themes/azure-blue.css';
+
+/* AIRRAL green brand override for Angular Material tokens */
+:root {
+  --airral-brand-900: #0a4b3b;
+  --airral-brand-700: #0f9d78;
+  --airral-brand-500: #34d399;
+  --airral-brand-100: #d9f7ec;
+  --airral-surface-base: #f7faf8;
+  --airral-surface-raised: #ffffff;
+  --airral-surface-tint: #eef8f2;
+  --airral-text-primary: #12372a;
+  --airral-text-secondary: #55786a;
+  --airral-border-soft: #d8e6de;
+  --airral-success: #0f9d78;
+  --airral-warning: #b86a00;
+  --airral-danger: #b42323;
+
+  --mat-sys-primary: #0f9d78;
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: #c8f5e4;
+  --mat-sys-on-primary-container: #00201a;
+  --mat-sys-secondary: #4c6659;
+  --mat-sys-on-secondary: #ffffff;
+  --mat-sys-secondary-container: #ceead9;
+  --mat-sys-surface: #f7faf8;
+  --mat-sys-surface-variant: #ecf7f1;
+  --mat-sys-on-surface: #12372a;
+  --mat-sys-outline: #c5dbd1;
+  --mat-sys-outline-variant: #d8e6de;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--airral-surface-base);
+  color: var(--airral-text-primary);
+}

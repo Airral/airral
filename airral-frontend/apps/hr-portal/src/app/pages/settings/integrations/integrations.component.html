@@ -1,0 +1,85 @@
+<section class="panel">
+  <header class="head">
+    <div>
+      <p class="eyebrow">Settings</p>
+      <h1>Integrations</h1>
+      <p>Connect your favorite tools to streamline recruiting</p>
+    </div>
+  </header>
+
+  <!-- Category Filter -->
+  <nav class="category-nav">
+    <button
+      class="category-btn"
+      [class.active]="selectedCategory === null"
+      (click)="filterByCategory(null)"
+    >
+      All Apps
+    </button>
+    <button
+      *ngFor="let category of categories"
+      class="category-btn"
+      [class.active]="selectedCategory === category.id"
+      (click)="filterByCategory(category.id)"
+    >
+      {{ category.name }}
+    </button>
+  </nav>
+
+  <!-- Integrations Grid -->
+  <div class="integrations-grid">
+    <article
+      *ngFor="let integration of displayedIntegrations"
+      class="integration-card"
+      [class.connected]="integration.connected"
+    >
+      <div class="card-body">
+        <div class="card-icon">
+          <span class="icon">{{ integration.icon }}</span>
+        </div>
+        
+        <div class="card-content">
+          <div class="card-header">
+            <h3>{{ integration.name }}</h3>
+            <span *ngIf="integration.connected" class="status-dot"></span>
+          </div>
+          <p class="description">{{ integration.description }}</p>
+          <p class="tier-badge" *ngIf="integration.tier !== 'all'">
+            {{ integration.tier | titlecase }} Only
+          </p>
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <button
+          *ngIf="!integration.connected"
+          class="btn-connect"
+          (click)="openConnectionDialog(integration)"
+        >
+          Connect
+        </button>
+        <button
+          *ngIf="integration.connected"
+          class="btn-disconnect"
+          (click)="disconnectIntegration(integration)"
+        >
+          Manage
+        </button>
+      </div>
+    </article>
+  </div>
+
+  <!-- Show More Button -->
+  <div class="show-more" *ngIf="hasMoreIntegrations">
+    <button class="btn-show-more" (click)="showAllIntegrations = true">
+      Show {{ filteredIntegrations.length - 6 }} More
+    </button>
+  </div>
+</section>
+
+<!-- Connection Dialog -->
+<app-integration-dialog
+  [integration]="selectedIntegration"
+  (dismiss)="closeDialog()"
+  (connect)="handleConnect()"
+></app-integration-dialog>

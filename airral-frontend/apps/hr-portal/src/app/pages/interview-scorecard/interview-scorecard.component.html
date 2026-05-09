@@ -1,0 +1,163 @@
+<div class="scorecard-container">
+  <!-- Header -->
+  <div class="scorecard-header">
+    <div class="header-content">
+      <h1>Interview Scorecard</h1>
+      <div class="candidate-info">
+        <div class="info-row">
+          <span class="label">Candidate:</span>
+          <strong>{{ scorecard.candidateName }}</strong>
+        </div>
+        <div class="info-row">
+          <span class="label">Position:</span>
+          <strong>{{ scorecard.position }}</strong>
+        </div>
+        <div class="info-row">
+          <span class="label">Interviewer:</span>
+          <span>{{ scorecard.interviewer }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Date:</span>
+          <span>{{ scorecard.date }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-cancel" (click)="cancel()">Cancel</button>
+      <button class="btn-draft" (click)="saveDraft()">Save Draft</button>
+      <button class="btn-submit" (click)="submitScorecard()" [disabled]="!isComplete">
+        Submit Scorecard
+      </button>
+    </div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="progress-section">
+    <div class="progress-info">
+      <span>Completion: {{ completionPercentage.toFixed(0) }}%</span>
+      <span class="weighted-score">
+        Weighted Score: <strong [class]="getRatingClass(weightedScore)">{{ weightedScore.toFixed(1) }}/5.0</strong>
+      </span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" [style.width.%]="completionPercentage"></div>
+    </div>
+  </div>
+
+  <!-- Interview Type -->
+  <div class="form-section">
+    <label>Interview Type</label>
+    <select [(ngModel)]="scorecard.interviewType" class="form-select">
+      <option *ngFor="let type of interviewTypes" [value]="type">{{ type }}</option>
+    </select>
+  </div>
+
+  <!-- Evaluation Criteria -->
+  <div class="criteria-section">
+    <h2>Evaluation Criteria</h2>
+    <p class="section-subtitle">Rate each criterion on a scale of 1-5 and provide supporting notes</p>
+
+    <div *ngFor="let group of groupedCriteria" class="criteria-group">
+      <h3 class="category-title">{{ group.category }}</h3>
+
+      <div class="criteria-list">
+        <div *ngFor="let criterion of group.items" class="criterion-card">
+          <div class="criterion-header">
+            <div class="criterion-name">
+              <span class="criterion-label">{{ criterion.criterion }}</span>
+              <span class="weight-badge">Weight: {{ criterion.weight }}x</span>
+            </div>
+            <div class="rating-display" [class]="getRatingClass(criterion.rating)">
+              {{ criterion.rating > 0 ? criterion.rating + '/5 - ' + getRatingLabel(criterion.rating) : 'Not Rated' }}
+            </div>
+          </div>
+
+          <!-- Rating Buttons -->
+          <div class="rating-buttons">
+            <button
+              *ngFor="let rating of [1, 2, 3, 4, 5]"
+              class="rating-btn"
+              [class.selected]="criterion.rating === rating"
+              [class]="getRatingClass(rating)"
+              (click)="criterion.rating = rating">
+              {{ rating }}
+            </button>
+          </div>
+
+          <!-- Notes -->
+          <textarea
+            [(ngModel)]="criterion.notes"
+            class="criterion-notes"
+            placeholder="Add notes to support your rating..."
+            rows="2"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overall Assessment -->
+  <div class="overall-section">
+    <h2>Overall Assessment</h2>
+
+    <div class="form-group">
+      <label>Overall Notes</label>
+      <textarea
+        [(ngModel)]="scorecard.overallNotes"
+        class="form-textarea"
+        placeholder="Summarize the candidate's performance, key strengths, areas of concern, and any additional observations..."
+        rows="6"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Recommendation</label>
+      <div class="recommendation-buttons">
+        <button
+          class="recommendation-btn"
+          [class.selected]="scorecard.recommendation === 'Strong Hire'"
+          [class.strong-hire]="scorecard.recommendation === 'Strong Hire'"
+          (click)="scorecard.recommendation = 'Strong Hire'">
+          Strong Hire
+        </button>
+        <button
+          class="recommendation-btn"
+          [class.selected]="scorecard.recommendation === 'Hire'"
+          [class.hire]="scorecard.recommendation === 'Hire'"
+          (click)="scorecard.recommendation = 'Hire'">
+          Hire
+        </button>
+        <button
+          class="recommendation-btn"
+          [class.selected]="scorecard.recommendation === 'No Hire'"
+          [class.no-hire]="scorecard.recommendation === 'No Hire'"
+          (click)="scorecard.recommendation = 'No Hire'">
+          No Hire
+        </button>
+        <button
+          class="recommendation-btn"
+          [class.selected]="scorecard.recommendation === 'Strong No Hire'"
+          [class.strong-no-hire]="scorecard.recommendation === 'Strong No Hire'"
+          (click)="scorecard.recommendation = 'Strong No Hire'">
+          Strong No Hire
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Actions -->
+  <div class="scorecard-footer">
+    <div class="completion-warning" *ngIf="!isComplete">
+      ⚠️ Please complete all ratings, add overall notes, and select a recommendation before submitting
+    </div>
+    <div class="completion-success" *ngIf="isComplete">
+      ✓ Scorecard is complete and ready to submit
+    </div>
+    <div class="footer-actions">
+      <button class="btn-cancel" (click)="cancel()">Cancel</button>
+      <button class="btn-draft" (click)="saveDraft()">Save Draft</button>
+      <button class="btn-submit" (click)="submitScorecard()" [disabled]="!isComplete">
+        Submit Scorecard
+      </button>
+    </div>
+  </div>
+</div>

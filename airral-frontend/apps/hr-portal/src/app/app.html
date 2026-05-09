@@ -1,0 +1,53 @@
+<ng-container *ngIf="!isAuthRoute; else authLayout">
+	<div class="hr-shell" [class.menu-open]="menuOpen()">
+	<aside class="sidebar">
+		<div class="brand">
+			<div class="brand-mark">A</div>
+			<div>
+				<p class="brand-title">{{ organizationName }}</p>
+				<p class="brand-sub">{{ tierLabel }}</p>
+			</div>
+		</div>
+
+		<nav class="nav-list" aria-label="HR features">
+			<a
+				*ngFor="let item of navItems"
+				[routerLink]="item.path"
+				routerLinkActive="active"
+				[routerLinkActiveOptions]="{ exact: item.path === '/' }"
+				(click)="closeMenu()"
+			>
+				<span class="nav-icon">{{ item.icon }}</span>
+				<span>{{ item.label }}</span>
+			</a>
+		</nav>
+
+		<div class="sidebar-foot">
+			<p>Workspace</p>
+			<strong>{{ organizationName }}</strong>
+			<span>{{ tierLabel }}</span>
+		</div>
+	</aside>
+
+	<main class="main-content">
+		<header class="topbar">
+			<button class="menu-btn" type="button" (click)="toggleMenu()">Menu</button>
+
+			<div class="topbar-right">
+				<div class="search-pill">{{ searchLabel }}</div>
+				<div class="org-pill">{{ organizationContext }}</div>
+				<div class="profile-pill">{{ roleLabel }}</div>
+				<button class="logout-btn" type="button" (click)="logout()">Log out</button>
+			</div>
+		</header>
+
+		<section class="page-content">
+			<router-outlet></router-outlet>
+		</section>
+	</main>
+	</div>
+</ng-container>
+
+<ng-template #authLayout>
+	<router-outlet></router-outlet>
+</ng-template>

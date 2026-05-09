@@ -1,0 +1,231 @@
+<div class="offers-container">
+
+  <!-- Header -->
+  <div class="offers-header">
+    <div>
+      <h1>Offers</h1>
+      <p class="subtitle">{{ offers.length }} total &nbsp;·&nbsp; {{ getStatusCount('SENT') }} awaiting response</p>
+    </div>
+    <button class="btn btn-primary" (click)="openCreateForm()" [disabled]="loading">
+      + Create Offer
+    </button>
+  </div>
+
+  <div *ngIf="error" class="error-banner">{{ error }}</div>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar" *ngIf="offers.length > 0">
+    <div class="stat-item">
+      <span class="stat-num">{{ getStatusCount('DRAFT') }}</span>
+      <span class="stat-label">Draft</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-num sent">{{ getStatusCount('SENT') }}</span>
+      <span class="stat-label">Sent</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-num accepted">{{ getStatusCount('ACCEPTED') }}</span>
+      <span class="stat-label">Accepted</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-num declined">{{ getStatusCount('DECLINED') }}</span>
+      <span class="stat-label">Declined</span>
+    </div>
+  </div>
+
+  <!-- Filter Tabs -->
+  <div class="filter-tabs">
+    <button
+      *ngFor="let s of [
+        { key: 'ALL',      label: 'All' },
+        { key: 'DRAFT',    label: 'Draft' },
+        { key: 'SENT',     label: 'Sent' },
+        { key: 'ACCEPTED', label: 'Accepted' },
+        { key: 'DECLINED', label: 'Declined' },
+        { key: 'EXPIRED',  label: 'Expired' }
+      ]"
+      [class.active]="filterStatus === s.key"
+      (click)="onFilterStatusChange(s.key)"
+      class="tab-btn"
+    >
+      {{ s.label }}
+      <span *ngIf="s.key !== 'ALL' && getStatusCount(s.key) > 0" class="tab-count">
+        {{ getStatusCount(s.key) }}
+      </span>
+    </button>
+  </div>
+
+  <!-- ── Create Offer Modal ── -->
+  <div *ngIf="showCreateForm" class="modal-overlay" (click)="cancelForm()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Create Offer</h2>
+        <button class="close-btn" (click)="cancelForm()">&#x2715;</button>
+      </div>
+      <form [formGroup]="offerForm" (ngSubmit)="submitOffer()">
+        <div class="form-group">
+          <label>Candidate</label>
+          <select formControlName="applicationId" class="form-control">
+            <option value="">— Choose Candidate —</option>
+            <option *ngFor="let app of applications" [value]="app.id">
+              {{ app.applicantEmail }} &nbsp;·&nbsp; {{ app.jobTitle }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Salary</label>
+            <input type="number" formControlName="salary" class="form-control" placeholder="e.g. 120000" />
+          </div>
+          <div class="form-group">
+            <label>Currency</label>
+            <select formControlName="currency" class="form-control">
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Start Date</label>
+          <input type="date" formControlName="startDate" class="form-control" />
+        </div>
+
+        <div class="form-group">
+          <label>Offer Letter</label>
+          <textarea formControlName="offerLetter" class="form-control" rows="4"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Benefits</label>
+          <textarea formControlName="benefits" class="form-control" rows="3" placeholder="Health, 401k, PTO…"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Contingencies <span class="opt">(optional)</span></label>
+          <textarea formControlName="contingencies" class="form-control" rows="2" placeholder="Background check, reference check…"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="cancelForm()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save as Draft</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Offer Detail Modal ── -->
+  <div *ngIf="showOfferDetail && selectedOffer" class="modal-overlay" (click)="closeOfferDetail()">
+    <div class="modal-content modal-lg" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div>
+          <h2>{{ selectedOffer.candidateName }}</h2>
+          <p class="modal-subtitle">{{ selectedOffer.jobTitle }}</p>
+        </div>
+        <div class="header-right">
+          <span [class]="'badge ' + getStatusBadgeClass(selectedOffer.status)">{{ selectedOffer.status }}</span>
+          <button class="close-btn" (click)="closeOfferDetail()">&#x2715;</button>
+        </div>
+      </div>
+
+      <div class="offer-detail-body">
+        <div class="detail-grid">
+          <div class="detail-section">
+            <h3>Compensation</h3>
+            <div class="detail-row"><span class="label">Salary</span><span>{{ formatCurrency(selectedOffer.salary, selectedOffer.currency) }}</span></div>
+            <div class="detail-row"><span class="label">Start Date</span><span>{{ formatDate(selectedOffer.startDate) }}</span></div>
+            <div class="detail-row"><span class="label">Email</span><span>{{ selectedOffer.candidateEmail }}</span></div>
+          </div>
+
+          <div class="detail-section">
+            <h3>Timeline</h3>
+            <div class="detail-row"><span class="label">Created</span><span>{{ formatDate(selectedOffer.createdAt) }}</span></div>
+            <div class="detail-row" *ngIf="selectedOffer.sentAt"><span class="label">Sent</span><span>{{ formatDate(selectedOffer.sentAt) }}</span></div>
+            <div class="detail-row" *ngIf="selectedOffer.expiresAt">
+              <span class="label">Expires</span>
+              <span [class.text-danger]="isOfferExpired(selectedOffer)">{{ formatDate(selectedOffer.expiresAt) }}</span>
+            </div>
+            <div class="detail-row" *ngIf="selectedOffer.respondedAt"><span class="label">Response</span><span>{{ formatDate(selectedOffer.respondedAt) }}</span></div>
+          </div>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedOffer.benefits">
+          <h3>Benefits</h3>
+          <p class="detail-text">{{ selectedOffer.benefits }}</p>
+        </div>
+
+        <div class="detail-section" *ngIf="selectedOffer.contingencies">
+          <h3>Contingencies</h3>
+          <p class="detail-text">{{ selectedOffer.contingencies }}</p>
+        </div>
+
+        <div class="detail-section">
+          <h3>Offer Letter</h3>
+          <p class="offer-letter-text">{{ selectedOffer.offerLetter }}</p>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button *ngIf="canSendOffer(selectedOffer)" class="btn btn-success" (click)="sendOffer(selectedOffer)">Send to Candidate</button>
+        <button *ngIf="canWithdraw(selectedOffer)" class="btn btn-danger" (click)="withdrawOffer(selectedOffer)">Withdraw</button>
+        <button class="btn btn-secondary" (click)="closeOfferDetail()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Offers Table -->
+  <div class="table-wrapper">
+    <table class="offers-table">
+      <thead>
+        <tr>
+          <th>Candidate</th>
+          <th>Role &amp; Compensation</th>
+          <th>Start Date</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let offer of getFilteredOffers()" [class.row-expired]="isOfferExpired(offer)">
+          <td>
+            <div class="candidate-cell">
+              <div class="avatar">{{ offer.candidateName.charAt(0) }}</div>
+              <div>
+                <strong>{{ offer.candidateName }}</strong>
+                <span>{{ offer.candidateEmail }}</span>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div class="comp-cell">
+              <strong>{{ offer.jobTitle }}</strong>
+              <span>{{ formatCurrency(offer.salary, offer.currency) }}</span>
+            </div>
+          </td>
+          <td class="date-cell">{{ formatDate(offer.startDate) }}</td>
+          <td>
+            <span [class]="'badge ' + getStatusBadgeClass(offer.status)">{{ offer.status }}</span>
+            <div *ngIf="offer.expiresAt && offer.status === 'SENT'" class="expiry-hint">
+              Expires {{ formatDate(offer.expiresAt) }}
+            </div>
+          </td>
+          <td class="actions-cell">
+            <button class="action-btn" (click)="viewOffer(offer)">View</button>
+            <button *ngIf="canSendOffer(offer)" class="action-btn send-btn" (click)="sendOffer(offer)">Send</button>
+            <button *ngIf="canWithdraw(offer)" class="action-btn withdraw-btn" (click)="withdrawOffer(offer)">Withdraw</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div *ngIf="getFilteredOffers().length === 0" class="empty-state">
+      <p>No {{ filterStatus === 'ALL' ? '' : filterStatus.toLowerCase() + ' ' }}offers yet.</p>
+    </div>
+  </div>
+
+</div>

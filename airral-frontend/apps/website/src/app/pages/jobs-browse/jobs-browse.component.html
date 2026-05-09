@@ -1,0 +1,71 @@
+<airral-header
+  [links]="headerLinks"
+  [ctas]="headerCtas">
+</airral-header>
+
+<main>
+  <section class="hero">
+    <div class="hero-content">
+      <h1>Browse Open Positions</h1>
+      <p>Find your next opportunity from our curated list of top companies.</p>
+    </div>
+  </section>
+
+  <div class="container">
+    <div class="search-bar">
+      <input
+        type="text"
+        [(ngModel)]="searchQuery"
+        (input)="onSearchChange()"
+        placeholder="Search jobs..."
+        class="search-input"
+      />
+    </div>
+
+    <div class="departments">
+      <button
+        *ngFor="let dept of departments"
+        [class.active]="dept === activeDepartment"
+        (click)="selectDepartment(dept)"
+        class="dept-chip"
+      >
+        {{ dept }}
+      </button>
+    </div>
+
+    <div *ngIf="loading" class="loading">Loading jobs...</div>
+    <div *ngIf="error" class="error">{{ error }}</div>
+
+    <div class="jobs-grid" *ngIf="!loading && !error">
+      <div class="job-card" *ngFor="let job of filteredJobs">
+        <div class="job-header">
+          <h3>{{ job.title }}</h3>
+          <span class="dept-badge">{{ job.department }}</span>
+        </div>
+        <p class="job-description">{{ job.description | slice: 0:100 }}...</p>
+        <p class="job-info">{{ job.location }} • {{ job.seniority }}</p>
+        <div class="job-actions">
+          <button class="btn btn-secondary" [routerLink]="['/jobs', job.id]">View Details</button>
+          <button class="btn btn-primary" [routerLink]="['/apply']" [queryParams]="{ jobId: job.id }">Apply Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty state when jobs exist but filters don't match -->
+    <div *ngIf="!loading && !error && filteredJobs.length === 0 && jobs.length > 0" class="no-results">
+      <p>No jobs found matching your criteria.</p>
+      <button (click)="activeDepartment = 'All'; searchQuery = ''; applyFilters()" class="btn btn-secondary">
+        Clear Filters
+      </button>
+    </div>
+
+    <!-- Empty state when NO jobs exist at all -->
+    <div *ngIf="!loading && !error && jobs.length === 0" class="no-results">
+      <h3>🚀 No jobs posted yet</h3>
+      <p>Be the first to discover opportunities when companies start posting!</p>
+      <p>Companies: <a routerLink="/for-employers">Post your first job for free</a></p>
+    </div>
+  </div>
+</main>
+
+<airral-footer></airral-footer>

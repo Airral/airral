@@ -1,0 +1,150 @@
+<section class="panel">
+  <header class="head">
+    <div>
+      <p class="eyebrow">Requisition Operations</p>
+      <h1>Job Requisitions</h1>
+      <p>Create, calibrate, and monitor every active hiring plan.</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="ghost" (click)="loadData()" [disabled]="loading || saving">
+        Refresh
+      </button>
+      <button type="button" class="primary" (click)="openCreateForm()" [disabled]="saving">
+        + New Requisition
+      </button>
+    </div>
+  </header>
+
+  <p *ngIf="error" class="error-banner">{{ error }}</p>
+
+  <div class="summary-grid">
+    <article>
+      <p>Open requisitions</p>
+      <h3>{{ openCount }}</h3>
+    </article>
+    <article>
+      <p>Total applicants</p>
+      <h3>{{ totalApplicants }}</h3>
+    </article>
+    <article>
+      <p>Avg time open</p>
+      <h3>{{ avgDaysOpen }} days</h3>
+    </article>
+  </div>
+
+  <p *ngIf="jobs.length === 0" class="loading-state">
+    No requisitions yet. Create your first requisition.
+  </p>
+
+  <div class="list">
+    <article class="card" *ngFor="let job of paginatedJobs">
+      <div class="card-main">
+        <div class="title-row">
+          <h3>{{ job.title }}</h3>
+          <span
+            [class.paused]="job.status === jobStatus.DRAFT"
+            [class.closed]="job.status === jobStatus.CLOSED"
+          >
+            {{ job.status }}
+          </span>
+        </div>
+        <p>{{ job.department }} • Owned by {{ job.createdBy }}</p>
+        <small>Created {{ job.createdAt | date: 'mediumDate' }}</small>
+      </div>
+
+      <div class="card-metrics">
+        <div>
+          <span>{{ applicantCount(job.id) }}</span>
+          <small>Applicants</small>
+        </div>
+        <div>
+          <span>{{ interviewCount(job.id) }}</span>
+          <small>Interviews</small>
+        </div>
+        <div>
+          <span>{{ daysOpen(job.createdAt) }}</span>
+          <small>Days open</small>
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <button type="button" (click)="editJob(job)" [disabled]="saving">Edit</button>
+        <button
+          type="button"
+          *ngIf="job.status === jobStatus.DRAFT"
+          (click)="changeJobStatus(job, jobStatus.OPEN)"
+          [disabled]="saving"
+        >
+          Publish
+        </button>
+        <button
+          type="button"
+          *ngIf="job.status === jobStatus.OPEN"
+          (click)="changeJobStatus(job, jobStatus.CLOSED)"
+          [disabled]="saving"
+        >
+          Close
+        </button>
+        <button
+          type="button"
+          *ngIf="job.status === jobStatus.CLOSED"
+          (click)="changeJobStatus(job, jobStatus.OPEN)"
+          [disabled]="saving"
+        >
+          Reopen
+        </button>
+      </div>
+
+      <div class="health-track">
+        <span [style.width.%]="interviewConversion(job.id)"></span>
+      </div>
+
+      <div class="health-caption">
+        <small>Interview conversion</small>
+        <strong>{{ interviewConversion(job.id) }}%</strong>
+      </div>
+    </article>
+  </div>
+
+  <nav class="pagination" *ngIf="totalPages > 1">
+    <button
+      class="page-btn"
+      (click)="prevPage()"
+      [disabled]="currentPage === 1"
+    >
+      ← Previous
+    </button>
+
+    <div class="page-numbers">
+      <button
+        *ngFor="let page of [].constructor(totalPages); let i = index"
+        class="page-num"
+        [class.active]="currentPage === i + 1"
+        (click)="goToPage(i + 1)"
+      >
+        {{ i + 1 }}
+      </button>
+    </div>
+
+    <button
+      class="page-btn"
+      (click)="nextPage()"
+      [disabled]="currentPage === totalPages"
+    >
+      Next →
+    </button>
+  </nav>
+
+  <!-- Job Dialog Component -->
+  <app-job-dialog
+    [visible]="showForm"
+    [editMode]="editingJobId !== null"
+    [saving]="saving"
+    [linkedInConnected]="linkedInConnected"
+    [formData]="form"
+    (dismiss)="cancelForm()"
+    (saveDraft)="saveDraft()"
+    (publish)="publishNow()"
+    (connectLinkedIn)="connectLinkedIn()"
+  ></app-job-dialog>
+</section>
