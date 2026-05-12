@@ -26,8 +26,8 @@ ARG APP=website
 # Copy nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy built app to nginx
-COPY --from=builder /app/dist/apps/$APP /usr/share/nginx/html
+# Copy built browser bundle to nginx
+COPY --from=builder /app/dist/apps/$APP/browser /usr/share/nginx/html
 
 EXPOSE 80
 
