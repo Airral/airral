@@ -44,11 +44,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-          cache: 'npm'
-          cache-dependency-path: airral-frontend/package-lock.json
+          cache: 'yarn'
+          cache-dependency-path: airral-frontend/yarn.lock
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn install --frozen-lockfile
 
       - name: Lint shared libraries
         run: npx nx run-many --target=lint --projects=shared-utils,shared-types,shared-api,shared-auth,shared-ui
@@ -66,11 +66,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-          cache: 'npm'
-          cache-dependency-path: airral-frontend/package-lock.json
+          cache: 'yarn'
+          cache-dependency-path: airral-frontend/yarn.lock
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn install --frozen-lockfile
 
       - name: Lint ${{ inputs.app }}
         run: npx nx lint ${{ inputs.app }}
@@ -104,11 +104,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-          cache: 'npm'
-          cache-dependency-path: airral-frontend/package-lock.json
+          cache: 'yarn'
+          cache-dependency-path: airral-frontend/yarn.lock
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn install --frozen-lockfile
 
       - name: Lint ${{ matrix.app }}
         run: npx nx lint ${{ matrix.app }}
