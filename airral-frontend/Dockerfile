@@ -4,7 +4,7 @@ FROM node:22.12.0 AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json yarn.lock ./
 COPY tsconfig.base.json nx.json ./
 
 # Copy applications and libraries
@@ -12,7 +12,7 @@ COPY apps ./apps
 COPY libs ./libs
 
 # Install dependencies
-RUN npm ci
+RUN corepack enable && yarn install --frozen-lockfile
 
 # Build the specified app (passed as build arg)
 ARG APP=website
@@ -24,7 +24,7 @@ FROM nginx:alpine
 ARG APP=website
 
 # Copy nginx config
-COPY airral-frontend/nginx.conf /etc/nginx/nginx.conf
+COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy built app to nginx
 COPY --from=builder /app/dist/apps/$APP /usr/share/nginx/html
