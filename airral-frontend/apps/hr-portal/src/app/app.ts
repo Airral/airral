@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '@airral/shared-auth';
 import { OrganizationService } from '@airral/shared-utils';
@@ -19,15 +19,13 @@ import {
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
-export class App implements OnInit {
+export class App {
   protected title = 'hr-portal';
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly orgService = inject(OrganizationService);
 
   readonly menuOpen = signal(false);
-
-  ngOnInit(): void {}
 
   get navItems(): HrNavItem[] {
     const allItems = getNavItemsForRole(this.primaryRole);

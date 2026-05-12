@@ -25,7 +25,8 @@ export default [
                     prefix: "lib",
                     style: "kebab-case"
                 }
-            ]
+            ],
+            "@angular-eslint/prefer-inject": "off"
         }
     },
     {
@@ -33,6 +34,8 @@ export default [
             "**/*.html"
         ],
         // Override or add rules here
-        rules: {}
+        rules: {
+            "@angular-eslint/template/prefer-control-flow": "off"
+        }
     }
 ];

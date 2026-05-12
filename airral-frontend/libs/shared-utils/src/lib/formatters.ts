@@ -14,7 +14,7 @@ export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 }
 
-export function truncateText(text: string, length: number = 100): string {
+export function truncateText(text: string, length = 100): string {
   return text.length > length ? text.substring(0, length) + '...' : text;
 }
 

@@ -1,5 +1,5 @@
 // apps/admin-portal/src/app/pages/users/users.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -10,7 +10,7 @@ import { FormsModule } from '@angular/forms';
   templateUrl: './users.component.html',
   styleUrls: ['./users.component.css']
 })
-export class UsersComponent implements OnInit {
+export class UsersComponent {
   users = [
     { id: 1, email: 'admin@airral.com', name: 'Admin User', role: 'ADMIN', active: true },
     { id: 2, email: 'hr@airral.com', name: 'HR Manager', role: 'HR_MANAGER', active: true },
@@ -23,8 +23,6 @@ export class UsersComponent implements OnInit {
   searchTerm = '';
   selectedRole = 'ALL';
   newUser = { email: '', name: '', role: 'APPLICANT' };
-
-  ngOnInit() {}
 
   createUser() {
     if (this.newUser.email && this.newUser.name) {

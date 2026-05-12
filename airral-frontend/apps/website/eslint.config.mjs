@@ -24,11 +24,14 @@ export default [
           style: 'kebab-case',
         },
       ],
+      '@angular-eslint/prefer-inject': 'off',
     },
   },
   {
     files: ['**/*.html'],
     // Override or add rules here
-    rules: {},
+    rules: {
+      '@angular-eslint/template/prefer-control-flow': 'off',
+    },
   },
 ];

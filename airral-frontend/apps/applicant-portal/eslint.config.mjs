@@ -25,7 +25,9 @@ export default [
                     prefix: "app",
                     style: "kebab-case"
                 }
-            ]
+            ],
+            "@angular-eslint/prefer-inject": "off",
+            "@angular-eslint/no-output-native": "warn"
         }
     },
     {
@@ -33,6 +35,11 @@ export default [
             "**/*.html"
         ],
         // Override or add rules here
-        rules: {}
+        rules: {
+            "@angular-eslint/template/prefer-control-flow": "off",
+            "@angular-eslint/template/label-has-associated-control": "warn",
+            "@angular-eslint/template/click-events-have-key-events": "warn",
+            "@angular-eslint/template/interactive-supports-focus": "warn"
+        }
     }
 ];

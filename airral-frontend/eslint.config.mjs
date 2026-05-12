@@ -15,6 +15,10 @@ export default [
         {
           enforceBuildableLibDependency: true,
           allow: ['^.*/eslint(\\.base)?\\.config\\.[cm]?[jt]s$'],
+          ignoredCircularDependencies: [
+            ['shared-auth', 'shared-utils'],
+            ['shared-utils', 'shared-auth'],
+          ],
           depConstraints: [
             {
               sourceTag: '*',

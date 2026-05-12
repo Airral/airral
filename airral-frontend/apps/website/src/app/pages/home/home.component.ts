@@ -1,10 +1,10 @@
 // apps/website/src/app/pages/home/home.component.ts
-import { Component, OnInit } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { FooterComponent, HeaderComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
+import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 import { Job } from '@airral/shared-types';
 import { JobApiService } from '@airral/shared-api';
@@ -13,11 +13,6 @@ interface Feature {
   icon: string;
   title: string;
   description: string;
-}
-
-interface Stat {
-  value: string;
-  label: string;
 }
 
 interface ProcessStep {
@@ -39,11 +34,17 @@ interface FaqItem {
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, HeaderComponent, FooterComponent],
+  imports: [
+    CommonModule,
+    RouterModule,
+    FormsModule,
+    HeaderComponent,
+    FooterComponent,
+  ],
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.css'],
 })
-export class HomeComponent implements OnInit {
+export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
 
@@ -54,14 +55,6 @@ export class HomeComponent implements OnInit {
   searchQuery = '';
   activeDepartment = 'All';
 
-  // Real, verifiable stats - conservative approach
-  readonly stats: Stat[] = [
-    { value: '100%', label: 'Free for job seekers' },
-    { value: '24/7', label: 'Application tracking' },
-    { value: 'Real-time', label: 'Status updates' },
-    { value: 'Unlimited', label: 'Job applications' },
-  ];
-
   // Partner logos - replace with real client logos when available
   // For now, removed to avoid misrepresentation
   readonly partnerLogos: string[] = [];
@@ -69,50 +62,50 @@ export class HomeComponent implements OnInit {
   readonly features: Feature[] = [
     {
       icon: '⚡',
-      title: 'One-click applications',
+      title: 'Launch hiring in one workspace',
       description:
-        'Apply to dozens of great roles with a single profile. No repetitive forms, ever.',
+        'Post roles, collect applicants, and keep every candidate in one owner-friendly view.',
     },
     {
-      icon: '📊',
-      title: 'Real-time tracking',
+      icon: '◎',
+      title: 'Know what needs attention',
       description:
-        'See where you stand at every stage — from submission to offer.',
+        'See new applicants, interviews, offer work, and stuck candidates without living in spreadsheets.',
     },
     {
-      icon: '🤝',
-      title: 'Direct hiring manager chat',
+      icon: '◉',
+      title: 'Collaborate before you have recruiting ops',
       description:
-        'Skip the black hole. Talk to the people you would actually work with.',
+        'Invite owners, managers, and interviewers into a simple review flow with clear ownership.',
     },
     {
       icon: '🔒',
-      title: 'Privacy-first',
+      title: 'Respect candidates from day one',
       description:
-        'You control who sees your profile. Stay stealthy while you explore.',
+        'Give applicants status visibility and a cleaner experience than the usual hiring black hole.',
     },
   ];
 
   readonly processSteps: ProcessStep[] = [
     {
-      title: 'Create your profile',
+      title: 'Post your first role',
       description:
-        'Build one profile once, then apply to multiple roles without repeating your details.',
+        'Create a business-ready job page and start collecting applicants without a long setup project.',
     },
     {
-      title: 'Match and apply',
+      title: 'Review as a team',
       description:
-        'Use smart search and filters to find high-fit jobs by title, department and skills.',
+        'Move candidates through a shared pipeline so every reviewer knows what to do next.',
     },
     {
-      title: 'Track in real time',
+      title: 'Run interviews with context',
       description:
-        'Get clear status updates from submitted to interview, with no guesswork.',
+        'Schedule interviews, collect feedback, and keep notes tied to the candidate record.',
     },
     {
-      title: 'Interview and decide',
+      title: 'Close the loop',
       description:
-        'Move through interviews faster and make confident decisions with transparent communication.',
+        'Send offers, update statuses, and keep candidates informed whether it is a yes or a no.',
     },
   ];
 
@@ -122,34 +115,46 @@ export class HomeComponent implements OnInit {
 
   readonly faqs: FaqItem[] = [
     {
-      question: 'Is AIRRAL free for candidates?',
+      question: 'Can a startup or small business use AIRRAL before hiring a recruiter?',
       answer:
-        'Yes. Creating a profile, searching jobs, and applying to roles is free for all candidates.',
+        'Yes. Quick Hire is built for founders, owners, operators, and first hiring managers who need a real process before they have a recruiting team.',
     },
     {
-      question: 'Can I track my application status?',
+      question: 'What does the free workspace include?',
       answer:
-        'Yes. Every role has live status updates so you can see exactly where your application stands.',
+        'Quick Hire includes a useful workspace for up to 5 active jobs and 3 teammates, with basic applicant tracking and candidate profiles.',
     },
     {
-      question: 'How fast do companies usually respond?',
+      question: 'Is AIRRAL still free for candidates?',
       answer:
-        'Most active roles receive first responses within 48 hours, depending on hiring volume.',
+        'Yes. Candidates can browse jobs, apply, and track applications for free.',
     },
     {
-      question: 'Can hiring teams use AIRRAL too?',
+      question: 'What changes when we upgrade?',
       answer:
-        'Absolutely. Teams can post jobs, review applicants, and move candidates through the pipeline from one dashboard.',
+        'Professional adds advanced pipeline views, analytics, larger team workflows, and hiring controls for teams that are scaling.',
     },
   ];
 
+  private scrollModelObserver?: IntersectionObserver;
+
   constructor(
     private jobService: JobApiService,
-    private router: Router
+    private router: Router,
+    private elementRef: ElementRef<HTMLElement>,
+    private ngZone: NgZone
   ) {}
 
   ngOnInit(): void {
     this.loadJobs();
+  }
+
+  ngAfterViewInit(): void {
+    this.setupScrollModelEffects();
+  }
+
+  ngOnDestroy(): void {
+    this.scrollModelObserver?.disconnect();
   }
 
   loadJobs(): void {
@@ -196,6 +201,52 @@ export class HomeComponent implements OnInit {
     });
   }
 
+  private setupScrollModelEffects(): void {
+    const cards = this.getScrollModelCards();
+
+    if (!cards.length) {
+      return;
+    }
+
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+      cards.forEach((card) => card.classList.add('is-visible'));
+      return;
+    }
+
+    this.ngZone.runOutsideAngular(() => {
+      this.scrollModelObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            const card = entry.target as HTMLElement;
+
+            if (entry.isIntersecting) {
+              card.classList.add('is-visible');
+              card.classList.toggle('is-active', entry.intersectionRatio >= 0.56);
+              return;
+            }
+
+            card.classList.remove('is-active');
+          });
+        },
+        {
+          rootMargin: '-12% 0px -20%',
+          threshold: [0.18, 0.42, 0.56, 0.74],
+        }
+      );
+
+      cards.forEach((card, index) => {
+        card.style.setProperty('--scroll-delay', `${index * 90}ms`);
+        this.scrollModelObserver?.observe(card);
+      });
+    });
+  }
+
+  private getScrollModelCards(): HTMLElement[] {
+    return Array.from(
+      this.elementRef.nativeElement.querySelectorAll<HTMLElement>('.scroll-model-card')
+    );
+  }
+
   viewJob(jobId: number): void {
     this.router.navigate(['/jobs', jobId]);
   }
@@ -205,4 +256,3 @@ export class HomeComponent implements OnInit {
     this.router.navigate(['/apply'], { queryParams: { jobId } });
   }
 }
-

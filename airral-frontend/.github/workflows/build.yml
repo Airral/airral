@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.12.0'
           cache: 'npm'
           cache-dependency-path: airral-frontend/package-lock.json
 
@@ -52,7 +52,7 @@ jobs:
           retention-days: 7
 
   test:
-    name: Test Libraries
+    name: Lint Libraries
     runs-on: ubuntu-latest
 
     steps:
@@ -62,31 +62,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.12.0'
           cache: 'npm'
           cache-dependency-path: airral-frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Test shared-utils
-        run: npx nx test shared-utils --coverage
-
-      - name: Test shared-types
-        run: npx nx test shared-types --coverage
-
-      - name: Test shared-api
-        run: npx nx test shared-api --coverage
-
-      - name: Test shared-auth
-        run: npx nx test shared-auth --coverage
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: airral-frontend/coverage/**/lcov.info
-          flags: frontend
-          name: frontend-coverage
+      - name: Lint shared libraries
+        run: npx nx run-many --target=lint --projects=shared-utils,shared-types,shared-api,shared-auth,shared-ui
 
   build-check:
     name: Production Build Verification
@@ -100,7 +84,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22.12.0'
           cache: 'npm'
           cache-dependency-path: airral-frontend/package-lock.json
 

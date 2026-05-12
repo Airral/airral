@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 520" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="40" x2="640" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFF"/>
+      <stop offset="1" stop-color="#EAF0FF"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="100" y1="88" x2="600" y2="438" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E3A8A"/>
+      <stop offset=".58" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#60A5FA"/>
+    </linearGradient>
+    <filter id="shadow" x="34" y="40" width="652" height="456" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="26" stdDeviation="26" flood-color="#0F172A" flood-opacity=".18"/>
+    </filter>
+  </defs>
+
+  <rect width="720" height="520" rx="38" fill="url(#bg)"/>
+  <g opacity=".55">
+    <path d="M76 96H644" stroke="#C8D5FF"/>
+    <path d="M76 164H644" stroke="#C8D5FF"/>
+    <path d="M76 232H644" stroke="#C8D5FF"/>
+    <path d="M76 300H644" stroke="#C8D5FF"/>
+    <path d="M76 368H644" stroke="#C8D5FF"/>
+    <path d="M128 58V460" stroke="#C8D5FF"/>
+    <path d="M248 58V460" stroke="#C8D5FF"/>
+    <path d="M368 58V460" stroke="#C8D5FF"/>
+    <path d="M488 58V460" stroke="#C8D5FF"/>
+    <path d="M608 58V460" stroke="#C8D5FF"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="78" y="68" width="564" height="384" rx="22" fill="white"/>
+    <rect x="78" y="68" width="564" height="58" rx="22" fill="#101B3A"/>
+    <path d="M78 104H642V126H78V104Z" fill="#101B3A"/>
+    <circle cx="110" cy="97" r="8" fill="#FBBF24"/>
+    <circle cx="136" cy="97" r="8" fill="#FB923C"/>
+    <circle cx="162" cy="97" r="8" fill="#60A5FA"/>
+    <text x="192" y="103" fill="#F8FAFC" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800">Role setup</text>
+
+    <text x="114" y="174" fill="#64748B" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="800" letter-spacing="2">WHAT YOU CAN DO</text>
+    <text x="114" y="212" fill="#0F172A" font-family="Inter, Arial, sans-serif" font-size="31" font-weight="850">Launch the role</text>
+
+    <rect x="114" y="244" width="226" height="72" rx="14" fill="#F8FAFC" stroke="#D9E2F7"/>
+    <text x="136" y="275" fill="#64748B" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800" letter-spacing="1.4">ROLE</text>
+    <text x="136" y="299" fill="#0F172A" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">Senior Product Engineer</text>
+
+    <rect x="114" y="332" width="226" height="72" rx="14" fill="#F8FAFC" stroke="#D9E2F7"/>
+    <text x="136" y="363" fill="#64748B" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800" letter-spacing="1.4">SCORECARD</text>
+    <text x="136" y="387" fill="#0F172A" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="800">6 founder signals set</text>
+
+    <rect x="378" y="244" width="214" height="160" rx="16" fill="#F8FAFC" stroke="#D9E2F7"/>
+    <g font-family="Inter, Arial, sans-serif" font-size="16" font-weight="760" fill="#334155">
+      <circle cx="408" cy="280" r="11" fill="#E8EEFF"/>
+      <path d="M403 280.5L407 284L414 276" stroke="#2563EB" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="430" y="286">Job page generated</text>
+      <circle cx="408" cy="324" r="11" fill="#E8EEFF"/>
+      <path d="M403 324.5L407 328L414 320" stroke="#2563EB" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="430" y="330">Team invited</text>
+      <circle cx="408" cy="368" r="11" fill="#E8EEFF"/>
+      <path d="M403 368.5L407 372L414 364" stroke="#2563EB" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="430" y="374">Review rubric ready</text>
+    </g>
+
+    <rect x="378" y="420" width="214" height="12" rx="6" fill="#DBE6FF"/>
+    <rect x="378" y="420" width="156" height="12" rx="6" fill="url(#brand)"/>
+  </g>
+
+  <path d="M570 338L626 392L594 398L582 432L548 356L570 338Z" fill="#111827" opacity=".9"/>
+  <path d="M570 338L626 392L594 398L582 432L548 356L570 338Z" stroke="white" stroke-width="3" stroke-linejoin="round"/>
+</svg>

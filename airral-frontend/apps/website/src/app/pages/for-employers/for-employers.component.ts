@@ -10,6 +10,17 @@ interface EmployerBenefit {
   description: string;
 }
 
+interface EmployerPlan {
+  name: string;
+  price: string;
+  period: string;
+  description: string;
+  features: string[];
+  cta: string;
+  route: string;
+  highlighted: boolean;
+}
+
 @Component({
   selector: 'app-for-employers',
   standalone: true,
@@ -21,44 +32,45 @@ export class ForEmployersComponent {
   readonly benefits: EmployerBenefit[] = [
     {
       icon: '🎯',
-      title: 'Smart Matching',
-      description: 'Our AI algorithm matches your job requirements with the best-fit candidates automatically.',
+      title: 'Owner-ready ATS',
+      description: 'Post roles, collect applications, review candidates, and keep every decision in one workspace.',
     },
     {
       icon: '⚡',
-      title: '90% Faster Hiring',
-      description: 'Reduce hiring time from months to weeks with streamlined workflows and qualified candidates.',
+      title: 'Move with focus',
+      description: 'Track who needs review, what interview comes next, and which candidates are ready for a decision.',
     },
     {
       icon: '💰',
-      title: 'Reduce Costs',
-      description: 'Save on recruitment agency fees and internal hiring costs. No hidden charges.',
+      title: 'Built for lean teams',
+      description: 'Start free with Quick Hire, then upgrade only when your hiring motion needs more room.',
     },
     {
       icon: '📊',
-      title: 'Advanced Analytics',
-      description: 'Track hiring metrics, candidate pipeline, and hiring performance in real-time.',
+      title: 'Pipeline clarity',
+      description: 'See active roles, candidate stages, team feedback, and offer work without spreadsheet drift.',
     },
     {
       icon: '🤝',
-      title: 'Collaboration Tools',
-      description: 'Built-in chat, interview scheduling, and feedback collection for your team.',
+      title: 'Team decisions',
+      description: 'Invite owners, hiring managers, and interviewers to evaluate candidates with shared context.',
     },
     {
       icon: '🔒',
-      title: 'Compliance Ready',
-      description: 'Meet global hiring regulations and maintain audit trails for every hire.',
+      title: 'Candidate respect',
+      description: 'Give applicants a cleaner process with organized roles, status visibility, and timely follow-up.',
     },
   ];
 
-  readonly plans = [
+  readonly plans: EmployerPlan[] = [
     {
       name: 'Quick Hire',
       price: 'Free',
       period: '',
-      description: 'Perfect for startups',
+      description: 'Perfect for startups and small businesses',
       features: ['Up to 5 active jobs', '3 team members', 'Basic applicant tracking', 'Email support', 'Application forms'],
       cta: 'Get Started',
+      route: '/sign-up',
       highlighted: false,
     },
     {
@@ -68,6 +80,7 @@ export class ForEmployersComponent {
       description: 'For growing companies',
       features: ['Unlimited job postings', 'Up to 20 team members', 'Advanced analytics', 'Interview scheduling', 'Calendar integration', 'Priority support'],
       cta: 'Start Free Trial',
+      route: '/sign-up',
       highlighted: true,
     },
     {
@@ -77,6 +90,7 @@ export class ForEmployersComponent {
       description: 'For large organizations',
       features: ['Everything in Professional', 'Unlimited team members', 'White label option', 'API access', 'SSO authentication', 'Dedicated support'],
       cta: 'Contact Sales',
+      route: '/contact',
       highlighted: false,
     },
   ];

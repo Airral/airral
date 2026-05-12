@@ -7,11 +7,11 @@
   <!-- Hero -->
   <section class="hero">
     <div class="hero-content">
-      <h1>Hire the Best Talent, Faster</h1>
-      <p class="hero-subtitle">Stop wasting time with recruiting agencies. Use AI-powered matching to find perfect candidates in days, not months.</p>
+      <h1>Hire like a serious company before you have a recruiting team</h1>
+      <p class="hero-subtitle">AIRRAL gives startups and small businesses a clean ATS for posting roles, reviewing candidates, running interviews, and moving offers forward.</p>
       <div class="hero-cta">
-        <a routerLink="/sign-up" class="btn btn-primary">Start Free Trial</a>
-        <a routerLink="/contact" class="btn btn-secondary">Schedule Demo</a>
+        <a routerLink="/sign-up" class="btn btn-primary">Start Quick Hire</a>
+        <a routerLink="/pricing" class="btn btn-secondary">Compare Plans</a>
       </div>
     </div>
   </section>
@@ -19,7 +19,7 @@
   <div class="container">
     <!-- Benefits -->
     <section class="benefits-section">
-      <h2>Why Choose AIRRAL for Hiring?</h2>
+      <h2>Everything a growing team needs to run a real hiring process</h2>
       <div class="benefits-grid">
         <div class="benefit-card" *ngFor="let benefit of benefits">
           <div class="benefit-icon">{{ benefit.icon }}</div>
@@ -31,30 +31,30 @@
 
     <!-- How It Works for Employers -->
     <section class="how-it-works-section">
-      <h2>Hiring Made Simple</h2>
+      <h2>From first job post to first offer</h2>
       <div class="steps-grid">
         <div class="step-card">
           <div class="step-number">1</div>
-          <h3>Post a Job</h3>
-          <p>Write a job description. Our AI learns what you're looking for and finds similar candidates automatically.</p>
+          <h3>Open the role</h3>
+          <p>Create a role, publish the application, and keep every inbound candidate attached to the right job.</p>
         </div>
         <div class="step-card">
           <div class="step-number">2</div>
-          <h3>Get Matches</h3>
-          <p>Review pre-screened, qualified candidates ranked by fit. No more sifting through hundreds of resumes.</p>
+          <h3>Review together</h3>
+          <p>Move candidates through stages with notes, scorecards, and team feedback in one shared view.</p>
         </div>
         <div class="step-card">
           <div class="step-number">3</div>
-          <h3>Collaborate & Decide</h3>
-          <p>Use our tools to interview, evaluate, and decide as a team. Hire the best in record time.</p>
+          <h3>Interview and close</h3>
+          <p>Schedule the next step, make decisions with context, and keep candidates informed through the process.</p>
         </div>
       </div>
     </section>
 
     <!-- Pricing -->
     <section class="pricing-section">
-      <h2>Simple, Transparent Pricing</h2>
-      <p class="pricing-subtitle">No setup fees. No hidden charges. Scale as you grow.</p>
+      <h2>Small team-friendly pricing</h2>
+      <p class="pricing-subtitle">Start with Quick Hire, then expand when your team and pipeline grow.</p>
       <div class="pricing-grid">
         <div class="pricing-card" *ngFor="let plan of plans" [class.highlighted]="plan.highlighted">
           <h3>{{ plan.name }}</h3>
@@ -63,7 +63,7 @@
           <ul class="features-list">
             <li *ngFor="let feature of plan.features">✓ {{ feature }}</li>
           </ul>
-          <a href="#" class="btn btn-plan">{{ plan.cta }}</a>
+          <a [routerLink]="plan.route" class="btn btn-plan">{{ plan.cta }}</a>
         </div>
       </div>
     </section>
@@ -71,29 +71,29 @@
     <!-- Stats -->
     <section class="stats-section">
       <div class="stat">
-        <div class="stat-value">50K+</div>
-        <div class="stat-label">Companies Hiring</div>
+        <div class="stat-value">Free</div>
+        <div class="stat-label">Quick Hire plan</div>
       </div>
       <div class="stat">
-        <div class="stat-value">500K+</div>
-        <div class="stat-label">Positions Filled</div>
+        <div class="stat-value">5</div>
+        <div class="stat-label">Active jobs included</div>
       </div>
       <div class="stat">
-        <div class="stat-value">92%</div>
-        <div class="stat-label">Hiring Success Rate</div>
+        <div class="stat-value">3</div>
+        <div class="stat-label">Teammates included</div>
       </div>
       <div class="stat">
-        <div class="stat-value">14 days</div>
-        <div class="stat-label">Average Time to Hire</div>
+        <div class="stat-value">1</div>
+        <div class="stat-label">Shared hiring pipeline</div>
       </div>
     </section>
 
     <!-- CTA -->
     <section class="cta-section">
       <div class="cta-card">
-        <h2>Ready to Transform Your Hiring?</h2>
-        <p>Join 50,000+ companies using AIRRAL to build better teams.</p>
-        <a routerLink="/sign-up" class="btn btn-primary">Start Your Free Trial Today</a>
+        <h2>Ready to run hiring with more focus?</h2>
+        <p>Give your team a real system before the process starts living in inboxes and side notes.</p>
+        <a routerLink="/sign-up" class="btn btn-primary">Start Quick Hire</a>
       </div>
     </section>
   </div>

@@ -2,27 +2,31 @@
   "name": "@airral-frontend/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "lint": "nx run-many --target=lint --all",
+    "build": "nx run-many --target=build --all --configuration=production --parallel=4",
+    "ci:verify": "npm run lint && npm run build"
+  },
   "private": true,
   "dependencies": {
-    "@angular/animations": "21",
-    "@angular/cdk": "21",
-    "@angular/common": "~21.2.0",
-    "@angular/compiler": "~21.2.0",
-    "@angular/core": "~21.2.0",
-    "@angular/forms": "~21.2.0",
-    "@angular/material": "21",
-    "@angular/platform-browser": "~21.2.0",
-    "@angular/router": "~21.2.0",
+    "@angular/animations": "21.2.10",
+    "@angular/cdk": "21.2.10",
+    "@angular/common": "21.2.10",
+    "@angular/compiler": "21.2.10",
+    "@angular/core": "21.2.10",
+    "@angular/forms": "21.2.10",
+    "@angular/material": "21.2.10",
+    "@angular/platform-browser": "21.2.10",
+    "@angular/router": "21.2.10",
     "rxjs": "~7.8.0"
   },
   "devDependencies": {
-    "@angular-devkit/core": "~21.2.0",
-    "@angular-devkit/schematics": "~21.2.0",
-    "@angular/build": "~21.2.0",
-    "@angular/cli": "~21.2.0",
-    "@angular/compiler-cli": "~21.2.0",
-    "@angular/language-service": "~21.2.0",
+    "@angular-devkit/core": "21.2.8",
+    "@angular-devkit/schematics": "21.2.8",
+    "@angular/build": "21.2.8",
+    "@angular/cli": "21.2.8",
+    "@angular/compiler-cli": "21.2.10",
+    "@angular/language-service": "21.2.10",
     "@eslint/js": "^9.8.0",
     "@nx/angular": "22.6.5",
     "@nx/eslint": "22.6.5",
@@ -30,7 +34,7 @@
     "@nx/js": "22.6.5",
     "@nx/web": "22.6.5",
     "@nx/workspace": "22.6.5",
-    "@schematics/angular": "~21.2.0",
+    "@schematics/angular": "21.2.8",
     "@swc-node/register": "~1.11.1",
     "@swc/core": "~1.15.5",
     "@swc/helpers": "~0.5.18",
@@ -44,5 +48,5 @@
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.40.0"
   },
-  "packageManager": "yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610"
+  "packageManager": "npm@11.12.1"
 }

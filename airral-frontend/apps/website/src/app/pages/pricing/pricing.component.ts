@@ -19,7 +19,7 @@ export class PricingComponent {
       name: 'Quick Hire',
       price: 'Free',
       period: '',
-      description: 'Perfect for startups',
+      description: 'Perfect for startups and small businesses',
       features: [
         'Up to 5 active jobs',
         '3 team members',

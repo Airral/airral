@@ -6,71 +6,79 @@
 <main class="home">
   <!-- Hero -->
   <section class="hero">
-    <div class="hero-bg" aria-hidden="true">
-      <span class="blob blob-1"></span>
-      <span class="blob blob-2"></span>
-      <span class="blob blob-3"></span>
-      <div class="grid-overlay"></div>
-    </div>
+    <div class="hero-bg" aria-hidden="true"></div>
 
     <div class="container hero-inner">
       <span class="eyebrow">
-        <span class="pulse-dot"></span> Smart hiring that actually works
+        <span class="pulse-dot"></span> Startup and small business ATS
       </span>
 
       <h1 class="hero-title">
-        Hire faster. <span class="gradient-text">Hire better.</span><br>
-        <span class="gradient-text">Hire smarter.</span>
+        <span class="word-animate" style="--word-index: 0">Give</span>
+        <span class="word-animate" style="--word-index: 1">your</span>
+        <span class="word-animate" style="--word-index: 2">team</span>
+        <span class="word-animate" style="--word-index: 3">a</span>
+        <span class="word-animate" style="--word-index: 4">hiring</span>
+        <span class="word-animate" style="--word-index: 5">engine</span>
+        <span class="word-animate" style="--word-index: 6">before</span>
+        <span class="word-animate" style="--word-index: 7">you</span>
+        <span class="word-animate" style="--word-index: 8">have</span>
+        <span class="word-animate" style="--word-index: 9">a</span>
+        <span class="word-animate" style="--word-index: 10">recruiting</span>
+        <span class="word-animate" style="--word-index: 11">team</span>
       </h1>
 
       <p class="hero-sub">
-        The ATS that companies love and candidates don't hate.
-        Real-time tracking, one-click applications, and zero black holes.
+        <span class="word-animate" style="--word-index: 0">AIRRAL</span>
+        <span class="word-animate" style="--word-index: 1">turns</span>
+        <span class="word-animate" style="--word-index: 2">job</span>
+        <span class="word-animate" style="--word-index: 3">posts,</span>
+        <span class="word-animate" style="--word-index: 4">candidate</span>
+        <span class="word-animate" style="--word-index: 5">reviews,</span>
+        <span class="word-animate" style="--word-index: 6">interviews,</span>
+        <span class="word-animate" style="--word-index: 7">and</span>
+        <span class="word-animate" style="--word-index: 8">offers</span>
+        <span class="word-animate" style="--word-index: 9">into</span>
+        <span class="word-animate" style="--word-index: 10">one</span>
+        <span class="word-animate" style="--word-index: 11">clean</span>
+        <span class="word-animate" style="--word-index: 12">workflow</span>
+        <span class="word-animate" style="--word-index: 13">so</span>
+        <span class="word-animate" style="--word-index: 14">startups</span>
+        <span class="word-animate" style="--word-index: 15">and</span>
+        <span class="word-animate" style="--word-index: 16">small</span>
+        <span class="word-animate" style="--word-index: 17">businesses</span>
+        <span class="word-animate" style="--word-index: 18">can</span>
+        <span class="word-animate" style="--word-index: 19">hire</span>
+        <span class="word-animate" style="--word-index: 20">with</span>
+        <span class="word-animate" style="--word-index: 21">momentum</span>
+        <span class="word-animate" style="--word-index: 22">instead</span>
+        <span class="word-animate" style="--word-index: 23">of</span>
+        <span class="word-animate" style="--word-index: 24">spreadsheet</span>
+        <span class="word-animate" style="--word-index: 25">chaos.</span>
       </p>
 
-      <form class="search-card" (submit)="$event.preventDefault(); onSearchChange()">
-        <div class="search-field">
-          <span class="search-icon" aria-hidden="true">🔎</span>
-          <input
-            type="search"
-            placeholder="Search by title, skill or keyword…"
-            [(ngModel)]="searchQuery"
-            (ngModelChange)="onSearchChange()"
-            name="q"
-            aria-label="Search jobs"
-          />
-        </div>
-        <button type="submit" class="btn-primary">Search jobs</button>
-      </form>
-
-      <ul class="stats">
-        <li *ngFor="let s of stats">
-          <span class="stat-value">{{ s.value }}</span>
-          <span class="stat-label">{{ s.label }}</span>
-        </li>
-      </ul>
-
-      <!-- Trust indicators -->
-      <div class="trust-badges">
-        <span class="trust-badge">
-          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zm3.97 4.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
-          </svg>
-          Data Encrypted
-        </span>
-        <span class="trust-badge">
-          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.775 11.775 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56z"/>
-          </svg>
-          Enterprise Security
-        </span>
-        <span class="trust-badge">
-          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
-          </svg>
-          256-bit SSL
-        </span>
+      <div class="hero-actions">
+        <a class="btn-primary" routerLink="/for-employers">Start Quick Hire</a>
+        <a class="btn-ghost" routerLink="/pricing">See pricing</a>
       </div>
+
+      <div class="hero-svg-stage" aria-label="AIRRAL pipeline product preview">
+        <figure class="hero-svg-card">
+          <img src="/assets/models/pipeline-review.svg" alt="Pipeline model showing candidate review movement" />
+        </figure>
+
+        <div class="hero-proof-card proof-left" aria-hidden="true">
+          <span>Role live</span>
+          <strong>Scorecard ready</strong>
+        </div>
+
+        <div class="hero-proof-card proof-right" aria-hidden="true">
+          <span>Offer room</span>
+          <strong>1 decision away</strong>
+        </div>
+      </div>
+
+      <p class="hero-note">Free for job seekers. Useful for startups and small businesses from the first open role.</p>
     </div>
   </section>
 
@@ -84,14 +92,73 @@
     </div>
   </section>
 
+  <section class="scroll-models" aria-labelledby="scroll-models-title">
+    <div class="container">
+      <header class="section-head centered">
+        <h2 id="scroll-models-title">See the workflow unfold</h2>
+        <p class="section-sub">Three lightweight product snapshots that can move with the page.</p>
+      </header>
+
+      <div class="scroll-model-list">
+        <article class="scroll-model-card">
+          <div class="scroll-model-copy">
+            <span>01</span>
+            <h3>Launch the role</h3>
+            <p>Turn a role, scorecard, and team invite into a ready-to-publish hiring workspace.</p>
+          </div>
+          <figure class="svg-frame">
+            <img src="/assets/models/role-setup.svg" alt="Role setup model showing job page and scorecard setup" />
+          </figure>
+        </article>
+
+        <article class="scroll-model-card">
+          <div class="scroll-model-copy">
+            <span>02</span>
+            <h3>Move review work</h3>
+            <p>Show candidates flowing from new applicants into founder review with live activity.</p>
+          </div>
+          <figure class="svg-frame">
+            <img src="/assets/models/pipeline-review.svg" alt="Pipeline model showing candidate review movement" />
+          </figure>
+        </article>
+
+        <article class="scroll-model-card">
+          <div class="scroll-model-copy">
+            <span>03</span>
+            <h3>Reach the decision</h3>
+            <p>End the journey with fit signals, cleared decisions, and an offer ready to send.</p>
+          </div>
+          <figure class="svg-frame">
+            <img src="/assets/models/offer-room.svg" alt="Offer room model showing decision and offer readiness" />
+          </figure>
+        </article>
+      </div>
+    </div>
+  </section>
+
   <!-- Jobs -->
   <section class="jobs-section">
     <div class="container">
       <header class="section-head">
         <div>
-          <h2>Open positions</h2>
-          <p class="section-sub">Fresh roles from teams that hire through AIRRAL.</p>
+          <h2>Open roles from growing teams</h2>
+          <p class="section-sub">Fresh opportunities from teams building with momentum.</p>
         </div>
+
+        <form class="search-card" (submit)="$event.preventDefault(); onSearchChange()">
+          <div class="search-field">
+            <span class="search-icon" aria-hidden="true">Search</span>
+            <input
+              type="search"
+              placeholder="Search by title, skill, or keyword"
+              [(ngModel)]="searchQuery"
+              (ngModelChange)="onSearchChange()"
+              name="q"
+              aria-label="Search jobs"
+            />
+          </div>
+          <button type="submit" class="btn-primary">Find roles</button>
+        </form>
 
         <div class="chip-row" role="tablist" aria-label="Filter by department">
           <button
@@ -171,8 +238,8 @@
   <section class="features">
     <div class="container">
       <header class="section-head centered">
-        <h2>Why candidates love AIRRAL</h2>
-        <p class="section-sub">Built to feel modern, respectful and fast.</p>
+        <h2>What growing teams get out of the box</h2>
+        <p class="section-sub">The hiring power you need now, without enterprise clutter.</p>
       </header>
 
       <div class="features-grid">
@@ -188,8 +255,8 @@
   <section class="process">
     <div class="container">
       <header class="section-head centered">
-        <h2>How hiring works on AIRRAL</h2>
-        <p class="section-sub">Clear steps. Faster outcomes. Better candidate experience.</p>
+        <h2>From first role to first hire</h2>
+        <p class="section-sub">A simple operating rhythm for teams that need to move.</p>
       </header>
 
       <div class="process-grid">
@@ -226,7 +293,7 @@
     <div class="container faq-inner">
       <header class="section-head centered">
         <h2>Frequently asked questions</h2>
-        <p class="section-sub">Quick answers before you apply or hire.</p>
+        <p class="section-sub">Quick answers for founders, owners, and first hiring teams.</p>
       </header>
 
       <div class="faq-list">
@@ -243,12 +310,12 @@
     <div class="container">
       <div class="cta-card">
         <div>
-          <h2>Ready to make your next move?</h2>
-          <p>Create a free profile in under a minute and start applying today.</p>
+          <h2>Ready to give your team a real hiring system?</h2>
+          <p>Start with Quick Hire, invite your team, and run your first role with confidence.</p>
         </div>
         <div class="cta-actions">
-          <a class="btn-primary" routerLink="/sign-up">Get started</a>
-          <a class="btn-ghost-dark" routerLink="/for-employers">I'm hiring</a>
+          <a class="btn-primary" routerLink="/for-employers">Start Quick Hire</a>
+          <a class="btn-ghost-dark" routerLink="/sign-up">Create candidate profile</a>
         </div>
       </div>
     </div>
@@ -256,4 +323,3 @@
 </main>
 
 <airral-footer></airral-footer>
-
