@@ -11,13 +11,11 @@ on:
     branches: [ main, develop ]
     paths:
       - 'airral-backend/**'
-      - '.github/workflows/backend-*.yml'
+      - '.github/workflows/backend-build.yml'
   pull_request:
     branches: [ main, develop ]
     paths:
       - 'airral-backend/**'
-  release:
-    types: [ published ]
 
 defaults:
   run:
@@ -52,16 +50,18 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      # This action downloads Gradle automatically — no gradle-wrapper.jar needed in repo
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
 
       - name: Build with Gradle
-        run: ./gradlew clean build -x test
+        run: gradle clean build -x test
 
       - name: Run unit tests
-        run: ./gradlew test
+        run: gradle test
         env:
           SPRING_R2DBC_URL: r2dbc:postgresql://localhost:5432/airral_test_db
           SPRING_R2DBC_USERNAME: test_user
@@ -76,8 +76,11 @@ jobs:
         uses: dorny/test-reporter@v1
         with:
           name: Test Results
+          # working-directory default is airral-backend, but dorny/test-reporter
+          # path is always relative to repo root
           path: airral-backend/build/test-results/test/*.xml
           reporter: java-junit
+          fail-on-error: false
 
       - name: Upload build artifacts
         if: success()
@@ -86,11 +89,3 @@ jobs:
           name: backend-jar
           path: airral-backend/build/libs/*.jar
           retention-days: 7
-
-      - name: Upload test coverage
-        if: always()
-        uses: codecov/codecov-action@v4
-        with:
-          files: airral-backend/build/reports/jacoco/test/jacocoTestReport.xml
-          flags: backend
-          name: backend-coverage

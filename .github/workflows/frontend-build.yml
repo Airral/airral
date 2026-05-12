@@ -21,19 +21,38 @@ on:
     branches: [ main, develop ]
     paths:
       - 'airral-frontend/**'
-      - '.github/workflows/frontend-*.yml'
+      - '.github/workflows/frontend-build.yml'
   pull_request:
     branches: [ main, develop ]
     paths:
       - 'airral-frontend/**'
-  release:
-    types: [ published ]
 
 defaults:
   run:
     working-directory: airral-frontend
 
 jobs:
+  lint-libraries:
+    name: Lint Libraries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: 'npm'
+          cache-dependency-path: airral-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint shared libraries
+        run: npx nx run-many --target=lint --projects=shared-utils,shared-types,shared-api,shared-auth,shared-ui
+
   build-single:
     name: Build ${{ inputs.app }} v${{ inputs.version }}
     runs-on: ubuntu-latest
@@ -69,9 +88,11 @@ jobs:
   build-all:
     name: Build All Apps
     runs-on: ubuntu-latest
+    # Only run on push/PR (not workflow_dispatch unless app=all)
     if: github.event_name != 'workflow_dispatch' || inputs.app == 'all'
 
     strategy:
+      fail-fast: false
       matrix:
         app: [website, hr-portal, applicant-portal, admin-portal]
 
@@ -101,24 +122,3 @@ jobs:
           name: ${{ matrix.app }}-dist
           path: airral-frontend/dist/apps/${{ matrix.app }}
           retention-days: 7
-
-  test:
-    name: Lint Libraries
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22.12.0'
-          cache: 'npm'
-          cache-dependency-path: airral-frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint shared libraries
-        run: npx nx run-many --target=lint --projects=shared-utils,shared-types,shared-api,shared-auth,shared-ui

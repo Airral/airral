@@ -1,11 +1,17 @@
 name: Create Release
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'airral-backend/**'
-      - 'airral-frontend/**'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -24,7 +30,6 @@ jobs:
       - name: Get latest tag
         id: latest-tag
         run: |
-          # Get all tags sorted by version
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
           echo "Latest tag: $LATEST_TAG"
@@ -33,17 +38,21 @@ jobs:
         id: bump-version
         run: |
           LATEST_TAG=${{ steps.latest-tag.outputs.tag }}
-          # Remove 'v' prefix
           VERSION=${LATEST_TAG#v}
-          
-          # Split version
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          
-          # Increment patch version
-          PATCH=$((PATCH + 1))
+
+          case "${{ inputs.bump }}" in
+            major)
+              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor)
+              MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch)
+              PATCH=$((PATCH + 1)) ;;
+          esac
+
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           NEW_TAG="v${NEW_VERSION}"
-          
+
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
           echo "New version: $NEW_TAG"
