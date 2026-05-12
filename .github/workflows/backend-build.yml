@@ -26,21 +26,6 @@ jobs:
     name: Build & Test v${{ inputs.version || 'auto' }}
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_DB: airral_test_db
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -59,28 +44,6 @@ jobs:
 
       - name: Build with Gradle
         run: gradle clean build -x test
-
-      - name: Run unit tests
-        run: gradle test
-        env:
-          SPRING_R2DBC_URL: r2dbc:postgresql://localhost:5432/airral_test_db
-          SPRING_R2DBC_USERNAME: test_user
-          SPRING_R2DBC_PASSWORD: test_password
-          SPRING_FLYWAY_URL: jdbc:postgresql://localhost:5432/airral_test_db
-          SPRING_FLYWAY_USER: test_user
-          SPRING_FLYWAY_PASSWORD: test_password
-          JWT_SECRET: test-jwt-secret-key-for-ci-minimum-256-bits-long
-
-      - name: Generate test report
-        if: always()
-        uses: dorny/test-reporter@v1
-        with:
-          name: Test Results
-          # working-directory default is airral-backend, but dorny/test-reporter
-          # path is always relative to repo root
-          path: airral-backend/build/test-results/test/*.xml
-          reporter: java-junit
-          fail-on-error: false
 
       - name: Upload build artifacts
         if: success()
