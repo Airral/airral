@@ -84,6 +84,7 @@ jobs:
         if: steps.set-vars.outputs.app != 'backend'
         working-directory: airral-frontend
         run: |
+          corepack enable
           yarn install --frozen-lockfile
           npx nx build ${{ steps.set-vars.outputs.app }} --configuration=production
           
