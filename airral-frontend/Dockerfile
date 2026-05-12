@@ -1,5 +1,5 @@
 # Multi-stage build for frontend apps
-FROM node:22.12.0 AS builder
+FROM node:22 AS builder
 
 WORKDIR /app
 

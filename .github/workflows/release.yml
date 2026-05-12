@@ -101,11 +101,23 @@ jobs:
           echo "- **Version**: ${{ steps.set-vars.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Image**: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:${{ steps.set-vars.outputs.version }}" >> $GITHUB_STEP_SUMMARY
 
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: airral-${{ steps.set-vars.outputs.app }}
+          image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:${{ steps.set-vars.outputs.version }}
+          region: ${{ env.GCP_REGION }}
+          flags: '--allow-unauthenticated'
+
+      - name: Show Cloud Run URL
+        run: echo "Deployment complete! URL: ${{ steps.deploy.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+
       - name: Notify deployment
         if: always()
         uses: 8398a7/action-slack@v3
         with:
           status: ${{ job.status }}
-          text: 'Built and pushed ${{ steps.set-vars.outputs.app }} v${{ steps.set-vars.outputs.version }} to GCP'
+          text: 'Built and deployed ${{ steps.set-vars.outputs.app }} v${{ steps.set-vars.outputs.version }} to Cloud Run. URL: ${{ steps.deploy.outputs.url }}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
