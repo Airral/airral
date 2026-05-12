@@ -5,7 +5,6 @@ WORKDIR /app
 
 # Copy gradle files
 COPY build.gradle settings.gradle gradle.properties ./
-COPY gradle ./gradle
 
 # Download dependencies (cached layer)
 RUN gradle dependencies --no-daemon
