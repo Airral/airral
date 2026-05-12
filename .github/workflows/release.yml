@@ -1,10 +1,10 @@
-name: Build & Push to GCP
+name: Deploy to Cloud Run
 
 on:
   workflow_dispatch:
     inputs:
       app:
-        description: 'App to build'
+        description: 'App to deploy'
         required: true
         type: choice
         options:
@@ -13,12 +13,10 @@ on:
           - hr-portal
           - applicant-portal
           - admin-portal
-      version:
-        description: 'Version (e.g., 1.0.0)'
+      tag:
+        description: 'Image tag to deploy (for example, v1.0.0)'
         required: true
         type: string
-  release:
-    types: [published]
 
 env:
   GCP_REGION: us-central1
@@ -26,37 +24,15 @@ env:
   GCP_ARTIFACT_REGISTRY: ${{ secrets.GCP_ARTIFACT_REGISTRY }}
 
 jobs:
-  build:
-    name: "Build ${{ inputs.app || 'Release' }} v${{ inputs.version || 'auto' }}"
+  deploy:
+    name: "Deploy ${{ inputs.app }}:${{ inputs.tag }}"
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
       id-token: write
+      contents: read
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Extract version and app from release
-        id: extract-release
-        if: github.event_name == 'release'
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "app=backend" >> $GITHUB_OUTPUT
-
-      - name: Set version and app
-        id: set-vars
-        run: |
-          if [ "${{ github.event_name }}" == "release" ]; then
-            echo "version=${{ steps.extract-release.outputs.version }}" >> $GITHUB_OUTPUT
-            echo "app=${{ steps.extract-release.outputs.app }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
-            echo "app=${{ inputs.app }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -66,56 +42,24 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker for GCP
-        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
-
-      - name: Build and push Backend
-        if: steps.set-vars.outputs.app == 'backend'
-        working-directory: airral-backend
-        run: |
-          IMAGE_TAG=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:${{ steps.set-vars.outputs.version }}
-          docker build -t $IMAGE_TAG .
-          docker push $IMAGE_TAG
-          docker tag $IMAGE_TAG ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:latest
-          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:latest
-
-      - name: Build and push Frontend App
-        if: steps.set-vars.outputs.app != 'backend'
-        working-directory: airral-frontend
-        run: |
-          corepack enable
-          yarn install --frozen-lockfile
-          npx nx build ${{ steps.set-vars.outputs.app }} --configuration=production
-          
-          IMAGE_TAG=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:${{ steps.set-vars.outputs.version }}
-          docker build -t $IMAGE_TAG --build-arg APP=${{ steps.set-vars.outputs.app }} .
-          docker push $IMAGE_TAG
-          docker tag $IMAGE_TAG ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:latest
-          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:latest
-
-      - name: Create release summary
-        run: |
-          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **App**: ${{ steps.set-vars.outputs.app }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: ${{ steps.set-vars.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-
-      - name: Deploy to Cloud Run
+      - name: Deploy image to Cloud Run
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: airral-${{ steps.set-vars.outputs.app }}
-          image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:${{ steps.set-vars.outputs.version }}
+          service: airral-${{ inputs.app }}
+          image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ inputs.app }}:${{ inputs.tag }}
           region: ${{ env.GCP_REGION }}
           flags: '--allow-unauthenticated'
 
       - name: Show Cloud Run URL
-        run: echo "Deployment complete! URL: ${{ steps.deploy.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+        run: |
+          echo "Deployment complete! URL: ${{ steps.deploy.outputs.url }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Notify deployment
         if: always()
         uses: 8398a7/action-slack@v3
         with:
           status: ${{ job.status }}
-          text: "Built and deployed ${{ steps.set-vars.outputs.app }} v${{ steps.set-vars.outputs.version }} to Cloud Run."
+          text: 'Deployed ${{ inputs.app }} tag ${{ inputs.tag }} to Cloud Run.'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
