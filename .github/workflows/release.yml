@@ -17,6 +17,8 @@ on:
         description: 'Version (e.g., 1.0.0)'
         required: true
         type: string
+  release:
+    types: [ published ]
 
 env:
   GCP_REGION: us-central1
@@ -33,6 +35,26 @@ jobs:
       id-token: write
 
     steps:
+      - name: Extract version and app from release
+        id: extract-release
+        if: github.event_name == 'release'
+        run: |
+          # Extract version from tag (e.g., v1.0.0 -> 1.0.0)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "app=backend" >> $GITHUB_OUTPUT
+
+      - name: Set version and app
+        id: set-vars
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            echo "version=${{ steps.extract-release.outputs.version }}" >> $GITHUB_OUTPUT
+            echo "app=${{ steps.extract-release.outputs.app }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+            echo "app=${{ inputs.app }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -50,33 +72,33 @@ jobs:
           gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
 
       - name: Build and push Backend
-        if: inputs.app == 'backend'
+        if: steps.set-vars.outputs.app == 'backend'
         working-directory: airral-backend
         run: |
-          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:${{ inputs.version }} .
-          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:${{ inputs.version }}
-          docker tag ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:${{ inputs.version }} ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:latest
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:${{ steps.set-vars.outputs.version }} .
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:${{ steps.set-vars.outputs.version }}
+          docker tag ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:${{ steps.set-vars.outputs.version }} ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:latest
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-backend:latest
 
       - name: Build and push Frontend App
-        if: inputs.app != 'backend'
+        if: steps.set-vars.outputs.app != 'backend'
         working-directory: airral-frontend
         run: |
           npm ci
-          npx nx build ${{ inputs.app }} --configuration=production
+          npx nx build ${{ steps.set-vars.outputs.app }} --configuration=production
           
-          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ inputs.app }}:${{ inputs.version }} \
-            --build-arg APP=${{ inputs.app }} .
-          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ inputs.app }}:${{ inputs.version }}
-          docker tag ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ inputs.app }}:${{ inputs.version }} ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ inputs.app }}:latest
-          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ inputs.app }}:latest
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:${{ steps.set-vars.outputs.version }} \
+            --build-arg APP=${{ steps.set-vars.outputs.app }} .
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:${{ steps.set-vars.outputs.version }}
+          docker tag ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:${{ steps.set-vars.outputs.version }} ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:latest
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:latest
 
       - name: Create release summary
         run: |
           echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **App**: ${{ inputs.app }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image**: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ inputs.app }}:${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **App**: ${{ steps.set-vars.outputs.app }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.set-vars.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY }}/airral-${{ steps.set-vars.outputs.app }}:${{ steps.set-vars.outputs.version }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Notify deployment
         if: always()

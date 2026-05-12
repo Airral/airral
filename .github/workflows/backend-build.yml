@@ -1,6 +1,12 @@
 name: Backend Build & Test
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Build version (e.g., 1.0.0)'
+        required: true
+        type: string
   push:
     branches: [ main, develop ]
     paths:
@@ -10,6 +16,8 @@ on:
     branches: [ main, develop ]
     paths:
       - 'airral-backend/**'
+  release:
+    types: [ published ]
 
 defaults:
   run:
@@ -17,7 +25,7 @@ defaults:
 
 jobs:
   build:
-    name: Build & Test
+    name: Build & Test v${{ inputs.version || 'auto' }}
     runs-on: ubuntu-latest
 
     services:
