@@ -1,0 +1,62 @@
+# Local development profile for testing the applicant job marketplace.
+# Run with: ./scripts/run-local.sh
+
+spring:
+  config:
+    activate:
+      on-profile: local
+
+server:
+  error:
+    include-message: always
+    include-binding-errors: always
+
+cors:
+  allowed-origins: http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4203,http://127.0.0.1:4200,http://127.0.0.1:4201,http://127.0.0.1:4202,http://127.0.0.1:4203
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+airral:
+  company-logos:
+    brandfetch-client-id: ${BRANDFETCH_CLIENT_ID:}
+  jobs:
+    country: US
+    retention-days: 60
+    # Active ATS postings often stay open longer than 15 days; keep real open roles visible.
+    max-age-days: 60
+    live-fallback:
+      max-sources: 12
+      source-concurrency: 4
+    sync:
+      enabled: true
+      run-on-startup: true
+      fixed-delay-ms: 14400000
+      initial-delay-ms: 5000
+      limit-per-source: 500
+      lease-minutes: 50
+      source-concurrency: 6
+      max-sources-per-run: 500
+    greenhouse:
+      default-board: airbnb
+      # Public Greenhouse board tokens that return real local test data.
+      board-tokens: airbnb,figma,doordashusa,stripe,chime,affirm,robinhood,datadog,cloudflare,peloton,toast,instacart,andurilindustries,samsara,oscar,duolingo,coursera
+    lever:
+      # Leave blank until we add verified Lever company slugs.
+      site-names: ""
+    ashby:
+      # Local-only: Java's trust store can reject Ashby's cert chain on some dev machines,
+      # while macOS/curl accepts it. Keep this out of production config.
+      insecure-ssl: true
+      # Public Ashby board names that return real local test data.
+      board-names: Ashby,Ramp
+    smartrecruiters:
+      # Broad public non-tech coverage: finance, manufacturing, hospitality, services, construction.
+      company-identifiers: Visa,BoschGroup,WesternDigital,Experian,ServiceNow,TurnerTownsend,SGS,AccorHotel,NielsenIQ
+
+logging:
+  level:
+    com.airral.service.CandidateJobSearchService: DEBUG

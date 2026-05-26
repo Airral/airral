@@ -77,20 +77,17 @@ jobs:
       - name: Start ${{ matrix.app }} static server
         run: |
           yarn nx run ${{ matrix.app }}:serve-static --port=4200 > /tmp/${{ matrix.app }}-server.log 2>&1 &
-          for attempt in {1..30}; do
-            if curl -fsS http://127.0.0.1:4200 > /dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
+          curl --fail --silent --show-error --retry 45 --retry-delay 2 --retry-connrefused --max-time 2 http://localhost:4200 > /dev/null || {
+            cat /tmp/${{ matrix.app }}-server.log
+            exit 1
+          }
           cat /tmp/${{ matrix.app }}-server.log
-          exit 1
 
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v10
         with:
           urls: |
-            http://127.0.0.1:4200
+            http://localhost:4200
           uploadArtifacts: true
           temporaryPublicStorage: true
           configPath: './airral-frontend/lighthouserc.json'

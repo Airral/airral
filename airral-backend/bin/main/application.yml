@@ -1,6 +1,12 @@
 spring:
   application:
     name: airral-backend
+  codec:
+    max-in-memory-size: ${SPRING_CODEC_MAX_IN_MEMORY_SIZE:1MB}
+  webflux:
+    multipart:
+      max-in-memory-size: ${SPRING_MULTIPART_MAX_IN_MEMORY_SIZE:256KB}
+      max-disk-usage-per-part: ${SPRING_MULTIPART_MAX_DISK_USAGE_PER_PART:5MB}
   
   # R2DBC Database Configuration (Reactive)
   r2dbc:
@@ -38,19 +44,37 @@ spring:
 server:
   port: 8080
   error:
-    include-message: always
-    include-binding-errors: always
+    include-message: ${SERVER_ERROR_INCLUDE_MESSAGE:never}
+    include-binding-errors: ${SERVER_ERROR_INCLUDE_BINDING_ERRORS:never}
+
+# Operational health checks
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    mail:
+      enabled: ${MANAGEMENT_HEALTH_MAIL_ENABLED:false}
 
 # JWT Configuration
 jwt:
-  secret: ${JWT_SECRET:mySuperLongDefaultJwtSecretKeyForDevelopmentOnly_ChangeMe_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ}
-  expiration: 86400000  # 24 hours in milliseconds
+  encryption-secret: ${JWT_ENCRYPTION_SECRET:${JWT_SECRET:mySuperLongDefaultJwtSecretKeyForDevelopmentOnly_ChangeMe_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ}}
+  expiration: ${JWT_EXPIRATION_MS:86400000}  # 24 hours in milliseconds
+  issuer: ${JWT_ISSUER:airral-api}
+  audience: ${JWT_AUDIENCE:airral-web}
+  clock-skew-seconds: ${JWT_CLOCK_SKEW_SECONDS:30}
 
 # CORS Configuration
 # Development: localhost with different ports
 # Production: airral.com subdomains
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4203,https://www.airral.com,https://app.airral.com,https://apply.airral.com,https://admin.airral.com}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://www.airral.com,https://app.airral.com,https://apply.airral.com,https://admin.airral.com}
   allowed-methods: GET,POST,PUT,DELETE,OPTIONS
   allowed-headers: "*"
   allow-credentials: true
@@ -73,13 +97,58 @@ ats:
     enterprise:
       algorithm: AI_ENHANCED
 
+# External job source connectors
+airral:
+  company-logos:
+    # Public Brandfetch client id for browser-rendered company logo CDN URLs.
+    # Leave blank to fall back to stored company logo URLs / monograms.
+    brandfetch-client-id: ${BRANDFETCH_CLIENT_ID:}
+  feed:
+    signals:
+      gdelt:
+        enabled: ${AIRRAL_FEED_GDELT_ENABLED:true}
+        base-url: ${AIRRAL_FEED_GDELT_BASE_URL:https://api.gdeltproject.org}
+        # Leave blank to use AIRRAL's built-in multi-query news radar:
+        # funding rounds, YC-backed companies, a16z/Andreessen Horowitz, major tech-company news,
+        # and trusted startup/press-release domains. Use "query one || query two" to override with multiple queries.
+        default-query: ${AIRRAL_FEED_GDELT_QUERY:}
+        timespan: ${AIRRAL_FEED_GDELT_TIMESPAN:30d}
+        timeout-ms: ${AIRRAL_FEED_GDELT_TIMEOUT_MS:5000}
+  jobs:
+    country: ${AIRRAL_JOBS_COUNTRY:US}
+    retention-days: ${AIRRAL_JOBS_RETENTION_DAYS:60}
+    max-age-days: ${AIRRAL_JOBS_MAX_AGE_DAYS:60}
+    live-fallback:
+      # Keep cold-cache user requests from fanning out to hundreds of ATS boards.
+      # Large source sets should be served from the scheduled AIRRAL cache.
+      max-sources: ${AIRRAL_JOBS_LIVE_FALLBACK_MAX_SOURCES:12}
+      source-concurrency: ${AIRRAL_JOBS_LIVE_FALLBACK_SOURCE_CONCURRENCY:4}
+    sync:
+      enabled: ${AIRRAL_JOBS_SYNC_ENABLED:true}
+      run-on-startup: ${AIRRAL_JOBS_SYNC_RUN_ON_STARTUP:true}
+      fixed-delay-ms: ${AIRRAL_JOBS_SYNC_FIXED_DELAY_MS:14400000}
+      initial-delay-ms: ${AIRRAL_JOBS_SYNC_INITIAL_DELAY_MS:30000}
+      limit-per-source: ${AIRRAL_JOBS_SYNC_LIMIT_PER_SOURCE:500}
+      lease-minutes: ${AIRRAL_JOBS_SYNC_LEASE_MINUTES:50}
+      source-concurrency: ${AIRRAL_JOBS_SYNC_SOURCE_CONCURRENCY:6}
+      max-sources-per-run: ${AIRRAL_JOBS_SYNC_MAX_SOURCES_PER_RUN:500}
+    greenhouse:
+      default-board: ${GREENHOUSE_DEFAULT_BOARD:airbnb}
+      board-tokens: ${GREENHOUSE_BOARD_TOKENS:airbnb,figma,doordashusa,stripe,chime,affirm,robinhood,datadog,cloudflare,peloton,toast,instacart,andurilindustries,samsara,oscar,duolingo,coursera}
+    lever:
+      site-names: ${LEVER_SITE_NAMES:}
+    ashby:
+      board-names: ${ASHBY_BOARD_NAMES:Ashby}
+    smartrecruiters:
+      company-identifiers: ${SMARTRECRUITERS_COMPANY_IDENTIFIERS:Visa,BoschGroup,WesternDigital,Experian,ServiceNow,TurnerTownsend,SGS,AccorHotel,NielsenIQ}
+
 # Logging
 logging:
   level:
     root: INFO
-    com.airral: DEBUG
-    org.springframework.security: DEBUG
-    io.r2dbc.postgresql.QUERY: DEBUG
+    com.airral: INFO
+    org.springframework.security: INFO
+    io.r2dbc.postgresql.QUERY: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
 
@@ -87,6 +156,8 @@ logging:
 springdoc:
   api-docs:
     path: /api-docs
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:false}
   swagger-ui:
     path: /swagger-ui.html
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
     operationsSorter: method
