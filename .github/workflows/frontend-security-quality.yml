@@ -7,6 +7,7 @@ on:
     branches: [ main ]
     paths:
       - 'airral-frontend/**'
+      - '.github/workflows/frontend-security-quality.yml'
   workflow_dispatch:
 
 defaults:
@@ -29,15 +30,21 @@ jobs:
   snyk-scan:
     name: Snyk Security Scan
     runs-on: ubuntu-latest
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Skip Snyk when token is not configured
+        if: env.SNYK_TOKEN == ''
+        run: |
+          echo "::warning::SNYK_TOKEN is not configured; skipping Snyk scan. OSV dependency scanning still runs."
+
       - name: Run Snyk to check for vulnerabilities
+        if: env.SNYK_TOKEN != ''
         uses: snyk/actions/node@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: --severity-threshold=high --file=airral-frontend/package.json
 
@@ -56,9 +63,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.12.0'
-          cache: 'yarn'
-          cache-dependency-path: airral-frontend/yarn.lock
+          node-version: '20.19.0'
 
       - name: Enable Corepack
         run: corepack enable
@@ -101,9 +106,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.12.0'
-          cache: 'yarn'
-          cache-dependency-path: airral-frontend/yarn.lock
+          node-version: '20.19.0'
 
       - name: Enable Corepack
         run: corepack enable
