@@ -15,6 +15,10 @@ defaults:
   run:
     working-directory: airral-backend
 
+permissions:
+  contents: read
+  checks: write
+
 jobs:
   build:
     name: Build & Test
@@ -64,7 +68,7 @@ jobs:
           JWT_SECRET: test-jwt-secret-key-for-ci-minimum-256-bits-long
 
       - name: Generate test report
-        if: always()
+        if: always() && hashFiles('airral-backend/build/test-results/test/*.xml') != ''
         uses: dorny/test-reporter@v1
         with:
           name: Test Results
@@ -80,7 +84,7 @@ jobs:
           retention-days: 7
 
       - name: Upload test coverage
-        if: always()
+        if: always() && hashFiles('airral-backend/build/reports/jacoco/test/jacocoTestReport.xml') != ''
         uses: codecov/codecov-action@v4
         with:
           files: airral-backend/build/reports/jacoco/test/jacocoTestReport.xml

@@ -1,10 +1,13 @@
 build/
 dist/
-gradle/
+gradle/*
+!gradle/wrapper/
+!gradle/wrapper/**
 .gradle/
 *.class
 *.jar
 *.war
+!gradle/wrapper/gradle-wrapper.jar
 target/
 out/
 .idea/
