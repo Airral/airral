@@ -71,7 +71,7 @@ public class AuthService {
                     // Update last login
                     user.setLastLoginAt(LocalDateTime.now());
                     return userRepository.save(user)
-                            .flatMap(savedUser -> buildAuthResponse(savedUser));
+                            .flatMap(savedUser -> buildAuthResponse(savedUser, "Login successful"));
                 });
     }
 
@@ -79,7 +79,7 @@ public class AuthService {
      * Register new user (self-registration creates new organization)
      */
     @Transactional
-    public Mono<String> register(RegisterRequest request) {
+    public Mono<AuthResponse> register(RegisterRequest request) {
         boolean invitedFlow = StringUtils.hasText(request.getInvitationToken());
 
         // Names are required for self-signup, optional for invite flow.
@@ -91,7 +91,7 @@ public class AuthService {
         return userRepository.existsByEmail(request.getEmail())
                 .flatMap(exists -> {
                     if (exists) {
-                        return Mono.<String>error(new ConflictException("Email already registered"));
+                        return Mono.<AuthResponse>error(new ConflictException("Email already registered"));
                     }
 
                     // Self-registration (create new organization)
@@ -112,7 +112,7 @@ public class AuthService {
     /**
      * Applicant self-registration
      */
-    private Mono<String> registerApplicant(RegisterRequest request) {
+    private Mono<AuthResponse> registerApplicant(RegisterRequest request) {
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
@@ -129,13 +129,13 @@ public class AuthService {
                 .build();
 
         return userRepository.save(user)
-                .thenReturn("Registration successful. Please check your email to verify your account.");
+                .flatMap(savedUser -> buildAuthResponse(savedUser, "Registration successful"));
     }
 
     /**
      * Self-registration: Create new organization + HR Manager
      */
-    private Mono<String> registerWithNewOrganization(RegisterRequest request) {
+    private Mono<AuthResponse> registerWithNewOrganization(RegisterRequest request) {
         return parseTier(request.getOrganizationTier())
                 .flatMap(tier -> {
                     Organization organization = Organization.builder()
@@ -188,7 +188,7 @@ public class AuthService {
                                         .build();
 
                                 return userRepository.save(user)
-                                        .thenReturn("Organization and account created successfully. Please check your email to verify your account.");
+                                        .flatMap(savedUser -> buildAuthResponse(savedUser, "Organization and account created successfully"));
                             });
                 });
     }
@@ -220,7 +220,7 @@ public class AuthService {
     /**
      * Invited user registration
      */
-    private Mono<String> registerWithInvitation(RegisterRequest request) {
+    private Mono<AuthResponse> registerWithInvitation(RegisterRequest request) {
         return userRepository.findByValidInvitationToken(request.getInvitationToken())
                 .switchIfEmpty(Mono.error(new BadRequestException("Invalid or expired invitation")))
                 .flatMap(user -> {
@@ -242,14 +242,14 @@ public class AuthService {
                     user.setUpdatedAt(LocalDateTime.now());
 
                     return userRepository.save(user)
-                            .thenReturn("Account activated successfully. You can now log in.");
+                            .flatMap(savedUser -> buildAuthResponse(savedUser, "Account activated successfully"));
                 });
     }
 
     /**
      * Build JWT auth response
      */
-    private Mono<AuthResponse> buildAuthResponse(User user) {
+    private Mono<AuthResponse> buildAuthResponse(User user, String message) {
         if (user.getOrganizationId() == null) {
             String token = jwtTokenProvider.generateToken(
                 user.getId(),
@@ -275,7 +275,7 @@ public class AuthService {
                 .organizationTier(null)
                 .isPlatformAdmin(user.isPlatformAdmin())
                 .emailVerified(user.isEmailVerified())
-                .message("Login successful")
+                .message(message)
                 .build());
         }
 
@@ -306,7 +306,7 @@ public class AuthService {
                             .organizationTier(org.getTier().name())
                             .isPlatformAdmin(user.isPlatformAdmin())
                             .emailVerified(user.isEmailVerified())
-                            .message("Login successful")
+                            .message(message)
                             .build();
                 });
     }

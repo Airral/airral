@@ -19,7 +19,17 @@ export type ApplicationLifecycleStatus =
 export type InterviewLifecycleStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
 export type OfferLifecycleStatus = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | 'WITHDRAWN';
 
-export type FeedPostType = 'COMPANY_SIGNAL' | 'HIRING_PULSE' | 'ROLE_SPOTLIGHT' | 'COMMUNITY_TIP';
+export type FeedPostType =
+  | 'COMPANY_SIGNAL'
+  | 'HIRING_PULSE'
+  | 'ROLE_SPOTLIGHT'
+  | 'COMMUNITY_TIP'
+  | 'CAREER_UPDATE'
+  | 'JOB_SEARCH_ASK'
+  | 'INTERVIEW_NOTE'
+  | 'SALARY_INTEL'
+  | 'REFERRAL_OFFER'
+  | 'FOUNDER_UPDATE';
 export type FeedVisibility = 'PUBLIC' | 'AUTHENTICATED' | 'APPLICANTS_ONLY';
 export type FeedReactionType = 'USEFUL' | 'INSPIRING' | 'PRACTICAL';
 export type FeedSortBy = 'LATEST' | 'TRENDING';
@@ -148,18 +158,34 @@ export interface FeedEngagement {
   followerActions: number;
 }
 
-export interface CompanyFeedPostModel extends AuditStamp {
+export interface CompanyFeedPostModel {
   id: ID;
-  companyId: ID;
-  companyName: string;
-  companyHeadline: string;
+  organizationId?: ID | null;
+  companyId?: ID;
+  companyName?: string;
+  companyHeadline?: string;
+  authorType?: 'COMPANY' | 'APPLICANT' | string;
+  authorId?: ID | null;
+  authorDisplayName?: string;
   postType: FeedPostType;
   visibility: FeedVisibility;
-  topic: string;
+  topic?: string;
   content: string;
+  linkedJobId?: ID;
+  linkedExternalJobKey?: string;
+  targetType?: 'JOB' | 'COMPANY' | 'ROOM' | 'EVENT' | 'GENERAL' | string;
+  targetLabel?: string;
+  usefulCount?: number;
+  inspiringCount?: number;
+  practicalCount?: number;
+  commentCount?: number;
   publishedAt: ISODateTime;
+  createdAt?: ISODateTime;
+  updatedAt?: ISODateTime;
+  moderationStatus?: 'APPROVED' | 'PENDING' | 'HIDDEN' | string;
+  reportCount?: number;
   attachments?: FeedAttachment[];
-  engagement: FeedEngagement;
+  engagement?: FeedEngagement;
   viewerReaction?: FeedReactionType;
 }
 
@@ -172,6 +198,17 @@ export interface FeedQueryModel {
   postTypes?: FeedPostType[];
 }
 
+export interface CreateCommunityFeedPostRequest {
+  postType: FeedPostType;
+  visibility?: FeedVisibility;
+  topic?: string;
+  content: string;
+  linkedJobId?: ID;
+  linkedExternalJobKey?: string;
+  targetType?: 'JOB' | 'COMPANY' | 'ROOM' | 'EVENT' | 'GENERAL';
+  targetLabel?: string;
+}
+
 export interface PageMetaModel {
   page: number;
   pageSize: number;
@@ -181,7 +218,104 @@ export interface PageMetaModel {
 
 export interface FeedPageModel {
   items: CompanyFeedPostModel[];
-  meta: PageMetaModel;
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  meta?: PageMetaModel;
+}
+
+export type FeedSignalType =
+  | 'FUNDING'
+  | 'HIRING'
+  | 'PRODUCT_LAUNCH'
+  | 'ACQUISITION'
+  | 'PARTNERSHIP'
+  | 'RISK'
+  | 'COMPANY_SIGNAL';
+
+export interface FeedSignalModel {
+  id: string;
+  signalType: FeedSignalType | string;
+  companyName?: string;
+  headline: string;
+  summary?: string;
+  whyItMatters?: string;
+  sourceName?: string;
+  sourceDomain?: string;
+  sourceUrl: string;
+  sourceImageUrl?: string;
+  publishedAt: ISODateTime;
+  confidence?: 'HIGH' | 'MEDIUM' | 'LOW' | string;
+  linkedJobsCount?: number;
+  tags?: string[];
+  primaryAction?: string;
+}
+
+export interface FeedSignalPageModel {
+  items: FeedSignalModel[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  hasNext: boolean;
+  provider?: string;
+  query?: string;
+}
+
+export type NewsCategoryModel =
+  | 'TECH'
+  | 'FUNDING'
+  | 'YC'
+  | 'A16Z'
+  | 'MAJOR_COMPANIES'
+  | 'COMPANY';
+
+export interface NewsArticleModel {
+  id: string;
+  provider?: string;
+  category: NewsCategoryModel | string;
+  signalType?: FeedSignalType | string;
+  title: string;
+  summary?: string;
+  whyItMatters?: string;
+  displayContext?: string;
+  sourceName?: string;
+  sourceDomain?: string;
+  sourceType?: string;
+  sourceTrustTier?: 'HIGH' | 'MEDIUM' | 'LOW' | string;
+  sourceHomeUrl?: string;
+  sourceUrl: string;
+  canonicalUrl?: string;
+  imageUrl?: string;
+  imageAltText?: string;
+  byline?: string;
+  language?: string;
+  country?: string;
+  publishedAt?: ISODateTime;
+  relevanceScore?: number;
+  freshnessScore?: number;
+  primaryAction?: string;
+  matchedKeywords?: string[];
+  tags?: string[];
+}
+
+export interface NewsPageModel {
+  items: NewsArticleModel[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  hasNext: boolean;
+  provider?: string;
+  engineVersion?: string;
+  category?: NewsCategoryModel | string;
+  query?: string;
+  sourceQueries?: string[];
+  sourceLabels?: string[];
+  cached?: boolean;
+  cacheTtlSeconds?: number;
+  generatedAt?: ISODateTime;
+  cacheExpiresAt?: ISODateTime;
 }
 
 export interface CandidateApplicationViewModel {

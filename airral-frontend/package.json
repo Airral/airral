@@ -3,9 +3,10 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "lint": "nx run-many --target=lint --all",
-    "build": "nx run-many --target=build --all --configuration=production --parallel=4",
-    "ci:verify": "npm run lint && npm run build"
+    "nx": "nx",
+    "lint": "yarn nx run-many --target=lint --all",
+    "build": "yarn nx run-many --target=build --all --configuration=production --parallel=4",
+    "ci:verify": "yarn lint && yarn build"
   },
   "private": true,
   "dependencies": {
@@ -17,7 +18,9 @@
     "@angular/forms": "21.2.10",
     "@angular/material": "21.2.10",
     "@angular/platform-browser": "21.2.10",
+    "@angular/platform-server": "21.2.10",
     "@angular/router": "21.2.10",
+    "@angular/ssr": "21.2.8",
     "rxjs": "~7.8.0"
   },
   "devDependencies": {
@@ -38,6 +41,7 @@
     "@swc-node/register": "~1.11.1",
     "@swc/core": "~1.15.5",
     "@swc/helpers": "~0.5.18",
+    "@typescript-eslint/parser": "^8.40.0",
     "@typescript-eslint/utils": "^8.40.0",
     "angular-eslint": "^21.2.0",
     "eslint": "^9.8.0",
@@ -48,5 +52,5 @@
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.40.0"
   },
-  "packageManager": "npm@11.12.1"
+  "packageManager": "yarn@4.9.2"
 }

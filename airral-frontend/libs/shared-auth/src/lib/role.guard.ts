@@ -4,6 +4,7 @@ import { ActivatedRouteSnapshot, CanActivateFn, Router } from '@angular/router';
 import { inject } from '@angular/core';
 import { AuthService } from './auth.service';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
+import { consumeLocalAuthHandoff } from './auth-handoff';
 
 function isLocalDevHost(): boolean {
   return (
@@ -46,6 +47,8 @@ export class RoleGuard {
 export const roleGuard: CanActivateFn = (route) => {
   const authService = inject(AuthService);
   const requiredRoles = (route.data?.['roles'] as string[] | undefined) ?? [];
+
+  consumeLocalAuthHandoff(authService);
 
   if (!authService.isAuthenticated()) {
     window.location.href = isHrPortalHost() ? '/login' : `${PORTAL_ROUTES.WEBSITE}/login`;

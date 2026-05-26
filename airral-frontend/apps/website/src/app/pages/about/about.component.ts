@@ -4,13 +4,6 @@ import { RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 
-interface TeamMember {
-  name: string;
-  role: string;
-  bio: string;
-  image?: string;
-}
-
 interface Milestone {
   year: number;
   event: string;
@@ -52,16 +45,6 @@ export class AboutComponent {
     { year: 2026, event: 'Full-featured HR portal with analytics and interview scheduling' },
     { year: 2026, event: 'Quick Hire free tier introduced for startups' },
     { year: 2026, event: 'Enterprise features: SSO, API access, white label' },
-  ];
-
-  // Team section
-  readonly team: TeamMember[] = [
-    {
-      name: 'Dagimawi Tamrat',
-      role: 'CEO',
-      bio: 'Building the best ATS for fast-growing companies and shaping the future of fair, efficient hiring.',
-      image: '/assets/team/dagimawi.png',
-    }
   ];
 
   readonly headerLinks = WEBSITE_HEADER_LINKS;

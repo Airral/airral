@@ -19,7 +19,6 @@ import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/interviews")
-@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4203"})
 public class InterviewController {
 
     private final InterviewService interviewService;

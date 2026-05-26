@@ -16,7 +16,6 @@ import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/jobs")
-@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4203"})
 public class JobController {
 
     private final JobService jobService;
@@ -65,8 +64,10 @@ public class JobController {
      * GET /api/jobs/open
      */
     @GetMapping("/open")
-    public Mono<ResponseEntity<Flux<JobResponse>>> getOpenJobs() {
-        return Mono.just(ResponseEntity.ok(jobService.getOpenJobs()));
+    public Mono<ResponseEntity<Flux<JobResponse>>> getOpenJobs(
+            @RequestParam(value = "q", required = false) String query,
+            @RequestParam(value = "department", required = false) String department) {
+        return Mono.just(ResponseEntity.ok(jobService.getPublicOpenJobs(query, department)));
     }
 
     /**
@@ -80,9 +81,7 @@ public class JobController {
         
         // If no auth header, only allow access to open jobs
         if (authHeader == null) {
-            return jobService.getOpenJobs()
-                    .filter(job -> job.getId().equals(id))
-                    .next()
+            return jobService.getPublicOpenJobById(id)
                     .map(ResponseEntity::ok)
                     .defaultIfEmpty(ResponseEntity.notFound().build());
         }

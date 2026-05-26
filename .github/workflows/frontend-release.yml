@@ -22,18 +22,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.12.0'
-          cache: 'npm'
-          cache-dependency-path: airral-frontend/package-lock.json
+          cache: 'yarn'
+          cache-dependency-path: airral-frontend/yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Extract version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/frontend-v}" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Build all apps for production
-        run: npx nx run-many --target=build --all --configuration=production --parallel=4
+        run: yarn nx run-many --target=build --all --configuration=production --parallel=4
 
       - name: Create release archives
         run: |
@@ -57,7 +60,7 @@ jobs:
             - ✅ Admin Portal (admin.airral.com)
 
             ### Deployment
-            Extract and serve each application from a static hosting service (S3, Netlify, Vercel, etc.)
+            Extract each archive and serve the `browser/` directory from a static hosting service (S3, Netlify, Vercel, etc.)
 
             ### Environment Configuration
             All apps automatically detect production vs development based on hostname.

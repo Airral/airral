@@ -4,22 +4,22 @@
 
 :root {
   /* Color palette */
-  --color-bg: #f6f8fc;
+  --color-bg: #fbfbfa;
   --color-surface: #ffffff;
-  --color-surface-alt: #f3f5fb;
-  --color-text: #0f172a;
-  --color-muted: #475569;
-  --color-subtle: #8ea0ba;
-  --color-border: #e2e8f0;
+  --color-surface-alt: #f6f7f6;
+  --color-text: #111827;
+  --color-muted: #4b5563;
+  --color-subtle: #667789;
+  --color-border: #e1e5e9;
 
-  --color-primary: #3158c8;
-  --color-primary-2: #243f90;
-  --color-accent: #d97706;
+  --color-primary: #007C6D;
+  --color-primary-2: #006B5B;
+  --color-accent: #3a63d6;
   --color-success: #16a34a;
   --color-danger: #dc2626;
 
-  --gradient-brand: linear-gradient(135deg, #243f90 0%, #3158c8 64%, #79abf4 100%);
-  --gradient-soft: linear-gradient(135deg, rgba(49, 88, 200, 0.07), rgba(121, 171, 244, 0.09));
+  --gradient-brand: linear-gradient(135deg, #006B5B 0%, #007C6D 64%, #20b59e 100%);
+  --gradient-soft: linear-gradient(135deg, rgba(0, 124, 109, 0.07), rgba(58, 99, 214, 0.06));
 
   /* Effects */
   --radius-sm: 10px;
@@ -27,7 +27,7 @@
   --radius-lg: 24px;
   --shadow-sm: 0 4px 14px -8px rgba(15, 23, 42, 0.18);
   --shadow-md: 0 14px 40px -22px rgba(15, 23, 42, 0.35);
-  --shadow-lg: 0 30px 80px -30px rgba(49, 88, 200, 0.24);
+  --shadow-lg: 0 30px 80px -30px rgba(0, 124, 109, 0.2);
 
   /* Layout */
   --container: 1200px;
@@ -60,7 +60,7 @@ h2,
 h3,
 h4 {
   color: var(--color-text);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 a {

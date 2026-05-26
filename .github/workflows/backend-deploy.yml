@@ -49,6 +49,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Upload backend artifact to S3
+        run: |
+          JAR_PATH=$(ls build/libs/*.jar | head -n 1)
+          aws s3 cp "$JAR_PATH" "s3://airral-deployments/backend/${{ inputs.version }}.jar"
+
       - name: Deploy to Elastic Beanstalk
         run: |
           aws elasticbeanstalk create-application-version \

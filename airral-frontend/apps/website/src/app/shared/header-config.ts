@@ -5,14 +5,14 @@ import { HeaderNavLink, HeaderCta } from '@airral/shared-ui';
  * Use this across all pages to maintain consistency
  */
 export const WEBSITE_HEADER_LINKS: HeaderNavLink[] = [
-  { label: 'Home', path: '/' },
+  { label: 'Home', path: '/', exact: true },
   { label: 'Jobs', path: '/jobs' },
-  { label: 'For Employers', path: '/for-employers' },
-  { label: 'Pricing', path: '/pricing' },
+  { label: 'How it works', path: '/how-it-works' },
   { label: 'About', path: '/about' },
+  { label: 'For employers', path: '/for-employers' },
 ];
 
 export const WEBSITE_HEADER_CTAS: HeaderCta[] = [
-  { label: 'Sign In', path: '/login', variant: 'ghost' },
-  { label: 'Get Started', path: '/sign-up' },
+  { label: 'Sign in', path: '/login', variant: 'ghost' },
+  { label: 'Start job search', path: '/apply' },
 ];

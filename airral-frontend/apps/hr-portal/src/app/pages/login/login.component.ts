@@ -3,7 +3,7 @@ import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService } from '@airral/shared-auth';
+import { AuthService, buildLocalAuthHandoffUrl } from '@airral/shared-auth';
 import { AuthResponse, User } from '@airral/shared-types';
 import { PORTAL_ROUTES, USER_ROLES } from '@airral/shared-utils';
 
@@ -66,10 +66,10 @@ export class LoginComponent {
 
     this.authService.login(user, response.token);
     this.isLoading = false;
-    this.redirectByRole(role);
+    this.redirectByRole(role, user, response.token);
   }
 
-  private redirectByRole(role: string): void {
+  private redirectByRole(role: string, user: User, token: string): void {
     const normalizedRole = role.toUpperCase();
 
     if (
@@ -78,10 +78,10 @@ export class LoginComponent {
       normalizedRole === USER_ROLES.MANAGER ||
       normalizedRole === USER_ROLES.EMPLOYEE
     ) {
-      window.location.href = PORTAL_ROUTES.HR;
+      window.location.href = buildLocalAuthHandoffUrl(PORTAL_ROUTES.HR, user, token);
       return;
     }
 
-    window.location.href = PORTAL_ROUTES.APPLICANT;
+    window.location.href = buildLocalAuthHandoffUrl(PORTAL_ROUTES.APPLICANT, user, token);
   }
 }

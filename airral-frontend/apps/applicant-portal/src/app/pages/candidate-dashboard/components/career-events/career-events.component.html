@@ -1,0 +1,23 @@
+<section class="panel events-panel">
+  <div class="panel-head compact">
+    <h2>Events this week</h2>
+  </div>
+
+  <article class="event-card" *ngFor="let event of events">
+    <div class="event-date">
+      <mat-icon>event</mat-icon>
+      <span>{{ event.time }}</span>
+    </div>
+
+    <h3>{{ event.title }}</h3>
+    <p>{{ event.host }} - {{ event.format }}</p>
+
+    <div class="event-foot">
+      <span><mat-icon>person</mat-icon>{{ event.attendees }}</span>
+      <button mat-stroked-button type="button" [color]="isReserved(event) ? 'primary' : undefined" (click)="handleReserve(event)">
+        <mat-icon>{{ isReserved(event) ? 'check_circle' : 'event_available' }}</mat-icon>
+        {{ isReserved(event) ? 'Reserved' : event.action }}
+      </button>
+    </div>
+  </article>
+</section>

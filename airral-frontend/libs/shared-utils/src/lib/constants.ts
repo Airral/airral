@@ -1,20 +1,31 @@
 // libs/shared-utils/src/lib/constants.ts
 
-/**
- * Detect if we're running in production based on the hostname
- */
-const isProduction = typeof window !== 'undefined' &&
+declare const process: { env?: Record<string, string | undefined> } | undefined;
+
+const runtimeEnv = typeof process !== 'undefined' ? process.env ?? {} : {};
+const configuredApiBaseUrl = runtimeEnv['AIRRAL_API_BASE_URL'] || runtimeEnv['API_BASE_URL'];
+const serverProduction =
+  runtimeEnv['AIRRAL_ENV'] === 'production' ||
+  runtimeEnv['NODE_ENV'] === 'production';
+const browserProduction = typeof window !== 'undefined' &&
   (window.location.hostname.includes('airral.com') ||
    window.location.hostname === 'www.airral.com');
+const isProduction = browserProduction || serverProduction;
+
+const localHostname = typeof window !== 'undefined' && window.location.hostname !== '0.0.0.0'
+  ? window.location.hostname
+  : 'localhost';
+
+const localPortal = (port: number) => `http://${localHostname}:${port}`;
 
 /**
  * API Base URL
- * Development: http://localhost:8080/api
+ * Development: current local hostname on port 8080
  * Production:  https://api.airral.com
  */
 export const API_BASE_URL = isProduction
-  ? 'https://api.airral.com'
-  : 'http://localhost:8080/api';
+  ? configuredApiBaseUrl || 'https://api.airral.com'
+  : `http://${localHostname}:8080/api`;
 
 /**
  * Portal Routes - Cross-portal navigation URLs
@@ -22,10 +33,10 @@ export const API_BASE_URL = isProduction
  * Production:  airral.com subdomains
  */
 export const PORTAL_ROUTES = {
-  WEBSITE: isProduction ? 'https://www.airral.com' : 'http://localhost:4200',
-  APPLICANT: isProduction ? 'https://apply.airral.com' : 'http://localhost:4202',
-  HR: isProduction ? 'https://app.airral.com' : 'http://localhost:4201',
-  ADMIN: isProduction ? 'https://admin.airral.com' : 'http://localhost:4203'
+  WEBSITE: isProduction ? 'https://www.airral.com' : localPortal(4200),
+  APPLICANT: isProduction ? 'https://apply.airral.com' : localPortal(4201),
+  HR: isProduction ? 'https://app.airral.com' : localPortal(4202),
+  ADMIN: isProduction ? 'https://admin.airral.com' : localPortal(4203)
 };
 
 export const USER_ROLES = {

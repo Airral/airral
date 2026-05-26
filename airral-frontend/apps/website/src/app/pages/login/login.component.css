@@ -1,10 +1,7 @@
 .auth-page {
   min-height: 100vh;
   padding-bottom: 3rem;
-  background:
-    radial-gradient(circle at 12% 8%, rgba(8, 145, 178, 0.08), transparent 40%),
-    radial-gradient(circle at 88% 90%, rgba(109, 40, 217, 0.12), transparent 45%),
-    #f8fafc;
+  background: #fbfbfa;
 }
 
 .auth-hero {
@@ -21,7 +18,7 @@
 .auth-hero p {
   margin: 0.75rem auto 0;
   max-width: 42rem;
-  color: #475569;
+  color: #4b5563;
 }
 
 .auth-card-wrap {
@@ -35,8 +32,8 @@
   display: grid;
   gap: 0.8rem;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 1rem;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
   padding: 1.5rem;
   box-shadow: 0 16px 45px -28px rgba(15, 23, 42, 0.35);
 }
@@ -44,6 +41,17 @@
 .auth-card h2 {
   margin: 0 0 0.25rem;
   color: #0f172a;
+}
+
+.selected-job-note {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #cfe7df;
+  border-radius: 8px;
+  background: #f2fbf7;
+  color: #006B5B;
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .auth-card label {
@@ -60,19 +68,23 @@
 }
 
 .auth-card input:focus {
-  outline: 2px solid rgba(109, 40, 217, 0.2);
-  border-color: #6d28d9;
+  outline: 3px solid rgba(0, 124, 109, 0.12);
+  border-color: #007C6D;
 }
 
 .btn-primary {
   margin-top: 0.4rem;
   border: 0;
-  border-radius: 0.7rem;
+  border-radius: 999px;
   padding: 0.78rem 1rem;
   color: #ffffff;
   font-weight: 700;
   cursor: pointer;
-  background: linear-gradient(135deg, #6d28d9, #0891b2);
+  background: #007C6D;
+}
+
+.btn-primary:hover {
+  background: #006B5B;
 }
 
 .btn-primary:disabled {
@@ -93,6 +105,7 @@
 }
 
 .alt-action a {
-  color: #6d28d9;
+  color: #006B5B;
+  font-weight: 800;
   text-decoration: none;
 }

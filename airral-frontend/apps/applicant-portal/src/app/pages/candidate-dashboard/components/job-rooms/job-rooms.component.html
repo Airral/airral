@@ -1,0 +1,39 @@
+<section class="panel room-panel">
+  <div class="panel-head compact">
+    <h2>Rooms to join</h2>
+  </div>
+
+  <article class="room-card" *ngFor="let room of rooms">
+    <header class="room-head">
+      <div class="room-title-group">
+        <span class="room-icon"><mat-icon>groups</mat-icon></span>
+        <div>
+          <h3>{{ room.name }}</h3>
+          <p>{{ room.members }} members</p>
+        </div>
+      </div>
+      <button mat-flat-button class="join-btn" type="button" [color]="isJoined(room) ? 'primary' : undefined" (click)="handleJoin(room)">
+        <mat-icon>{{ isJoined(room) ? 'check' : 'add' }}</mat-icon>
+        {{ isJoined(room) ? 'Joined' : 'Join' }}
+      </button>
+    </header>
+
+    <div class="room-body">
+      <p class="room-focus">{{ room.focus }}</p>
+      <p class="room-trust"><mat-icon>verified</mat-icon>{{ room.trust }}</p>
+    </div>
+
+    <footer class="room-foot">
+      <div class="room-activity-wrap">
+        <strong>{{ room.activity }}</strong>
+        <div class="tag-strip">
+          <span class="room-tag" *ngFor="let tag of room.tags">{{ tag }}</span>
+        </div>
+      </div>
+      <div class="live-indicator">
+        <span class="pulse-dot"></span>
+        {{ room.liveNow }} live
+      </div>
+    </footer>
+  </article>
+</section>

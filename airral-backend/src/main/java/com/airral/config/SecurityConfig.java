@@ -66,6 +66,15 @@ public class SecurityConfig {
                         
                         // Actuator (health check)
                         .pathMatchers("/actuator/health").permitAll()
+
+                        // Public candidate job discovery reads normalized public ATS data
+                        .pathMatchers(HttpMethod.GET, "/api/candidate/jobs/**").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/jobs/open").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/jobs/*").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/feed").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/feed/signals").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/feed/news").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/seo/**").permitAll()
                         
                         // All other endpoints require authentication
                         .anyExchange().authenticated()

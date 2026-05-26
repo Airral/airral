@@ -29,6 +29,10 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String authToken = authHeader.substring(7);
+            if (!looksLikeEncryptedJwe(authToken)) {
+                return Mono.empty();
+            }
+
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(authToken, authToken);
             
             return this.authenticationManager.authenticate(auth)
@@ -36,5 +40,9 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
         }
 
         return Mono.empty();
+    }
+
+    private boolean looksLikeEncryptedJwe(String token) {
+        return token != null && token.split("\\.", -1).length == 5;
     }
 }

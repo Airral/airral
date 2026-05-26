@@ -37,6 +37,12 @@ spring:
 # Run
 ./gradlew bootRun
 
+# Run local applicant-job source profile
+./scripts/run-local.sh
+
+# In another terminal, inspect normalized local jobs
+./scripts/check-local-jobs.sh
+
 # Run tests
 ./gradlew test
 ```
@@ -69,3 +75,9 @@ src/main/java/com/airral/hrportal/
 - **Users**: `GET /api/users` (Admin only)
 
 For full API documentation, see AIRRAL_HR_PORTAL_ARCHITECTURE.md
+
+## Applicant Job Marketplace
+
+The applicant portal job feed is DB-backed and synced from external ATS sources. See `docs/external-job-marketplace.md` for the source registry, sync cadence, and 15-day retention rules.
+
+Set `BRANDFETCH_CLIENT_ID` to return Brandfetch CDN logo URLs for companies with verified domains. If it is blank, the API falls back to stored company logo URLs and the frontend monogram fallback.

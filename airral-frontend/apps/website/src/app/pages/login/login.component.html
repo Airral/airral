@@ -10,6 +10,10 @@
     <form class="auth-card" (ngSubmit)="onSubmit()" #loginForm="ngForm">
       <h2>Welcome back</h2>
 
+      <p class="selected-job-note" *ngIf="selectedJobId">
+        We will reopen this job in the applicant portal after sign in.
+      </p>
+
       <label for="email">Email</label>
       <input
         id="email"
@@ -38,7 +42,7 @@
 
       <p class="alt-action">
         New here?
-        <a routerLink="/apply">Create candidate account</a>
+        <a routerLink="/apply" [queryParams]="selectedJobId ? { jobId: selectedJobId } : null">Create candidate account</a>
       </p>
 
       <p class="alt-action" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0;">

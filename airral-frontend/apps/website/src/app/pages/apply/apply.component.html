@@ -2,13 +2,36 @@
 
 <main class="auth-page">
   <section class="auth-hero">
-    <h1>Create Your Candidate Account</h1>
-    <p>Apply faster, track every application, and manage interviews in one place.</p>
+    <p class="eyebrow">Applicant portal</p>
+    <h1>Start your AIRRAL job search</h1>
+    <p>Open a job-first workspace for roles, match setup, saved jobs, rooms, resume checks, and next steps.</p>
   </section>
 
   <section class="auth-card-wrap">
+    <aside class="auth-context" aria-label="What AIRRAL gives job seekers">
+      <h2>What happens next</h2>
+      <ul>
+        <li>
+          <strong>Jobs open first</strong>
+          <span>Start in the applicant portal, not a profile dashboard.</span>
+        </li>
+        <li>
+          <strong>Better match inputs</strong>
+          <span>Tell AIRRAL your target role, location, work mode, salary, and skills.</span>
+        </li>
+        <li>
+          <strong>Context around every role</strong>
+          <span>Use rooms, resume fit, and company signals before applying cold.</span>
+        </li>
+      </ul>
+    </aside>
+
     <form class="auth-card" (ngSubmit)="onSubmit()" #registerForm="ngForm">
-      <h2>Get started</h2>
+      <h2>Create candidate account</h2>
+
+      <p class="selected-job-note" *ngIf="selectedJobId">
+        We will keep this job attached when you enter the applicant portal.
+      </p>
 
       <div class="row-2">
         <div>
@@ -41,7 +64,7 @@
       <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
 
       <button class="btn-primary" type="submit" [disabled]="isLoading || !registerForm.form.valid">
-        {{ isLoading ? 'Creating account...' : 'Create account' }}
+        {{ isLoading ? 'Creating account...' : 'Enter applicant portal' }}
       </button>
 
       <p class="alt-action">

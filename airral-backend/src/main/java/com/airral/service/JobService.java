@@ -1,11 +1,13 @@
 package com.airral.service;
 
 import com.airral.domain.Job;
+import com.airral.domain.Organization;
 import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.CreateJobRequest;
 import com.airral.dto.response.JobResponse;
 import com.airral.repository.JobRepository;
 import com.airral.exception.NotFoundException;
+import com.airral.repository.OrganizationRepository;
 import com.airral.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -19,10 +21,15 @@ public class JobService {
 
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
+    private final OrganizationRepository organizationRepository;
 
-    public JobService(JobRepository jobRepository, UserRepository userRepository) {
+    public JobService(
+            JobRepository jobRepository,
+            UserRepository userRepository,
+            OrganizationRepository organizationRepository) {
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
+        this.organizationRepository = organizationRepository;
     }
 
     /**
@@ -71,6 +78,43 @@ public class JobService {
     public Flux<JobResponse> getOpenJobs() {
         return jobRepository.findOpenJobs()
                 .flatMap(this::toJobResponse);
+    }
+
+    /**
+     * Get open jobs for public pages without internal hiring configuration.
+     */
+    public Flux<JobResponse> getPublicOpenJobs() {
+        return jobRepository.findOpenJobs()
+                .flatMap(this::toPublicJobResponse);
+    }
+
+    /**
+     * Search open jobs for public pages without internal hiring configuration.
+     */
+    public Flux<JobResponse> getPublicOpenJobs(String query, String department) {
+        String normalizedQuery = normalizeSearchQuery(query);
+        String normalizedDepartment = normalizeExactFilter(department);
+
+        Flux<Job> jobs;
+        if (normalizedQuery != null && normalizedDepartment != null) {
+            jobs = jobRepository.searchOpenJobsByDepartment(normalizedQuery, normalizedDepartment);
+        } else if (normalizedQuery != null) {
+            jobs = jobRepository.searchOpenJobs(normalizedQuery);
+        } else if (normalizedDepartment != null) {
+            jobs = jobRepository.findOpenJobsByDepartment(normalizedDepartment);
+        } else {
+            jobs = jobRepository.findOpenJobs();
+        }
+
+        return jobs.flatMap(this::toPublicJobResponse);
+    }
+
+    /**
+     * Get one open job for public pages without internal hiring configuration.
+     */
+    public Mono<JobResponse> getPublicOpenJobById(Long id) {
+        return jobRepository.findOpenJobById(id)
+                .flatMap(this::toPublicJobResponse);
     }
 
     /**
@@ -135,34 +179,96 @@ public class JobService {
      * Convert Job entity to JobResponse DTO
      */
     private Mono<JobResponse> toJobResponse(Job job) {
-        return userRepository.findById(job.getCreatedById())
-                .map(user -> user.getFullName())
-                .defaultIfEmpty("Unknown")
-                .map(createdBy -> JobResponse.builder()
-                        .id(job.getId())
-                        .organizationId(job.getOrganizationId())
-                        .title(job.getTitle())
-                        .description(job.getDescription())
-                        .departmentId(job.getDepartmentId())
-                        .department(job.getDepartment())
-                        .location(job.getLocation())
-                        .employmentType(job.getEmploymentType())
-                        .salaryMin(job.getSalaryMin())
-                        .salaryMax(job.getSalaryMax())
-                        .currency(job.getCurrency())
-                        .requirements(job.getRequirements())
-                        .niceToHave(job.getNiceToHave())
-                        .status(job.getStatus())
-                        .atsKeywords(job.getAtsKeywords() != null ? 
-                            Arrays.asList(job.getAtsKeywords().split(",")) : null)
-                        .atsWeights(job.getAtsWeights())
-                        .atsMinScore(job.getAtsMinScore())
-                        .linkedInEnabled(job.getLinkedInEnabled())
-                        .linkedinPostId(job.getLinkedinPostId())
-                        .createdBy(createdBy)
-                        .createdAt(job.getCreatedAt())
-                        .updatedAt(job.getUpdatedAt())
-                        .build()
-                );
+        Mono<String> createdByName = job.getCreatedById() == null
+                ? Mono.just("Unknown")
+                : userRepository.findById(job.getCreatedById())
+                        .map(user -> user.getFullName())
+                        .defaultIfEmpty("Unknown");
+
+        Mono<Organization> organization = findOrganization(job.getOrganizationId());
+
+        return createdByName.flatMap(createdBy ->
+                organization
+                        .map(org -> buildJobResponse(job, createdBy, org))
+                        .defaultIfEmpty(buildJobResponse(job, createdBy, null)));
+    }
+
+    private JobResponse buildJobResponse(Job job, String createdBy, Organization organization) {
+        return JobResponse.builder()
+                .id(job.getId())
+                .organizationId(job.getOrganizationId())
+                .organizationName(organization != null ? organization.getName() : null)
+                .organizationDomain(organization != null ? organization.getDomain() : null)
+                .organizationLogoUrl(organization != null ? organization.getLogoUrl() : null)
+                .title(job.getTitle())
+                .description(job.getDescription())
+                .departmentId(job.getDepartmentId())
+                .department(job.getDepartment())
+                .location(job.getLocation())
+                .employmentType(job.getEmploymentType())
+                .salaryMin(job.getSalaryMin())
+                .salaryMax(job.getSalaryMax())
+                .currency(job.getCurrency())
+                .requirements(job.getRequirements())
+                .niceToHave(job.getNiceToHave())
+                .status(job.getStatus())
+                .atsKeywords(job.getAtsKeywords() != null ?
+                        Arrays.asList(job.getAtsKeywords().split(",")) : null)
+                .atsWeights(job.getAtsWeights())
+                .atsMinScore(job.getAtsMinScore())
+                .linkedInEnabled(job.getLinkedInEnabled())
+                .linkedinPostId(job.getLinkedinPostId())
+                .createdBy(createdBy)
+                .createdAt(job.getCreatedAt())
+                .updatedAt(job.getUpdatedAt())
+                .build();
+    }
+
+    private Mono<JobResponse> toPublicJobResponse(Job job) {
+        return findOrganization(job.getOrganizationId())
+                .map(org -> buildPublicJobResponse(job, org))
+                .defaultIfEmpty(buildPublicJobResponse(job, null));
+    }
+
+    private Mono<Organization> findOrganization(Long organizationId) {
+        return organizationId == null
+                ? Mono.empty()
+                : organizationRepository.findById(organizationId);
+    }
+
+    private String normalizeSearchQuery(String value) {
+        String normalized = normalizeExactFilter(value);
+        return normalized == null ? null : "%" + normalized + "%";
+    }
+
+    private String normalizeExactFilter(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String normalized = value.trim().toLowerCase();
+        return normalized.isEmpty() || "all".equals(normalized) ? null : normalized;
+    }
+
+    private JobResponse buildPublicJobResponse(Job job, Organization organization) {
+        return JobResponse.builder()
+                .id(job.getId())
+                .organizationName(organization != null ? organization.getName() : null)
+                .organizationDomain(organization != null ? organization.getDomain() : null)
+                .organizationLogoUrl(organization != null ? organization.getLogoUrl() : null)
+                .title(job.getTitle())
+                .description(job.getDescription())
+                .department(job.getDepartment())
+                .location(job.getLocation())
+                .employmentType(job.getEmploymentType())
+                .salaryMin(job.getSalaryMin())
+                .salaryMax(job.getSalaryMax())
+                .currency(job.getCurrency())
+                .requirements(job.getRequirements())
+                .niceToHave(job.getNiceToHave())
+                .status(job.getStatus())
+                .createdAt(job.getCreatedAt())
+                .updatedAt(job.getUpdatedAt())
+                .build();
     }
 }

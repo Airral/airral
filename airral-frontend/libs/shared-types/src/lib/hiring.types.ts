@@ -2,6 +2,9 @@
 
 export interface Job {
   id: number;
+  organizationName?: string;
+  organizationDomain?: string;
+  organizationLogoUrl?: string;
   title: string;
   description: string;
   departmentId?: number;

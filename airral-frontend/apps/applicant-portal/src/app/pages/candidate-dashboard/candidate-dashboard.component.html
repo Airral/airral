@@ -5,16 +5,23 @@
         <div class="brand-mark">AR</div>
         <div class="search-wrap">
           <mat-icon class="search-icon">search</mat-icon>
-          <input type="text" placeholder="Search companies, roles, and people" readonly>
+          <input
+            type="search"
+            placeholder="Search jobs, companies, salaries"
+            [value]="searchTerm"
+            (input)="handleSearchInput($event)">
         </div>
       </div>
 
       <nav class="top-nav" *ngIf="!loading" aria-label="Applicant navigation">
-        <button mat-button class="nav-item" [class.active]="activeView === 'feed'" (click)="setView('feed')">Community</button>
-        <button mat-button class="nav-item" [class.active]="activeView === 'applications'" [matBadge]="applications.length || null" matBadgeColor="warn" matBadgeSize="small" (click)="setView('applications')">My Jobs</button>
-        <button mat-button class="nav-item" [class.active]="activeView === 'tracker'" [matBadge]="getInterviewCount() || null" matBadgeColor="warn" matBadgeSize="small" (click)="setView('tracker')">Progress</button>
-        <button mat-button class="nav-item" [class.active]="activeView === 'profile'" (click)="setView('profile')">Portfolio</button>
-        <button mat-flat-button color="primary" class="easy-apply-btn" (click)="openJobsBoard()">Quick Apply</button>
+        <button mat-button class="nav-item" [class.active]="activeView === 'jobs'" (click)="setView('jobs')">Jobs</button>
+        <button mat-button class="nav-item" [class.active]="activeView === 'feed'" (click)="setView('feed')">Feed</button>
+        <button mat-button class="nav-item" [class.active]="activeView === 'rooms'" (click)="setView('rooms')">Rooms</button>
+        <button mat-button class="nav-item" [class.active]="activeView === 'messages'" (click)="setView('messages')">Messages</button>
+        <button mat-button class="nav-item" [class.active]="activeView === 'events'" (click)="setView('events')">Events</button>
+        <button mat-button class="nav-item" [class.active]="activeView === 'resume'" (click)="setView('resume')">Resume</button>
+        <button mat-button class="nav-item" [class.active]="activeView === 'founders'" (click)="setView('founders')">Founder</button>
+        <button mat-flat-button color="primary" class="easy-apply-btn" (click)="handleCreateRoom()">Create room</button>
         <button mat-icon-button class="nav-avatar" (click)="logout()">{{ profile?.firstName?.charAt(0) || 'A' }}</button>
       </nav>
     </div>
@@ -28,60 +35,255 @@
       <p>Loading your dashboard...</p>
     </div>
 
-    <div *ngIf="!loading" [ngSwitch]="activeView" class="view-shell">
-      <app-candidate-feed
+    <app-match-setup
+      *ngIf="!loading && showMatchSetup && activeView === 'jobs'"
+      [profile]="profile"
+      [saving]="matchSetupSaving"
+      [resumeUploading]="resumeUploading"
+      [resumeUploadError]="resumeUploadError"
+      (saveSetup)="handleMatchSetupSave($event)"
+      (resumeUpload)="handleResumeUpload($event)"
+      (skipSetup)="handleMatchSetupSkip()"
+    />
+
+    <div *ngIf="!loading && (!showMatchSetup || activeView !== 'jobs')" [ngSwitch]="activeView" class="view-shell">
+      <section *ngSwitchCase="'jobs'" class="jobs-view">
+        <div class="journey-message" *ngIf="journeyMessage">
+          <mat-icon>tips_and_updates</mat-icon>
+          <span>{{ journeyMessage }}</span>
+        </div>
+
+        <div class="match-context">
+          <mat-icon>tune</mat-icon>
+          <div>
+            <strong>Matching for {{ profile?.headline || 'your target role' }}</strong>
+            <span>{{ getLocation() }} · {{ getWorkMode() }} · {{ getSalaryLabel() }}</span>
+          </div>
+          <button mat-stroked-button type="button" (click)="reopenMatchSetup()">Improve matches</button>
+        </div>
+
+        <section class="jobs-news-strip" *ngIf="jobViewSignalPosts.length" aria-label="Company news before applying">
+          <header class="jobs-news-head">
+            <div>
+              <p class="eyebrow">Company news</p>
+              <h2 class="text-shimmer">Before you apply, check what changed</h2>
+            </div>
+            <button mat-stroked-button type="button" (click)="setView('feed')">View all news</button>
+          </header>
+
+          <div class="jobs-news-grid">
+            <article class="jobs-news-card" *ngFor="let post of jobViewSignalPosts">
+              <div class="jobs-news-meta">
+                <span>{{ getSignalTypeLabel(post) }}</span>
+                <small>{{ getSignalSourceLabel(post) }}</small>
+              </div>
+              <h3>{{ post.title }}</h3>
+              <p>{{ post.whyRecommended }}</p>
+              <div class="jobs-news-actions">
+                <button mat-flat-button type="button" (click)="handlePostAction(post)">{{ post.action }}</button>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  *ngIf="post.sourceUrl"
+                  (click)="openPostSource(post, $event)">
+                  Source
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <app-recommended-jobs
+          [roles]="recommendedRoles"
+          [hasMoreFromServer]="jobsHasMore"
+          [loadingMore]="jobsLoadingMore"
+          (applyRole)="handleRoleApply($event)"
+          (askRoom)="handleRoleRoom($event)"
+          (loadMoreRoles)="loadMoreRecommendedRoles()"
+        />
+      </section>
+
+      <app-workspace-feed
         *ngSwitchCase="'feed'"
-        [viewerName]="profile?.firstName || 'You'"
-        (openJobsBoard)="openJobsBoard()"
-        (openProfile)="setView('profile')"
+        [posts]="workspacePosts"
+        [loading]="feedLoading || (newsLoading && workspacePosts.length === 0)"
+        [hasMore]="feedHasMore"
+        [loadingMore]="feedLoadingMore"
+        [profileInitial]="profile?.firstName?.charAt(0) || 'A'"
+        [searchFocus]="profile?.headline || 'Target roles'"
+        [searchLocation]="getLocation()"
+        [workMode]="getWorkMode()"
+        (postAction)="handlePostAction($event)"
+        (askStarted)="handleAskStarted($event)"
+        (postCreated)="handleCommunityPostCreated($event)"
+        (loadMore)="loadMoreWorkspaceFeed()"
       />
 
-      <section *ngSwitchCase="'applications'" class="subpage-card">
+      <section *ngSwitchCase="'rooms'" class="feature-page">
         <div class="subpage-head">
-          <h2>My Jobs</h2>
-          <button mat-flat-button color="primary" (click)="openJobsBoard()">Open matching roles</button>
-        </div>
-
-        <article *ngFor="let app of applications | slice:0:8" class="list-item">
           <div>
-            <h3>{{ app.jobTitle }}</h3>
-            <p>{{ app.department }} · Applied {{ formatDate(app.appliedAt) }}</p>
+            <p class="eyebrow">Community & Inbox</p>
+            <h2 class="text-shimmer">Your active discussions</h2>
+            <p class="feed-subtitle">Combine public rooms for company intel with secure direct messages from recruiters and peers.</p>
           </div>
-          <span class="item-status">{{ app.status }}</span>
-        </article>
+          <div class="subpage-actions">
+            <button mat-stroked-button type="button" (click)="handleAskStarted('job question')">New message</button>
+            <button mat-flat-button color="primary" type="button" (click)="handleCreateRoom()">Create room</button>
+          </div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="main-column">
+            <app-job-rooms
+              [rooms]="jobRooms"
+              (joinRoom)="handleRoomJoin($event)"
+            />
+          </div>
+
+          <div class="sidebar-stack">
+            <section class="feature-card dm-card">
+              <div class="dm-head">
+                <h3>Direct Messages</h3>
+                <span class="badge">2 new</span>
+              </div>
+
+              <div class="message-list">
+                <article class="message-item">
+                  <div class="avatar">M</div>
+                  <div class="msg-content">
+                    <strong>Maya Chen</strong>
+                    <p>Can review your Northstar take-home outline today.</p>
+                  </div>
+                  <button mat-icon-button type="button"><mat-icon>reply</mat-icon></button>
+                </article>
+                <article class="message-item">
+                  <div class="avatar recruiter">S</div>
+                  <div class="msg-content">
+                    <strong>Sarah (Recruiter)</strong>
+                    <p>Are you available for a brief sync tomorrow?</p>
+                  </div>
+                  <button mat-icon-button type="button"><mat-icon>reply</mat-icon></button>
+                </article>
+              </div>
+            </section>
+
+            <section class="feature-card">
+              <mat-icon>qr_code_2</mat-icon>
+              <h3>Create a private room with QR invite</h3>
+              <p>Use this for a company loop, founder event, campus group, or private job-search circle.</p>
+              <button mat-stroked-button type="button" (click)="handleFounderGroup()">Set up QR group</button>
+            </section>
+          </div>
+        </div>
       </section>
 
-      <section *ngSwitchCase="'tracker'" class="subpage-card">
-        <h2>Progress Board</h2>
-        <div class="tracker-grid">
-          <article class="tracker-stat">
-            <strong>{{ applications.length }}</strong>
-            <span>Applied</span>
+      <section *ngSwitchCase="'messages'" class="feature-page">
+        <div class="subpage-head">
+          <div>
+            <p class="eyebrow">Messages</p>
+            <h2 class="text-shimmer">Peer help and recruiter notes</h2>
+          </div>
+          <button mat-flat-button color="primary" type="button" (click)="handleAskStarted('job question')">New message</button>
+        </div>
+
+        <section class="message-list">
+          <article class="message-card">
+            <strong>Maya Chen</strong>
+            <p>Can review your Northstar take-home outline today.</p>
+            <button mat-stroked-button type="button">Reply</button>
           </article>
-          <article class="tracker-stat">
-            <strong>{{ getActiveApplicationsCount() }}</strong>
-            <span>Active</span>
+          <article class="message-card">
+            <strong>Remote Frontend Sprint</strong>
+            <p>41 live now. Share one role and one blocker.</p>
+            <button mat-stroked-button type="button" (click)="setView('rooms')">Open room</button>
           </article>
-          <article class="tracker-stat">
-            <strong>{{ getInterviewCount() }}</strong>
-            <span>Interviews</span>
+        </section>
+      </section>
+
+      <section *ngSwitchCase="'events'" class="feature-page">
+        <div class="subpage-head">
+          <div>
+            <p class="eyebrow">Events</p>
+            <h2>Events that help the search</h2>
+          </div>
+        </div>
+
+        <div class="feature-grid">
+          <app-career-events
+            [events]="careerEvents"
+            (reserveEvent)="handleEventReserve($event)"
+          />
+          <section class="feature-card">
+            <mat-icon>event_available</mat-icon>
+            <h3>Attach events to target companies</h3>
+            <p>Events should create follow-up, room activity, and better company intel instead of sitting as a calendar list.</p>
+          </section>
+        </div>
+      </section>
+
+      <section *ngSwitchCase="'resume'" class="feature-page">
+        <div class="subpage-head">
+          <div>
+            <p class="eyebrow">Resume ATS</p>
+            <h2>Make the resume match the job</h2>
+          </div>
+          <div class="subpage-actions">
+            <label class="resume-upload-action" [class.disabled]="resumeUploading">
+              <input
+                type="file"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                [disabled]="resumeUploading"
+                (change)="handleResumeFileInput($event)">
+              <mat-icon>{{ resumeUploading ? 'hourglass_top' : 'upload_file' }}</mat-icon>
+              {{ resumeUploading ? 'Uploading' : 'Upload resume' }}
+            </label>
+            <button mat-flat-button color="primary" type="button" (click)="handleResumeCheck()">Run ATS check</button>
+          </div>
+        </div>
+        <div class="journey-message" *ngIf="resumeUploadError">
+          <mat-icon>info</mat-icon>
+          <span>{{ resumeUploadError }}</span>
+        </div>
+
+        <div class="resume-panel">
+          <article class="ats-score">
+            <strong>78</strong>
+            <span>ATS match for {{ getPrimaryRole().title }}</span>
           </article>
-          <article class="tracker-stat">
-            <strong>{{ getOfferCount() }}</strong>
-            <span>Offers</span>
+          <article class="resume-fix">
+            <mat-icon>rule</mat-icon>
+            <div>
+              <strong>Missing keywords</strong>
+              <p>Design systems, accessibility testing, Angular performance.</p>
+            </div>
+          </article>
+          <article class="resume-fix">
+            <mat-icon>edit_note</mat-icon>
+            <div>
+              <strong>Rewrite one bullet</strong>
+              <p>Turn responsibilities into measurable product outcomes.</p>
+            </div>
           </article>
         </div>
       </section>
 
-      <section *ngSwitchCase="'profile'" class="subpage-card profile-card">
-        <h2>Your Portfolio</h2>
-        <div class="profile-grid" *ngIf="profile">
-          <p><span>Name</span><strong>{{ profile.firstName }} {{ profile.lastName }}</strong></p>
-          <p><span>Email</span><strong>{{ profile.email }}</strong></p>
-          <p><span>Phone</span><strong>{{ profile.phone || 'Add your phone' }}</strong></p>
-          <p><span>Location</span><strong>{{ profile.location || 'Add your location' }}</strong></p>
+      <section *ngSwitchCase="'founders'" class="feature-page">
+        <div class="subpage-head">
+          <div>
+            <p class="eyebrow">Founder groups</p>
+            <h2>Private groups for hiring conversations</h2>
+          </div>
+          <button mat-flat-button color="primary" type="button" (click)="handleFounderGroup()">Create group</button>
         </div>
-        <button mat-flat-button color="primary" (click)="openJobsBoard()">Find roles matching profile</button>
+
+        <section class="founder-panel">
+          <div class="qr-preview">AR</div>
+          <div>
+            <h3>Founder product room</h3>
+            <p>Create a private room for founders, teammates, candidates, or event attendees. AIRRAL generates a QR code so people can join the conversation fast.</p>
+            <button mat-stroked-button type="button">Generate QR invite</button>
+          </div>
+        </section>
       </section>
     </div>
   </div>

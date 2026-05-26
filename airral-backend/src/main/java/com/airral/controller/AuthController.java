@@ -14,7 +14,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4203"})
 public class AuthController {
 
     private final AuthService authService;
@@ -38,10 +37,9 @@ public class AuthController {
      * POST /api/auth/register
      */
     @PostMapping("/register")
-    public Mono<ResponseEntity<Map<String, String>>> register(@Valid @RequestBody RegisterRequest request) {
+    public Mono<ResponseEntity<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
         return authService.register(request)
-                .map(message -> ResponseEntity.status(HttpStatus.CREATED)
-                        .<Map<String, String>>body(Map.of("message", message)));
+                .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
     }
 
     /**

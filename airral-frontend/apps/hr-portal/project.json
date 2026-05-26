@@ -27,6 +27,12 @@
       },
       "configurations": {
         "production": {
+          "fileReplacements": [
+            {
+              "replace": "apps/hr-portal/src/environments/environment.ts",
+              "with": "apps/hr-portal/src/environments/environment.prod.ts"
+            }
+          ],
           "budgets": [
             {
               "type": "initial",

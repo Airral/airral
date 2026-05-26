@@ -18,6 +18,9 @@ public class JobResponse {
 
     private Long id;
     private Long organizationId;
+    private String organizationName;
+    private String organizationDomain;
+    private String organizationLogoUrl;
     private String title;
     private String description;
     private Long departmentId;

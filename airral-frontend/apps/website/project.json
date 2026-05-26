@@ -12,6 +12,7 @@
       "options": {
         "outputPath": "dist/apps/website",
         "browser": "apps/website/src/main.ts",
+        "server": "apps/website/src/main.server.ts",
         "tsConfig": "apps/website/tsconfig.app.json",
         "assets": [
           {
@@ -19,7 +20,14 @@
             "input": "apps/website/public"
           }
         ],
-        "styles": ["apps/website/src/styles.css"]
+        "styles": ["apps/website/src/styles.css"],
+        "outputMode": "server",
+        "ssr": {
+          "entry": "apps/website/src/server.ts"
+        },
+        "security": {
+          "allowedHosts": ["airral.com", "*.airral.com", "localhost", "127.0.0.1"]
+        }
       },
       "configurations": {
         "production": {
@@ -38,6 +46,9 @@
           "outputHashing": "all"
         },
         "development": {
+          "server": false,
+          "ssr": false,
+          "outputMode": "static",
           "optimization": false,
           "extractLicenses": false,
           "sourceMap": true
@@ -49,6 +60,7 @@
       "continuous": true,
       "executor": "@angular/build:dev-server",
       "options": {
+        "host": "127.0.0.1",
         "port": 4200
       },
       "configurations": {

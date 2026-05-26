@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://www.airral.com/sitemap.xml
+Sitemap: https://api.airral.com/api/seo/jobs-sitemap.xml

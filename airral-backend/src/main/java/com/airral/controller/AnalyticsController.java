@@ -12,7 +12,6 @@ import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/analytics")
-@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4203"})
 public class AnalyticsController {
 
     private final AnalyticsService analyticsService;

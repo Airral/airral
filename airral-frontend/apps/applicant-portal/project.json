@@ -27,6 +27,12 @@
       },
       "configurations": {
         "production": {
+          "fileReplacements": [
+            {
+              "replace": "apps/applicant-portal/src/environments/environment.ts",
+              "with": "apps/applicant-portal/src/environments/environment.prod.ts"
+            }
+          ],
           "optimization": {
             "scripts": true,
             "styles": {

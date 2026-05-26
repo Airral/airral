@@ -1,10 +1,7 @@
 .auth-page {
   min-height: 100vh;
   padding-bottom: 3rem;
-  background:
-    radial-gradient(circle at 90% 10%, rgba(109, 40, 217, 0.12), transparent 42%),
-    radial-gradient(circle at 8% 90%, rgba(8, 145, 178, 0.1), transparent 45%),
-    #f8fafc;
+  background: #fbfbfa;
 }
 
 .auth-hero {
@@ -32,8 +29,8 @@
 .auth-card {
   width: min(100%, 34rem);
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 1rem;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
   box-shadow: 0 20px 50px -30px rgba(15, 23, 42, 0.35);
   padding: 1.5rem;
   display: grid;
@@ -56,18 +53,22 @@ input {
 }
 
 input:focus {
-  outline: 2px solid rgba(109, 40, 217, 0.2);
-  border-color: #6d28d9;
+  outline: 3px solid rgba(0, 124, 109, 0.12);
+  border-color: #007C6D;
 }
 
 .btn-primary {
   border: 0;
-  border-radius: 0.72rem;
+  border-radius: 999px;
   padding: 0.78rem 1rem;
   color: #fff;
   font-weight: 700;
   cursor: pointer;
-  background: linear-gradient(135deg, #6d28d9, #0891b2);
+  background: #007C6D;
+}
+
+.btn-primary:hover {
+  background: #006B5B;
 }
 
 .btn-primary:disabled {
@@ -87,6 +88,7 @@ input:focus {
 }
 
 .alt-action a {
-  color: #6d28d9;
+  color: #006B5B;
+  font-weight: 800;
   text-decoration: none;
 }

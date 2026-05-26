@@ -1,0 +1,257 @@
+<section class="panel workspace-feed">
+  <div class="feed-shell">
+    <aside class="feed-rail feed-rail-left" aria-label="Feed context">
+      <section class="rail-card identity-card">
+        <div class="identity-row">
+          <span class="composer-avatar">{{ avatarInitial }}</span>
+          <div>
+            <strong>{{ searchFocus }}</strong>
+            <span>{{ searchLocation }} · {{ workMode }}</span>
+          </div>
+        </div>
+        <div class="metric-grid" aria-label="Feed metrics">
+          <div>
+            <strong>{{ posts.length }}</strong>
+            <span>Posts</span>
+          </div>
+          <div>
+            <strong>{{ totalSavedCount }}</strong>
+            <span>Saves</span>
+          </div>
+          <div>
+            <strong>{{ followedCount }}</strong>
+            <span>Following</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="rail-card">
+        <h3>Start a thread</h3>
+        <div class="thread-list">
+          <button type="button" *ngFor="let type of composerTypes" (click)="primeComposer(type.value)">
+            <mat-icon>{{ type.icon }}</mat-icon>
+            <span>{{ type.label }}</span>
+          </button>
+        </div>
+      </section>
+    </aside>
+
+    <main class="feed-main">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Feed</p>
+          <h2>Your career scroll</h2>
+          <p class="feed-subtitle">Applicant posts, company signals, room activity, and job-search context in one place.</p>
+        </div>
+      </div>
+
+      <section class="composer" *ngIf="showComposer">
+        <div class="composer-prompt">
+          <span class="composer-avatar">{{ avatarInitial }}</span>
+          <textarea rows="3" [(ngModel)]="draftContent" [placeholder]="getComposerPlaceholder()"></textarea>
+        </div>
+        <div class="composer-tools">
+          <div class="composer-type-row" aria-label="Post type">
+            <button
+              type="button"
+              *ngFor="let type of composerTypes"
+              [class.active]="draftType === type.value"
+              (click)="setDraftType(type.value)">
+              <mat-icon>{{ type.icon }}</mat-icon>
+              {{ type.label }}
+            </button>
+          </div>
+          <div class="audience-row">
+            <label>
+              <span>Audience</span>
+              <select [ngModel]="draftVisibility" (ngModelChange)="setDraftVisibility($event)">
+                <option *ngFor="let audience of audienceOptions" [value]="audience.value">{{ audience.label }}</option>
+              </select>
+            </label>
+            <small>{{ getAudienceDescription() }}</small>
+          </div>
+          <button mat-flat-button color="primary" type="button" [disabled]="!draftContent.trim()" (click)="submitDraft()">
+            <mat-icon>send</mat-icon>
+            Post
+          </button>
+        </div>
+      </section>
+
+      <div class="feed-controls" aria-label="Feed controls">
+        <mat-button-toggle-group class="lens-toggle" [value]="activeLens" aria-label="Feed lens">
+          <mat-button-toggle value="for_you" (click)="setLens('for_you')">For you</mat-button-toggle>
+          <mat-button-toggle value="following" (click)="setLens('following')">Following</mat-button-toggle>
+        </mat-button-toggle-group>
+        <mat-button-toggle-group class="sort-row" [value]="activeSort" aria-label="Feed sort">
+          <mat-button-toggle value="quality" (click)="setSort('quality')">Relevant</mat-button-toggle>
+          <mat-button-toggle value="new" (click)="setSort('new')">Newest</mat-button-toggle>
+          <mat-button-toggle value="saved" (click)="setSort('saved')">Saved</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+
+      <div class="feed-empty" *ngIf="loading">
+        <mat-icon>hourglass_top</mat-icon>
+        <h3>Loading your feed</h3>
+        <p>AIRRAL is pulling member posts, company signals, and job-search context from the backend.</p>
+      </div>
+
+      <div class="feed-empty" *ngIf="!loading && displayPosts.length === 0">
+        <mat-icon>forum</mat-icon>
+        <h3>No feed posts yet</h3>
+        <p>Start with a question, interview note, salary signal, or company ask. AIRRAL will keep it tied to your job search.</p>
+      </div>
+
+      <article class="workspace-post" [class.has-media]="hasPostImage(post)" *ngFor="let post of displayPosts; trackBy: trackPost">
+        <div class="post-content-grid">
+          <div class="post-copy">
+            <header class="post-head">
+              <span class="post-icon"><mat-icon>{{ getTypeIcon(post) }}</mat-icon></span>
+              <div class="post-title-block">
+                <div class="post-meta">
+                  <span [ngClass]="getSignalTone(post)">{{ getSignalLabel(post) }}</span>
+                  <span [ngClass]="getConfidenceTone(post)">{{ getConfidenceLabel(post) }}</span>
+                  <span class="meta-copy">{{ getFreshnessLabel(post) }}</span>
+                </div>
+                <h3>{{ post.title }}</h3>
+                <p class="post-source">
+                  <mat-icon>{{ getPostSourceIcon(post) }}</mat-icon>
+                  {{ getPostSubtitle(post) }}
+                </p>
+              </div>
+            </header>
+
+            <p class="post-body">{{ getDisplayBody(post) }}</p>
+            <button class="read-more" type="button" *ngIf="shouldShowReadMore(post)" (click)="toggleExpanded(post)">
+              {{ isExpanded(post) ? 'Show less' : 'Read more' }}
+            </button>
+            <div class="signal-reason">
+              <mat-icon>insights</mat-icon>
+              <div>
+                <strong>{{ getContextLabel(post) }}</strong>
+                <span>{{ post.whyRecommended }}</span>
+              </div>
+            </div>
+
+            <mat-chip-set class="tag-strip" aria-label="Post tags">
+              <mat-chip *ngFor="let tag of post.tags">{{ tag }}</mat-chip>
+            </mat-chip-set>
+          </div>
+
+          <button
+            type="button"
+            class="post-media"
+            *ngIf="hasPostImage(post)"
+            [disabled]="getSourceDisabled(post)"
+            [attr.aria-label]="getSourceAriaLabel(post)"
+            (click)="openSource(post, $event)">
+            <img
+              [src]="post.imageUrl"
+              [alt]="getImageAlt(post)"
+              loading="lazy"
+              decoding="async"
+              (error)="hidePostImage(post)" />
+            <span>
+              <mat-icon>{{ getPostSourceIcon(post) }}</mat-icon>
+              {{ getSourceButtonText(post) }}
+            </span>
+          </button>
+        </div>
+
+        <footer class="post-foot">
+          <div class="post-stats" [attr.aria-label]="getPostMetaLabel(post)">
+            <span><mat-icon>{{ getLinkedJobsIcon(post) }}</mat-icon>{{ getLinkedJobsLabel(post) }}</span>
+            <span><mat-icon>bookmark</mat-icon>{{ getSavedLabel(post) }}</span>
+            <span><mat-icon>track_changes</mat-icon>{{ getQualityLabel(post) }}</span>
+          </div>
+          <div class="post-buttons">
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="getSourceDisabled(post)"
+              [attr.aria-label]="getSourceAriaLabel(post)"
+              (click)="openSource(post, $event)">
+              <mat-icon>{{ getPostSourceIcon(post) }}</mat-icon>
+              {{ getSourceButtonText(post) }}
+            </button>
+            <button
+              mat-flat-button
+              type="button"
+              class="primary-action"
+              [attr.aria-label]="getActionAriaLabel(post)"
+              (click)="postAction.emit(post)">
+              <mat-icon>{{ getPostActionIcon(post) }}</mat-icon>
+              {{ post.action }}
+            </button>
+          </div>
+        </footer>
+
+        <div class="post-actions" aria-label="Quick post actions">
+          <button
+            type="button"
+            mat-icon-button
+            [color]="isSaved(post) ? 'primary' : undefined"
+            [attr.aria-label]="getSaveButtonTitle(post)"
+            [title]="getSaveButtonTitle(post)"
+            (click)="toggleSaved(post)">
+            <mat-icon>bookmark_add</mat-icon>
+          </button>
+          <button
+            type="button"
+            mat-icon-button
+            [color]="isFollowingRoom(post) ? 'primary' : undefined"
+            [attr.aria-label]="getFollowButtonTitle(post)"
+            [title]="getFollowButtonTitle(post)"
+            (click)="toggleRoomFollow(post)">
+            <mat-icon>notifications_active</mat-icon>
+          </button>
+        </div>
+      </article>
+
+      <div class="load-more-row" *ngIf="hasMore || loadingMore">
+        <button mat-stroked-button type="button" [disabled]="loadingMore" (click)="loadMore.emit()">
+          <mat-icon>{{ loadingMore ? 'hourglass_top' : 'expand_more' }}</mat-icon>
+          {{ loadingMore ? 'Loading more' : 'Load more posts' }}
+        </button>
+      </div>
+    </main>
+
+    <aside class="feed-rail feed-rail-right" aria-label="Feed signals">
+      <section class="rail-card" *ngIf="signalHighlights.length">
+        <div class="rail-head">
+          <h3>Hiring pulse</h3>
+          <span>Live</span>
+        </div>
+        <button class="signal-link" type="button" *ngFor="let post of signalHighlights" (click)="postAction.emit(post)">
+          <span>{{ getSignalLabel(post) }}</span>
+          <strong>{{ post.title }}</strong>
+          <small>{{ getSourceLabel(post) }} · {{ getRelativeTime(post.freshnessMinutes) }}</small>
+        </button>
+      </section>
+
+      <section class="rail-card" *ngIf="topTopics.length">
+        <h3>Trending topics</h3>
+        <div class="topic-list">
+          <button
+            type="button"
+            *ngFor="let topic of topTopics"
+            [class.active]="activeTopic === topic.label"
+            (click)="setTopicFilter(topic.label)">
+            <span>{{ topic.label }}</span>
+            <small>{{ getTopicLabel(topic) }}</small>
+          </button>
+        </div>
+      </section>
+
+      <section class="rail-card" *ngIf="roomSuggestions.length">
+        <h3>Companies & rooms</h3>
+        <article class="room-row" *ngFor="let room of roomSuggestions">
+          <span class="room-avatar">{{ getRoomInitial(room.room) }}</span>
+          <div>
+            <strong>{{ room.room }}</strong>
+            <span>{{ getRoomMeta(room) }}</span>
+          </div>
+        </article>
+      </section>
+    </aside>
+  </div>
+</section>

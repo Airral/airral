@@ -4,7 +4,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService } from '@airral/shared-auth';
+import { AuthService, buildLocalAuthHandoffUrl } from '@airral/shared-auth';
 import { RegisterRequest, User } from '@airral/shared-types';
 import { FooterComponent, HeaderComponent, HeaderCta, HeaderNavLink } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
@@ -70,7 +70,7 @@ export class SignUpComponent {
 
         this.authService.login(user, res.token);
         this.isLoading = false;
-        window.location.href = PORTAL_ROUTES.HR;
+        window.location.href = buildLocalAuthHandoffUrl(PORTAL_ROUTES.HR, user, res.token);
       },
       error: () => {
         this.errorMessage = 'Unable to create employer account right now. Please try again.';

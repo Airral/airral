@@ -23,6 +23,54 @@ public interface JobRepository extends R2dbcRepository<Job, Long> {
     @Query("SELECT * FROM jobs WHERE status = 'OPEN' ORDER BY created_at DESC")
     Flux<Job> findOpenJobs();
 
+    // Search open jobs (public - for job board)
+    @Query("""
+            SELECT j.*
+            FROM jobs j
+            LEFT JOIN organizations o ON o.id = j.organization_id
+            WHERE j.status = 'OPEN'
+              AND (
+                LOWER(COALESCE(j.title, '')) LIKE :query
+                OR LOWER(COALESCE(j.description, '')) LIKE :query
+                OR LOWER(COALESCE(j.department, '')) LIKE :query
+                OR LOWER(COALESCE(j.location, '')) LIKE :query
+                OR LOWER(COALESCE(o.name, '')) LIKE :query
+              )
+            ORDER BY j.created_at DESC
+            """)
+    Flux<Job> searchOpenJobs(String query);
+
+    // Filter open jobs by department (public - for job board)
+    @Query("""
+            SELECT *
+            FROM jobs
+            WHERE status = 'OPEN'
+              AND LOWER(COALESCE(department, '')) = :department
+            ORDER BY created_at DESC
+            """)
+    Flux<Job> findOpenJobsByDepartment(String department);
+
+    // Search open jobs within a department (public - for job board)
+    @Query("""
+            SELECT j.*
+            FROM jobs j
+            LEFT JOIN organizations o ON o.id = j.organization_id
+            WHERE j.status = 'OPEN'
+              AND LOWER(COALESCE(j.department, '')) = :department
+              AND (
+                LOWER(COALESCE(j.title, '')) LIKE :query
+                OR LOWER(COALESCE(j.description, '')) LIKE :query
+                OR LOWER(COALESCE(j.location, '')) LIKE :query
+                OR LOWER(COALESCE(o.name, '')) LIKE :query
+              )
+            ORDER BY j.created_at DESC
+            """)
+    Flux<Job> searchOpenJobsByDepartment(String query, String department);
+
+    // Find one open job for public job detail pages
+    @Query("SELECT * FROM jobs WHERE id = :id AND status = 'OPEN'")
+    Mono<Job> findOpenJobById(Long id);
+
     // Find jobs by department
     @Query("SELECT * FROM jobs WHERE organization_id = :organizationId AND department_id = :departmentId ORDER BY created_at DESC")
     Flux<Job> findByOrganizationIdAndDepartmentId(Long organizationId, Long departmentId);

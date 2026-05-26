@@ -1,32 +1,60 @@
 <airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
 <main class="job-detail-container">
   <div class="container">
-    <a routerLink="/jobs" class="back-link">← Back to Jobs</a>
-    <div class="job-header">
-      <h1>{{ job.title }}</h1>
-      <span class="dept-badge">{{ job.department }}</span>
+    <a routerLink="/jobs" class="back-link">Back to jobs</a>
+    <div *ngIf="loading" class="job-content">
+      <p>Loading job details...</p>
     </div>
-    <div class="job-meta">
-      <span>{{ job.company }}</span> • <span>{{ job.location }}</span> • <span>{{ job.type }}</span> • <span>{{ job.salary }}</span>
+
+    <div *ngIf="!loading && error" class="job-content">
+      <h1>{{ error }}</h1>
+      <p>Browse current roles and continue your job search in AIRRAL.</p>
+      <a routerLink="/jobs" class="btn btn-primary">Browse open roles</a>
     </div>
-    <div class="job-content">
-      <div class="job-main">
-        <h2>About the Role</h2>
-        <p>{{ job.description }}</p>
-        <h2>Requirements</h2>
-        <ul>
-          <li *ngFor="let req of job.requirements">{{ req }}</li>
-        </ul>
-        <h2>Benefits</h2>
-        <ul>
-          <li *ngFor="let benefit of job.benefits">{{ benefit }}</li>
-        </ul>
+
+    <ng-container *ngIf="!loading && job">
+      <div class="job-header">
+        <h1>{{ job.title }}</h1>
+        <span class="dept-badge" *ngIf="job.department">{{ job.department }}</span>
       </div>
-      <div class="job-sidebar">
-        <button class="btn btn-primary" [routerLink]="['/apply']" [queryParams]="{ jobId: job.id }">Apply Now</button>
-        <button class="btn btn-secondary">Save Job</button>
+      <div class="job-meta">
+        <span>{{ job.organizationName || 'Confidential employer' }}</span>
+        •
+        <span>{{ job.location || 'Location flexible' }}</span>
+        •
+        <span>{{ getEmploymentType(job) }}</span>
+        •
+        <span>{{ getSalaryLabel(job) }}</span>
       </div>
-    </div>
+      <div class="job-content">
+        <div class="job-main">
+          <h2>About the Role</h2>
+          <p>{{ job.description }}</p>
+          <h2 *ngIf="getRequirements(job).length">Requirements</h2>
+          <ul *ngIf="getRequirements(job).length">
+            <li *ngFor="let req of getRequirements(job)">{{ req }}</li>
+          </ul>
+          <h2 *ngIf="getBenefits(job).length">Helpful Context</h2>
+          <ul *ngIf="getBenefits(job).length">
+            <li *ngFor="let benefit of getBenefits(job)">{{ benefit }}</li>
+          </ul>
+        </div>
+        <div class="job-sidebar">
+          <aside class="conversion-panel" aria-label="Continue in AIRRAL">
+            <p class="panel-kicker">Public preview</p>
+            <h2>Use this role inside AIRRAL</h2>
+            <p>Account tools keep the job attached to your matching, resume check, rooms, and next steps.</p>
+            <ul>
+              <li>Save the role</li>
+              <li>Check resume fit</li>
+              <li>Ask a job room before applying</li>
+            </ul>
+            <a class="btn btn-primary" [routerLink]="['/apply']" [queryParams]="{ jobId: job.id }">Create account to apply</a>
+            <a class="btn btn-secondary" [routerLink]="['/login']" [queryParams]="{ jobId: job.id }">Sign in to save</a>
+          </aside>
+        </div>
+      </div>
+    </ng-container>
   </div>
 </main>
 <airral-footer></airral-footer>

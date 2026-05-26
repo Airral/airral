@@ -15,7 +15,6 @@ import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/referrals")
-@CrossOrigin(origins = {"http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4203"})
 public class ReferralController {
 
     private final ReferralService referralService;

@@ -5,6 +5,7 @@ import { inject } from '@angular/core';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
+import { consumeLocalAuthHandoff } from './auth-handoff';
 
 function isLocalDevHost(): boolean {
   return (
@@ -49,6 +50,10 @@ export class AuthGuard {
 export const authGuard: CanActivateFn = () => {
   const authService = inject(AuthService);
   const tokenService = inject(TokenService);
+
+  if (consumeLocalAuthHandoff(authService)) {
+    return true;
+  }
 
   // Check if user is authenticated AND token is not expired
   if (authService.isAuthenticated() && tokenService.isTokenValid()) {

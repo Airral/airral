@@ -6,8 +6,13 @@
 <main>
   <section class="hero">
     <div class="hero-content">
-      <h1>Browse Open Positions</h1>
-      <p>Find your next opportunity from our curated list of top companies.</p>
+      <p class="eyebrow">Public job previews</p>
+      <h1>Preview roles, then continue in AIRRAL</h1>
+      <p>Use public pages to decide what is worth a closer look. Create an account to save roles, match your resume, ask rooms, and apply with context.</p>
+      <div class="hero-actions">
+        <a routerLink="/apply" class="btn btn-primary">Create account to apply</a>
+        <a routerLink="/login" class="btn btn-secondary">Sign in to save</a>
+      </div>
     </div>
   </section>
 
@@ -17,7 +22,7 @@
         type="text"
         [(ngModel)]="searchQuery"
         (input)="onSearchChange()"
-        placeholder="Search jobs..."
+        placeholder="Preview by title, skill, company, or location"
         class="search-input"
       />
     </div>
@@ -42,11 +47,11 @@
           <h3>{{ job.title }}</h3>
           <span class="dept-badge">{{ job.department }}</span>
         </div>
-        <p class="job-description">{{ job.description | slice: 0:100 }}...</p>
-        <p class="job-info">{{ job.location }} • {{ job.seniority }}</p>
+        <p class="job-description">{{ (job.description || '') | slice: 0:100 }}{{ (job.description || '').length > 100 ? '...' : '' }}</p>
+        <p class="job-info">{{ job.location || 'Location flexible' }} • {{ job.employmentType || job.department || 'Open role' }}</p>
         <div class="job-actions">
-          <button class="btn btn-secondary" [routerLink]="['/jobs', job.id]">View Details</button>
-          <button class="btn btn-primary" [routerLink]="['/apply']" [queryParams]="{ jobId: job.id }">Apply Now</button>
+          <a class="btn btn-secondary" [routerLink]="['/jobs', job.id]">Preview</a>
+          <a class="btn btn-primary" [routerLink]="['/apply']" [queryParams]="{ jobId: job.id }">Create account</a>
         </div>
       </div>
     </div>
@@ -61,9 +66,9 @@
 
     <!-- Empty state when NO jobs exist at all -->
     <div *ngIf="!loading && !error && jobs.length === 0" class="no-results">
-      <h3>🚀 No jobs posted yet</h3>
-      <p>Be the first to discover opportunities when companies start posting!</p>
-      <p>Companies: <a routerLink="/for-employers">Post your first job for free</a></p>
+      <h3>Public roles are warming up</h3>
+      <p>Create a candidate account to use matching, saved roles, rooms, and resume workflow while the public preview grows.</p>
+      <p>Companies: <a routerLink="/for-employers">open employer tools</a></p>
     </div>
   </div>
 </main>

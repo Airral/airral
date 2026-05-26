@@ -34,11 +34,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.12.0'
-          cache: 'npm'
-          cache-dependency-path: airral-frontend/package-lock.json
+          cache: 'yarn'
+          cache-dependency-path: airral-frontend/yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn install --immutable
 
       - name: Determine apps to deploy
         id: apps
@@ -54,7 +57,7 @@ jobs:
           IFS=',' read -ra APPS <<< "${{ steps.apps.outputs.APPS }}"
           for app in "${APPS[@]}"; do
             echo "Building $app..."
-            npx nx build $app --configuration=production
+            yarn nx build $app --configuration=production
           done
 
       - name: Configure AWS credentials
@@ -67,13 +70,13 @@ jobs:
       - name: Deploy Website to S3
         if: contains(steps.apps.outputs.APPS, 'website')
         run: |
-          aws s3 sync dist/apps/website/ s3://airral-${{ inputs.environment }}-website \
+          aws s3 sync dist/apps/website/browser/ s3://airral-${{ inputs.environment }}-website \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "*.html" \
             --exclude "*.json"
 
-          aws s3 sync dist/apps/website/ s3://airral-${{ inputs.environment }}-website \
+          aws s3 sync dist/apps/website/browser/ s3://airral-${{ inputs.environment }}-website \
             --exclude "*" \
             --include "*.html" \
             --include "*.json" \
@@ -86,13 +89,13 @@ jobs:
       - name: Deploy HR Portal to S3
         if: contains(steps.apps.outputs.APPS, 'hr-portal')
         run: |
-          aws s3 sync dist/apps/hr-portal/ s3://airral-${{ inputs.environment }}-hr-portal \
+          aws s3 sync dist/apps/hr-portal/browser/ s3://airral-${{ inputs.environment }}-hr-portal \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "*.html" \
             --exclude "*.json"
 
-          aws s3 sync dist/apps/hr-portal/ s3://airral-${{ inputs.environment }}-hr-portal \
+          aws s3 sync dist/apps/hr-portal/browser/ s3://airral-${{ inputs.environment }}-hr-portal \
             --exclude "*" \
             --include "*.html" \
             --include "*.json" \
@@ -105,13 +108,13 @@ jobs:
       - name: Deploy Applicant Portal to S3
         if: contains(steps.apps.outputs.APPS, 'applicant-portal')
         run: |
-          aws s3 sync dist/apps/applicant-portal/ s3://airral-${{ inputs.environment }}-applicant-portal \
+          aws s3 sync dist/apps/applicant-portal/browser/ s3://airral-${{ inputs.environment }}-applicant-portal \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "*.html" \
             --exclude "*.json"
 
-          aws s3 sync dist/apps/applicant-portal/ s3://airral-${{ inputs.environment }}-applicant-portal \
+          aws s3 sync dist/apps/applicant-portal/browser/ s3://airral-${{ inputs.environment }}-applicant-portal \
             --exclude "*" \
             --include "*.html" \
             --include "*.json" \
@@ -124,13 +127,13 @@ jobs:
       - name: Deploy Admin Portal to S3
         if: contains(steps.apps.outputs.APPS, 'admin-portal')
         run: |
-          aws s3 sync dist/apps/admin-portal/ s3://airral-${{ inputs.environment }}-admin-portal \
+          aws s3 sync dist/apps/admin-portal/browser/ s3://airral-${{ inputs.environment }}-admin-portal \
             --delete \
             --cache-control "public, max-age=31536000, immutable" \
             --exclude "*.html" \
             --exclude "*.json"
 
-          aws s3 sync dist/apps/admin-portal/ s3://airral-${{ inputs.environment }}-admin-portal \
+          aws s3 sync dist/apps/admin-portal/browser/ s3://airral-${{ inputs.environment }}-admin-portal \
             --exclude "*" \
             --include "*.html" \
             --include "*.json" \

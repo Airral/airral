@@ -3,15 +3,56 @@ import { Injectable } from '@angular/core';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'current_user';
+const memoryStore = new Map<string, string>();
+
+const memoryStorage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = {
+  getItem: (key: string) => memoryStore.get(key) ?? null,
+  setItem: (key: string, value: string) => {
+    memoryStore.set(key, value);
+  },
+  removeItem: (key: string) => {
+    memoryStore.delete(key);
+  },
+};
+
+type SafeStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+function isStorageLike(value: unknown): value is SafeStorage {
+  const candidate = value as SafeStorage | undefined;
+  return (
+    !!candidate &&
+    typeof candidate.getItem === 'function' &&
+    typeof candidate.setItem === 'function' &&
+    typeof candidate.removeItem === 'function'
+  );
+}
 
 @Injectable({
   providedIn: 'root'
 })
 export class TokenService {
 
-  private getStorage(): Storage {
-    // localStorage is shared across localhost ports, which is required for multi-portal auth in dev.
-    return localStorage;
+  private getStorage(): SafeStorage {
+    // localStorage is scoped per origin. Cross-port dev handoff is handled by auth-handoff.
+    try {
+      const storage = globalThis.localStorage;
+      if (isStorageLike(storage)) {
+        return storage;
+      }
+    } catch {
+      return memoryStorage;
+    }
+
+    return memoryStorage;
+  }
+
+  private getSessionStorage(): Pick<Storage, 'getItem' | 'removeItem'> | null {
+    try {
+      const storage = globalThis.sessionStorage;
+      return isStorageLike(storage) ? storage : null;
+    } catch {
+      return null;
+    }
   }
 
   setToken(token: string): void {
@@ -20,12 +61,12 @@ export class TokenService {
 
   getToken(): string | null {
     // Fallback to sessionStorage for older sessions created before this change.
-    return this.getStorage().getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
+    return this.getStorage().getItem(TOKEN_KEY) ?? this.getSessionStorage()?.getItem(TOKEN_KEY) ?? null;
   }
 
   removeToken(): void {
     this.getStorage().removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(TOKEN_KEY);
+    this.getSessionStorage()?.removeItem(TOKEN_KEY);
   }
 
   setUser(user: any): void {
@@ -33,13 +74,13 @@ export class TokenService {
   }
 
   getUser(): any {
-    const user = this.getStorage().getItem(USER_KEY) ?? sessionStorage.getItem(USER_KEY);
+    const user = this.getStorage().getItem(USER_KEY) ?? this.getSessionStorage()?.getItem(USER_KEY);
     return user ? JSON.parse(user) : null;
   }
 
   removeUser(): void {
     this.getStorage().removeItem(USER_KEY);
-    sessionStorage.removeItem(USER_KEY);
+    this.getSessionStorage()?.removeItem(USER_KEY);
   }
 
   hasToken(): boolean {
@@ -57,8 +98,16 @@ export class TokenService {
     }
 
     try {
-      // JWT format: header.payload.signature
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      const parsedToken = this.parseToken(token);
+      if (!parsedToken || !this.isAllowedToken(parsedToken)) {
+        return true;
+      }
+
+      if (parsedToken.encrypted) {
+        return false;
+      }
+
+      const payload = parsedToken.payload;
 
       // exp claim is in seconds, convert to milliseconds
       if (!payload.exp) {
@@ -95,8 +144,16 @@ export class TokenService {
     }
 
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.exp ? payload.exp * 1000 : null;
+      const parsedToken = this.parseToken(token);
+      if (!parsedToken || !this.isAllowedToken(parsedToken)) {
+        return null;
+      }
+
+      if (parsedToken.encrypted) {
+        return null;
+      }
+
+      return parsedToken.payload.exp ? parsedToken.payload.exp * 1000 : null;
     } catch {
       return null;
     }
@@ -105,5 +162,40 @@ export class TokenService {
   clear(): void {
     this.removeToken();
     this.removeUser();
+  }
+
+  private parseToken(token: string): { header: any; payload: any | null; encrypted: boolean } | null {
+    const parts = token.split('.');
+    if (parts.length !== 3 && parts.length !== 5) {
+      return null;
+    }
+
+    const header = JSON.parse(this.base64UrlDecode(parts[0]));
+    if (parts.length === 5) {
+      return { header, payload: null, encrypted: true };
+    }
+
+    return {
+      header,
+      payload: JSON.parse(this.base64UrlDecode(parts[1])),
+      encrypted: false,
+    };
+  }
+
+  private base64UrlDecode(value: string): string {
+    const normalized = value
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(Math.ceil(value.length / 4) * 4, '=');
+
+    return atob(normalized);
+  }
+
+  private isAllowedToken(parsedToken: { header: any; payload: any | null; encrypted: boolean }): boolean {
+    if (parsedToken.encrypted) {
+      return parsedToken.header?.alg === 'dir' && parsedToken.header?.enc === 'A256GCM';
+    }
+
+    return false;
   }
 }

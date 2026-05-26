@@ -1,10 +1,10 @@
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService } from '@airral/shared-auth';
+import { AuthService, buildLocalAuthHandoffUrl } from '@airral/shared-auth';
 import { RegisterRequest, User } from '@airral/shared-types';
 import { FooterComponent, HeaderComponent, HeaderCta, HeaderNavLink } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
@@ -17,13 +17,14 @@ import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-c
   templateUrl: './apply.component.html',
   styleUrl: './apply.component.css',
 })
-export class ApplyComponent {
+export class ApplyComponent implements OnInit {
   firstName = '';
   lastName = '';
   email = '';
   phone = '';
   password = '';
   confirmPassword = '';
+  selectedJobId: string | null = null;
   isLoading = false;
   errorMessage = '';
 
@@ -31,9 +32,14 @@ export class ApplyComponent {
   readonly headerCtas = WEBSITE_HEADER_CTAS;
 
   constructor(
+    private readonly route: ActivatedRoute,
     private readonly authApi: AuthApiService,
     private readonly authService: AuthService
   ) {}
+
+  ngOnInit(): void {
+    this.selectedJobId = this.route.snapshot.queryParamMap.get('jobId');
+  }
 
   onSubmit(): void {
     if (!this.isFormValid() || this.isLoading) {
@@ -72,7 +78,7 @@ export class ApplyComponent {
 
         this.authService.login(user, res.token);
         this.isLoading = false;
-        window.location.href = PORTAL_ROUTES.APPLICANT;
+        window.location.href = buildLocalAuthHandoffUrl(this.getApplicantPortalTarget(), user, res.token);
       },
       error: () => {
         this.errorMessage = 'Unable to create your account right now. Please try again.';
@@ -83,5 +89,13 @@ export class ApplyComponent {
 
   private isFormValid(): boolean {
     return !!this.firstName && !!this.lastName && !!this.email && !!this.password && !!this.confirmPassword;
+  }
+
+  private getApplicantPortalTarget(): string {
+    const url = new URL(PORTAL_ROUTES.APPLICANT);
+    if (this.selectedJobId) {
+      url.searchParams.set('jobId', this.selectedJobId);
+    }
+    return url.toString();
   }
 }

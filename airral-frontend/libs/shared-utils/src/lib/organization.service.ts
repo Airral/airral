@@ -81,7 +81,7 @@ export class OrganizationService {
     organizationName?: string;
     organizationTier?: string;
   } | null {
-    const raw = localStorage.getItem('current_user') ?? sessionStorage.getItem('current_user');
+    const raw = this.getStorageValue('current_user');
     if (!raw) {
       return null;
     }
@@ -92,6 +92,16 @@ export class OrganizationService {
         organizationName?: string;
         organizationTier?: string;
       };
+    } catch {
+      return null;
+    }
+  }
+
+  private getStorageValue(key: string): string | null {
+    try {
+      const localValue = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+      const sessionValue = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) : null;
+      return localValue ?? sessionValue;
     } catch {
       return null;
     }

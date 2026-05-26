@@ -26,8 +26,8 @@ export interface HeaderCta {
   styleUrls: ['./header.component.css'],
 })
 export class HeaderComponent {
-  @Input() brand = 'AIRRAL';
-  @Input() tagline = 'Talent · Hiring · Growth';
+  @Input() brand = 'Airral';
+  @Input() tagline = 'Job Search OS';
   @Input() links: HeaderNavLink[] = [
     { label: 'Home', path: '/', exact: true },
     { label: 'Jobs', path: '/jobs' },
@@ -52,6 +52,6 @@ export class HeaderComponent {
 
   @HostListener('window:scroll')
   onScroll(): void {
-    this.scrolled.set(window.scrollY > 8);
+    this.scrolled.set(typeof window !== 'undefined' && window.scrollY > 8);
   }
 }

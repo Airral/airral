@@ -1,0 +1,125 @@
+.panel {
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.panel-head.compact {
+  margin-bottom: 12px;
+}
+
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h2 {
+  color: var(--color-ink-strong, #172632);
+  font-family: 'Sora', 'Manrope', sans-serif;
+  font-size: 22px;
+}
+
+.event-card {
+  position: relative;
+  padding: 16px;
+  border: 1px solid rgba(204, 219, 229, 0.92);
+  border-radius: 8px;
+  background:
+    linear-gradient(120deg, rgba(184, 121, 17, 0.08), rgba(255, 255, 255, 0) 44%),
+    #ffffff;
+  box-shadow: 0 8px 22px rgba(19, 38, 52, 0.05);
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.event-card::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 0;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: var(--color-amber, #b87911);
+}
+
+.event-card + .event-card {
+  margin-top: 10px;
+}
+
+.event-card:hover {
+  border-color: rgba(217, 95, 76, 0.28);
+  box-shadow: 0 16px 32px rgba(19, 38, 52, 0.08);
+  transform: translateY(-1px);
+}
+
+.event-date,
+.event-foot,
+.event-foot span {
+  display: flex;
+  align-items: center;
+}
+
+.event-date {
+  width: fit-content;
+  gap: 7px;
+  border-radius: 999px;
+  background: var(--color-amber-soft, #fff4dc);
+  color: var(--color-amber, #b87911);
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.event-date mat-icon,
+.event-foot mat-icon {
+  width: 17px;
+  height: 17px;
+  font-size: 17px;
+}
+
+.event-foot button mat-icon {
+  margin-right: 5px;
+}
+
+h3 {
+  margin-top: 10px;
+  color: var(--color-ink-strong, #172632);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+p {
+  margin-top: 5px;
+  color: var(--color-muted, #667789);
+  font-size: 12px;
+}
+
+.event-foot {
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.event-foot span {
+  gap: 4px;
+  color: var(--color-muted, #667789);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .panel {
+    padding: 0;
+  }
+}

@@ -1,12 +1,15 @@
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService } from '@airral/shared-auth';
+import {
+  AuthService,
+  buildLocalAuthHandoffUrl
+} from '@airral/shared-auth';
 import { AuthResponse, User } from '@airral/shared-types';
-import { FooterComponent, HeaderComponent, HeaderCta, HeaderNavLink } from '@airral/shared-ui';
+import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES, USER_ROLES } from '@airral/shared-utils';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 
@@ -17,9 +20,10 @@ import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-c
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   email = '';
   password = '';
+  selectedJobId: string | null = null;
   isLoading = false;
   errorMessage = '';
 
@@ -28,9 +32,14 @@ export class LoginComponent {
   readonly hrPortalUrl = `${PORTAL_ROUTES.HR}/login`;
 
   constructor(
+    private readonly route: ActivatedRoute,
     private readonly authApi: AuthApiService,
     private readonly authService: AuthService
   ) {}
+
+  ngOnInit(): void {
+    this.selectedJobId = this.route.snapshot.queryParamMap.get('jobId');
+  }
 
   onSubmit(): void {
     if (!this.email || !this.password || this.isLoading) {
@@ -80,11 +89,18 @@ export class LoginComponent {
 
     this.authService.login(user, response.token);
     this.isLoading = false;
-    this.redirectToApplicantPortal();
+    this.redirectToApplicantPortal(user, response.token);
   }
 
-  private redirectToApplicantPortal(): void {
+  private redirectToApplicantPortal(user: User, token: string): void {
+    window.location.href = buildLocalAuthHandoffUrl(this.getApplicantPortalTarget(), user, token);
+  }
 
-    window.location.href = PORTAL_ROUTES.APPLICANT;
+  private getApplicantPortalTarget(): string {
+    const url = new URL(PORTAL_ROUTES.APPLICANT);
+    if (this.selectedJobId) {
+      url.searchParams.set('jobId', this.selectedJobId);
+    }
+    return url.toString();
   }
 }

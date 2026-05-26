@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="AIRRAL job search workspace">
+  <rect width="1200" height="630" fill="#fbfbfa"/>
+  <rect x="72" y="72" width="1056" height="486" rx="36" fill="#fff" stroke="#e1e5e9" stroke-width="2"/>
+  <rect x="112" y="112" width="72" height="72" rx="18" fill="#007C6D"/>
+  <path fill="#fff" d="M130 168 146 124h11l17 44h-11l-3-9h-17l-3 9h-10Zm16-18h11l-6-16-5 16Z"/>
+  <text x="212" y="150" fill="#111827" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="800">AIRRAL</text>
+  <text x="112" y="272" fill="#111827" font-family="Inter, Arial, sans-serif" font-size="64" font-weight="900">Job search with context</text>
+  <text x="112" y="338" fill="#4b5563" font-family="Inter, Arial, sans-serif" font-size="28">Fresh roles, fit signals, salary context, rooms, and applications in one workspace.</text>
+  <rect x="112" y="420" width="198" height="54" rx="27" fill="#007C6D"/>
+  <text x="148" y="456" fill="#fff" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800">Find better roles</text>
+  <rect x="330" y="420" width="212" height="54" rx="27" fill="#f6f7f6" stroke="#e1e5e9"/>
+  <text x="364" y="456" fill="#20313d" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800">Apply with momentum</text>
+</svg>

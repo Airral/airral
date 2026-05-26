@@ -4,148 +4,167 @@
 </airral-header>
 
 <main class="home">
-  <!-- Hero -->
   <section class="hero">
-    <div class="hero-bg" aria-hidden="true"></div>
+    <div class="hero-color-field" aria-hidden="true"></div>
 
     <div class="container hero-inner">
-      <span class="eyebrow">
-        <span class="pulse-dot"></span> Startup and small business ATS
-      </span>
+      <div class="hero-copy">
+        <span class="eyebrow">
+          <span class="pulse-dot"></span>
+          Jobs-first applicant workspace
+        </span>
 
-      <h1 class="hero-title">
-        <span class="word-animate" style="--word-index: 0">Give</span>
-        <span class="word-animate" style="--word-index: 1">your</span>
-        <span class="word-animate" style="--word-index: 2">team</span>
-        <span class="word-animate" style="--word-index: 3">a</span>
-        <span class="word-animate" style="--word-index: 4">hiring</span>
-        <span class="word-animate" style="--word-index: 5">engine</span>
-        <span class="word-animate" style="--word-index: 6">before</span>
-        <span class="word-animate" style="--word-index: 7">you</span>
-        <span class="word-animate" style="--word-index: 8">have</span>
-        <span class="word-animate" style="--word-index: 9">a</span>
-        <span class="word-animate" style="--word-index: 10">recruiting</span>
-        <span class="word-animate" style="--word-index: 11">team</span>
-      </h1>
+        <h1>Airral</h1>
 
-      <p class="hero-sub">
-        <span class="word-animate" style="--word-index: 0">AIRRAL</span>
-        <span class="word-animate" style="--word-index: 1">turns</span>
-        <span class="word-animate" style="--word-index: 2">job</span>
-        <span class="word-animate" style="--word-index: 3">posts,</span>
-        <span class="word-animate" style="--word-index: 4">candidate</span>
-        <span class="word-animate" style="--word-index: 5">reviews,</span>
-        <span class="word-animate" style="--word-index: 6">interviews,</span>
-        <span class="word-animate" style="--word-index: 7">and</span>
-        <span class="word-animate" style="--word-index: 8">offers</span>
-        <span class="word-animate" style="--word-index: 9">into</span>
-        <span class="word-animate" style="--word-index: 10">one</span>
-        <span class="word-animate" style="--word-index: 11">clean</span>
-        <span class="word-animate" style="--word-index: 12">workflow</span>
-        <span class="word-animate" style="--word-index: 13">so</span>
-        <span class="word-animate" style="--word-index: 14">startups</span>
-        <span class="word-animate" style="--word-index: 15">and</span>
-        <span class="word-animate" style="--word-index: 16">small</span>
-        <span class="word-animate" style="--word-index: 17">businesses</span>
-        <span class="word-animate" style="--word-index: 18">can</span>
-        <span class="word-animate" style="--word-index: 19">hire</span>
-        <span class="word-animate" style="--word-index: 20">with</span>
-        <span class="word-animate" style="--word-index: 21">momentum</span>
-        <span class="word-animate" style="--word-index: 22">instead</span>
-        <span class="word-animate" style="--word-index: 23">of</span>
-        <span class="word-animate" style="--word-index: 24">spreadsheet</span>
-        <span class="word-animate" style="--word-index: 25">chaos.</span>
-      </p>
+        <p class="hero-sub">
+          {{ displayedHeroText }}
+        </p>
 
-      <div class="hero-actions">
-        <a class="btn-primary" routerLink="/for-employers">Start Quick Hire</a>
-        <a class="btn-ghost" routerLink="/pricing">See pricing</a>
-      </div>
-
-      <div class="hero-svg-stage" aria-label="AIRRAL pipeline product preview">
-        <figure class="hero-svg-card">
-          <img src="/assets/models/pipeline-review.svg" alt="Pipeline model showing candidate review movement" />
-        </figure>
-
-        <div class="hero-proof-card proof-left" aria-hidden="true">
-          <span>Role live</span>
-          <strong>Scorecard ready</strong>
+        <div class="hero-actions">
+          <a class="btn-primary" routerLink="/apply">Start job search</a>
+          <a class="btn-ghost" routerLink="/jobs">Browse roles</a>
         </div>
 
-        <div class="hero-proof-card proof-right" aria-hidden="true">
-          <span>Offer room</span>
-          <strong>1 decision away</strong>
-        </div>
+        <p class="hero-note">
+          Already searching?
+          <a routerLink="/login">Sign in</a>
+          <span aria-hidden="true">/</span>
+          Hiring for a company?
+          <a routerLink="/for-employers">Employer tools</a>
+        </p>
       </div>
 
-      <p class="hero-note">Free for job seekers. Useful for startups and small businesses from the first open role.</p>
+      <div class="hero-stage">
+        <aside class="stage-card stage-card-top">
+          <span>Live job radar</span>
+          <strong>Fresh roles, ranked before you apply</strong>
+        </aside>
+
+        <div
+          class="product-preview"
+          aria-label="AIRRAL applicant portal preview"
+          (mousemove)="onPreviewMouseMove($event)">
+          <div class="preview-toolbar">
+            <span class="preview-mark" aria-hidden="true">AR</span>
+            <div>
+              <strong>Jobs</strong>
+              <span>Matched for Senior Frontend Engineer</span>
+            </div>
+            <button type="button" (click)="improvePreviewMatches()">Improve matches</button>
+          </div>
+
+          <div class="preview-grid">
+            <aside class="preview-list" aria-label="Example job list">
+              <button
+                *ngFor="let job of previewJobs; index as i"
+                type="button"
+                class="preview-job"
+                [class.selected]="i === selectedPreviewIndex"
+                [attr.aria-pressed]="i === selectedPreviewIndex"
+                (click)="selectPreviewJob(i)"
+              >
+                <span class="company-mark">{{ job.mark }}</span>
+                <div>
+                  <h3>{{ job.listTitle }}</h3>
+                  <p>{{ job.listMeta }}</p>
+                  <strong>{{ job.match }}</strong>
+                </div>
+              </button>
+            </aside>
+
+            <section
+              class="preview-detail"
+              aria-label="Example selected job detail"
+              aria-live="polite"
+            >
+              <p class="preview-source">{{ selectedPreviewJob.source }}</p>
+              <h2>{{ selectedPreviewJob.title }}</h2>
+              <p>{{ selectedPreviewJob.location }}</p>
+
+              <div class="preview-actions">
+                <a
+                  class="preview-action primary"
+                  routerLink="/apply"
+                  [queryParams]="{ role: selectedPreviewJob.slug }"
+                >Apply</a>
+                <a
+                  class="preview-action secondary"
+                  routerLink="/login"
+                  [queryParams]="{ next: 'room', role: selectedPreviewJob.slug }"
+                >Ask room</a>
+              </div>
+
+              <div class="signal-row">
+                <span *ngFor="let signal of selectedPreviewJob.signals">
+                  <strong>{{ signal.label }}</strong>
+                  {{ signal.value }}
+                </span>
+              </div>
+
+              <div class="context-panel">
+                <h3>What matters before you apply</h3>
+                <p>{{ selectedPreviewJob.context }}</p>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <aside class="stage-card stage-card-bottom">
+          <span>Warm context</span>
+          <strong>Rooms, resume fit, salary, source, and timing together</strong>
+        </aside>
+      </div>
     </div>
   </section>
 
-  <!-- Partner logos - hidden until we have real clients -->
-  <section class="trust-band" *ngIf="partnerLogos.length > 0">
-    <div class="container trust-inner">
-      <p class="trust-label">Trusted by fast-growing teams</p>
-      <ul class="logo-row" aria-label="Partner companies">
-        <li *ngFor="let logo of partnerLogos">{{ logo }}</li>
-      </ul>
+  <section class="proof-strip" aria-label="AIRRAL applicant value">
+    <div class="container proof-grid">
+      <article>
+        <span>01</span>
+        <h2>Role radar</h2>
+        <p>Find fresh jobs by source, signal, salary, location, and fit instead of scrolling stale boards.</p>
+      </article>
+      <article>
+        <span>02</span>
+        <h2>Context first</h2>
+        <p>Know why a role is worth your time before you start another application.</p>
+      </article>
+      <article>
+        <span>03</span>
+        <h2>Applicant room</h2>
+        <p>Keep saved roles, resume checks, notes, and warm conversations attached to the job.</p>
+      </article>
     </div>
   </section>
 
-  <section class="scroll-models" aria-labelledby="scroll-models-title">
-    <div class="container">
-      <header class="section-head centered">
-        <h2 id="scroll-models-title">See the workflow unfold</h2>
-        <p class="section-sub">Three lightweight product snapshots that can move with the page.</p>
+  <section class="candidate-flow" aria-labelledby="candidate-flow-title">
+    <div class="container flow-shell">
+      <header class="section-head">
+        <p class="section-kicker">Built for the current job market</p>
+        <h2 id="candidate-flow-title">A job search should feel alive, not like paperwork</h2>
+        <p class="section-sub">AIRRAL turns role discovery into a guided product experience: scan signal, open context, decide faster, and keep momentum.</p>
       </header>
 
-      <div class="scroll-model-list">
-        <article class="scroll-model-card">
-          <div class="scroll-model-copy">
-            <span>01</span>
-            <h3>Launch the role</h3>
-            <p>Turn a role, scorecard, and team invite into a ready-to-publish hiring workspace.</p>
-          </div>
-          <figure class="svg-frame">
-            <img src="/assets/models/role-setup.svg" alt="Role setup model showing job page and scorecard setup" />
-          </figure>
-        </article>
-
-        <article class="scroll-model-card">
-          <div class="scroll-model-copy">
-            <span>02</span>
-            <h3>Move review work</h3>
-            <p>Show candidates flowing from new applicants into founder review with live activity.</p>
-          </div>
-          <figure class="svg-frame">
-            <img src="/assets/models/pipeline-review.svg" alt="Pipeline model showing candidate review movement" />
-          </figure>
-        </article>
-
-        <article class="scroll-model-card">
-          <div class="scroll-model-copy">
-            <span>03</span>
-            <h3>Reach the decision</h3>
-            <p>End the journey with fit signals, cleared decisions, and an offer ready to send.</p>
-          </div>
-          <figure class="svg-frame">
-            <img src="/assets/models/offer-room.svg" alt="Offer room model showing decision and offer readiness" />
-          </figure>
+      <div class="process-grid">
+        <article class="step-card" *ngFor="let step of processSteps; index as i">
+          <span class="step-number">0{{ i + 1 }}</span>
+          <h3>{{ step.title }}</h3>
+          <p>{{ step.description }}</p>
         </article>
       </div>
     </div>
   </section>
 
-  <!-- Jobs -->
   <section class="jobs-section">
     <div class="container">
-      <header class="section-head">
+      <header class="section-head jobs-head">
         <div>
-          <h2>Open roles from growing teams</h2>
-          <p class="section-sub">Fresh opportunities from teams building with momentum.</p>
+          <p class="section-kicker">Open roles</p>
+          <h2>Preview real jobs, then continue in your applicant portal</h2>
+          <p class="section-sub">Public roles create discovery. The AIRRAL account is where saving, matching, rooms, resume checks, and applying become a workflow.</p>
         </div>
 
-        <form class="search-card" (submit)="$event.preventDefault(); onSearchChange()">
+        <form class="search-card" (submit)="$event.preventDefault(); searchJobs()">
           <div class="search-field">
             <span class="search-icon" aria-hidden="true">Search</span>
             <input
@@ -157,7 +176,7 @@
               aria-label="Search jobs"
             />
           </div>
-          <button type="submit" class="btn-primary">Find roles</button>
+          <button type="submit" class="btn-primary">Search roles</button>
         </form>
 
         <div class="chip-row" role="tablist" aria-label="Filter by department">
@@ -175,115 +194,76 @@
         </div>
       </header>
 
-      <div *ngIf="loading" class="state">Loading jobs…</div>
+      <div *ngIf="loading" class="state">Loading jobs...</div>
 
-      <!-- Friendly error fallback instead of a scary red box -->
       <div *ngIf="error && !loading" class="state empty">
-        <h3>🚀 Updating our job board</h3>
-        <p>We're currently refreshing our latest opportunities. Please check back in a few minutes!</p>
-        <button (click)="loadJobs()" class="btn-ghost">Try Again</button>
+        <h3>Refreshing roles</h3>
+        <p>We could not load public previews right now. You can still create a candidate account and use the applicant portal.</p>
+        <div class="state-actions">
+          <button (click)="loadJobs()" class="btn-ghost">Try again</button>
+          <a routerLink="/apply" class="btn-primary">Create candidate account</a>
+        </div>
       </div>
 
       <div *ngIf="!loading && !error" class="jobs-grid">
         <article
           *ngFor="let job of filteredJobs"
           class="job-card"
-          tabindex="0"
-          (click)="viewJob(job.id)"
-          (keyup.enter)="viewJob(job.id)"
         >
           <header class="job-card-head">
             <span class="job-pill">{{ job.department || 'General' }}</span>
-            <span class="job-status">● {{ job.status }}</span>
+            <span class="job-status">{{ job.status }}</span>
           </header>
 
-          <h3 class="job-title">{{ job.title }}</h3>
+          <h3 class="job-title">
+            <a class="job-card-link" [routerLink]="['/jobs', job.id]">{{ job.title }}</a>
+          </h3>
           <p class="job-desc">
-            {{ (job.description || '') | slice:0:140 }}{{ (job.description || '').length > 140 ? '…' : '' }}
+            {{ (job.description || '') | slice:0:140 }}{{ (job.description || '').length > 140 ? '...' : '' }}
           </p>
 
           <footer class="job-card-foot">
             <span class="job-date">Posted {{ job.createdAt | date:'mediumDate' }}</span>
             <div class="job-actions">
-              <button
-                type="button"
+              <a
                 class="btn-ghost"
-                (click)="viewJob(job.id); $event.stopPropagation()"
-              >View</button>
-              <button
-                type="button"
+                [routerLink]="['/jobs', job.id]"
+              >Preview</a>
+              <a
                 class="btn-primary"
-                (click)="applyJob(job.id); $event.stopPropagation()"
-              >Apply →</button>
+                [routerLink]="['/apply']"
+                [queryParams]="{ jobId: job.id }"
+              >Create account</a>
             </div>
           </footer>
         </article>
 
-        <!-- Empty state when jobs exist but none match filters -->
         <div *ngIf="filteredJobs.length === 0 && jobs.length > 0" class="state empty">
-          <p>No matching roles — try clearing filters or a different keyword.</p>
+          <p>No matching roles. Try clearing filters or a different keyword.</p>
         </div>
 
-        <!-- Empty state when NO jobs exist at all -->
         <div *ngIf="jobs.length === 0" class="state empty">
-          <h3>🚀 Be the first to post a job!</h3>
-          <p>No jobs posted yet. Companies can post their first job for free with Quick Hire.</p>
-          <a routerLink="/for-employers" class="btn-primary">Learn More</a>
+          <h3>Start with your applicant workspace</h3>
+          <p>The public job preview is still warming up. Create a candidate account to use matching and saved-role workflow.</p>
+          <a routerLink="/apply" class="btn-primary">Create candidate account</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Features -->
   <section class="features">
     <div class="container">
       <header class="section-head centered">
-        <h2>What growing teams get out of the box</h2>
-        <p class="section-sub">The hiring power you need now, without enterprise clutter.</p>
+        <p class="section-kicker">Applicant advantage</p>
+        <h2>Make every role feel worth opening</h2>
+        <p class="section-sub">The experience should pull candidates forward with useful signal, not bury them in generic listings.</p>
       </header>
 
       <div class="features-grid">
         <article class="feature" *ngFor="let f of features">
           <div class="feature-icon" aria-hidden="true">{{ f.icon }}</div>
-          <h4>{{ f.title }}</h4>
+          <h3>{{ f.title }}</h3>
           <p>{{ f.description }}</p>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <section class="process">
-    <div class="container">
-      <header class="section-head centered">
-        <h2>From first role to first hire</h2>
-        <p class="section-sub">A simple operating rhythm for teams that need to move.</p>
-      </header>
-
-      <div class="process-grid">
-        <article class="step-card" *ngFor="let step of processSteps; index as i">
-          <span class="step-number">0{{ i + 1 }}</span>
-          <h4>{{ step.title }}</h4>
-          <p>{{ step.description }}</p>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <!-- Testimonials - hidden until we have real customer feedback -->
-  <section class="testimonials" *ngIf="testimonials.length > 0">
-    <div class="container">
-      <header class="section-head centered">
-        <h2>What people say</h2>
-        <p class="section-sub">Feedback from candidates and hiring teams using AIRRAL.</p>
-      </header>
-
-      <div class="testimonial-grid">
-        <article class="testimonial-card" *ngFor="let t of testimonials">
-          <p class="quote">“{{ t.quote }}”</p>
-          <footer>
-            <strong>{{ t.name }}</strong>
-            <span>{{ t.role }}</span>
-          </footer>
         </article>
       </div>
     </div>
@@ -292,8 +272,9 @@
   <section class="faq">
     <div class="container faq-inner">
       <header class="section-head centered">
+        <p class="section-kicker">Product direction</p>
         <h2>Frequently asked questions</h2>
-        <p class="section-sub">Quick answers for founders, owners, and first hiring teams.</p>
+        <p class="section-sub">How AIRRAL should feel now: applicant-first, alive, and useful before sign-up.</p>
       </header>
 
       <div class="faq-list">
@@ -305,17 +286,17 @@
     </div>
   </section>
 
-  <!-- CTA -->
   <section class="cta">
     <div class="container">
       <div class="cta-card">
         <div>
-          <h2>Ready to give your team a real hiring system?</h2>
-          <p>Start with Quick Hire, invite your team, and run your first role with confidence.</p>
+          <p class="section-kicker">Start here</p>
+          <h2>Turn job search into a product people want to come back to</h2>
+          <p>Send candidates to the applicant portal first. AIRRAL can become the place they check before applying anywhere else.</p>
         </div>
         <div class="cta-actions">
-          <a class="btn-primary" routerLink="/for-employers">Start Quick Hire</a>
-          <a class="btn-ghost-dark" routerLink="/sign-up">Create candidate profile</a>
+          <a class="btn-primary" routerLink="/apply">Create candidate account</a>
+          <a class="btn-ghost-dark" routerLink="/for-employers">Employer tools</a>
         </div>
       </div>
     </div>
