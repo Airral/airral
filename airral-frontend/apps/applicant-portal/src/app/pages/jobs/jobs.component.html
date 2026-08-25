@@ -1,0 +1,443 @@
+<div class="jobs-page">
+  <div class="jobs-search" role="search">
+    <div class="search-box">
+      <span class="material-icons search-icon">search</span>
+      <input
+        type="text"
+        [ngModel]="searchQuery"
+        (ngModelChange)="onSearchInput($event)"
+        (keyup.enter)="onSearch()"
+        aria-label="Search jobs"
+        placeholder="Job title, company, or skill">
+      <button class="search-btn" type="button" (click)="clearSearch()" *ngIf="searchQuery" title="Clear search" aria-label="Clear search">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+    <button
+      class="filter-toggle-btn"
+      type="button"
+      [class.active]="hasActiveFilters"
+      [class.expanded]="filtersExpanded"
+      [attr.aria-expanded]="filtersExpanded"
+      aria-controls="job-filters"
+      (click)="toggleFilters()">
+      <span class="material-icons">tune</span>
+      <span>Filters</span>
+      <strong *ngIf="activeFilterCount > 0" class="filter-count">{{ activeFilterCount }}</strong>
+      <span class="material-icons filter-chevron">expand_more</span>
+    </button>
+    <p class="search-meta" *ngIf="!onboardingStartPending" aria-live="polite">
+      <span class="inline-spinner" *ngIf="loading" aria-hidden="true"></span>
+      <span *ngIf="loading">{{ jobs.length > 0 ? 'Updating jobs' : 'Finding jobs' }}</span>
+      <ng-container *ngIf="!loading"><strong>{{ jobs.length }}</strong> shown</ng-container>
+    </p>
+    <p class="search-meta" *ngIf="onboardingStartPending">
+      Search setup saved
+    </p>
+  </div>
+
+  <div class="filters-panel" id="job-filters" *ngIf="filtersExpanded">
+    <div class="filters-panel-heading">
+      <div>
+        <strong>Refine jobs</strong>
+        <span>Results update automatically</span>
+      </div>
+      <button class="clear-filters-btn" type="button" *ngIf="hasActiveFilters" (click)="clearFilters()">
+        <span class="material-icons">restart_alt</span>
+        Reset
+      </button>
+    </div>
+
+    <div class="filters-controls">
+      <div class="filter-group work-mode-group">
+        <span class="filter-label">Work mode</span>
+        <div class="filter-segment" role="group" aria-label="Work mode">
+          <button type="button" [class.selected]="filterWorkMode === 'all'" [attr.aria-pressed]="filterWorkMode === 'all'" (click)="setWorkModeFilter('all')">All</button>
+          <button type="button" [class.selected]="filterWorkMode === 'REMOTE'" [attr.aria-pressed]="filterWorkMode === 'REMOTE'" (click)="setWorkModeFilter('REMOTE')">Remote</button>
+          <button type="button" [class.selected]="filterWorkMode === 'HYBRID'" [attr.aria-pressed]="filterWorkMode === 'HYBRID'" (click)="setWorkModeFilter('HYBRID')">Hybrid</button>
+          <button type="button" [class.selected]="filterWorkMode === 'ONSITE'" [attr.aria-pressed]="filterWorkMode === 'ONSITE'" (click)="setWorkModeFilter('ONSITE')">On-site</button>
+        </div>
+      </div>
+
+      <label class="filter-group select-filter">
+        <span class="filter-label">Date posted</span>
+        <span class="select-control">
+          <span class="material-icons">schedule</span>
+          <select [ngModel]="filterMaxAgeDays" (ngModelChange)="setFreshnessFilter($event)" aria-label="Date posted">
+            <option [ngValue]="undefined">Any time</option>
+            <option [ngValue]="1">Past 24 hours</option>
+            <option [ngValue]="7">Past 7 days</option>
+            <option [ngValue]="14">Past 14 days</option>
+            <option [ngValue]="30">Past 30 days</option>
+          </select>
+          <span class="material-icons select-chevron">expand_more</span>
+        </span>
+      </label>
+
+      <label class="filter-group select-filter">
+        <span class="filter-label">Experience</span>
+        <span class="select-control">
+          <span class="material-icons">trending_up</span>
+          <select [ngModel]="filterExperience" (ngModelChange)="setExperienceFilter($event)" aria-label="Experience level">
+            <option value="all">Any level</option>
+            <option value="entry">Entry, 0-2 years</option>
+            <option value="mid">Mid-level, 2-5 years</option>
+            <option value="senior">Senior, 5-8 years</option>
+            <option value="staff">Staff+, 8+ years</option>
+          </select>
+          <span class="material-icons select-chevron">expand_more</span>
+        </span>
+      </label>
+
+      <div class="binary-filters" aria-label="Additional filters">
+        <label class="filter-switch" [class.selected]="filterSalaryPosted">
+          <input type="checkbox" [checked]="filterSalaryPosted" (change)="toggleSalaryFilter()">
+          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+          <span class="switch-copy">
+            <strong>Salary listed</strong>
+            <small>Only roles with pay</small>
+          </span>
+        </label>
+        <label class="filter-switch" [class.selected]="filterVisaFriendly">
+          <input type="checkbox" [checked]="filterVisaFriendly" (change)="toggleVisaFilter()">
+          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+          <span class="switch-copy">
+            <strong>Visa-friendly</strong>
+            <small>Include possible sponsors</small>
+          </span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resume Health Banner -->
+  <div class="resume-health-banner" *ngIf="showResumeHealthBanner">
+    <div class="rhb-content">
+      <div class="rhb-score" [class.mid]="resumeHealth!.score >= 50" [class.low]="resumeHealth!.score < 50">
+        {{ resumeHealth!.score }}
+      </div>
+      <div class="rhb-text">
+        <strong>Your resume scores {{ resumeHealth!.score }}/100</strong>
+        <span *ngIf="resumeHealthTopFix">Fix: {{ resumeHealthTopFix }}</span>
+      </div>
+    </div>
+    <div class="rhb-actions">
+      <a routerLink="/profile" class="rhb-fix-btn">Improve resume</a>
+      <button class="rhb-dismiss" (click)="dismissResumeHealthBanner()" title="Dismiss">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+  </div>
+
+  <section class="search-launch" *ngIf="onboardingStartPending">
+    <div class="search-launch-copy">
+      <p class="eyebrow">Profile saved</p>
+      <h1>Start with roles that match your setup.</h1>
+      <p>
+        AIRRAL saved your role, location, work mode, and sponsorship preferences. Start the search when you are ready.
+      </p>
+      <div class="search-launch-tags" *ngIf="onboardingSearchSeed">
+        <span *ngFor="let role of onboardingSearchSeed.roles">{{ role }}</span>
+        <span *ngIf="onboardingSearchSeed.location">{{ onboardingSearchSeed.location }}</span>
+        <span *ngIf="onboardingSearchSeed.workMode">{{ onboardingSearchSeed.workMode }}</span>
+      </div>
+    </div>
+    <button class="start-search-btn" type="button" (click)="startSearch()">
+      Start search
+      <span class="material-icons">arrow_forward</span>
+    </button>
+  </section>
+
+  <!-- Split view: list + detail -->
+  <div class="jobs-split" [class.mobile-detail-open]="mobileDetailOpen" *ngIf="!onboardingStartPending">
+
+    <!-- Job list panel -->
+    <aside class="jobs-list-panel" [class.updating]="loading && jobs.length > 0" [attr.aria-busy]="loading">
+      <div class="jobs-updating" *ngIf="loading && jobs.length > 0" role="status">
+        <span class="inline-spinner" aria-hidden="true"></span>
+        Updating jobs
+      </div>
+      <!-- "What's new" notice -->
+      <div class="whats-new-notice" *ngIf="newSinceLastVisit > 0 && !loading">
+        <span class="material-icons">fiber_new</span>
+        <span>{{ newSinceLastVisit }} new role{{ newSinceLastVisit > 1 ? 's' : '' }} since your last visit</span>
+      </div>
+
+      <p class="jobs-error" *ngIf="jobsError">{{ jobsError }}</p>
+
+      <div class="jobs-list" *ngIf="!loading || jobs.length > 0">
+        <button
+          class="job-card"
+          *ngFor="let job of jobs; trackBy: trackByJob"
+          [class.selected]="isSelected(job)"
+          (click)="selectJob(job)">
+          <div class="job-card-header">
+            <div class="job-card-company-logo" *ngIf="job.companyLogoUrl">
+              <img [src]="job.companyLogoUrl" [alt]="job.companyName" loading="lazy">
+            </div>
+            <div class="job-card-company-placeholder" *ngIf="!job.companyLogoUrl">
+              {{ (job.companyName || '?').charAt(0) }}
+            </div>
+            <div class="job-card-meta">
+              <span class="job-card-company">{{ job.companyName }}</span>
+              <span class="job-card-time">{{ getPostedLabel(job) }}</span>
+            </div>
+          </div>
+          <div class="job-card-decision">
+            <span class="decision-pill" [ngClass]="getDecisionClass(job)">{{ getDecisionLabel(job) }}</span>
+          </div>
+          <h3 class="job-card-title">{{ job.title }}</h3>
+          <div class="job-card-facts">
+            <span class="fact location" [title]="job.location || ''">
+              <span class="material-icons">location_on</span>
+              {{ getLocationLabel(job) }}
+            </span>
+            <span class="fact" *ngIf="getWorkModeLabel(job)">
+              <span class="material-icons">{{ job.workMode === 'REMOTE' ? 'wifi' : job.workMode === 'HYBRID' ? 'swap_horiz' : 'business' }}</span>
+              {{ getWorkModeLabel(job) }}
+            </span>
+            <span class="fact salary" [class.missing]="!hasPostedSalary(job)">
+              <span class="material-icons">payments</span>
+              {{ getSalaryLabel(job) }}
+            </span>
+            <span class="fact experience" *ngIf="getExperienceLabel(job)">
+              <span class="material-icons">trending_up</span>
+              {{ getExperienceLabel(job) }}
+            </span>
+          </div>
+          <div class="job-card-signals" *ngIf="job.matchScore || job.easyApplyAvailable || getQualitySignal(job) || getSourceSignal(job) || getVisaSignal(job)">
+            <span class="signal match" *ngIf="job.matchScore">{{ job.matchScore }}% match</span>
+            <span class="signal visa-yes" *ngIf="getVisaSignal(job) === 'Sponsors visa'">Sponsors visa</span>
+            <span class="signal visa-no" *ngIf="getVisaSignal(job) === 'No sponsorship'">No sponsorship</span>
+            <span class="signal quality" *ngIf="getQualitySignal(job)">{{ getQualitySignal(job) }}</span>
+            <span class="signal source" *ngIf="getSourceSignal(job)">{{ getSourceSignal(job) }}</span>
+            <span class="signal easy" *ngIf="job.easyApplyAvailable">Easy apply</span>
+          </div>
+        </button>
+      </div>
+
+      <div class="jobs-empty" *ngIf="!loading && jobs.length === 0">
+        <span class="material-icons">work_outline</span>
+        <p *ngIf="hasActiveFilters">No jobs match these filters.</p>
+        <p *ngIf="!hasActiveFilters">No jobs loaded yet.</p>
+        <button type="button" *ngIf="hasActiveFilters" (click)="clearFilters()">Reset filters</button>
+        <button type="button" *ngIf="!hasActiveFilters" (click)="onSearch()">Refresh jobs</button>
+      </div>
+
+      <!-- Loading state -->
+      <div class="jobs-list-loading" *ngIf="loading && jobs.length === 0">
+        <div class="skeleton-card" *ngFor="let i of [1,2,3,4,5]"></div>
+      </div>
+
+      <!-- Load more -->
+      <div class="jobs-list-footer" *ngIf="hasMore || loadingMore">
+        <span class="jobs-count">{{ jobs.length }} jobs loaded</span>
+        <button class="load-more" *ngIf="hasMore && !loadingMore && !loading" (click)="loadMore()">
+          Load more jobs
+        </button>
+        <div class="loading-more" *ngIf="loadingMore">
+          Loading...
+        </div>
+      </div>
+
+      <!-- Search produced few results hint -->
+      <div class="jobs-few-results" *ngIf="!loading && !hasMore && jobs.length > 0 && jobs.length < 10 && searchQuery">
+        <span class="material-icons">info_outline</span>
+        <p>Only {{ jobs.length }} result{{ jobs.length > 1 ? 's' : '' }} for "{{ searchQuery }}". Try broader keywords or clear the search.</p>
+        <button type="button" (click)="clearSearch()">Clear search</button>
+      </div>
+    </aside>
+
+    <!-- Job detail panel -->
+    <section class="job-detail-panel" *ngIf="selectedJob">
+      <button class="mobile-back-btn" (click)="closeMobileDetail()">
+        <span class="material-icons">arrow_back</span>
+        Back to jobs
+      </button>
+      <div class="detail-content">
+        <header class="detail-header">
+          <div class="detail-company-row">
+            <div class="detail-logo" *ngIf="selectedJob.companyLogoUrl">
+              <img [src]="selectedJob.companyLogoUrl" [alt]="selectedJob.companyName">
+            </div>
+            <div class="detail-logo placeholder" *ngIf="!selectedJob.companyLogoUrl">
+              {{ (selectedJob.companyName || '?').charAt(0) }}
+            </div>
+            <div>
+              <h1 class="detail-title">{{ selectedJob.title }}</h1>
+              <p class="detail-company">{{ selectedJob.companyName }}</p>
+            </div>
+          </div>
+
+          <div class="detail-meta-row">
+            <span class="detail-chip posted" *ngIf="getPostedLabel(selectedJob)">
+              <span class="material-icons">schedule</span>Posted {{ getPostedLabel(selectedJob) }}
+            </span>
+            <span class="detail-chip" *ngIf="selectedJob.location">
+              <span class="material-icons">location_on</span>{{ selectedJob.location }}
+            </span>
+            <span class="detail-chip" *ngIf="selectedJob.workMode && selectedJob.workMode !== 'UNKNOWN'">
+              <span class="material-icons">{{ selectedJob.workMode === 'REMOTE' ? 'wifi' : selectedJob.workMode === 'HYBRID' ? 'swap_horiz' : 'business' }}</span>
+              {{ getWorkModeLabel(selectedJob) }}
+            </span>
+            <span class="detail-chip" *ngIf="selectedJob.employmentType">
+              <span class="material-icons">work_outline</span>{{ selectedJob.employmentType }}
+            </span>
+            <span class="detail-chip salary" [class.missing]="!hasPostedSalary(selectedJob)">
+              <span class="material-icons">payments</span>{{ getSalaryLabel(selectedJob) }}
+            </span>
+            <span class="detail-chip visa-sponsors" *ngIf="getVisaSignal(selectedJob) === 'Sponsors visa'">
+              <span class="material-icons">verified</span>Sponsors visa
+            </span>
+            <span class="detail-chip visa-no" *ngIf="getVisaSignal(selectedJob) === 'No sponsorship'">
+              <span class="material-icons">block</span>No sponsorship
+            </span>
+          </div>
+
+          <div class="detail-signal-row" *ngIf="selectedJob.matchScore || fitResult || selectedJob.jobQualityScore || getSourceSignal(selectedJob)">
+            <span class="detail-signal match" *ngIf="selectedJob.matchScore">{{ selectedJob.matchScore }}% profile match</span>
+            <span class="detail-signal fit" *ngIf="fitResult">{{ fitResult.fitScore }}% resume fit</span>
+            <span class="detail-signal" *ngIf="selectedJob.jobQualityScore">{{ selectedJob.jobQualityScore }} quality score</span>
+            <span class="detail-signal" *ngIf="getSourceSignal(selectedJob)">{{ getSourceSignal(selectedJob) }}</span>
+            <span class="detail-signal decision" [ngClass]="getDecisionClass(selectedJob)">{{ getDecisionLabel(selectedJob) }}</span>
+          </div>
+
+          <section class="truth-panel">
+            <div class="truth-panel-header">
+              <div>
+                <p class="eyebrow">AIRRAL read</p>
+                <h2>Is this job worth your time?</h2>
+              </div>
+              <button class="btn-copy-report" type="button" (click)="copyJobReport()">
+                <span class="material-icons">ios_share</span>
+                Copy report
+              </button>
+            </div>
+
+            <div class="truth-grid">
+              <div class="truth-column apply">
+                <h3>Apply if</h3>
+                <ul *ngIf="getApplyReasons(selectedJob).length; else noApplyReasons">
+                  <li *ngFor="let reason of getApplyReasons(selectedJob)">{{ reason }}</li>
+                </ul>
+                <ng-template #noApplyReasons>
+                  <p>Run resume fit to create stronger apply reasons for this role.</p>
+                </ng-template>
+              </div>
+
+              <div class="truth-column caution">
+                <h3>Check before applying</h3>
+                <ul *ngIf="getCautionReasons(selectedJob).length; else noCautions">
+                  <li *ngFor="let reason of getCautionReasons(selectedJob)">{{ reason }}</li>
+                </ul>
+                <ng-template #noCautions>
+                  <p>No major caution flags from the current data.</p>
+                </ng-template>
+              </div>
+
+              <div class="truth-column next">
+                <h3>Next best move</h3>
+                <p>{{ getResumeNextMove(selectedJob) }}</p>
+              </div>
+            </div>
+          </section>
+
+          <div class="detail-actions">
+            <a class="btn-apply" [href]="selectedJob.applyUrl" target="_blank" rel="noopener" *ngIf="selectedJob.applyUrl">
+              Apply now
+              <span class="material-icons">open_in_new</span>
+            </a>
+            <button class="btn-save" type="button" [disabled]="savingJob" (click)="saveSelectedJob()">
+              <span class="material-icons">{{ isSelectedJobSaved() ? 'bookmark' : 'bookmark_border' }}</span>
+              {{ savingJob ? 'Saving...' : isSelectedJobSaved() ? 'Saved' : 'Save' }}
+            </button>
+            <button class="btn-fit" type="button" [disabled]="fittingJob" (click)="runFitForSelectedJob()">
+              <span class="material-icons">insights</span>
+              {{ fittingJob ? 'Checking...' : 'Run resume fit' }}
+            </button>
+          </div>
+
+          <p class="detail-action-message success" *ngIf="actionMessage">{{ actionMessage }}</p>
+          <p class="detail-action-message error" *ngIf="actionError">{{ actionError }}</p>
+        </header>
+
+        <section class="fit-result" *ngIf="fitResult">
+          <div class="fit-score">
+            <strong>{{ fitResult.fitScore }}%</strong>
+            <span>resume fit</span>
+          </div>
+          <div class="fit-lists">
+            <div *ngIf="fitResult.matchedRequirements.length">
+              <h3>Matched</h3>
+              <p>{{ fitResult.matchedRequirements.slice(0, 4).join(', ') }}</p>
+            </div>
+            <div *ngIf="fitResult.keywordGaps.length">
+              <h3>Keyword gaps</h3>
+              <p>{{ fitResult.keywordGaps.slice(0, 4).join(', ') }}</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="apply-checklist">
+          <div>
+            <p class="description-label">Application readiness</p>
+            <h2>Before you spend time applying</h2>
+          </div>
+          <ul>
+            <li *ngFor="let item of getFitChecklist()">{{ item }}</li>
+          </ul>
+        </section>
+
+        <ng-container *ngIf="descriptionView.hasContent; else descriptionLoading">
+          <section class="detail-description">
+            <div class="description-section quick-read" *ngIf="descriptionView.quickRead">
+              <p class="description-label">Quick read</p>
+              <p>{{ descriptionView.quickRead }}</p>
+            </div>
+
+            <div class="description-section" *ngFor="let section of descriptionView.sections">
+              <h2>{{ section.title }}</h2>
+              <p *ngIf="section.body">{{ section.body }}</p>
+              <ul *ngIf="section.items.length">
+                <li *ngFor="let item of section.items">{{ item }}</li>
+              </ul>
+            </div>
+          </section>
+
+          <p class="detail-note" *ngIf="detailError">
+            Showing saved job details. The full source description is taking longer than expected.
+          </p>
+        </ng-container>
+
+        <ng-template #descriptionLoading>
+          <div class="detail-description-loading" *ngIf="loadingDetail; else noDescriptionYet">
+            <div class="detail-loading-label">Loading full description</div>
+            <div class="skeleton-block"></div>
+            <div class="skeleton-block short"></div>
+            <div class="skeleton-block tall"></div>
+          </div>
+          <ng-template #noDescriptionYet>
+            <p class="detail-note">
+              Full description is not available yet. You can still review the role summary or open the source posting.
+            </p>
+          </ng-template>
+        </ng-template>
+
+        <div class="detail-quality" *ngIf="selectedJob.qualityReasons?.length">
+          <h3>Job quality signals</h3>
+          <ul>
+            <li *ngFor="let reason of selectedJob.qualityReasons">{{ reason }}</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Empty state -->
+    <section class="job-detail-panel empty" *ngIf="!selectedJob && !loading">
+      <div class="empty-state">
+        <span class="material-icons">work_outline</span>
+        <p>Select a job to see details</p>
+      </div>
+    </section>
+  </div>
+</div>

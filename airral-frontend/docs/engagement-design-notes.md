@@ -1,8 +1,16 @@
 # AIRRAL Engagement Design Notes (May 14, 2026)
 
-Status: historical reference. The current applicant portal direction is documented in `docs/applicant-portal-design-system.md` and `docs/applicant-portal-journey-ui-notes.md`. Future UI work should follow those files, not the older dashboard/command-center direction below.
+Status: historical and deferred reference. The current applicant portal direction is documented in `docs/applicant-portal-design-system.md`, `docs/applicant-portal-journey-ui-notes.md`, and `docs/applicant-user-journey.md`. Future UI work should follow those files, not the older dashboard/command-center direction below.
 
-This file captures product and UI decisions so any future agent can continue without re-discovery.
+Do not revive the feed, rooms, events, founder access, or command-center patterns as launch priorities. For launch, "engagement" means job-search progress:
+
+- Find a real active job.
+- Understand whether it is worth applying.
+- Improve resume fit for that selected job.
+- Save, apply, track, and follow up.
+- Return because new jobs or application tasks changed, not because the page is optimized for scrolling.
+
+This file captures older product and UI decisions so future agents know what was explored and why it is not the current launch direction.
 
 ## 1) Social Patterns Reviewed
 
@@ -54,18 +62,20 @@ To keep implementation modular, workspace UI stays split by responsibility:
 - `candidate-dashboard.forms.css`: form-specific styling only.
 - `components/*`: isolated social surfaces (`workspace-feed`, `hiring-radar`, `job-rooms`, `career-events`, `engagement-onboarding`, `engagement-dock`, `workspace-metrics`).
 
-## 5) Next Iteration Backlog
+## 5) Deferred Backlog
 
-High-impact follow-ups:
+Do not prioritize this backlog until the launch job/resume/application loop is working with real backend data and user feedback supports social surfaces.
+
+Later follow-ups:
 
 1. Add per-user feed tuning controls (`less like this`, topic mute persistence).
 2. Track action quality (reply depth, save-to-apply conversion) as first-class telemetry.
 3. Promote event + room follow-up nudges based on pipeline stage.
 4. Add A/B hooks for lens default (`For you` vs `Following`).
 
-## 6) What "Engagement" Means in AIRRAL
+## 6) Historical Engagement Definition
 
-In this workspace, engagement is defined as actions that move a candidate forward with other people:
+In the old workspace concept, engagement was defined as actions that move a candidate forward with other people:
 
 - Marking a post helpful.
 - Replying to a peer post.
@@ -74,14 +84,14 @@ In this workspace, engagement is defined as actions that move a candidate forwar
 - Joining a room or reserving an event.
 - Completing onboarding actions that create search momentum.
 
-Current UI behavior:
+Historical UI behavior:
 
 - Feed engagement controls are now interactive (helpful/save/follow toggle state updates in-session).
 - Feed ranking and lens controls remain user-driven (`For you` / `Following`, `Quality` / `New` / `Most saved`).
 
-## 7) Daily Command Center Redesign
+## 7) Deferred Daily Command Center Redesign
 
-The overview now leads with a calm daily command center and one tabbed workspace instead of many visible panels.
+The old overview led with a calm daily command center and one tabbed workspace instead of many visible panels.
 
 Purpose:
 

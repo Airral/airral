@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
+import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 
 @Component({
@@ -12,6 +13,8 @@ import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-c
   styleUrls: ['./pricing.component.css'],
 })
 export class PricingComponent {
+  readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
+
   // Pricing for companies using AIRRAL ATS
   // Note: Job seekers ALWAYS use AIRRAL for free
   readonly plans = [
@@ -103,7 +106,7 @@ export class PricingComponent {
       { label: 'Contact', path: '/contact' },
     ],
     ctas: [
-      { label: 'Get Started', path: '/apply', external: false },
+      { label: 'Get Started', path: this.applicantRegisterUrl, external: true },
     ],
   };
 

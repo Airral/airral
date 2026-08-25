@@ -4,13 +4,17 @@
   "license": "MIT",
   "scripts": {
     "nx": "nx",
+    "dev:website": "NX_DAEMON=false NX_TUI=false NG_FORCE_TTY=0 yarn nx serve website --host=localhost --port=4200",
+    "dev:applicant": "NX_DAEMON=false NX_TUI=false NG_FORCE_TTY=0 yarn nx serve applicant-portal --host=localhost --port=4201",
+    "dev:hr": "NX_DAEMON=false NX_TUI=false NG_FORCE_TTY=0 yarn nx serve hr-portal --host=localhost --port=4202",
+    "dev:admin": "NX_DAEMON=false NX_TUI=false NG_FORCE_TTY=0 yarn nx serve admin-portal --host=localhost --port=4203",
+    "dev:all": "NX_DAEMON=false NX_TUI=false NG_FORCE_TTY=0 yarn nx run-many --target=serve --projects=website,applicant-portal,hr-portal,admin-portal --parallel=4",
     "lint": "yarn nx run-many --target=lint --all",
     "build": "yarn nx run-many --target=build --all --configuration=production --parallel=4",
     "ci:verify": "yarn lint && yarn build"
   },
   "private": true,
   "dependencies": {
-    "@angular/animations": "21.2.10",
     "@angular/cdk": "21.2.10",
     "@angular/common": "21.2.10",
     "@angular/compiler": "21.2.10",

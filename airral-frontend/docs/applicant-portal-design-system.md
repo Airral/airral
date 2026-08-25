@@ -1,6 +1,6 @@
 # AIRRAL Applicant Portal Design System
 
-Last updated: 2026-05-19
+Last updated: 2026-05-27
 
 This is the current source of truth for applicant portal UI changes. It supersedes older dashboard and engagement experiments.
 
@@ -8,7 +8,31 @@ This is the current source of truth for applicant portal UI changes. It supersed
 
 AIRRAL should feel like a clean job-search workspace: calm, premium, fast to scan, and focused on helping the user choose the next role. The user came to find jobs, not to stare at a dashboard of their own profile.
 
-The closest reference is a cleaner Glassdoor-style job browser, with AIRRAL's advantage inside the selected role: rooms, resume fit, events, and people who can help.
+The closest reference is a cleaner Glassdoor-style job browser, with AIRRAL's advantage inside the selected role: real job quality signals, resume fit, application readiness, and concise context that helps the user decide whether the job is worth applying to.
+
+Launch AIRRAL as:
+
+> The job search OS that finds real jobs, tells users which roles are worth applying to, and improves their resume/application for that exact job.
+
+Do not launch as a social network. Messaging, rooms, founder spaces, events, and feed/community loops are later-stage unlocks after users prove demand through saved jobs, resume checks, applications, and feedback.
+
+## Launch Priority
+
+Focus product work in this order:
+
+1. Real active jobs across many industries, not only tech.
+2. Job quality signals: official source, freshness, salary availability, work mode, location, company stability, and application effort.
+3. Resume-to-job match: score, missing skills, weak bullets, keyword gaps, and concrete fixes.
+4. Application readiness: save job, apply checklist, follow-up reminder, tracker, interview prep notes.
+5. Lightweight context: company/news signals only when they help the selected job decision.
+
+Defer:
+
+- Social feed as a primary surface.
+- LinkedIn-style posting and engagement.
+- Main-nav messaging as a first release pillar.
+- Founder spaces and QR groups as a first release pillar.
+- Events unless directly tied to application outcomes.
 
 ## Theme Contract
 
@@ -63,6 +87,7 @@ The Jobs view is the main product surface.
 - Put AIRRAL support hooks inside the selected job detail, not in a noisy top dashboard.
 - Avoid nested cards and stacked mini-panels.
 - Cards use 8px border radius unless a Material control requires otherwise.
+- On mobile, prioritize fast scanning: search, filters, job list, selected detail, and resume/application actions. Avoid secondary panels that push jobs below the fold.
 
 ## Job Data Rules
 
@@ -97,9 +122,11 @@ The selected job detail can show heavier data:
 - applicant count
 - interview notes
 - company insight
-- room context
 - resume fit
-- events and warm context
+- application checklist
+- follow-up reminder
+- interview prep notes
+- room/event context only when explicitly attached to the selected job and not distracting from apply readiness
 
 Job descriptions should not render as one long employer paragraph. Split them into:
 
@@ -128,15 +155,15 @@ Primary actions:
 
 - `Easy apply`
 - `Apply`
-- `Ask room`
-- `Create room`
+- `Check resume fit`
+- `Save job`
 
 Support actions:
 
-- save job
 - alerts
-- resume check
+- ask room
 - reserve event
+- create room
 
 Avoid putting too many same-weight buttons in one section. One primary action should be obvious.
 
@@ -147,9 +174,9 @@ Current candidate dashboard structure:
 - `candidate-dashboard.component.*`: shell, top nav, view switching, journey messages for meaningful actions only
 - `candidate-dashboard.journey.css`: shared styles for non-job destination pages
 - `components/recommended-jobs`: main Jobs browser
-- `components/job-rooms`: rooms around jobs, companies, events, founder groups
-- `components/workspace-feed`: message/peer-help surface
-- `components/career-events`: events connected to search momentum
+- `components/job-rooms`: later-stage support around selected jobs, companies, events, founder groups
+- `components/workspace-feed`: later-stage peer/news surface; should not dominate launch UX
+- `components/career-events`: later-stage events connected to job outcomes
 
 Do not reintroduce removed dashboard rails or command center components unless the product direction changes explicitly.
 
@@ -166,3 +193,5 @@ Before finishing applicant portal UI work:
 - Teal-green is reserved for selected/action states.
 - No horizontal overflow on desktop or mobile.
 - Heavy job data is absent from list cards and present only in selected detail.
+- Resume-to-job match and application readiness are easier to find than messaging, founder spaces, or feed.
+- Feed/news/rooms do not appear as the main value proposition on first load.

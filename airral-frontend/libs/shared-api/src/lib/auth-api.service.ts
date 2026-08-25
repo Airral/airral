@@ -1,7 +1,7 @@
 // libs/shared-api/src/lib/auth-api.service.ts
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { AuthResponse, LoginRequest, RegisterRequest } from '@airral/shared-types';
+import { AuthResponse, GoogleAuthRequest, LoginRequest, RegisterRequest } from '@airral/shared-types';
 import { ApiClientService } from './api-client.service';
 
 @Injectable({
@@ -12,6 +12,10 @@ export class AuthApiService {
 
   login(request: LoginRequest): Observable<AuthResponse> {
     return this.apiClient.post<AuthResponse>('/auth/login', request);
+  }
+
+  googleLogin(request: GoogleAuthRequest): Observable<AuthResponse> {
+    return this.apiClient.post<AuthResponse>('/auth/google', request);
   }
 
   register(request: RegisterRequest): Observable<AuthResponse> {

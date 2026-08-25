@@ -46,7 +46,7 @@ public class AshbyJobBoardClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")
-                        .map(body -> new BadRequestException("Unable to load Ashby jobs for board: " + boardName)))
+                        .map(body -> new BadRequestException("Unable to load Ashby jobs for board: " + boardName + " (HTTP " + response.statusCode().value() + ")")))
                 .bodyToMono(AshbyJobBoardResponse.class);
     }
 

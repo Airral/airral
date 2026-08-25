@@ -3,6 +3,7 @@ package com.airral.controller;
 import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.CreateJobRequest;
 import com.airral.dto.response.JobResponse;
+import com.airral.dto.response.PublicStatisticsResponse;
 import com.airral.exception.BadRequestException;
 import com.airral.security.JwtTokenProvider;
 import com.airral.service.JobService;
@@ -150,6 +151,17 @@ public class JobController {
         } catch (IllegalArgumentException e) {
             return Mono.error(new BadRequestException("Invalid job status: " + status));
         }
+    }
+
+    /**
+     * Get public statistics: total companies with open jobs and total open jobs
+     * GET /api/jobs/statistics/public
+     * Public endpoint - no authentication required
+     */
+    @GetMapping("/statistics/public")
+    public Mono<ResponseEntity<PublicStatisticsResponse>> getPublicStatistics() {
+        return jobService.getPublicStatistics()
+                .map(ResponseEntity::ok);
     }
 
     /**

@@ -1,11 +1,13 @@
 package com.airral.domain;
 
 import com.airral.domain.enums.JobStatus;
+import io.r2dbc.postgresql.codec.Json;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.math.BigDecimal;
@@ -45,13 +47,15 @@ public class Job {
     // Status
     private JobStatus status;
 
-    // ATS Configuration (stored as comma-separated or JSON in DB)
-    private String atsKeywords; // Will be stored as TEXT[] in PostgreSQL
-    private String atsWeights; // JSONB in DB
+    // ATS Configuration
+    private String[] atsKeywords;
+    private Json atsWeights;
     private Integer atsMinScore;
 
     // LinkedIn Integration
+    @Column("linkedin_post_id")
     private String linkedinPostId;
+    @Column("linkedin_enabled")
     private Boolean linkedInEnabled;
 
     // Timestamps

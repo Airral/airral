@@ -1,0 +1,286 @@
+:host {
+  display: block;
+  height: calc(100vh - 56px);
+  overflow: hidden;
+}
+
+.tracker-page {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: #f9fafb;
+}
+
+.tracker-header {
+  padding: 20px 28px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: inset 0 3px 0 #007C6D;
+}
+
+.tracker-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #101828;
+}
+
+.tracker-header p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.tracker-error {
+  margin: 16px 16px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff4dc;
+  border: 1px solid #f1d394;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tracker-error button {
+  border: 1px solid #e1d1aa;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #007C6D;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+/* ── Kanban board ─────────────────────────────────── */
+.tracker-board {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(200px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding: 16px;
+}
+
+.tracker-column {
+  --stage-color: #007C6D;
+  --stage-soft: #edf3ff;
+  --stage-border: #cad8ff;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 8px;
+  min-height: 0;
+}
+
+.tracker-column.status-saved {
+  --stage-color: #007C6D;
+  --stage-soft: #edf3ff;
+  --stage-border: #cad8ff;
+}
+
+.tracker-column.status-applying {
+  --stage-color: #ad6b05;
+  --stage-soft: #fff4dc;
+  --stage-border: #f1d394;
+}
+
+.tracker-column.status-applied {
+  --stage-color: #007C6D;
+  --stage-soft: #e7f5f1;
+  --stage-border: #99d6cd;
+}
+
+.tracker-column.status-interviewing {
+  --stage-color: #5b5bd6;
+  --stage-soft: #f0efff;
+  --stage-border: #d8d5ff;
+}
+
+.tracker-column.status-offer {
+  --stage-color: #007C6D;
+  --stage-soft: #eaf8ff;
+  --stage-border: #bfe7f8;
+}
+
+.tracker-column.status-rejected {
+  --stage-color: #be3144;
+  --stage-soft: #fff1f3;
+  --stage-border: #ffd4db;
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-top: 3px solid var(--stage-color);
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  color: #101828;
+}
+
+.column-header .material-icons {
+  font-size: 16px;
+  color: var(--stage-color);
+}
+
+.column-count {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--stage-soft);
+  color: var(--stage-color);
+  border: 1px solid var(--stage-border);
+  font-size: 11px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+}
+
+.column-body {
+  background: var(--stage-soft);
+  background: color-mix(in srgb, var(--stage-soft) 52%, #ffffff);
+  border: 1px solid var(--stage-border);
+  border-radius: 8px;
+  padding: 8px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+/* ── Job cards in board ───────────────────────────── */
+.tracker-card {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid var(--stage-color);
+  display: grid;
+  gap: 6px;
+  cursor: default;
+  transition: border-color 0.14s, box-shadow 0.14s, transform 0.14s;
+}
+
+.tracker-card:hover {
+  border-color: var(--stage-border);
+  box-shadow: 0 8px 18px rgba(16, 24, 40, 0.08);
+  transform: translateY(-1px);
+}
+
+.tracker-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tracker-company {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--stage-color);
+}
+
+.tracker-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #101828;
+  line-height: 1.3;
+}
+
+.tracker-note {
+  margin: 0;
+  font-size: 12px;
+  color: #5b6777;
+  line-height: 1.4;
+}
+
+.tracker-card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tracker-action {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.tracker-action .material-icons {
+  font-size: 15px;
+}
+
+.tracker-action:hover {
+  background: #fff1f3;
+  color: #be3144;
+}
+
+/* ── Empty column ─────────────────────────────────── */
+.column-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 12px;
+  display: grid;
+  gap: 6px;
+  place-items: center;
+}
+
+.column-empty .material-icons {
+  font-size: 24px;
+  color: var(--stage-color);
+}
+
+/* ── Loading ──────────────────────────────────────── */
+.tracker-loading {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  padding: 16px;
+}
+
+.skeleton-col {
+  display: grid;
+  gap: 8px;
+}
+
+.skeleton-header {
+  height: 36px;
+  border-radius: 8px;
+  background: #e5e7eb;
+}
+
+.skeleton-card-placeholder {
+  height: 80px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #ffffff 25%, #e7f5f1 50%, #ffffff 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 900px) {
+  .tracker-board {
+    grid-template-columns: repeat(6, 220px);
+  }
+}

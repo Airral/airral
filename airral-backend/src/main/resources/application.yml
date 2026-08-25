@@ -14,8 +14,8 @@ spring:
     username: ${DB_USER:HXS0302}
     password: ${DB_PASSWORD:}
     pool:
-      initial-size: 10
-      max-size: 20
+      initial-size: 15
+      max-size: 30
       max-idle-time: 30m
   
   # Flyway Configuration (blocking, runs on startup)
@@ -84,21 +84,15 @@ file:
   upload:
     max-size: 5MB
     allowed-types: application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document
-    storage-path: ${FILE_STORAGE_PATH:./uploads}
-
-# ATS Configuration
-ats:
-  default-min-score: 70
-  tiers:
-    quick-hire:
-      algorithm: SIMPLE
-    professional:
-      algorithm: WEIGHTED
-    enterprise:
-      algorithm: AI_ENHANCED
+    storage-path: ${FILE_STORAGE_PATH:${user.home}/.airral/uploads}
+    store-extracted-text: ${FILE_UPLOAD_STORE_EXTRACTED_TEXT:true}
 
 # External job source connectors
 airral:
+  auth:
+    google:
+      client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+      jwk-url: ${GOOGLE_OAUTH_JWK_URL:https://www.googleapis.com/oauth2/v3/certs}
   company-logos:
     # Public Brandfetch client id for browser-rendered company logo CDN URLs.
     # Leave blank to fall back to stored company logo URLs / monograms.
@@ -116,8 +110,8 @@ airral:
         timeout-ms: ${AIRRAL_FEED_GDELT_TIMEOUT_MS:5000}
   jobs:
     country: ${AIRRAL_JOBS_COUNTRY:US}
-    retention-days: ${AIRRAL_JOBS_RETENTION_DAYS:60}
-    max-age-days: ${AIRRAL_JOBS_MAX_AGE_DAYS:60}
+    retention-days: ${AIRRAL_JOBS_RETENTION_DAYS:45}
+    max-age-days: ${AIRRAL_JOBS_MAX_AGE_DAYS:45}
     live-fallback:
       # Keep cold-cache user requests from fanning out to hundreds of ATS boards.
       # Large source sets should be served from the scheduled AIRRAL cache.
@@ -134,13 +128,47 @@ airral:
       max-sources-per-run: ${AIRRAL_JOBS_SYNC_MAX_SOURCES_PER_RUN:500}
     greenhouse:
       default-board: ${GREENHOUSE_DEFAULT_BOARD:airbnb}
-      board-tokens: ${GREENHOUSE_BOARD_TOKENS:airbnb,figma,doordashusa,stripe,chime,affirm,robinhood,datadog,cloudflare,peloton,toast,instacart,andurilindustries,samsara,oscar,duolingo,coursera}
+      # Verified working Greenhouse public boards (last checked 2026-06-17)
+      board-tokens: ${GREENHOUSE_BOARD_TOKENS:airbnb,figma,doordashusa,stripe,chime,affirm,robinhood,datadog,cloudflare,peloton,toast,instacart,andurilindustries,samsara,oscar,duolingo,coursera,discord,pinterest}
     lever:
-      site-names: ${LEVER_SITE_NAMES:}
+      # Verified working Lever public sites (last checked 2026-06-17)
+      site-names: ${LEVER_SITE_NAMES:matchgroup,rover,nango}
     ashby:
-      board-names: ${ASHBY_BOARD_NAMES:Ashby}
+      # Verified working Ashby public boards (last checked 2026-06-17)
+      # Many companies migrated here from Greenhouse/Lever
+      board-names: ${ASHBY_BOARD_NAMES:Ashby,Linear,Notion,Ramp,Vanta,Watershed,Persona,Mercury,Braintrust,Svix,Resend,OpenAI,Zapier,Snyk,Plaid,Replit,Perplexity,Wiz,Sentry,PostHog,Pinecone,Neon,Miro,Loom,Snowflake,Temporal,Supabase,Headway,Raycast,Render,Sierra,Mintlify,Modal,MotherDuck,WorkOS,Weaviate,Synthesia,Sardine,Stytch,Unit,Podium,Prefect,Writer,Railway,TriggerDev,Pylon,Bolt,Lovable,Inngest,E2B,Vapi,Cartesia,Nango}
     smartrecruiters:
-      company-identifiers: ${SMARTRECRUITERS_COMPANY_IDENTIFIERS:Visa,BoschGroup,WesternDigital,Experian,ServiceNow,TurnerTownsend,SGS,AccorHotel,NielsenIQ}
+      company-identifiers: ${SMARTRECRUITERS_COMPANY_IDENTIFIERS:}
+    workable:
+      accounts: ${WORKABLE_ACCOUNTS:}
+    workday:
+      # host|tenant|site, using a slash-free host so board tokens remain route-safe.
+      sources: ${WORKDAY_SOURCES:workday.wd5.myworkdayjobs.com|workday|Workday}
+    bamboohr:
+      company-domains: ${BAMBOOHR_COMPANY_DOMAINS:}
+      api-key: ${BAMBOOHR_API_KEY:}
+    jobvite:
+      pages: ${JOBVITE_PAGES:}
+    icims:
+      pages: ${ICIMS_PAGES:}
+    jazzhr:
+      pages: ${JAZZHR_PAGES:}
+  notifications:
+    scheduler:
+      enabled: ${AIRRAL_NOTIFICATIONS_SCHEDULER_ENABLED:false}
+    email:
+      enabled: ${AIRRAL_NOTIFICATIONS_EMAIL_ENABLED:true}
+      from-address: ${AIRRAL_NOTIFICATIONS_FROM_ADDRESS:notifications@airral.com}
+      from-name: ${AIRRAL_NOTIFICATIONS_FROM_NAME:AIRRAL}
+      app-base-url: ${AIRRAL_NOTIFICATIONS_APP_BASE_URL:https://apply.airral.com}
+    job-alert:
+      cron: ${AIRRAL_NOTIFICATIONS_JOB_ALERT_CRON:0 0 9 * * *}
+    follow-up:
+      cron: ${AIRRAL_NOTIFICATIONS_FOLLOW_UP_CRON:0 0 10 * * *}
+    weekly-digest:
+      cron: ${AIRRAL_NOTIFICATIONS_WEEKLY_DIGEST_CRON:0 0 19 * * SUN}
+    resume-nudge:
+      cron: ${AIRRAL_NOTIFICATIONS_RESUME_NUDGE_CRON:0 0 11 * * *}
 
 # Logging
 logging:

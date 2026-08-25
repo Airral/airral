@@ -21,13 +21,13 @@
         </p>
 
         <div class="hero-actions">
-          <a class="btn-primary" routerLink="/apply">Start job search</a>
+          <a class="btn-primary" [href]="applicantRegisterUrl">Start job search</a>
           <a class="btn-ghost" routerLink="/jobs">Browse roles</a>
         </div>
 
         <p class="hero-note">
           Already searching?
-          <a routerLink="/login">Sign in</a>
+          <a [href]="applicantLoginUrl">Sign in</a>
           <span aria-hidden="true">/</span>
           Hiring for a company?
           <a routerLink="/for-employers">Employer tools</a>
@@ -84,13 +84,11 @@
               <div class="preview-actions">
                 <a
                   class="preview-action primary"
-                  routerLink="/apply"
-                  [queryParams]="{ role: selectedPreviewJob.slug }"
+                  [href]="applicantRegisterUrl + '&role=' + selectedPreviewJob.slug"
                 >Apply</a>
                 <a
                   class="preview-action secondary"
-                  routerLink="/login"
-                  [queryParams]="{ next: 'room', role: selectedPreviewJob.slug }"
+                  [href]="applicantLoginUrl + '?next=room&role=' + selectedPreviewJob.slug"
                 >Ask room</a>
               </div>
 
@@ -201,7 +199,7 @@
         <p>We could not load public previews right now. You can still create a candidate account and use the applicant portal.</p>
         <div class="state-actions">
           <button (click)="loadJobs()" class="btn-ghost">Try again</button>
-          <a routerLink="/apply" class="btn-primary">Create candidate account</a>
+          <a [href]="applicantRegisterUrl" class="btn-primary">Create candidate account</a>
         </div>
       </div>
 
@@ -231,8 +229,7 @@
               >Preview</a>
               <a
                 class="btn-primary"
-                [routerLink]="['/apply']"
-                [queryParams]="{ jobId: job.id }"
+                [href]="applicantRegisterUrl + '&jobId=' + job.id"
               >Create account</a>
             </div>
           </footer>
@@ -245,7 +242,7 @@
         <div *ngIf="jobs.length === 0" class="state empty">
           <h3>Start with your applicant workspace</h3>
           <p>The public job preview is still warming up. Create a candidate account to use matching and saved-role workflow.</p>
-          <a routerLink="/apply" class="btn-primary">Create candidate account</a>
+          <a [href]="applicantRegisterUrl" class="btn-primary">Create candidate account</a>
         </div>
       </div>
     </div>
@@ -295,7 +292,7 @@
           <p>Send candidates to the applicant portal first. AIRRAL can become the place they check before applying anywhere else.</p>
         </div>
         <div class="cta-actions">
-          <a class="btn-primary" routerLink="/apply">Create candidate account</a>
+          <a class="btn-primary" [href]="applicantRegisterUrl">Create candidate account</a>
           <a class="btn-ghost-dark" routerLink="/for-employers">Employer tools</a>
         </div>
       </div>

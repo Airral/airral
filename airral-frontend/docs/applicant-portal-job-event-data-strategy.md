@@ -1,6 +1,6 @@
 # AIRRAL Applicant Portal Job and Event Data Strategy
 
-Last updated: 2026-05-18
+Last updated: 2026-05-27
 
 This document captures where AIRRAL should get job/event data and what we need to model. The goal is to support the clean Jobs-first applicant portal without expensive or noisy API calls on every page load.
 
@@ -9,10 +9,29 @@ This document captures where AIRRAL should get job/event data and what we need t
 AIRRAL should not behave like a generic scraped job board. The product advantage is:
 
 - job recommendations matched to the candidate profile
-- support around the job: room, people who can help, resume fit, event context
+- real job quality signals: official source, freshness, salary availability, work mode, location, company stability, and application effort
+- resume-to-job match with concrete application improvements
 - fast summary cards first, richer job/event detail only after selection
 
+Launch focus is the job/resume/application loop. Messaging, rooms, founder spaces, events, and social feed are future unlocks after user feedback proves they help candidates get interviews.
+
 The frontend should call AIRRAL APIs only. External job/event APIs should be ingested by backend jobs, normalized, deduped, cached, and exposed through AIRRAL read models.
+
+## Launch Priority
+
+1. Real active jobs across many industries, not only tech.
+2. High-confidence source coverage from official/cached feeds.
+3. Salary, work mode, location, freshness, and source-quality labels.
+4. Resume-to-selected-job scoring, missing skills, keyword gaps, and bullet rewrites.
+5. Save jobs, application checklist, follow-up reminders, and tracking.
+6. Company/news context only when it improves the apply/no-apply decision.
+
+Defer as first-class roadmap items:
+
+- Main-nav messaging.
+- Founder spaces and QR groups.
+- Social feed/community posting.
+- Events unless tied to application outcomes.
 
 ## Current Default Feed Rule
 
@@ -23,6 +42,7 @@ The applicant job feed should default to:
 - Company and text search should filter across the normalized feed.
 - Freshness windows like last 15 days should be optional filters, not the default wall.
 - Full job description loaded only when a user selects a job.
+- The feed should include broad labor-market categories: healthcare, finance, banking, retail, logistics, operations, sales, government, education, manufacturing, and tech.
 
 Current backend implementation enforces this through:
 
@@ -53,7 +73,8 @@ Use a layered source strategy.
 3. **Broad job aggregators**
    - Adzuna: broad job ads, keyword/location search, employment data.
    - USAJOBS: federal jobs through an official search API.
-   - Optional paid providers later: job data vendors if we need LinkedIn/Indeed/Glassdoor-like coverage without scraping risk.
+   - Jooble or similar documented aggregators can help broaden beyond ATS-heavy tech coverage.
+   - Optional paid providers later: licensed job data vendors if we need LinkedIn/Indeed/Glassdoor-like coverage without scraping risk.
 
 4. **Avoid as primary sources**
    - LinkedIn: official program is a vetted job posting API, not a public job search feed for our use case.
@@ -61,6 +82,8 @@ Use a layered source strategy.
    - Public web scraping should not be the default product plan.
 
 ### Events
+
+Events are not launch-critical unless they create application outcomes. Keep event ingestion behind feature flags until the job/resume/application loop is strong.
 
 Use events that create job-search momentum, not random local event noise.
 
@@ -103,6 +126,8 @@ Suggested refresh cadence:
 - Broad job aggregators: daily or candidate-triggered saved searches.
 - Events: every 6-24 hours, with webhook/iCal sync where available.
 
+Launch ingestion should favor job freshness and breadth over social/community data. Event and room context can be attached later once core job quality and resume matching are reliable.
+
 ## API Shape
 
 Keep the current UI cheap.
@@ -126,6 +151,9 @@ Return only list-card data:
 - `easyApply`
 - `sourceType`
 - `saved`
+- `sourceQuality`
+- `salaryConfidence`
+- `applicationEffort`
 
 Do not include:
 
@@ -158,8 +186,12 @@ Return selected-panel data:
 - `companyInsights`
 - `roomContext`
 - `resumeFit`
+- `applicationChecklist`
+- `followUpReminder`
 - `linkedEvents`
 - `sourceAttribution`
+
+For launch, `resumeFit`, `applicationChecklist`, and `sourceAttribution` are higher priority than `roomContext` and `linkedEvents`.
 
 ### Events list endpoint
 

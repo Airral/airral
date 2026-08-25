@@ -1,10 +1,22 @@
 # AIRRAL Applicant Feed Engagement Engine
 
-Last updated: 2026-05-22
+Last updated: 2026-05-27
+
+Status: deferred product architecture. This document is useful when AIRRAL later unlocks feed, community, video, rooms, and event surfaces, but it is not the launch direction.
+
+Current launch priority is the job/resume/application loop:
+
+- Real active jobs across broad industries.
+- Fast cached job search and selected job detail.
+- Job quality signals: salary, freshness, source trust, work mode, location, application effort, and company context.
+- Resume-to-selected-job fit with missing skills, keyword gaps, and suggested rewrites.
+- Saved jobs, application checklist, follow-up reminders, and application tracking.
+
+Do not build a LinkedIn/TikTok-style feed before the core loop proves user value. Any feed work before then should be job-adjacent only: company news, salary/interview signals, or learning content that helps a candidate decide whether to apply.
 
 ## Product Goal
 
-AIRRAL should feel like the right place to check before applying, interviewing, or choosing a company.
+Future goal: AIRRAL can become the right place to check before applying, interviewing, or choosing a company.
 
 The feed should not be a generic social feed. It should be a career market pulse that combines:
 
@@ -16,7 +28,9 @@ The feed should not be a generic social feed. It should be a career market pulse
 - career events and founder/community access
 - selected video or external community trends when they improve a job decision
 
-The loop is: **see a relevant signal -> save/follow/ask/apply/comment -> get replies or new matching signals -> come back**.
+For launch, the loop is: **find a real job -> understand whether it is worth applying -> improve resume fit -> apply or save -> track the next step**.
+
+The social/feed loop is a later-stage extension after AIRRAL has enough active users, moderation, and job data quality.
 
 ## Research Notes
 
@@ -126,7 +140,7 @@ Do not make the applicant request path call arbitrary external job details.
 
 ### Tier 2: Community And Technical Trend Signals
 
-Use as enrichment, not the main feed:
+Use as later enrichment, not the launch feed:
 
 - Reddit: curated subreddits for jobs, CS careers, recruiting, resumes, specific tech stacks, startup communities
 - Hacker News / Algolia: startup, hiring, AI, company/product discussion
@@ -146,7 +160,7 @@ Avoid turning AIRRAL into a generic video app. A video card should answer: "Will
 
 ### Tier 4: Events
 
-Use:
+Use later, or only when directly tied to application outcomes:
 
 - AIRRAL-owned events first
 - partner calendars and company events
@@ -275,7 +289,7 @@ External API calls belong in scheduled ingestion workers, not the page request.
 
 ## Ranking Model V1
 
-Start deterministic, then learn from behavior.
+Future feed ranking should start deterministic, then learn from behavior. For launch ranking, prioritize jobs by role match, location/work mode fit, freshness, source trust, salary confidence, resume fit, and application effort.
 
 ```
 score =
@@ -314,7 +328,7 @@ score =
 
 ### Diversity Rules
 
-Each page should roughly blend:
+For a future mixed feed, each page should roughly blend:
 
 - 35-45% jobs and job-adjacent company signals
 - 20-25% people/community posts
@@ -359,6 +373,8 @@ Frontend target:
 
 ## UX Direction
 
+Status: future feed UX. Launch UX should open Jobs first and keep social/feed surfaces hidden or secondary until the job/resume/application loop is strong.
+
 ### Feed Tabs
 
 - `For You`: mixed ranked feed
@@ -390,7 +406,9 @@ Every card should support:
 - hide/not interested
 - why this
 
-## MVP Build Sequence
+## Deferred Build Sequence
+
+Do not start this sequence until the launch job experience is strong enough to retain users without social content.
 
 ### Phase 1: Strong Feed Core
 
@@ -427,10 +445,10 @@ Every card should support:
 
 - Do not optimize for endless scrolling.
 - Optimize for career actions and return value.
+- Keep feed, rooms, events, and community surfaces behind flags until the core job/resume/application loop is proven.
 - Do not expose applicant emails or internal user IDs.
 - Default applicant-authored posts to signed-in visibility.
 - Show only approved posts in feed queries.
 - Respect source terms and licensing.
 - Keep external content summarized and attributed.
 - Keep Jobs first; the feed supports job decisions.
-

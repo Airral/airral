@@ -2,11 +2,19 @@ package com.airral.service;
 
 import com.airral.dto.smartrecruiters.SmartRecruitersPostingResponse;
 import com.airral.exception.BadRequestException;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
+
+import javax.net.ssl.SSLException;
 
 @Service
 public class SmartRecruitersJobBoardClient {
@@ -15,11 +23,18 @@ public class SmartRecruitersJobBoardClient {
 
     private final WebClient webClient;
 
-    public SmartRecruitersJobBoardClient(WebClient.Builder webClientBuilder) {
-        this.webClient = webClientBuilder.clone()
+    public SmartRecruitersJobBoardClient(
+            WebClient.Builder webClientBuilder,
+            @Value("${airral.jobs.smartrecruiters.insecure-ssl:false}") boolean insecureSsl) {
+        WebClient.Builder builder = webClientBuilder.clone()
                 .baseUrl("https://api.smartrecruiters.com")
-                .exchangeStrategies(jobBoardExchangeStrategies())
-                .build();
+                .exchangeStrategies(jobBoardExchangeStrategies());
+
+        if (insecureSsl) {
+            builder.clientConnector(insecureSslConnector());
+        }
+
+        this.webClient = builder.build();
     }
 
     public Mono<SmartRecruitersPostingResponse> listJobs(String companyIdentifier, int limit, int offset, String country) {
@@ -37,7 +52,7 @@ public class SmartRecruitersJobBoardClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")
-                        .map(body -> new BadRequestException("Unable to load SmartRecruiters jobs for company: " + companyIdentifier)))
+                        .map(body -> new BadRequestException("Unable to load SmartRecruiters jobs for company: " + companyIdentifier + " (HTTP " + response.statusCode().value() + ")")))
                 .bodyToMono(SmartRecruitersPostingResponse.class);
     }
 
@@ -49,7 +64,7 @@ public class SmartRecruitersJobBoardClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")
-                        .map(body -> new BadRequestException("Unable to load SmartRecruiters job " + postingId + " for company: " + companyIdentifier)))
+                        .map(body -> new BadRequestException("Unable to load SmartRecruiters job " + postingId + " for company: " + companyIdentifier + " (HTTP " + response.statusCode().value() + ")")))
                 .bodyToMono(SmartRecruitersPostingResponse.Posting.class);
     }
 
@@ -67,6 +82,19 @@ public class SmartRecruitersJobBoardClient {
         }
 
         return postingId.trim();
+    }
+
+    private ReactorClientHttpConnector insecureSslConnector() {
+        try {
+            SslContext sslContext = SslContextBuilder.forClient()
+                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                    .build();
+            HttpClient httpClient = HttpClient.create()
+                    .secure(sslSpec -> sslSpec.sslContext(sslContext));
+            return new ReactorClientHttpConnector(httpClient);
+        } catch (SSLException e) {
+            throw new IllegalStateException("Unable to create local SmartRecruiters SSL connector", e);
+        }
     }
 
     private ExchangeStrategies jobBoardExchangeStrategies() {

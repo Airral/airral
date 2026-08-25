@@ -1,0 +1,229 @@
+<div class="onboarding-page">
+  <!-- Progress bar -->
+  <div class="progress-bar">
+    <div class="progress-fill" [style.width.%]="(step / 3) * 100"></div>
+  </div>
+
+  <div class="onboarding-shell">
+    <!-- Header -->
+    <header class="onboarding-header">
+      <div class="brand-row">
+        <span class="brand-mark">AR</span>
+        <span class="brand-name">AIRRAL</span>
+      </div>
+      <p class="step-label">Step {{ step }} of 3</p>
+    </header>
+
+    <!-- ─── Step 1: Roles ─────────────────────────── -->
+    <section class="step-content" *ngIf="step === 1">
+      <h1>What roles are you looking for?</h1>
+      <p class="step-desc">Pick all that apply. We'll use these to find your best-fit jobs.</p>
+
+      <div class="role-grid">
+        <button
+          class="role-chip"
+          *ngFor="let role of roleOptions"
+          [class.selected]="role.selected"
+          (click)="toggleRole(role)"
+          type="button">
+          <span class="material-icons check" *ngIf="role.selected">check</span>
+          {{ role.label }}
+        </button>
+      </div>
+
+      <div class="custom-role">
+        <input
+          type="text"
+          [(ngModel)]="customRole"
+          placeholder="Other role (type your own)">
+      </div>
+
+      <div class="seniority-section">
+        <label class="section-label">Your level</label>
+        <div class="seniority-options">
+          <button
+            type="button"
+            *ngFor="let level of ['ENTRY', 'MID', 'SENIOR', 'STAFF', 'LEAD']"
+            [class.selected]="seniority === level"
+            (click)="seniority = level"
+            class="seniority-chip">
+            {{ level === 'ENTRY' ? 'Entry' : level === 'MID' ? 'Mid' : level === 'SENIOR' ? 'Senior' : level === 'STAFF' ? 'Staff' : 'Lead' }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Step 2: Resume ────────────────────────── -->
+    <section class="step-content" *ngIf="step === 2">
+      <h1>Upload your resume</h1>
+      <p class="step-desc">We'll extract your skills to match you with the right jobs. You can always update this later.</p>
+
+      <div class="resume-zone" [class.uploaded]="resumeUploaded" [class.uploading]="resumeUploading">
+        <div class="resume-icon">
+          <span class="material-icons" *ngIf="!resumeUploaded && !resumeUploading">upload_file</span>
+          <span class="material-icons success" *ngIf="resumeUploaded">check_circle</span>
+          <span class="material-icons spin" *ngIf="resumeUploading">hourglass_top</span>
+        </div>
+
+        <div *ngIf="!resumeUploaded && !resumeUploading">
+          <p class="resume-title">Drop your resume here</p>
+          <p class="resume-hint">PDF or DOCX, up to 5 MB</p>
+        </div>
+
+        <div *ngIf="resumeUploaded">
+          <p class="resume-title">Resume uploaded</p>
+          <p class="resume-hint">{{ resumeFile?.name }}</p>
+        </div>
+
+        <div *ngIf="resumeUploading">
+          <p class="resume-title">Uploading & parsing...</p>
+          <p class="resume-hint">Extracting your skills</p>
+        </div>
+
+        <label class="resume-browse" *ngIf="!resumeUploading">
+          {{ resumeUploaded ? 'Replace' : 'Browse files' }}
+          <input type="file" accept=".pdf,.docx" (change)="onResumeSelected($event)" hidden>
+        </label>
+      </div>
+
+      <p class="resume-error" *ngIf="resumeError">{{ resumeError }}</p>
+
+      <!-- Resume Health Score (instant feedback after upload) -->
+      <div class="resume-health" *ngIf="resumeHealth || resumeHealthLoading">
+        <div class="resume-health-loading" *ngIf="resumeHealthLoading">
+          <span class="material-icons spin">autorenew</span>
+          <span>Analyzing your resume...</span>
+        </div>
+
+        <div class="resume-health-result" *ngIf="resumeHealth">
+          <div class="health-score-ring">
+            <div class="score-number" [class.good]="resumeHealth.score >= 70" [class.mid]="resumeHealth.score >= 50 && resumeHealth.score < 70" [class.low]="resumeHealth.score < 50">
+              {{ resumeHealth.score }}
+            </div>
+            <div class="score-label">Resume Score</div>
+            <div class="score-grade">Grade: {{ resumeHealth.grade }}</div>
+          </div>
+
+          <div class="health-details">
+            <div class="health-stats">
+              <span class="stat">{{ resumeHealth.wordCount }} words</span>
+              <span class="stat-sep">·</span>
+              <span class="stat">{{ resumeHealth.skillCount }} skills detected</span>
+            </div>
+
+            <div class="health-fixes" *ngIf="resumeHealth.topFixes.length > 0">
+              <p class="fixes-label">Top improvements:</p>
+              <ul class="fix-list">
+                <li *ngFor="let fix of resumeHealth.topFixes.slice(0, 3)">{{ fix }}</li>
+              </ul>
+            </div>
+
+            <div class="health-issues-summary">
+              <span class="issue-badge critical" *ngIf="criticalIssueCount > 0">{{ criticalIssueCount }} critical</span>
+              <span class="issue-badge warning" *ngIf="warningIssueCount > 0">{{ warningIssueCount }} to improve</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="skip-link" type="button" (click)="nextStep()" *ngIf="!resumeUploaded">
+        Skip for now
+      </button>
+    </section>
+
+    <!-- ─── Step 3: Preferences ───────────────────── -->
+    <section class="step-content" *ngIf="step === 3">
+      <h1>A few quick preferences</h1>
+      <p class="step-desc">Help us filter jobs to what works for you.</p>
+
+      <div class="pref-fields">
+        <div class="pref-field">
+          <label>Work mode</label>
+          <div class="option-row">
+            <button
+              type="button"
+              *ngFor="let mode of ['REMOTE', 'HYBRID', 'ONSITE']"
+              [class.selected]="workMode === mode"
+              (click)="workMode = workMode === mode ? '' : mode"
+              class="option-chip">
+              <span class="material-icons">{{ mode === 'REMOTE' ? 'wifi' : mode === 'HYBRID' ? 'swap_horiz' : 'business' }}</span>
+              {{ mode === 'REMOTE' ? 'Remote' : mode === 'HYBRID' ? 'Hybrid' : 'On-site' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="pref-field">
+          <label>Preferred location</label>
+          <div class="city-chips">
+            <button
+              type="button"
+              *ngFor="let city of visibleCities"
+              [class.selected]="location === city"
+              (click)="selectCity(city)"
+              class="city-chip">
+              {{ city }}
+            </button>
+            <button
+              type="button"
+              class="city-chip show-more"
+              *ngIf="!showAllCities"
+              (click)="showAllCities = true">
+              + {{ popularCities.length - 8 }} more
+            </button>
+          </div>
+          <input type="text" [(ngModel)]="location" placeholder="Or type your city...">
+        </div>
+
+        <div class="pref-field">
+          <label>Salary range (optional)</label>
+          <div class="salary-row">
+            <input type="number" [(ngModel)]="salaryMin" placeholder="Min (e.g. 80000)">
+            <span class="salary-sep">—</span>
+            <input type="number" [(ngModel)]="salaryMax" placeholder="Max (e.g. 180000)">
+          </div>
+        </div>
+
+        <div class="pref-field sponsor-field">
+          <label class="toggle-row">
+            <span>Do you need visa sponsorship?</span>
+            <label class="toggle">
+              <input type="checkbox" [(ngModel)]="needsSponsorship">
+              <span class="toggle-track"></span>
+            </label>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <p class="setup-error" role="alert" *ngIf="setupError">{{ setupError }}</p>
+
+    <!-- Navigation -->
+    <footer class="onboarding-footer">
+      <button class="btn-back" type="button" (click)="prevStep()" *ngIf="step > 1">
+        <span class="material-icons">arrow_back</span>
+        Back
+      </button>
+      <div class="footer-spacer" *ngIf="step === 1"></div>
+
+      <button
+        class="btn-next"
+        type="button"
+        (click)="nextStep()"
+        [disabled]="step === 1 && !canProceedStep1"
+        *ngIf="step < 3">
+        Continue
+        <span class="material-icons">arrow_forward</span>
+      </button>
+
+      <button
+        class="btn-finish"
+        type="button"
+        (click)="finish()"
+        [disabled]="saving"
+        *ngIf="step === 3">
+        {{ saving ? 'Setting up...' : 'Find my jobs' }}
+        <span class="material-icons" *ngIf="!saving">rocket_launch</span>
+      </button>
+    </footer>
+  </div>
+</div>

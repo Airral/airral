@@ -1,6 +1,7 @@
 package com.airral.controller;
 
 import com.airral.dto.request.LoginRequest;
+import com.airral.dto.request.GoogleAuthRequest;
 import com.airral.dto.request.RegisterRequest;
 import com.airral.dto.response.AuthResponse;
 import com.airral.service.AuthService;
@@ -29,6 +30,16 @@ public class AuthController {
     @PostMapping("/login")
     public Mono<ResponseEntity<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request)
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * Google Identity Services endpoint
+     * POST /api/auth/google
+     */
+    @PostMapping("/google")
+    public Mono<ResponseEntity<AuthResponse>> googleLogin(@Valid @RequestBody GoogleAuthRequest request) {
+        return authService.loginWithGoogle(request)
                 .map(ResponseEntity::ok);
     }
 

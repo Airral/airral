@@ -35,7 +35,7 @@ public class LeverJobBoardClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")
-                        .map(body -> new BadRequestException("Unable to load Lever jobs for site: " + siteName)))
+                        .map(body -> new BadRequestException("Unable to load Lever jobs for site: " + siteName + " (HTTP " + response.statusCode().value() + ")")))
                 .bodyToMono(new ParameterizedTypeReference<>() {});
     }
 

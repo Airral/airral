@@ -22,8 +22,8 @@ cd airral-backend
 
 # 3. Start frontend
 cd airral-frontend
-npm install
-npx nx serve hr-portal
+yarn install
+yarn dev:hr
 
 # 4. Login at http://localhost:4202
 Email: sarah.hr@democompany.com

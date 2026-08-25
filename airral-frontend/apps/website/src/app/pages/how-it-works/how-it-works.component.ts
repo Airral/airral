@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
+import { PORTAL_ROUTES } from '@airral/shared-utils';
 
 @Component({
   selector: 'app-how-it-works',
@@ -11,6 +12,8 @@ import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@air
   styleUrls: ['./how-it-works.component.css'],
 })
 export class HowItWorksComponent {
+  readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
+
   readonly candidateSteps = [
     {
       number: 1,
@@ -74,7 +77,7 @@ export class HowItWorksComponent {
   ];
 
   readonly headerCtas: HeaderCta[] = [
-    { label: 'Get Started', path: '/apply' },
+    { label: 'Get Started', path: this.applicantRegisterUrl, external: true },
   ];
 
   readonly headerConfig = {
@@ -86,7 +89,7 @@ export class HowItWorksComponent {
       { label: 'Pricing', path: '/pricing' },
     ],
     ctas: [
-      { label: 'Get Started', path: '/apply', external: false },
+      { label: 'Get Started', path: this.applicantRegisterUrl, external: true },
     ],
   };
 

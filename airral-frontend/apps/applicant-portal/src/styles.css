@@ -1,24 +1,46 @@
 @import '@angular/material/prebuilt-themes/azure-blue.css';
 
-/* AIRRAL teal-green brand override for Angular Material tokens */
+/* AIRRAL brand override for Angular Material tokens */
 :root {
   --airral-primary: #007C6D;
-  --airral-primary-hover: #006B5B;
-  --airral-primary-dark: #075E54;
-  --airral-primary-soft: #E7F5F1;
-  --airral-brand-900: #0f2f4a;
+  --airral-primary-hover: #005f54;
+  --airral-primary-dark: #004d44;
+  --airral-primary-soft: #e6f7f5;
+  --airral-focus-ring: rgba(0, 124, 109, 0.12);
+  --airral-ink: #101828;
+  --airral-canvas: #f9fafb;
+  --airral-canvas-warm: #fafafa;
+  --airral-mint-50: #e6f7f5;
+  --airral-mint-100: #ccece7;
+  --airral-blue: #007C6D;
+  --airral-blue-soft: #e6f7f5;
+  --airral-sky: #007C6D;
+  --airral-sky-soft: #e6f7f5;
+  --airral-amber: #92400e;
+  --airral-amber-soft: #fffbeb;
+  --airral-rose: #be3144;
+  --airral-rose-soft: #fff1f3;
+  --airral-lilac: #007C6D;
+  --airral-lilac-soft: #f0faf9;
+  --airral-brand-900: #003d35;
   --airral-brand-700: var(--airral-primary);
-  --airral-brand-500: #3a63d6;
+  --airral-brand-500: #00a896;
   --airral-brand-100: var(--airral-primary-soft);
-  --airral-surface-base: #fbfbfa;
+  --airral-surface-base: #fafafa;
   --airral-surface-raised: #ffffff;
-  --airral-surface-tint: #f6f7f6;
+  --airral-surface-tint: #f9fafb;
   --airral-text-primary: #111827;
   --airral-text-secondary: #4b5563;
-  --airral-border-soft: #e1e5e9;
-  --airral-success: var(--airral-primary);
-  --airral-warning: #b87911;
-  --airral-danger: #b42323;
+  --airral-border-soft: #e5e7eb;
+  --airral-border-strong: #d1d5db;
+  --airral-success: #059669;
+  --airral-warning: #d97706;
+  --airral-danger: #dc2626;
+  --airral-app-canvas: var(--airral-canvas);
+  --airral-app-canvas-soft: #fafafa;
+  --airral-app-card: #ffffff;
+  --airral-app-muted-panel: #f3f4f6;
+  --airral-app-radius: 8px;
 
   --color-teal: var(--airral-primary);
   --color-teal-strong: var(--airral-primary-hover);
@@ -28,10 +50,16 @@
   --color-muted: #4b5563;
   --color-border: #e1e5e9;
   --color-surface-soft: #fbfbfa;
-  --color-blue: #3a63d6;
-  --color-blue-soft: #e8eeff;
-  --color-amber: #b87911;
-  --color-amber-soft: #fff4dc;
+  --color-blue: var(--airral-blue);
+  --color-blue-soft: var(--airral-blue-soft);
+  --color-sky: var(--airral-sky);
+  --color-sky-soft: var(--airral-sky-soft);
+  --color-amber: var(--airral-amber);
+  --color-amber-soft: var(--airral-amber-soft);
+  --color-rose: var(--airral-rose);
+  --color-rose-soft: var(--airral-rose-soft);
+  --color-lilac: var(--airral-lilac);
+  --color-lilac-soft: var(--airral-lilac-soft);
 
   --mat-sys-primary: var(--airral-primary);
   --mat-sys-on-primary: #ffffff;
@@ -50,9 +78,29 @@
 html, body {
   height: 100%;
   margin: 0;
-  font-family: Roboto, 'Helvetica Neue', sans-serif;
-  background: var(--airral-surface-base);
+  font-family: 'Manrope', Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--airral-app-canvas);
   color: var(--airral-text-primary);
+}
+
+.applicant-theme-page {
+  background: var(--airral-app-canvas);
+  color: var(--airral-text-primary);
+  font-family: 'Manrope', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+.applicant-theme-card {
+  border: 1px solid var(--airral-border-soft);
+  border-radius: var(--airral-app-radius);
+  background: var(--airral-app-card);
+}
+
+.applicant-theme-eyebrow {
+  color: var(--airral-primary-hover);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .workspace-feed .feed-shell {

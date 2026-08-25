@@ -38,15 +38,13 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'dashboard',
-    ...hrAccess,
-    loadComponent: () =>
-      import('./pages/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+    redirectTo: '',
+    pathMatch: 'full',
   },
   {
     path: 'hire',
-    ...hrAccess,
-    loadComponent: () =>
-      import('./pages/hire-tool/hire-tool.component').then((m) => m.HireToolComponent),
+    redirectTo: 'candidates',
+    pathMatch: 'full',
   },
   {
     path: 'jobs',

@@ -3,10 +3,6 @@ import { User } from '@airral/shared-types';
 
 const AUTH_HANDOFF_KEY = 'airralAuth';
 
-export function isLocalDevHost(): boolean {
-  return isLocalHostname(window.location.hostname);
-}
-
 export function buildLocalAuthHandoffUrl(targetUrl: string, user: User, token: string): string {
   if (!isTrustedHandoffTarget(targetUrl)) {
     return targetUrl;

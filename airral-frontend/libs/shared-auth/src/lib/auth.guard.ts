@@ -1,6 +1,5 @@
 // libs/shared-auth/src/lib/auth.guard.ts
-import { Injectable } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn } from '@angular/router';
 import { inject } from '@angular/core';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
@@ -19,32 +18,23 @@ function isLocalHrPortal(): boolean {
   return isLocalDevHost() && window.location.port === '4202';
 }
 
+function isApplicantPortalHost(): boolean {
+  return window.location.origin === PORTAL_ROUTES.APPLICANT || (isLocalDevHost() && window.location.port === '4201');
+}
+
 function isHrPortalHost(): boolean {
   return window.location.origin === PORTAL_ROUTES.HR || isLocalHrPortal();
 }
 
 function redirectToLogin(): false {
-  if (isHrPortalHost()) {
-    window.location.href = '/login';
+  if (isHrPortalHost() || isApplicantPortalHost()) {
+    const returnUrl = encodeURIComponent(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+    window.location.href = `/login?returnUrl=${returnUrl}`;
     return false;
   }
 
   window.location.href = `${PORTAL_ROUTES.WEBSITE}/login`;
   return false;
-}
-
-@Injectable({
-  providedIn: 'root'
-})
-export class AuthGuard {
-  constructor(private authService: AuthService, private router: Router) {}
-
-  canActivate(): boolean {
-    if (this.authService.isAuthenticated()) {
-      return true;
-    }
-    return redirectToLogin();
-  }
 }
 
 export const authGuard: CanActivateFn = () => {

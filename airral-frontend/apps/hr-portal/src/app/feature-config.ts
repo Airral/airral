@@ -23,33 +23,30 @@ export const ROUTE_ACCESS = {
 
 const NAV_BY_SEGMENT: Record<RoleSegment, HrNavItem[]> = {
   HR: [
-    { label: 'Home', path: '/', icon: '▦' },
-    { label: 'Dashboard', path: '/dashboard', icon: '◧' },
-    { label: 'Pipeline', path: '/hire', icon: '◍', tierRequired: 'PRO' },
-    { label: 'Jobs', path: '/jobs', icon: '💼' },
-    { label: 'Candidates', path: '/candidates', icon: '👥' },
-    { label: 'Interviews', path: '/interviews', icon: '📅' },
-    { label: 'Offers', path: '/offers', icon: '📝' },
-    { label: 'Analytics', path: '/analytics', icon: '◎', tierRequired: 'PRO' },
-    { label: 'Settings', path: '/settings', icon: '◦' }
+    { label: 'Home', path: '/', icon: 'home' },
+    { label: 'Jobs', path: '/jobs', icon: 'work_outline' },
+    { label: 'Candidates', path: '/candidates', icon: 'group' },
+    { label: 'Interviews', path: '/interviews', icon: 'event' },
+    { label: 'Offers', path: '/offers', icon: 'description' },
+    { label: 'Settings', path: '/settings', icon: 'settings' }
   ],
   MANAGER: [
-    { label: 'Home', path: '/', icon: '▦' },
-    { label: 'My Team Reviews', path: '/team-review', icon: '◉' },
-    { label: 'Interviews', path: '/interviews', icon: '📅' },
-    { label: 'Internal Jobs', path: '/jobs', icon: '💼' },
-    { label: 'Referrals', path: '/referrals', icon: '🤝' },
-    { label: 'My Profile', path: '/profile', icon: '👤' },
-    { label: 'My Benefits', path: '/benefits', icon: '🎁' }
+    { label: 'Home', path: '/', icon: 'home' },
+    { label: 'My Team Reviews', path: '/team-review', icon: 'fact_check' },
+    { label: 'Interviews', path: '/interviews', icon: 'event' },
+    { label: 'Internal Jobs', path: '/jobs', icon: 'work_outline' },
+    { label: 'Referrals', path: '/referrals', icon: 'handshake' },
+    { label: 'My Profile', path: '/profile', icon: 'person_outline' },
+    { label: 'My Benefits', path: '/benefits', icon: 'redeem' }
   ],
   EMPLOYEE: [
-    { label: 'Home', path: '/', icon: '▦' },
-    { label: 'Internal Jobs', path: '/jobs', icon: '💼' },
-    { label: 'Referrals', path: '/referrals', icon: '🤝' },
-    { label: 'My Profile', path: '/profile', icon: '👤' },
-    { label: 'My Benefits', path: '/benefits', icon: '🎁' }
+    { label: 'Home', path: '/', icon: 'home' },
+    { label: 'Internal Jobs', path: '/jobs', icon: 'work_outline' },
+    { label: 'Referrals', path: '/referrals', icon: 'handshake' },
+    { label: 'My Profile', path: '/profile', icon: 'person_outline' },
+    { label: 'My Benefits', path: '/benefits', icon: 'redeem' }
   ],
-  APPLICANT: [{ label: 'Home', path: '/', icon: '▦' }],
+  APPLICANT: [{ label: 'Home', path: '/', icon: 'home' }],
 };
 
 const ROLE_LABEL_BY_SEGMENT: Record<RoleSegment, string> = {

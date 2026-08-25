@@ -31,7 +31,7 @@ public class GreenhouseJobBoardClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
                         .defaultIfEmpty("")
-                        .map(body -> new BadRequestException("Unable to load Greenhouse jobs for board: " + boardToken)))
+                        .map(body -> new BadRequestException("Unable to load Greenhouse jobs for board: " + boardToken + " (HTTP " + response.statusCode().value() + ")")))
                 .bodyToMono(GreenhouseJobBoardResponse.class);
     }
 

@@ -65,9 +65,13 @@ public class HrEncounterController {
     @GetMapping("/application/{applicationId}")
     @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'MANAGER', 'ADMIN')")
     public Mono<ResponseEntity<Flux<EncounterResponse>>> getEncountersByApplication(
-            @PathVariable Long applicationId) {
+            @PathVariable Long applicationId,
+            @RequestHeader("Authorization") String authHeader) {
 
-        return Mono.just(ResponseEntity.ok(encounterService.getEncountersByApplication(applicationId)));
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+
+        return Mono.just(ResponseEntity.ok(encounterService.getEncountersByApplication(applicationId, organizationId)));
     }
 
     /**
@@ -77,9 +81,13 @@ public class HrEncounterController {
     @GetMapping("/job/{jobId}")
     @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'MANAGER', 'ADMIN')")
     public Mono<ResponseEntity<Flux<EncounterResponse>>> getEncountersByJob(
-            @PathVariable Long jobId) {
+            @PathVariable Long jobId,
+            @RequestHeader("Authorization") String authHeader) {
 
-        return Mono.just(ResponseEntity.ok(encounterService.getEncountersByJob(jobId)));
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+
+        return Mono.just(ResponseEntity.ok(encounterService.getEncountersByJob(jobId, organizationId)));
     }
 
     /**

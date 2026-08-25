@@ -89,21 +89,29 @@ public class ExternalJobSyncService {
     }
 
     private Mono<SourceSyncResult> syncSource(ExternalJobSourceRecord source) {
-        return candidateJobSearchService.getLiveRecommendedJobs(
+        return candidateJobSearchService.getLiveRecommendedJobsForSync(
                         source.sourceType(),
                         source.boardToken(),
                         limitPerSource,
-                        retentionDays,
-                        null,
-                        null)
+                        retentionDays)
                 .collectList()
                 .flatMap(jobs -> upsertJobs(source, jobs)
                         .flatMap(jobsUpserted -> externalJobPostingStore.markSourceSuccess(source.id())
                                 .thenReturn(new SourceSyncResult(source, jobs.size(), jobsUpserted, null))))
                 .onErrorResume(error -> {
-                    log.warn("External job sync failed for {} {}: {}", source.sourceType(), source.boardToken(), error.getMessage());
-                    return externalJobPostingStore.markSourceError(source.id(), error.getMessage())
-                            .thenReturn(new SourceSyncResult(source, 0, 0, error.getMessage()));
+                    String message = error.getMessage();
+                    log.warn("External job sync failed for {} {}: {}", source.sourceType(), source.boardToken(), message);
+
+                    // Auto-disable sources that return HTTP 404 (board no longer exists)
+                    if (message != null && message.contains("(HTTP 404)")) {
+                        log.info("Auto-disabling source {} {} because board returned 404", source.sourceType(), source.boardToken());
+                        return externalJobPostingStore.disableSource(source.id(), message)
+                                .then(externalJobPostingStore.deactivatePostingsForSource(source.id()))
+                                .thenReturn(new SourceSyncResult(source, 0, 0, message));
+                    }
+
+                    return externalJobPostingStore.markSourceError(source.id(), message)
+                            .thenReturn(new SourceSyncResult(source, 0, 0, message));
                 });
     }
 

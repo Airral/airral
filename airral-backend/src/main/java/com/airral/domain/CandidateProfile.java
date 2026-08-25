@@ -44,7 +44,10 @@ public class CandidateProfile {
     private Json matchPreferences;
 
     // Media
+    private Long activeResumeDocumentId;
     private String resumeUrl;
+    private String resumeParseStatus;
+    private LocalDateTime resumeParsedAt;
     private String videoIntroUrl;
 
     // Computed 0-100

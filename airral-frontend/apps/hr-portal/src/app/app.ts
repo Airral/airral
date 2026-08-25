@@ -9,7 +9,6 @@ import {
   getNavItemsForRole,
   getPrimaryRole,
   getRoleLabelForRole,
-  getSearchLabelForRole,
   filterNavByTier,
 } from './feature-config';
 
@@ -37,8 +36,11 @@ export class App {
     return getRoleLabelForRole(this.primaryRole);
   }
 
-  get searchLabel(): string {
-    return getSearchLabelForRole(this.primaryRole);
+  get userInitials(): string {
+    const user = this.authService.getCurrentUser();
+    const first = user?.firstName?.charAt(0) || user?.email?.charAt(0) || 'H';
+    const last = user?.lastName?.charAt(0) || 'R';
+    return `${first}${last}`.toUpperCase();
   }
 
   get tierLabel(): string {

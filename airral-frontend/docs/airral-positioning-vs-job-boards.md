@@ -1,10 +1,26 @@
 # AIRRAL Positioning vs Job Boards
 
-Date: 2026-05-15
+Date: 2026-05-27
 
 Scope: research and product positioning for AIRRAL as a better job-search workspace than plain job posts and large platforms such as LinkedIn, Indeed, Glassdoor, and similar job boards.
 
 This document is separate from the Lab AIRRAL research. It focuses on the applicant/job-search product because the comparison set is LinkedIn, Glassdoor, Indeed, job posts, and candidate experience reports.
+
+Current launch focus:
+
+- Real active jobs across broad industries, not only tech.
+- Fast job search and selected job detail.
+- Job quality signals before the user spends application effort.
+- Resume-to-selected-job fit with missing skills, keyword gaps, and suggested rewrites.
+- Saved jobs, application checklist, follow-up reminders, and application tracking.
+
+Later-stage unlocks after user feedback and scale:
+
+- Messaging.
+- Rooms and peer feedback.
+- Founder spaces/private groups.
+- Events not directly tied to an application outcome.
+- LinkedIn-style community posting.
 
 ## Sources
 
@@ -23,17 +39,16 @@ LinkedIn, Indeed, Glassdoor, and job boards are very good at showing jobs and co
 
 AIRRAL should not try to become a bigger job board. The better product is a job-search operating system:
 
-- Find relevant roles.
+- Find real relevant roles.
 - Understand whether a role is worth applying to.
-- See company signal and candidate-reported intel.
-- Join rooms with people applying to similar companies/roles.
+- See salary, freshness, source trust, work mode, location, company signal, and application effort.
+- Improve the resume for the selected role.
 - Track applications, interviews, offers, follow-ups, and blockers.
-- Get feedback from peers.
-- Keep momentum with events, sprints, and next actions.
+- Keep momentum with checklists, reminders, and next actions.
 
 The winning position:
 
-**AIRRAL turns job search from a lonely list of job posts into a guided, social, signal-rich workspace.**
+**AIRRAL turns job search from a noisy list of job posts into a guided, signal-rich application workspace.**
 
 ## What Big Job Platforms Do Well
 
@@ -64,9 +79,9 @@ Glassdoor has reviews and salary data. LinkedIn has company pages and posts. Ind
 
 AIRRAL opportunity:
 
-- Put company news, salary signal, interview stage signal, peer activity, and candidate notes into one company workspace.
+- Put company news, salary signal, source trust, role freshness, application effort, and candidate notes into one company/job workspace.
 - Show confidence and recency for each signal.
-- Help users turn intel into action: apply, ask a question, join room, save, follow up.
+- Help users turn intel into action: apply, save, improve resume fit, track next step, or follow up.
 
 ### 3. Candidates Feel Alone
 
@@ -80,9 +95,10 @@ Research signals:
 
 AIRRAL opportunity:
 
-- Make the job search communal without becoming noisy social media.
-- Rooms by company, role, interview loop, salary topic, city, and remote search.
-- Peer feedback on resumes, outreach, take-home plans, interview prep, and offer questions.
+- Reduce anxiety with clarity before adding community.
+- Show which jobs are real, fresh, salary-transparent, and worth the user's time.
+- Give role-specific resume fixes and application next steps.
+- Unlock rooms, messaging, and peer feedback later when there are enough active users to make those surfaces valuable.
 
 ### 4. Application Tracking Is Still Candidate Work
 
@@ -104,24 +120,24 @@ Easy application is useful, but it can also encourage mass applying. That makes 
 AIRRAL opportunity:
 
 - Build a quality loop, not an apply-more loop.
-- Encourage targeted applications with role fit, company signal, salary fit, and peer feedback.
+- Encourage targeted applications with role fit, company signal, salary fit, resume readiness, and application effort.
 - Track application quality and next actions instead of raw application count.
 
 ## Why AIRRAL Can Be Better
 
 AIRRAL should win on five things:
 
-### 1. Daily Command Center
+### 1. Job-First Application Workspace
 
 The first screen should answer:
 
-- What should I do today?
+- Which real roles fit me?
 - Which role is worth moving forward?
-- Who can help me?
+- Does my resume fit this role?
 - What changed since yesterday?
 - What follow-up is due?
 
-This is more useful than a landing page, job list, or social feed.
+This is more useful than a landing page, generic dashboard, or social feed.
 
 ### 2. Signal-Rich Company Workspace
 
@@ -131,15 +147,30 @@ Every company should have a workspace with:
 - Salary ranges and comp bands.
 - Interview stage intel.
 - Recent company news.
-- Peer activity.
 - Saved posts.
 - Candidate-reported outcomes.
 - Recruiter response signal.
-- Events/rooms related to the company.
+- Application effort and source confidence.
+- Events/rooms later only when they help a saved application.
 
 Glassdoor has reviews. LinkedIn has company posts. AIRRAL should convert company information into candidate action.
 
-### 3. Rooms That Reduce Anxiety
+### 3. Resume Fit And Application Readiness
+
+The first wedge should make candidates feel more prepared before they apply.
+
+Good application readiness:
+
+- Resume fit score for the selected role.
+- Missing skills and keyword gaps.
+- Suggested resume bullet rewrites.
+- Application checklist.
+- Follow-up reminder.
+- Interview prep notes once the user applies.
+
+This should ship before rooms become primary navigation.
+
+### Later: Rooms That Reduce Anxiety
 
 Rooms should not be generic chat.
 
@@ -166,11 +197,11 @@ AIRRAL should remember:
 
 - What role the user applied to.
 - Where they found it.
-- Who they talked to.
 - What they learned.
 - What stage they reached.
 - What follow-up is due.
-- Which room or person helped.
+- Which resume version or checklist helped.
+- Which room or person helped later, when social features are enabled.
 - Whether the company ghosted, replied, rejected, or advanced them.
 
 That turns AIRRAL from a job board into a career operating system.
@@ -186,9 +217,9 @@ Metrics should include:
 - Follow-ups sent.
 - Interviews prepared.
 - Salary intel saved.
-- Rooms joined.
 - Companies watched.
 - High-quality role matches.
+- Resume gaps resolved before applying.
 
 Avoid vanity metrics such as "100 jobs applied" if the applications were low quality.
 
@@ -200,12 +231,13 @@ Avoid vanity metrics such as "100 jobs applied" if the applications were low qua
 | Easy apply | Strong | Strong | Medium | Targeted apply with quality checks |
 | Company reputation | Medium | Medium | Strong | Company workspace with signal + action |
 | Salary research | Medium | Medium | Strong | Salary saved into role/company memory |
-| Peer help | Medium, network-driven | Weak | Weak | Rooms and feedback loops |
+| Peer help | Medium, network-driven | Weak | Weak | Later rooms and feedback loops after launch |
 | Application tracking | Limited | Limited | Limited | First-class candidate timeline |
-| Interview prep | Fragmented | Fragmented | Interview reviews | Prep rooms, saved intel, stage-specific guides |
-| Follow-up reminders | Weak | Weak | Weak | Daily command center |
-| Candidate anxiety support | Weak | Weak | Weak | Momentum, clarity, rooms, next actions |
-| Founder/startup access | Weak | Weak | Weak | Special access rooms and request flows |
+| Resume fit | Fragmented | Fragmented | Weak | Role-specific gaps and rewrite suggestions |
+| Interview prep | Fragmented | Fragmented | Interview reviews | Saved intel and stage-specific guides |
+| Follow-up reminders | Weak | Weak | Weak | Application workspace reminders |
+| Candidate anxiety support | Weak | Weak | Weak | Momentum, clarity, next actions |
+| Founder/startup access | Weak | Weak | Weak | Later special access rooms and request flows |
 
 ## What AIRRAL Should Not Copy
 
@@ -223,18 +255,17 @@ The app should feel calm, clean, and useful every day.
 
 Recommended information architecture:
 
-- **Today**: command center and next actions.
-- **Roles**: signal-ranked role list.
-- **Companies**: watched companies, news, salary, interview intel.
-- **Rooms**: peer spaces tied to actual outcomes.
+- **Jobs**: default first view with filters, signal-ranked list, and selected detail.
+- **Resume Fit**: role-specific gaps, keyword checks, and suggested rewrites.
 - **Tracker**: applications, interviews, offers, follow-ups.
-- **Events**: sprints, office hours, founder sessions.
+- **Companies**: watched companies, news, salary, interview intel.
 - **Profile**: candidate portfolio and preferences.
+- **Rooms/Events/Founder**: later or behind feature flags, only tied to real application outcomes.
 
 Design rules:
 
 - Keep profile separate from daily work.
-- Keep events separate from role tracking.
+- Keep events and rooms secondary until they help role tracking.
 - Keep company news separate from application list.
 - Use tabs/workspaces instead of stacking everything on one page.
 - Use status colors consistently: new signal, active, blocked, due, done.
@@ -244,7 +275,7 @@ Design rules:
 
 AIRRAL is not another job board.
 
-AIRRAL is a daily job-search workspace where candidates find better roles, understand company signals, get peer help, track every application, and move one opportunity forward each day.
+AIRRAL is a job-search OS where candidates find real roles, understand whether they are worth applying to, improve resume fit, track every application, and move one opportunity forward each day.
 
 ## Why This Product Can Win
 
@@ -255,10 +286,11 @@ Candidates need:
 - Less noise.
 - More trust.
 - Better context.
-- Real peer support.
+- Better resume-to-job fit.
 - Application memory.
 - Better follow-through.
 - More clarity when companies go silent.
+- Peer support later, once the core workflow is valuable on its own.
 
 LinkedIn, Indeed, and Glassdoor each solve one piece. AIRRAL can combine the pieces into a workflow that helps candidates actually progress.
 
@@ -276,25 +308,24 @@ AIRRAL wins only if it owns the daily job-search loop.
 
 ## Build Priorities
 
-1. Fix current applicant portal compile and API contract issues.
-2. Decide one active applicant dashboard direction; remove dead mock branches.
-3. Build the daily command center as the home screen.
-4. Add role/company workspaces.
-5. Add application memory and follow-up reminders.
-6. Add rooms with clear outputs.
-7. Add signal-ranked roles and company intel.
-8. Add events/sprints only after the daily loop is working.
+1. Build broad real job coverage across industries and sources.
+2. Make Jobs the default first view with fast filters, list, and selected detail.
+3. Add job quality signals: salary, freshness, source trust, work mode, location, application effort, and company context.
+4. Add resume-to-selected-job fit with missing skills, keyword gaps, and rewrite suggestions.
+5. Add saved jobs, application checklist, follow-up reminders, and tracking.
+6. Add company signal only where it helps apply/save/hide decisions.
+7. Keep rooms, messaging, founder spaces, events, and social feed behind flags until user feedback proves demand.
 
 ## First Great Demo
 
 The first demo should show:
 
 1. Candidate opens AIRRAL.
-2. Command center shows one role to move forward.
-3. Candidate sees why the company is relevant now.
-4. Candidate joins a room or reads saved peer intel.
-5. Candidate updates application tracker.
-6. AIRRAL creates the next follow-up.
+2. Jobs opens with real matches across multiple industries.
+3. Candidate selects one role and sees salary, freshness, source trust, work mode, location, and application effort.
+4. Candidate runs resume fit and sees missing skills, keyword gaps, and suggested bullet rewrites.
+5. Candidate saves or applies to the role.
+6. AIRRAL creates an application checklist and next follow-up.
 7. Candidate leaves with a clearer next step.
 
 That is the difference from job boards: not more listings, but more progress.

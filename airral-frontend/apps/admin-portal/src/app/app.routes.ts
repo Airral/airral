@@ -9,5 +9,10 @@ export const appRoutes: Route[] = [
     loadComponent: () =>
       import('./pages/users/users.component').then((m) => m.UsersComponent),
   },
+  {
+    path: 'statistics',
+    loadComponent: () =>
+      import('./pages/statistics/public-statistics.component').then((m) => m.PublicStatisticsComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

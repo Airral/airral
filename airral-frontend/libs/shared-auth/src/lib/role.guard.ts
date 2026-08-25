@@ -1,6 +1,5 @@
 // libs/shared-auth/src/lib/role.guard.ts
-import { Injectable } from '@angular/core';
-import { ActivatedRouteSnapshot, CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn } from '@angular/router';
 import { inject } from '@angular/core';
 import { AuthService } from './auth.service';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
@@ -18,30 +17,14 @@ function isHrPortalHost(): boolean {
   return window.location.origin === PORTAL_ROUTES.HR || (isLocalDevHost() && window.location.port === '4202');
 }
 
-@Injectable({
-  providedIn: 'root'
-})
-export class RoleGuard {
-  constructor(private authService: AuthService, private router: Router) {}
+function isApplicantPortalHost(): boolean {
+  return window.location.origin === PORTAL_ROUTES.APPLICANT || (isLocalDevHost() && window.location.port === '4201');
+}
 
-  canActivate(route: ActivatedRouteSnapshot): boolean {
-    const requiredRoles = route.data['roles'] as string[];
-
-    if (!this.authService.isAuthenticated()) {
-      window.location.href = `${PORTAL_ROUTES.WEBSITE}/login`;
-      return false;
-    }
-
-    if (requiredRoles && requiredRoles.length > 0) {
-      if (this.authService.hasAnyRole(...requiredRoles)) {
-        return true;
-      }
-      window.location.href = PORTAL_ROUTES.WEBSITE;
-      return false;
-    }
-
-    return true;
-  }
+function redirectToLocalLogin(): false {
+  const returnUrl = encodeURIComponent(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+  window.location.href = `/login?returnUrl=${returnUrl}`;
+  return false;
 }
 
 export const roleGuard: CanActivateFn = (route) => {
@@ -51,7 +34,10 @@ export const roleGuard: CanActivateFn = (route) => {
   consumeLocalAuthHandoff(authService);
 
   if (!authService.isAuthenticated()) {
-    window.location.href = isHrPortalHost() ? '/login' : `${PORTAL_ROUTES.WEBSITE}/login`;
+    if (isHrPortalHost() || isApplicantPortalHost()) {
+      return redirectToLocalLogin();
+    }
+    window.location.href = `${PORTAL_ROUTES.WEBSITE}/login`;
     return false;
   }
 

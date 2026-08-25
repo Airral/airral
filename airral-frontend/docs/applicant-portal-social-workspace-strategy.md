@@ -1,10 +1,26 @@
 # Applicant Portal Social Workspace Strategy
 
+Status: deferred strategy. This document is historical product research for a later social/community layer. It should not drive the current launch build.
+
+Current launch focus:
+
+- Real active jobs across broad industries.
+- Fast job search and selected job detail.
+- Job quality signals before the user spends application effort.
+- Resume-to-selected-job fit and application readiness.
+- Saved jobs, application checklist, follow-up reminders, and application tracking.
+
+Messaging, rooms, founder spaces, events, peer feeds, and LinkedIn-style posting are later-stage unlocks after the core job/resume/application loop is strong and user feedback proves demand.
+
 ## Product Promise
 
-AIRRAL should not feel like another place to upload a resume and wait. The applicant portal should feel like a focused job-search workspace where candidates can see where hiring momentum is happening, work through applications with peers, join company or role-specific rooms, and keep a clear record of next steps.
+Future social promise: AIRRAL should not feel like another place to upload a resume and wait. The applicant portal can later become a focused job-search workspace where candidates see hiring momentum, work through applications with peers, join company or role-specific rooms, and keep a clear record of next steps.
 
-The simplest promise:
+The current launch promise is narrower:
+
+**Find real roles worth applying to, improve the resume for that role, and track the next step.**
+
+The later social promise:
 
 **Know where hiring is happening before everyone else, and do not apply alone.**
 
@@ -62,16 +78,16 @@ The portal should create a loop that gives users a reason to return even when th
 6. Candidate shares outcome or interview insight back into the room.
 7. The room becomes more valuable for the next candidate.
 
-## MVP UI Direction
+## Deferred UI Direction
 
-The applicant portal first screen should make four things visible immediately:
+When the social layer is unlocked, the applicant portal can make four things visible:
 
 - **Workspace feed:** peer questions, interview notes, resume reviews, offer lessons, and application sprints.
 - **Hiring radar:** funded companies, team expansion signals, salary visibility, new hiring events, and confidence tags.
 - **Rooms:** smaller social spaces around companies, roles, cities, cohorts, and skills.
 - **Events:** career fairs, founder AMAs, recruiter office hours, resume reviews, and interview practice sessions.
 
-Tracking and profile completion still matter, but they should support the social workspace instead of owning the whole page.
+For launch, tracking, resume fit, and job quality signals should own the first screen. Social workspace surfaces stay hidden or secondary.
 
 ## Early Startup Wedge
 
@@ -94,9 +110,9 @@ AIRRAL can start without big-company partnerships by using public signal and com
 - **Clear AIRRAL brand color:** AIRRAL's primary product color is teal-green (`#007C6D`). Use deep navy (`#102436`) for authority and readable contrast. Blue (`#3867d6`) is only a supporting signal color. Coral and amber are small semantic accents, not competing brand colors.
 - **Welcoming color system:** avoid a gray admin feel. The first viewport should make the teal/navy brand obvious through the topbar, active navigation, primary action, and hero surface. Keep cards warm-white with restrained shadows and clear hover states so the workspace feels alive without becoming noisy.
 
-## Current Build Slice
+## Historical Build Slice
 
-The current frontend slice should implement the shape of this experience with mock data:
+This older frontend slice explored the shape of this experience with mock data:
 
 - Social workspace hero and pulse metrics.
 - Peer feed with actionable posts.
@@ -105,11 +121,11 @@ The current frontend slice should implement the shape of this experience with mo
 - Events this week.
 - Existing application pipeline and profile tools preserved as support surfaces.
 
-Backend integration can follow once the product shape is approved.
+Do not continue this as the default build direction until the core job/resume/application loop is approved and working with real backend data.
 
-## Frontend Structure
+## Historical Frontend Structure
 
-Keep the applicant portal modular so future agents can work on one surface without opening the whole dashboard component.
+If these surfaces return later, keep them modular so future agents can work on one surface without opening the whole dashboard component.
 
 - `candidate-dashboard.component.ts/html/css`: page shell, auth/data loading, navigation, profile form, and application tracker orchestration.
 - `models/candidate-dashboard.models.ts`: shared UI-facing contracts for workspace metrics, posts, hiring signals, events, rooms, stages, and actions.
@@ -120,7 +136,7 @@ Keep the applicant portal modular so future agents can work on one surface witho
 - `components/job-rooms`: focused rooms around companies, roles, cohorts, and events.
 - `components/career-events`: events connected to preparation, networking, and follow-up.
 
-As the backend grows, replace the mock data file with a workspace API/facade service and keep the child components input-driven.
+As the backend grows, replace launch mock job/resume data first. Social workspace APIs should wait until the core launch surfaces are server-backed.
 
 ## Social Pattern Review (May 14, 2026)
 

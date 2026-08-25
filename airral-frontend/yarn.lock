@@ -11,7 +11,6 @@ __metadata:
   dependencies:
     "@angular-devkit/core": "npm:21.2.8"
     "@angular-devkit/schematics": "npm:21.2.8"
-    "@angular/animations": "npm:21.2.10"
     "@angular/build": "npm:21.2.8"
     "@angular/cdk": "npm:21.2.10"
     "@angular/cli": "npm:21.2.8"
@@ -397,17 +396,6 @@ __metadata:
     eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
     typescript: "*"
   checksum: 10c0/94e3496ee5944a840dd0a154cd6c676a00db76ffde462a3597db0252e227e9b96f27d736cc2e7122906d1553f4d99ffb59751fd828be704bc75da970af919e7e
-  languageName: node
-  linkType: hard
-
-"@angular/animations@npm:21.2.10":
-  version: 21.2.10
-  resolution: "@angular/animations@npm:21.2.10"
-  dependencies:
-    tslib: "npm:^2.3.0"
-  peerDependencies:
-    "@angular/core": 21.2.10
-  checksum: 10c0/9481bf7506f002e60e8c0a3e1a0397ea0ea43f33e97c6f2ae3e5d8fd7e686be1a474a3c5f36186f19011d86ab927a94354e0f0b1dd2d66f4dc88bae9bb4d470e
   languageName: node
   linkType: hard
 

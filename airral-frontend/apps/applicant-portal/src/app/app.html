@@ -1,1 +1,39 @@
-<router-outlet></router-outlet>
+<nav class="app-nav" *ngIf="isLoggedIn">
+  <div class="nav-left">
+    <a routerLink="/jobs" class="nav-brand">
+      <span class="brand-mark">AR</span>
+      <span class="brand-name">AIRRAL</span>
+    </a>
+    <div class="nav-links">
+      <a routerLink="/jobs" routerLinkActive="active" class="nav-link">
+        <span class="material-icons">work_outline</span>
+        <span class="nav-label">Jobs</span>
+      </a>
+      <a routerLink="/resume" routerLinkActive="active" class="nav-link">
+        <span class="material-icons">description</span>
+        <span class="nav-label">Resume</span>
+      </a>
+      <a routerLink="/tracker" routerLinkActive="active" class="nav-link">
+        <span class="material-icons">assignment</span>
+        <span class="nav-label">Tracker</span>
+        <span class="nav-badge" *ngIf="trackerBadge > 0">{{ trackerBadge }}</span>
+      </a>
+      <a routerLink="/profile" routerLinkActive="active" class="nav-link">
+        <span class="material-icons">person_outline</span>
+        <span class="nav-label">Profile</span>
+      </a>
+    </div>
+  </div>
+  <div class="nav-right">
+    <a class="nav-avatar" routerLink="/profile" title="Open profile" aria-label="Open profile">
+      {{ userInitials }}
+    </a>
+    <button class="nav-sign-out" type="button" (click)="logout()" title="Sign out" aria-label="Sign out">
+      <span class="material-icons">logout</span>
+    </button>
+  </div>
+</nav>
+
+<main class="app-main" [class.with-nav]="isLoggedIn">
+  <router-outlet></router-outlet>
+</main>

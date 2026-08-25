@@ -5,6 +5,7 @@ import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 import { JobApiService } from '@airral/shared-api';
 import { Job } from '@airral/shared-types';
+import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { SeoService } from '../../shared/seo.service';
 import { catchError, firstValueFrom, of, timeout } from 'rxjs';
 
@@ -21,6 +22,8 @@ export class JobDetailComponent implements OnInit {
   error: string | null = null;
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
+  readonly applicantLoginUrl = `${PORTAL_ROUTES.APPLICANT}/login`;
+  readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 
   readonly headerConfig = {
     brand: 'AIRRAL',

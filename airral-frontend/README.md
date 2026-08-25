@@ -18,12 +18,25 @@ The applicant portal is job-first, clean, mostly white/off-white, and uses AIRRA
 
 [Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/tutorials/angular-monorepo-tutorial?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `yarn nx graph` to visually explore what was created. Now, let's get you up to speed!
 
+## Local Dev Ports
+
+Use these fixed localhost ports in development:
+
+| App | Command | URL |
+| --- | --- | --- |
+| Website | `yarn dev:website` | `http://localhost:4200` |
+| Applicant portal | `yarn dev:applicant` | `http://localhost:4201` |
+| HR portal | `yarn dev:hr` | `http://localhost:4202` |
+| Admin portal | `yarn dev:admin` | `http://localhost:4203` |
+
+The Nx `serve` targets also define the same ports, so `yarn nx serve applicant-portal` opens on `http://localhost:4201` by default. The `yarn dev:*` scripts fail when their fixed port is already taken, instead of silently moving the app to a different port. Only pass `--port` when you intentionally want to override the shared local map.
+
 ## Run tasks
 
 To run the dev server for your app, use:
 
 ```sh
-yarn nx serve website
+yarn dev:website
 ```
 
 To create a production bundle:

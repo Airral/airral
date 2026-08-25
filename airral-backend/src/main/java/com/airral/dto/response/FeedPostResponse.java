@@ -20,7 +20,6 @@ public class FeedPostResponse {
     // Company info (joined from organizations)
     private Long organizationId;
     private String companyName;
-    private String companyHandle;
 
     private String authorType;
     private Long authorId;

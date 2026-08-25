@@ -43,6 +43,9 @@ spring:
 # In another terminal, inspect normalized local jobs
 ./scripts/check-local-jobs.sh
 
+# Clear local account/login data while preserving external job cache data
+./scripts/clear-local-account-data.sh
+
 # Run tests
 ./gradlew test
 ```

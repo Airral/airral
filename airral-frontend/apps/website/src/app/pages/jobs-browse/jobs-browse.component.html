@@ -10,8 +10,8 @@
       <h1>Preview roles, then continue in AIRRAL</h1>
       <p>Use public pages to decide what is worth a closer look. Create an account to save roles, match your resume, ask rooms, and apply with context.</p>
       <div class="hero-actions">
-        <a routerLink="/apply" class="btn btn-primary">Create account to apply</a>
-        <a routerLink="/login" class="btn btn-secondary">Sign in to save</a>
+        <a [href]="applicantRegisterUrl" class="btn btn-primary">Create account to apply</a>
+        <a [href]="applicantLoginUrl" class="btn btn-secondary">Sign in to save</a>
       </div>
     </div>
   </section>
@@ -51,7 +51,7 @@
         <p class="job-info">{{ job.location || 'Location flexible' }} • {{ job.employmentType || job.department || 'Open role' }}</p>
         <div class="job-actions">
           <a class="btn btn-secondary" [routerLink]="['/jobs', job.id]">Preview</a>
-          <a class="btn btn-primary" [routerLink]="['/apply']" [queryParams]="{ jobId: job.id }">Create account</a>
+          <a class="btn btn-primary" [href]="applicantRegisterUrl + '&jobId=' + job.id">Create account</a>
         </div>
       </div>
     </div>

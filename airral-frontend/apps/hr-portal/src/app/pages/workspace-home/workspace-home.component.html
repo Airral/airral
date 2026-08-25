@@ -1,6 +1,6 @@
-<app-quick-hire-home *ngIf="isQuickHire && isHr"></app-quick-hire-home>
+<app-quick-hire-home *ngIf="isHr"></app-quick-hire-home>
 
-<section class="panel" *ngIf="!isQuickHire">
+<section class="panel" *ngIf="!isHr">
   <h1>{{ title }}</h1>
   <p>Role-aware home with quick links to the workflows your team uses every day.</p>
 
@@ -15,9 +15,4 @@
     <a routerLink="/interviews">Follow interview schedule</a>
   </div>
 
-  <div class="cards" *ngIf="isHr">
-    <a routerLink="/dashboard">Open hiring dashboard</a>
-    <a routerLink="/hire">Manage pipeline stages</a>
-    <a routerLink="/analytics">See funnel analytics</a>
-  </div>
 </section>

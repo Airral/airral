@@ -1,6 +1,7 @@
 package com.airral.domain;
 
 import com.airral.domain.enums.ApplicationStatus;
+import io.r2dbc.postgresql.codec.Json;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -39,9 +40,9 @@ public class Application {
 
     // ATS Scoring
     private Integer atsScore;
-    private String atsMatchedKeywords; // TEXT[] in DB, stored as comma-separated
-    private String atsMissingKeywords; // TEXT[] in DB
-    private String atsMatchDetails; // JSONB in DB
+    private String[] atsMatchedKeywords;
+    private String[] atsMissingKeywords;
+    private Json atsMatchDetails;
     private Boolean visibleToHr;
 
     // Review tracking

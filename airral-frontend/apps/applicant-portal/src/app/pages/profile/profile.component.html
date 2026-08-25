@@ -1,0 +1,292 @@
+<div class="profile-page" *ngIf="!loading && profile">
+  <aside class="profile-rail">
+    <section class="profile-card">
+      <div class="hero-avatar">{{ initials }}</div>
+      <div class="profile-identity">
+        <h1>{{ displayName }}</h1>
+        <p *ngIf="profile.headline">{{ profile.headline }}</p>
+        <span>{{ profile.email }}</span>
+      </div>
+
+      <div class="completion-row">
+        <div class="completion-ring" [style.background]="completionRingBackground">
+          <span>{{ completionPercent }}%</span>
+        </div>
+        <div>
+          <strong>Profile readiness</strong>
+          <span>Used for job ranking and resume fit</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="profile-summary">
+      <div class="summary-item">
+        <span class="material-icons">{{ resumeStatusIcon }}</span>
+        <div>
+          <strong>{{ resumeStatusLabel }}</strong>
+          <p *ngIf="profile.resumeParsedAt">Updated {{ profile.resumeParsedAt | date:'MMM d' }}</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <span class="material-icons">travel_explore</span>
+        <div>
+          <strong>{{ searchStatusLabel }}</strong>
+          <p>{{ targetRolesPreview }}</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <span class="material-icons">tune</span>
+        <div>
+          <strong>{{ workModeLabel }}</strong>
+          <p>{{ salaryRangeLabel }}</p>
+        </div>
+      </div>
+      <div class="summary-item">
+        <span class="material-icons">bolt</span>
+        <div>
+          <strong>Skill signals</strong>
+          <p>{{ skillsPreview }}</p>
+        </div>
+      </div>
+    </section>
+
+    <a class="resume-review-link" routerLink="/resume">
+      <span class="material-icons">description</span>
+      <div>
+        <strong>{{ profile.activeResumeDocumentId ? 'Review resume details' : 'Add your resume' }}</strong>
+        <small>{{ profile.activeResumeDocumentId ? 'Check extraction and resume health' : 'Upload PDF or DOCX' }}</small>
+      </div>
+      <span class="material-icons arrow">arrow_forward</span>
+    </a>
+  </aside>
+
+  <main class="profile-main">
+    <div class="page-heading">
+      <p class="eyebrow">Applicant profile</p>
+      <h2>Tune how AIRRAL matches you to jobs.</h2>
+    </div>
+
+    <div class="success-banner" *ngIf="successMessage">
+      <span class="material-icons">check_circle</span>
+      {{ successMessage }}
+    </div>
+
+    <div class="error-banner" *ngIf="profileError">
+      <span class="material-icons">info</span>
+      {{ profileError }}
+    </div>
+
+    <form class="profile-form" (ngSubmit)="save()">
+      <section class="form-section">
+        <div class="section-heading">
+          <span class="material-icons">badge</span>
+          <div>
+            <h3>Career snapshot</h3>
+            <p>Headline, location, and summary help rank jobs before a resume fit check.</p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="field full">
+            <label for="headline">Headline</label>
+            <input id="headline" [(ngModel)]="profile.headline" name="headline" placeholder="Senior Product Manager">
+          </div>
+          <div class="field">
+            <label for="location">Location</label>
+            <input id="location" [(ngModel)]="profile.location" name="location" placeholder="San Francisco, CA">
+          </div>
+          <div class="field">
+            <label for="openToWork">Search mode</label>
+            <label class="toggle-line">
+              <input id="openToWork" type="checkbox" [(ngModel)]="profile.openToWork" name="openToWork">
+              <span class="toggle-track"></span>
+              <span>{{ profile.openToWork ? 'Open to work' : 'Quiet search' }}</span>
+            </label>
+          </div>
+          <div class="field full">
+            <label for="bio">Summary</label>
+            <textarea id="bio" [(ngModel)]="profile.bio" name="bio" rows="4" placeholder="A short, recruiter-friendly snapshot of your work, strengths, and target roles."></textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="section-heading">
+          <span class="material-icons">radar</span>
+          <div>
+            <h3>Match inputs</h3>
+            <p>These signals now feed the upgraded job ranking model.</p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="field full">
+            <label for="targetRoles">Target roles</label>
+            <textarea id="targetRoles" [(ngModel)]="targetRolesText" name="targetRoles" rows="2" placeholder="Frontend Engineer, Product Manager, Data Analyst"></textarea>
+          </div>
+          <div class="field full">
+            <label for="skills">Resume skills</label>
+            <textarea id="skills" [(ngModel)]="skillsText" name="skills" rows="2" placeholder="React, TypeScript, SQL, Product Strategy"></textarea>
+          </div>
+          <div class="field">
+            <label for="mustHave">Must-have skills</label>
+            <textarea id="mustHave" [(ngModel)]="mustHaveSkillsText" name="mustHaveSkills" rows="3" placeholder="Angular, Spring Boot"></textarea>
+          </div>
+          <div class="field">
+            <label for="niceToHave">Nice-to-have skills</label>
+            <textarea id="niceToHave" [(ngModel)]="niceToHaveSkillsText" name="niceToHaveSkills" rows="3" placeholder="AWS, GraphQL"></textarea>
+          </div>
+          <div class="field full">
+            <label for="avoidKeywords">Avoid keywords</label>
+            <input id="avoidKeywords" [(ngModel)]="avoidKeywordsText" name="avoidKeywords" placeholder="contract, relocation required, unpaid">
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="section-heading">
+          <span class="material-icons">filter_alt</span>
+          <div>
+            <h3>Search preferences</h3>
+            <p>Dealbreakers lower weak matches before they reach your first page.</p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="workMode">Preferred work mode</label>
+            <select id="workMode" [(ngModel)]="profile.preferredWorkMode" name="workMode">
+              <option value="">Any</option>
+              <option value="REMOTE">Remote</option>
+              <option value="HYBRID">Hybrid</option>
+              <option value="ONSITE">On-site</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="empType">Employment type</label>
+            <select id="empType" [(ngModel)]="profile.preferredEmploymentType" name="empType">
+              <option value="">Any</option>
+              <option value="FULL_TIME">Full-time</option>
+              <option value="CONTRACT">Contract</option>
+              <option value="PART_TIME">Part-time</option>
+              <option value="INTERNSHIP">Internship</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="salaryMin">Salary min</label>
+            <input id="salaryMin" type="number" [(ngModel)]="profile.salaryExpectationMin" name="salaryMin" placeholder="90000">
+          </div>
+          <div class="field">
+            <label for="salaryMax">Salary max</label>
+            <input id="salaryMax" type="number" [(ngModel)]="profile.salaryExpectationMax" name="salaryMax" placeholder="180000">
+          </div>
+        </div>
+
+        <div class="preference-grid">
+          <label class="preference-toggle">
+            <input type="checkbox" [(ngModel)]="profile.matchPreferences!.salaryRequired" name="salaryRequired">
+            <span class="material-icons">payments</span>
+            <strong>Salary required</strong>
+          </label>
+          <label class="preference-toggle">
+            <input type="checkbox" [(ngModel)]="profile.matchPreferences!.directCompanySourceOnly" name="directSourceOnly">
+            <span class="material-icons">verified</span>
+            <strong>Direct source only</strong>
+          </label>
+          <label class="preference-toggle">
+            <input type="checkbox" [(ngModel)]="profile.matchPreferences!.easyApplyOnly" name="easyApplyOnly">
+            <span class="material-icons">bolt</span>
+            <strong>Easy apply</strong>
+          </label>
+          <label class="preference-toggle">
+            <input type="checkbox" [(ngModel)]="profile.matchPreferences!.openToRelocation" name="openToRelocation">
+            <span class="material-icons">flight_takeoff</span>
+            <strong>Open to relocate</strong>
+          </label>
+          <label class="preference-toggle">
+            <input type="checkbox" [(ngModel)]="profile.matchPreferences!.needsSponsorship" name="needsSponsorship">
+            <span class="material-icons">assignment_ind</span>
+            <strong>Needs sponsorship</strong>
+          </label>
+          <label class="preference-toggle">
+            <input type="checkbox" [(ngModel)]="profile.matchPreferences!.requiresEVerify" name="requiresEVerify">
+            <span class="material-icons">fact_check</span>
+            <strong>Needs E-Verify</strong>
+          </label>
+        </div>
+      </section>
+
+      <div class="form-actions">
+        <button class="btn-save-profile" type="submit" [disabled]="saving">
+          <span class="material-icons">{{ saving ? 'hourglass_top' : 'save' }}</span>
+          {{ saving ? 'Saving' : 'Save profile' }}
+        </button>
+      </div>
+    </form>
+
+    <!-- Notification Settings -->
+    <section class="notification-section" *ngIf="notificationPrefs">
+      <div class="section-heading">
+        <span class="material-icons">notifications</span>
+        <div>
+          <h3>Email notifications</h3>
+          <p>Control what AIRRAL sends to your inbox.</p>
+        </div>
+      </div>
+      <p class="notif-save-msg" *ngIf="notificationSaveMessage">{{ notificationSaveMessage }}</p>
+      <div class="notification-toggles">
+        <label class="notif-toggle">
+          <input type="checkbox" [checked]="notificationPrefs.jobAlertEnabled" (change)="toggleNotification('jobAlertEnabled')">
+          <span class="toggle-track"></span>
+          <div>
+            <strong>New job alerts</strong>
+            <span>Daily email when new roles match your profile</span>
+          </div>
+        </label>
+        <label class="notif-toggle">
+          <input type="checkbox" [checked]="notificationPrefs.followUpReminderEnabled" (change)="toggleNotification('followUpReminderEnabled')">
+          <span class="toggle-track"></span>
+          <div>
+            <strong>Follow-up reminders</strong>
+            <span>Nudge when an application needs follow-up</span>
+          </div>
+        </label>
+        <label class="notif-toggle">
+          <input type="checkbox" [checked]="notificationPrefs.weeklyDigestEnabled" (change)="toggleNotification('weeklyDigestEnabled')">
+          <span class="toggle-track"></span>
+          <div>
+            <strong>Weekly digest</strong>
+            <span>Sunday summary of your job search progress</span>
+          </div>
+        </label>
+        <label class="notif-toggle">
+          <input type="checkbox" [checked]="notificationPrefs.resumeNudgeEnabled" (change)="toggleNotification('resumeNudgeEnabled')">
+          <span class="toggle-track"></span>
+          <div>
+            <strong>Resume nudge</strong>
+            <span>Reminder to run resume fit if you haven't tried it yet</span>
+          </div>
+        </label>
+        <label class="notif-toggle">
+          <input type="checkbox" [checked]="notificationPrefs.savedJobChangeEnabled" (change)="toggleNotification('savedJobChangeEnabled')">
+          <span class="toggle-track"></span>
+          <div>
+            <strong>Saved job updates</strong>
+            <span>Alert when a saved job is reposted or expires</span>
+          </div>
+        </label>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="profile-loading" *ngIf="loading">
+  <div class="skeleton-hero"></div>
+  <div class="skeleton-section"></div>
+  <div class="skeleton-section"></div>
+</div>
+
+<div class="profile-empty" *ngIf="!loading && !profile">
+  <span class="material-icons">person_off</span>
+  <p>We could not load your profile. Please sign in again.</p>
+</div>

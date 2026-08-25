@@ -5,6 +5,7 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
 import { JobApiService } from '@airral/shared-api';
 import { Job } from '@airral/shared-types';
+import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 import { PAGE_SEO } from '../../shared/seo-pages';
 import { SeoService } from '../../shared/seo.service';
@@ -27,6 +28,8 @@ export class JobsBrowseComponent implements OnInit {
 
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
+  readonly applicantLoginUrl = `${PORTAL_ROUTES.APPLICANT}/login`;
+  readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 
   readonly headerConfig = {
     brand: 'AIRRAL',

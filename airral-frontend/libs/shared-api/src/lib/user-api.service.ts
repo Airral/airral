@@ -14,15 +14,6 @@ export interface UpdateUserRequest {
   managerId?: number;
 }
 
-export interface InviteUserRequest {
-  email: string;
-  role: string;
-  firstName?: string;
-  lastName?: string;
-  departmentId?: number;
-  department?: string;
-}
-
 @Injectable({
   providedIn: 'root'
 })
@@ -44,30 +35,9 @@ export class UserApiService {
   }
 
   /**
-   * Get team members for a manager
-   */
-  getTeamMembers(managerId: number): Observable<User[]> {
-    return this.apiClient.get<User[]>(`/users/team/${managerId}`);
-  }
-
-  /**
    * Update user profile
    */
   updateUser(id: number, request: UpdateUserRequest): Observable<User> {
     return this.apiClient.put<User>(`/users/${id}`, request);
-  }
-
-  /**
-   * Invite a new team member
-   */
-  inviteUser(request: InviteUserRequest): Observable<any> {
-    return this.apiClient.post<any>('/users/invite', request);
-  }
-
-  /**
-   * Get pending invitations
-   */
-  getInvitations(): Observable<any[]> {
-    return this.apiClient.get<any[]>('/users/invitations');
   }
 }

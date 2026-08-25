@@ -1,1 +1,20 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+  color-scheme: light;
+  font-family: 'Manrope', sans-serif;
+  background: #f8f9fa;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: #f8f9fa;
+  color: #111827;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}

@@ -1,12 +1,22 @@
 # AIRRAL Job and Event Data Sourcing
 
-Last updated: 2026-05-18
+Last updated: 2026-05-27
 
 This document captures the current research direction for where AIRRAL should get job and event data, plus what we need to model in the backend.
 
 ## Short Answer
 
 AIRRAL should not depend on scraping LinkedIn, Indeed, Glassdoor, or generic search pages for the core product.
+
+For launch, AIRRAL should prioritize job-market utility over social engagement:
+
+1. Real active jobs across many industries.
+2. Official/cached source quality and freshness.
+3. Salary/work-mode/location/application-effort signals.
+4. Resume-to-job match and concrete application improvements.
+5. Save/apply/follow-up tracking.
+
+Messaging, founder spaces, events, rooms, and social feed should stay secondary until user feedback shows they improve interview outcomes.
 
 ## Current Implementation
 
@@ -43,8 +53,10 @@ Best first path:
 2. Store normalized jobs in AIRRAL.
 3. Use cheap job summary data for list views.
 4. Lazy-load heavy job detail only after a user selects a job.
-5. Use Luma/Eventbrite/Meetup-style sources plus curated partner calendars for career events.
-6. Store normalized events in AIRRAL and connect them to companies, roles, rooms, and user follow-up.
+5. Add broad documented aggregators and official sources to cover healthcare, finance, banking, retail, logistics, operations, sales, government, education, manufacturing, and tech.
+6. Attach resume fit, application checklist, follow-up reminders, and tracking to each selected job.
+7. Use Luma/Eventbrite/Meetup-style sources plus curated partner calendars later, only for events that support applications.
+8. Store normalized events in AIRRAL later and connect them to companies, roles, rooms, and user follow-up.
 
 ## Job Sources
 
@@ -90,6 +102,11 @@ Use these only when we need broader search coverage quickly. They may require at
 - Jooble REST API
   - Searches jobs by keywords/location and returns title, location, snippet, salary, source, type, link, company, updated timestamp, and id.
   - Source: https://help.jooble.org/en/support/solutions/articles/60001448238-rest-api-documentation
+
+- USAJOBS API
+  - Official federal job search source.
+  - Useful for broad non-tech job coverage and public-sector roles.
+  - Source: https://developer.usajobs.gov/
 
 ### Not A Good First Core Source
 
@@ -217,6 +234,9 @@ Heavy data loaded only when selected:
 - `interview_signal`
 - `company_insight`
 - `room_context`
+- `resume_fit`
+- `application_checklist`
+- `follow_up_reminder`
 - `last_refreshed_at`
 
 ## Job API Shape For AIRRAL
@@ -255,6 +275,8 @@ Returns:
 - resume fit
 - events connected to this company/role
 - apply mode and apply URL
+
+For launch, prioritize resume fit, source attribution, salary/work-mode/freshness, and application next steps over room/event context.
 
 ## Apply Rules
 

@@ -1,0 +1,118 @@
+<main class="login-page">
+  <section class="login-shell">
+
+    <header class="auth-story" aria-labelledby="login-title">
+      <div class="brand-row">
+        <div class="brand-mark">AR</div>
+        <div>
+          <strong>AIRRAL</strong>
+          <span>Applicant portal</span>
+        </div>
+      </div>
+
+      <section class="login-copy">
+        <p class="eyebrow">Job search OS</p>
+        <h1 id="login-title">{{ isRegisterMode ? 'Find the right job, faster.' : 'Welcome back.' }}</h1>
+        <p>{{ isRegisterMode ? 'One workspace for your entire job search.' : 'Sign in to continue your job search.' }}</p>
+        <ul class="value-list" aria-label="Applicant workspace includes">
+          <li><span class="material-icons" aria-hidden="true">check_circle</span>Real active jobs across industries</li>
+          <li><span class="material-icons" aria-hidden="true">check_circle</span>Resume-to-job match &amp; fit score</li>
+          <li><span class="material-icons" aria-hidden="true">check_circle</span>Application tracker &amp; prep</li>
+        </ul>
+      </section>
+    </header>
+
+    <form class="login-card" novalidate (ngSubmit)="submit()" #loginForm="ngForm">
+      <div class="mode-switch" aria-label="Applicant account mode">
+        <button type="button" [class.active]="!isRegisterMode" (click)="setMode('login')">Sign in</button>
+        <button type="button" [class.active]="isRegisterMode" (click)="setMode('register')">Create account</button>
+      </div>
+
+      <h2>{{ isRegisterMode ? 'Create your account' : 'Applicant sign in' }}</h2>
+
+      <div class="name-row" *ngIf="isRegisterMode">
+        <div class="field">
+          <label for="firstName">First name</label>
+          <input
+            id="firstName"
+            name="firstName"
+            type="text"
+            autocomplete="given-name"
+            [(ngModel)]="firstName"
+            placeholder="Jane">
+        </div>
+        <div class="field">
+          <label for="lastName">Last name</label>
+          <input
+            id="lastName"
+            name="lastName"
+            type="text"
+            autocomplete="family-name"
+            [(ngModel)]="lastName"
+            placeholder="Smith">
+        </div>
+      </div>
+
+      <airral-google-auth-button
+        [text]="isRegisterMode ? 'signup_with' : 'signin_with'"
+        [context]="isRegisterMode ? 'signup' : 'signin'"
+        [disabled]="loading || googleLoading"
+        (credentialReceived)="handleGoogleCredential($event)"
+      />
+
+      <div class="auth-divider"><span>or use email</span></div>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autocomplete="username"
+          required
+          [(ngModel)]="email"
+          placeholder="you@example.com">
+      </div>
+
+      <div class="field">
+        <label [for]="passwordInputId">Password</label>
+        <div class="password-control">
+          <input
+            [id]="passwordInputId"
+            name="password"
+            [type]="showPassword ? 'text' : 'password'"
+            [autocomplete]="isRegisterMode ? 'new-password' : 'current-password'"
+            required
+            [(ngModel)]="password"
+            [placeholder]="isRegisterMode ? 'Create a password' : 'Enter your password'">
+          <button
+            type="button"
+            class="password-toggle"
+            [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+            (click)="togglePasswordVisibility()">
+            <span class="material-icons" aria-hidden="true">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
+          </button>
+        </div>
+        <p class="password-hint" *ngIf="isRegisterMode">
+          Use at least 8 characters with uppercase, lowercase, and a number.
+        </p>
+      </div>
+
+      <p class="error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+      <button class="primary-action" type="submit" [disabled]="loading || googleLoading">
+        {{ loading || googleLoading ? (isRegisterMode ? 'Creating account...' : 'Signing in...') : (isRegisterMode ? 'Create account' : 'Sign in') }}
+      </button>
+
+      <p class="helper">
+        {{ isRegisterMode ? 'Already have an account?' : 'Need a candidate account?' }}
+        <button type="button" (click)="setMode(isRegisterMode ? 'login' : 'register')">
+          {{ isRegisterMode ? 'Sign in' : 'Create one here' }}
+        </button>
+      </p>
+
+      <p class="portal-note">Applicants only. Employer users should use the HR portal.</p>
+    </form>
+
+  </section>
+</main>

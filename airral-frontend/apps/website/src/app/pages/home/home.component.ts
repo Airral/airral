@@ -7,6 +7,7 @@ import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 import { Job } from '@airral/shared-types';
 import { JobApiService } from '@airral/shared-api';
+import { PORTAL_ROUTES } from '@airral/shared-utils';
 
 interface Feature {
   icon: string;
@@ -64,6 +65,8 @@ interface PreviewJob {
 export class HomeComponent implements OnInit {
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
+  readonly applicantLoginUrl = `${PORTAL_ROUTES.APPLICANT}/login`;
+  readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 
   jobs: Job[] = [];
   filteredJobs: Job[] = [];

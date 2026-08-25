@@ -33,7 +33,10 @@ public class CandidateProfileResponse {
     private List<EducationEntry> education;
     private MatchPreferences matchPreferences;
 
+    private Long activeResumeDocumentId;
     private String resumeUrl;
+    private String resumeParseStatus;
+    private LocalDateTime resumeParsedAt;
     private String videoIntroUrl;
     private Integer profileCompletion;
 

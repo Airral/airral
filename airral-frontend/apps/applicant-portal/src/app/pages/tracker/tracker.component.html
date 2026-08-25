@@ -1,0 +1,50 @@
+<div class="tracker-page">
+  <header class="tracker-header">
+    <div>
+      <h1>Application Tracker</h1>
+      <p *ngIf="!loading">{{ totalJobs }} jobs tracked</p>
+    </div>
+  </header>
+
+  <div class="tracker-error" *ngIf="errorMessage">
+    <span>{{ errorMessage }}</span>
+    <button type="button" (click)="loadSavedJobs()">Retry</button>
+  </div>
+
+  <div class="tracker-board" *ngIf="!loading">
+    <div class="tracker-column" [ngClass]="'status-' + col.status.toLowerCase()" *ngFor="let col of columns">
+      <div class="column-header">
+        <span class="material-icons">{{ col.icon }}</span>
+        <span class="column-label">{{ col.label }}</span>
+        <span class="column-count">{{ col.jobs.length }}</span>
+      </div>
+
+      <div class="column-body">
+        <div class="tracker-card" *ngFor="let job of col.jobs">
+          <div class="tracker-card-top">
+            <span class="tracker-company">{{ job.job?.companyName || 'Unknown' }}</span>
+          </div>
+          <h3 class="tracker-title">{{ job.job?.title || 'Untitled' }}</h3>
+          <p class="tracker-note" *ngIf="job.nextStep">{{ job.nextStep }}</p>
+          <div class="tracker-card-actions">
+            <button class="tracker-action" (click)="removeJob(job)" title="Remove">
+              <span class="material-icons">close</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="column-empty" *ngIf="col.jobs.length === 0">
+          <span class="material-icons">inbox</span>
+          <span>No jobs here</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tracker-loading" *ngIf="loading">
+    <div class="skeleton-col" *ngFor="let i of [1,2,3,4,5,6]">
+      <div class="skeleton-header"></div>
+      <div class="skeleton-card-placeholder"></div>
+    </div>
+  </div>
+</div>

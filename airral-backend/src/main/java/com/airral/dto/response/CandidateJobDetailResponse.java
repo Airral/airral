@@ -41,6 +41,7 @@ public class CandidateJobDetailResponse {
     private String postedLabel;
 
     private Integer matchScore;
+    private List<String> matchReasons;
     private Integer connectionsCount;
     private List<String> tags;
     private String sourcePayloadHash;
@@ -49,4 +50,18 @@ public class CandidateJobDetailResponse {
     private List<String> qualityReasons;
     private String totalCompLabel;
     private String compensationConfidence;
+
+    private String sponsorshipLanguage;
+    private Integer visaConfidenceScore;
+    private List<String> visaReasons;
+    private Boolean requiresUsWorkAuthorization;
+    private Boolean contractOrStaffingRisk;
+    private Boolean stemOptRisk;
+    private Boolean h1bTransferFit;
+    private Boolean capExemptFit;
+
+    /** Inferred experience level label: "Entry", "Mid", "Senior", "Staff+", "Lead", "Director+" */
+    private String seniorityLabel;
+    /** Minimum years of experience extracted from title or description (null if unknown) */
+    private Integer experienceYears;
 }

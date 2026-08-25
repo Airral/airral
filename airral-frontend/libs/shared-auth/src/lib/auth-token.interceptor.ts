@@ -4,24 +4,12 @@ import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
 
-const TOKEN_KEY = 'auth_token';
-
 function parseRequestPath(url: string): string {
   try {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
     return new URL(url, origin).pathname;
   } catch {
     return url;
-  }
-}
-
-function getStoredToken(): string | null {
-  try {
-    const localToken = typeof localStorage !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-    const sessionToken = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(TOKEN_KEY) : null;
-    return localToken ?? sessionToken;
-  } catch {
-    return null;
   }
 }
 
@@ -35,8 +23,7 @@ function isPublicReadRequest(url: string, method: string): boolean {
     path === '/api/feed/news' ||
     path === '/api/feed/signals' ||
     path === '/api/jobs/open' ||
-    /^\/api\/jobs\/\d+$/.test(path) ||
-    path.startsWith('/api/candidate/jobs/')
+    /^\/api\/jobs\/\d+$/.test(path)
   );
 }
 
@@ -80,9 +67,9 @@ function base64UrlDecode(value: string): string {
 }
 
 export const authTokenInterceptor: HttpInterceptorFn = (req, next) => {
-  const token = getStoredToken();
   const authService = inject(AuthService);
   const router = inject(Router);
+  const token = authService.getToken();
 
   const shouldAttachToken =
     Boolean(token) &&

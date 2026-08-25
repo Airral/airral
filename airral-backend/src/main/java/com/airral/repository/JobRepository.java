@@ -71,10 +71,6 @@ public interface JobRepository extends R2dbcRepository<Job, Long> {
     @Query("SELECT * FROM jobs WHERE id = :id AND status = 'OPEN'")
     Mono<Job> findOpenJobById(Long id);
 
-    // Find jobs by department
-    @Query("SELECT * FROM jobs WHERE organization_id = :organizationId AND department_id = :departmentId ORDER BY created_at DESC")
-    Flux<Job> findByOrganizationIdAndDepartmentId(Long organizationId, Long departmentId);
-
     // Find job by ID and organization (security check)
     @Query("SELECT * FROM jobs WHERE id = :id AND organization_id = :organizationId")
     Mono<Job> findByIdAndOrganizationId(Long id, Long organizationId);
@@ -86,4 +82,8 @@ public interface JobRepository extends R2dbcRepository<Job, Long> {
     // Count open jobs by organization
     @Query("SELECT COUNT(*) FROM jobs WHERE organization_id = :organizationId AND status = 'OPEN'")
     Mono<Long> countOpenJobsByOrganizationId(Long organizationId);
+
+    // Count total open jobs (public - for statistics)
+    @Query("SELECT COUNT(*) FROM jobs WHERE status = 'OPEN'")
+    Mono<Long> countOpenJobs();
 }

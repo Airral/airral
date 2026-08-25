@@ -26,15 +26,4 @@ export class HrEncounterApiService {
     return this.apiClient.get<HrEncounter[]>(`/encounters/application/${applicationId}`);
   }
 
-  getEncountersByCandidate(candidateId: number): Observable<HrEncounter[]> {
-    return this.apiClient.get<HrEncounter[]>(`/encounters/candidate/${candidateId}`);
-  }
-
-  updateEncounter(id: number, request: Partial<CreateEncounterRequest>): Observable<HrEncounter> {
-    return this.apiClient.put<HrEncounter>(`/encounters/${id}`, request);
-  }
-
-  deleteEncounter(id: number): Observable<any> {
-    return this.apiClient.delete<any>(`/encounters/${id}`);
-  }
 }

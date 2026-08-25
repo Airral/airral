@@ -1,5 +1,6 @@
 package com.airral.service;
 
+import com.airral.domain.Organization;
 import com.airral.dto.response.CandidateJobDetailResponse;
 import com.airral.dto.response.CandidateJobSummaryResponse;
 import org.springframework.r2dbc.core.DatabaseClient;
@@ -24,6 +25,8 @@ import java.util.StringJoiner;
 @Service
 public class ExternalJobPostingStore {
 
+    private static final int MAX_RECOMMENDED_QUERY_LIMIT = 2000;
+
     private final DatabaseClient databaseClient;
     private final CompanyLogoService companyLogoService;
 
@@ -46,6 +49,7 @@ public class ExternalJobPostingStore {
                         JOIN external_companies c ON c.id = s.company_id
                         WHERE s.is_active = true
                           AND c.is_active = true
+                          AND s.source_type <> 'AIRRAL_INTERNAL'
                         ORDER BY s.last_success_at ASC NULLS FIRST, c.name ASC
                         """)
                 .map((row, metadata) -> new ExternalJobSourceRecord(
@@ -58,6 +62,90 @@ public class ExternalJobPostingStore {
                         row.get("source_name", String.class)
                 ))
                 .all();
+    }
+
+    public Mono<ExternalJobSourceRecord> ensureInternalSource(Organization organization) {
+        if (organization == null || organization.getId() == null) {
+            return Mono.error(new IllegalArgumentException("An organization is required for an internal job source"));
+        }
+
+        String boardToken = "organization-" + organization.getId();
+        String companyKey = "airral-internal-org-" + organization.getId();
+        String companyName = firstNonBlank(organization.getName(), "AIRRAL employer");
+
+        DatabaseClient.GenericExecuteSpec spec = databaseClient.sql("""
+                        WITH upserted_company AS (
+                            INSERT INTO external_companies (
+                                name,
+                                normalized_name,
+                                domain,
+                                logo_url,
+                                verification_status,
+                                is_active,
+                                updated_at
+                            )
+                            VALUES (
+                                :companyName,
+                                :companyKey,
+                                :companyDomain,
+                                :companyLogoUrl,
+                                'VERIFIED',
+                                true,
+                                CURRENT_TIMESTAMP
+                            )
+                            ON CONFLICT (normalized_name)
+                            DO UPDATE SET
+                                name = EXCLUDED.name,
+                                domain = EXCLUDED.domain,
+                                logo_url = EXCLUDED.logo_url,
+                                verification_status = 'VERIFIED',
+                                is_active = true,
+                                updated_at = CURRENT_TIMESTAMP
+                            RETURNING id
+                        ), upserted_source AS (
+                            INSERT INTO external_job_sources (
+                                company_id,
+                                source_type,
+                                board_token,
+                                source_name,
+                                is_active,
+                                updated_at
+                            )
+                            SELECT
+                                id,
+                                'AIRRAL_INTERNAL',
+                                :boardToken,
+                                'AIRRAL employer',
+                                true,
+                                CURRENT_TIMESTAMP
+                            FROM upserted_company
+                            ON CONFLICT (source_type, board_token)
+                            DO UPDATE SET
+                                company_id = EXCLUDED.company_id,
+                                source_name = EXCLUDED.source_name,
+                                is_active = true,
+                                last_error = NULL,
+                                updated_at = CURRENT_TIMESTAMP
+                            RETURNING id, company_id
+                        )
+                        SELECT id, company_id
+                        FROM upserted_source
+                        """)
+                .bind("companyName", companyName)
+                .bind("companyKey", companyKey)
+                .bind("boardToken", boardToken);
+        spec = bindNullable(spec, "companyDomain", organization.getDomain(), String.class);
+        spec = bindNullable(spec, "companyLogoUrl", organization.getLogoUrl(), String.class);
+
+        return spec.map((row, metadata) -> new ExternalJobSourceRecord(
+                        row.get("id", Long.class),
+                        row.get("company_id", Long.class),
+                        companyName,
+                        organization.getDomain(),
+                        "AIRRAL_INTERNAL",
+                        boardToken,
+                        "AIRRAL employer"))
+                .one();
     }
 
     public Flux<CandidateJobSummaryResponse> findRecommendedJobs(
@@ -122,7 +210,17 @@ public class ExternalJobPostingStore {
                             WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'NEEDS_BENCHMARK'
                             ELSE 'POSTED_BASE'
                         END
-                    ) AS compensation_confidence
+                    ) AS compensation_confidence,
+                    p.sponsorship_language,
+                    p.visa_confidence_score,
+                    p.visa_reasons,
+                    p.requires_us_work_authorization,
+                    p.contract_or_staffing_risk,
+                    p.stem_opt_risk,
+                    p.h1b_transfer_fit,
+                    p.cap_exempt_fit,
+                    p.experience_years,
+                    p.seniority_label
                 FROM external_job_postings p
                 JOIN external_companies c ON c.id = p.company_id
                 WHERE p.is_active = true
@@ -143,16 +241,11 @@ public class ExternalJobPostingStore {
         }
         if (query != null && !query.isBlank()) {
             sql.append("""
-                     AND LOWER(CONCAT_WS(' ',
-                        p.title,
-                        c.name,
-                        p.department,
-                        p.location,
-                        p.work_mode,
-                        p.employment_type,
-                        p.salary_label,
-                        p.source_name
-                    )) LIKE :query
+                     AND (
+                        p.search_vector @@ plainto_tsquery('english', :query)
+                        OR LOWER(c.name) LIKE :queryLike
+                        OR LOWER(p.title) LIKE :queryLike
+                     )
                     """);
         }
 
@@ -175,7 +268,8 @@ public class ExternalJobPostingStore {
             spec = spec.bind("company", like(company));
         }
         if (query != null && !query.isBlank()) {
-            spec = spec.bind("query", like(query));
+            spec = spec.bind("query", query.trim());
+            spec = spec.bind("queryLike", like(query));
         }
 
         return spec.map((row, metadata) -> withStoreFallbacks(CandidateJobSummaryResponse.builder()
@@ -208,6 +302,199 @@ public class ExternalJobPostingStore {
                         .qualityReasons(tagsFrom(row.get("quality_reasons", Object.class)))
                         .totalCompLabel(row.get("total_comp_label", String.class))
                         .compensationConfidence(row.get("compensation_confidence", String.class))
+                        .sponsorshipLanguage(row.get("sponsorship_language", String.class))
+                        .visaConfidenceScore(row.get("visa_confidence_score", Integer.class))
+                        .visaReasons(tagsFrom(row.get("visa_reasons", Object.class)))
+                        .requiresUsWorkAuthorization(row.get("requires_us_work_authorization", Boolean.class))
+                        .contractOrStaffingRisk(row.get("contract_or_staffing_risk", Boolean.class))
+                        .stemOptRisk(row.get("stem_opt_risk", Boolean.class))
+                        .h1bTransferFit(row.get("h1b_transfer_fit", Boolean.class))
+                        .capExemptFit(row.get("cap_exempt_fit", Boolean.class))
+                        .seniorityLabel(row.get("seniority_label", String.class))
+                        .experienceYears(row.get("experience_years", Integer.class))
+                        .build()))
+                .all();
+    }
+
+    public Mono<Long> countActivePostings() {
+        return databaseClient.sql("""
+                        SELECT COUNT(*) AS total
+                        FROM external_job_postings p
+                        JOIN external_companies c ON c.id = p.company_id
+                        JOIN external_job_sources s ON s.id = p.job_source_id
+                        WHERE p.is_active = true
+                          AND p.expires_at > CURRENT_TIMESTAMP
+                          AND p.source_type <> 'AIRRAL_INTERNAL'
+                          AND c.is_active = true
+                          AND s.is_active = true
+                        """)
+                .map((row, metadata) -> row.get("total", Long.class))
+                .one()
+                .defaultIfEmpty(0L);
+    }
+
+    public Mono<Long> countCompaniesWithActivePostings() {
+        return databaseClient.sql("""
+                        SELECT COUNT(DISTINCT p.company_id) AS total
+                        FROM external_job_postings p
+                        JOIN external_companies c ON c.id = p.company_id
+                        JOIN external_job_sources s ON s.id = p.job_source_id
+                        WHERE p.is_active = true
+                          AND p.expires_at > CURRENT_TIMESTAMP
+                          AND p.source_type <> 'AIRRAL_INTERNAL'
+                          AND c.is_active = true
+                          AND s.is_active = true
+                        """)
+                .map((row, metadata) -> row.get("total", Long.class))
+                .one()
+                .defaultIfEmpty(0L);
+    }
+
+    /**
+     * Find active jobs whose tags or full-text search vector match any of the given skills.
+     * Used for skill-based retrieval: after parsing a resume, we search the DB for jobs
+     * that mention the candidate's skills in tags, title, department, or description.
+     */
+    public Flux<CandidateJobSummaryResponse> findJobsBySkills(
+            List<String> skills,
+            int maxAgeDays,
+            int limit) {
+        if (skills == null || skills.isEmpty()) {
+            return Flux.empty();
+        }
+
+        // Build a tsquery from the candidate's top skills (OR-combined)
+        // e.g., "python | kafka | snowflake | react"
+        String tsQuery = skills.stream()
+                .filter(s -> s != null && !s.isBlank())
+                .limit(12)
+                .map(s -> s.toLowerCase(Locale.US)
+                        .replaceAll("[^a-z0-9+#.]+", " ")
+                        .strip()
+                        .replace(" ", " & "))
+                .filter(s -> !s.isBlank())
+                .reduce((a, b) -> a + " | " + b)
+                .orElse(null);
+
+        if (tsQuery == null || tsQuery.isBlank()) {
+            return Flux.empty();
+        }
+
+        int resolvedLimit = Math.max(1, Math.min(limit, MAX_RECOMMENDED_QUERY_LIMIT));
+
+        StringBuilder sql = new StringBuilder("""
+                SELECT
+                    p.source_job_key,
+                    p.source_type,
+                    p.source_name,
+                    p.source_board_token,
+                    p.external_job_id,
+                    p.title,
+                    c.name AS company_name,
+                    c.domain AS company_domain,
+                    c.logo_url AS company_logo_url,
+                    p.department,
+                    p.location,
+                    p.work_mode,
+                    p.employment_type,
+                    p.salary_label,
+                    p.apply_url,
+                    p.job_url,
+                    p.apply_mode,
+                    p.easy_apply_available,
+                    p.source_updated_at,
+                    p.posted_label,
+                    p.match_score,
+                    p.connections_count,
+                    p.tags,
+                    COALESCE(p.job_quality_score, p.match_score, 78) AS job_quality_score,
+                    p.quality_reasons,
+                    COALESCE(
+                        p.total_comp_label,
+                        CASE
+                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'Benchmark needed'
+                            ELSE 'Base listed'
+                        END
+                    ) AS total_comp_label,
+                    COALESCE(
+                        p.compensation_confidence,
+                        CASE
+                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'NEEDS_BENCHMARK'
+                            ELSE 'POSTED_BASE'
+                        END
+                    ) AS compensation_confidence,
+                    p.sponsorship_language,
+                    p.visa_confidence_score,
+                    p.visa_reasons,
+                    p.requires_us_work_authorization,
+                    p.contract_or_staffing_risk,
+                    p.stem_opt_risk,
+                    p.h1b_transfer_fit,
+                    p.cap_exempt_fit,
+                    p.experience_years,
+                    p.seniority_label,
+                    ts_rank(p.search_vector, to_tsquery('english', :tsQuery)) AS relevance
+                FROM external_job_postings p
+                JOIN external_companies c ON c.id = p.company_id
+                WHERE p.is_active = true
+                  AND p.expires_at > CURRENT_TIMESTAMP
+                  AND p.search_vector @@ to_tsquery('english', :tsQuery)
+                """);
+
+        if (maxAgeDays > 0) {
+            sql.append(" AND p.source_updated_at >= :sourceCutoff");
+        }
+
+        sql.append(" ORDER BY relevance DESC, p.source_updated_at DESC NULLS LAST LIMIT :limit");
+
+        DatabaseClient.GenericExecuteSpec spec = databaseClient.sql(sql.toString())
+                .bind("tsQuery", tsQuery)
+                .bind("limit", resolvedLimit);
+
+        if (maxAgeDays > 0) {
+            spec = spec.bind("sourceCutoff", OffsetDateTime.now(ZoneOffset.UTC).minusDays(maxAgeDays));
+        }
+
+        return spec.map((row, metadata) -> withStoreFallbacks(CandidateJobSummaryResponse.builder()
+                        .jobId(row.get("source_job_key", String.class))
+                        .sourceType(row.get("source_type", String.class))
+                        .sourceName(row.get("source_name", String.class))
+                        .sourceBoardToken(row.get("source_board_token", String.class))
+                        .externalJobId(row.get("external_job_id", String.class))
+                        .title(row.get("title", String.class))
+                        .companyName(row.get("company_name", String.class))
+                        .companyDomain(companyLogoService.normalizeDomain(row.get("company_domain", String.class)))
+                        .companyLogoUrl(companyLogoService.logoUrl(
+                                row.get("company_domain", String.class),
+                                row.get("company_logo_url", String.class)))
+                        .department(row.get("department", String.class))
+                        .location(row.get("location", String.class))
+                        .workMode(row.get("work_mode", String.class))
+                        .employmentType(row.get("employment_type", String.class))
+                        .salaryLabel(row.get("salary_label", String.class))
+                        .applyUrl(row.get("apply_url", String.class))
+                        .jobUrl(row.get("job_url", String.class))
+                        .applyMode(row.get("apply_mode", String.class))
+                        .easyApplyAvailable(row.get("easy_apply_available", Boolean.class))
+                        .sourceUpdatedAt(row.get("source_updated_at", OffsetDateTime.class))
+                        .postedLabel(row.get("posted_label", String.class))
+                        .matchScore(row.get("match_score", Integer.class))
+                        .connectionsCount(row.get("connections_count", Integer.class))
+                        .tags(tagsFrom(row.get("tags", Object.class)))
+                        .jobQualityScore(row.get("job_quality_score", Integer.class))
+                        .qualityReasons(tagsFrom(row.get("quality_reasons", Object.class)))
+                        .totalCompLabel(row.get("total_comp_label", String.class))
+                        .compensationConfidence(row.get("compensation_confidence", String.class))
+                        .sponsorshipLanguage(row.get("sponsorship_language", String.class))
+                        .visaConfidenceScore(row.get("visa_confidence_score", Integer.class))
+                        .visaReasons(tagsFrom(row.get("visa_reasons", Object.class)))
+                        .requiresUsWorkAuthorization(row.get("requires_us_work_authorization", Boolean.class))
+                        .contractOrStaffingRisk(row.get("contract_or_staffing_risk", Boolean.class))
+                        .stemOptRisk(row.get("stem_opt_risk", Boolean.class))
+                        .h1bTransferFit(row.get("h1b_transfer_fit", Boolean.class))
+                        .capExemptFit(row.get("cap_exempt_fit", Boolean.class))
+                        .seniorityLabel(row.get("seniority_label", String.class))
+                        .experienceYears(row.get("experience_years", Integer.class))
                         .build()))
                 .all();
     }
@@ -252,12 +539,23 @@ public class ExternalJobPostingStore {
                             quality_reasons,
                             total_comp_label,
                             compensation_confidence,
+                            sponsorship_language,
+                            visa_confidence_score,
+                            visa_reasons,
+                            requires_us_work_authorization,
+                            contract_or_staffing_risk,
+                            stem_opt_risk,
+                            h1b_transfer_fit,
+                            cap_exempt_fit,
+                            experience_years,
+                            seniority_label,
                             source_payload_hash,
                             is_active,
                             last_seen_at,
                             expires_at,
                             deleted_at,
-                            updated_at
+                            updated_at,
+                            search_vector
                         )
                         VALUES (
                             :companyId,
@@ -281,17 +579,28 @@ public class ExternalJobPostingStore {
                             :postedLabel,
                             :matchScore,
                             :connectionsCount,
-                            :tags,
+                            CAST(:tags AS TEXT[]),
                             :jobQualityScore,
-                            :qualityReasons,
+                            CAST(:qualityReasons AS TEXT[]),
                             :totalCompLabel,
                             :compensationConfidence,
+                            :sponsorshipLanguage,
+                            :visaConfidenceScore,
+                            CAST(:visaReasons AS TEXT[]),
+                            :requiresUsWorkAuthorization,
+                            :contractOrStaffingRisk,
+                            :stemOptRisk,
+                            :h1bTransferFit,
+                            :capExemptFit,
+                            CAST(:experienceYears AS SMALLINT),
+                            :seniorityLabel,
                             :sourcePayloadHash,
                             true,
                             :now,
                             :expiresAt,
                             NULL,
-                            :now
+                            :now,
+                            to_tsvector('english', CONCAT_WS(' ', :title, :department, :location, :employmentType, :sourceName, :tagsText))
                         )
                         ON CONFLICT (source_type, source_board_token, external_job_id)
                         DO UPDATE SET
@@ -317,12 +626,23 @@ public class ExternalJobPostingStore {
                             quality_reasons = EXCLUDED.quality_reasons,
                             total_comp_label = EXCLUDED.total_comp_label,
                             compensation_confidence = EXCLUDED.compensation_confidence,
+                            sponsorship_language = EXCLUDED.sponsorship_language,
+                            visa_confidence_score = EXCLUDED.visa_confidence_score,
+                            visa_reasons = EXCLUDED.visa_reasons,
+                            requires_us_work_authorization = EXCLUDED.requires_us_work_authorization,
+                            contract_or_staffing_risk = EXCLUDED.contract_or_staffing_risk,
+                            stem_opt_risk = EXCLUDED.stem_opt_risk,
+                            h1b_transfer_fit = EXCLUDED.h1b_transfer_fit,
+                            cap_exempt_fit = EXCLUDED.cap_exempt_fit,
+                            experience_years = EXCLUDED.experience_years,
+                            seniority_label = EXCLUDED.seniority_label,
                             source_payload_hash = EXCLUDED.source_payload_hash,
                             is_active = true,
                             last_seen_at = EXCLUDED.last_seen_at,
                             expires_at = EXCLUDED.expires_at,
                             deleted_at = NULL,
-                            updated_at = EXCLUDED.updated_at
+                            updated_at = EXCLUDED.updated_at,
+                            search_vector = to_tsvector('english', CONCAT_WS(' ', EXCLUDED.title, EXCLUDED.department, EXCLUDED.location, EXCLUDED.employment_type, EXCLUDED.source_name, array_to_string(EXCLUDED.tags, ' ')))
                         """)
                 .bind("companyId", source.companyId())
                 .bind("jobSourceId", source.id())
@@ -336,7 +656,10 @@ public class ExternalJobPostingStore {
                 .bind("easyApplyAvailable", Boolean.TRUE.equals(job.getEasyApplyAvailable()))
                 .bind("connectionsCount", job.getConnectionsCount() == null ? 0 : job.getConnectionsCount())
                 .bind("tags", tags.toArray(String[]::new))
+                .bind("tagsText", String.join(" ", tags))
                 .bind("qualityReasons", qualityReasonsFor(job).toArray(String[]::new))
+                .bind("sponsorshipLanguage", firstNonBlank(job.getSponsorshipLanguage(), "UNKNOWN"))
+                .bind("visaReasons", visaReasonsFor(job).toArray(String[]::new))
                 .bind("sourcePayloadHash", payloadHash(source, job))
                 .bind("now", now)
                 .bind("expiresAt", expiresAt);
@@ -354,6 +677,14 @@ public class ExternalJobPostingStore {
         spec = bindNullable(spec, "jobQualityScore", firstNonNull(job.getJobQualityScore(), job.getMatchScore()), Integer.class);
         spec = bindNullable(spec, "totalCompLabel", firstNonBlank(job.getTotalCompLabel(), inferTotalCompLabel(job.getSalaryLabel())), String.class);
         spec = bindNullable(spec, "compensationConfidence", firstNonBlank(job.getCompensationConfidence(), inferCompensationConfidence(job.getSalaryLabel())), String.class);
+        spec = bindNullable(spec, "visaConfidenceScore", job.getVisaConfidenceScore(), Integer.class);
+        spec = bindNullable(spec, "requiresUsWorkAuthorization", job.getRequiresUsWorkAuthorization(), Boolean.class);
+        spec = bindNullable(spec, "contractOrStaffingRisk", job.getContractOrStaffingRisk(), Boolean.class);
+        spec = bindNullable(spec, "stemOptRisk", job.getStemOptRisk(), Boolean.class);
+        spec = bindNullable(spec, "h1bTransferFit", job.getH1bTransferFit(), Boolean.class);
+        spec = bindNullable(spec, "capExemptFit", job.getCapExemptFit(), Boolean.class);
+        spec = bindNullableShort(spec, "experienceYears", job.getExperienceYears());
+        spec = bindNullable(spec, "seniorityLabel", job.getSeniorityLabel(), String.class);
 
         return spec.fetch().rowsUpdated();
     }
@@ -412,7 +743,17 @@ public class ExternalJobPostingStore {
                                     WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'NEEDS_BENCHMARK'
                                     ELSE 'POSTED_BASE'
                                 END
-                            ) AS compensation_confidence
+                            ) AS compensation_confidence,
+                            p.sponsorship_language,
+                            p.visa_confidence_score,
+                            p.visa_reasons,
+                            p.requires_us_work_authorization,
+                            p.contract_or_staffing_risk,
+                            p.stem_opt_risk,
+                            p.h1b_transfer_fit,
+                            p.cap_exempt_fit,
+                            p.experience_years,
+                            p.seniority_label
                         FROM external_job_postings p
                         JOIN external_companies c ON c.id = p.company_id
                         WHERE p.source_type = :sourceType
@@ -466,6 +807,16 @@ public class ExternalJobPostingStore {
                         .qualityReasons(tagsFrom(row.get("quality_reasons", Object.class)))
                         .totalCompLabel(row.get("total_comp_label", String.class))
                         .compensationConfidence(row.get("compensation_confidence", String.class))
+                        .sponsorshipLanguage(row.get("sponsorship_language", String.class))
+                        .visaConfidenceScore(row.get("visa_confidence_score", Integer.class))
+                        .visaReasons(tagsFrom(row.get("visa_reasons", Object.class)))
+                        .requiresUsWorkAuthorization(row.get("requires_us_work_authorization", Boolean.class))
+                        .contractOrStaffingRisk(row.get("contract_or_staffing_risk", Boolean.class))
+                        .stemOptRisk(row.get("stem_opt_risk", Boolean.class))
+                        .h1bTransferFit(row.get("h1b_transfer_fit", Boolean.class))
+                        .capExemptFit(row.get("cap_exempt_fit", Boolean.class))
+                        .seniorityLabel(row.get("seniority_label", String.class))
+                        .experienceYears(row.get("experience_years", Integer.class))
                         .build()))
                 .one();
     }
@@ -553,9 +904,19 @@ public class ExternalJobPostingStore {
                             salary_label = :salaryLabel,
                             source_payload_hash = :sourcePayloadHash,
                             job_quality_score = :jobQualityScore,
-                            quality_reasons = :qualityReasons,
+                            quality_reasons = CAST(:qualityReasons AS TEXT[]),
                             total_comp_label = :totalCompLabel,
                             compensation_confidence = :compensationConfidence,
+                            sponsorship_language = :sponsorshipLanguage,
+                            visa_confidence_score = :visaConfidenceScore,
+                            visa_reasons = CAST(:visaReasons AS TEXT[]),
+                            requires_us_work_authorization = :requiresUsWorkAuthorization,
+                            contract_or_staffing_risk = :contractOrStaffingRisk,
+                            stem_opt_risk = :stemOptRisk,
+                            h1b_transfer_fit = :h1bTransferFit,
+                            cap_exempt_fit = :capExemptFit,
+                            experience_years = CAST(:experienceYears AS SMALLINT),
+                            seniority_label = :seniorityLabel,
                             updated_at = :now
                         WHERE source_type = :sourceType
                           AND source_board_token = :sourceBoardToken
@@ -565,6 +926,8 @@ public class ExternalJobPostingStore {
                 .bind("sourceBoardToken", detail.getSourceBoardToken().trim())
                 .bind("externalJobId", detail.getExternalJobId().trim())
                 .bind("qualityReasons", qualityReasonsFor(detail).toArray(String[]::new))
+                .bind("sponsorshipLanguage", firstNonBlank(detail.getSponsorshipLanguage(), "UNKNOWN"))
+                .bind("visaReasons", visaReasonsFor(detail).toArray(String[]::new))
                 .bind("now", now);
 
         spec = bindNullable(spec, "externalInternalJobId", detail.getExternalInternalJobId(), String.class);
@@ -579,6 +942,14 @@ public class ExternalJobPostingStore {
         spec = bindNullable(spec, "jobQualityScore", firstNonNull(detail.getJobQualityScore(), detail.getMatchScore()), Integer.class);
         spec = bindNullable(spec, "totalCompLabel", firstNonBlank(detail.getTotalCompLabel(), inferTotalCompLabel(detail.getSalaryLabel())), String.class);
         spec = bindNullable(spec, "compensationConfidence", firstNonBlank(detail.getCompensationConfidence(), inferCompensationConfidence(detail.getSalaryLabel())), String.class);
+        spec = bindNullable(spec, "visaConfidenceScore", detail.getVisaConfidenceScore(), Integer.class);
+        spec = bindNullable(spec, "requiresUsWorkAuthorization", detail.getRequiresUsWorkAuthorization(), Boolean.class);
+        spec = bindNullable(spec, "contractOrStaffingRisk", detail.getContractOrStaffingRisk(), Boolean.class);
+        spec = bindNullable(spec, "stemOptRisk", detail.getStemOptRisk(), Boolean.class);
+        spec = bindNullable(spec, "h1bTransferFit", detail.getH1bTransferFit(), Boolean.class);
+        spec = bindNullable(spec, "capExemptFit", detail.getCapExemptFit(), Boolean.class);
+        spec = bindNullableShort(spec, "experienceYears", detail.getExperienceYears());
+        spec = bindNullable(spec, "seniorityLabel", detail.getSeniorityLabel(), String.class);
 
         return spec.fetch().rowsUpdated();
     }
@@ -591,6 +962,7 @@ public class ExternalJobPostingStore {
                             deleted_at = CURRENT_TIMESTAMP,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE is_active = true
+                          AND source_type <> 'AIRRAL_INTERNAL'
                           AND (
                               expires_at <= CURRENT_TIMESTAMP
                               OR source_updated_at IS NULL
@@ -598,6 +970,44 @@ public class ExternalJobPostingStore {
                           )
                         """)
                 .bind("cutoff", cutoff)
+                .fetch()
+                .rowsUpdated();
+    }
+
+    public Mono<Long> deactivateInternalJob(Long internalJobId) {
+        if (internalJobId == null) {
+            return Mono.just(0L);
+        }
+
+        return databaseClient.sql("""
+                        UPDATE external_job_postings
+                        SET is_active = false,
+                            deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE source_type = 'AIRRAL_INTERNAL'
+                          AND external_job_id = :internalJobId
+                          AND is_active = true
+                        """)
+                .bind("internalJobId", String.valueOf(internalJobId))
+                .fetch()
+                .rowsUpdated();
+    }
+
+    public Mono<Long> deactivateStaleInternalJobs() {
+        return databaseClient.sql("""
+                        UPDATE external_job_postings p
+                        SET is_active = false,
+                            deleted_at = COALESCE(p.deleted_at, CURRENT_TIMESTAMP),
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE p.source_type = 'AIRRAL_INTERNAL'
+                          AND p.is_active = true
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM jobs j
+                              WHERE j.id::text = p.external_job_id
+                                AND j.status = 'OPEN'
+                          )
+                        """)
                 .fetch()
                 .rowsUpdated();
     }
@@ -714,6 +1124,130 @@ public class ExternalJobPostingStore {
         return spec.fetch().rowsUpdated();
     }
 
+    public Mono<Long> disableSource(Long sourceId, String reason) {
+        DatabaseClient.GenericExecuteSpec spec = databaseClient.sql("""
+                        UPDATE external_job_sources
+                        SET is_active = false,
+                            last_synced_at = CURRENT_TIMESTAMP,
+                            last_error = :lastError,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :sourceId
+                        """)
+                .bind("sourceId", sourceId);
+        spec = bindNullable(spec, "lastError", truncate(reason, 2000), String.class);
+        return spec.fetch().rowsUpdated();
+    }
+
+    public Mono<Long> deactivatePostingsForSource(Long sourceId) {
+        return databaseClient.sql("""
+                        UPDATE external_job_postings
+                        SET is_active = false,
+                            deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE job_source_id = :sourceId
+                          AND is_active = true
+                        """)
+                .bind("sourceId", sourceId)
+                .fetch()
+                .rowsUpdated();
+    }
+
+    public Mono<CandidateJobSummaryResponse> findActiveJobSummary(String sourceJobKey) {
+        if (sourceJobKey == null || sourceJobKey.isBlank()) {
+            return Mono.empty();
+        }
+
+        return databaseClient.sql("""
+                        SELECT
+                            p.source_job_key,
+                            p.source_type,
+                            p.source_name,
+                            p.source_board_token,
+                            p.external_job_id,
+                            p.title,
+                            c.name AS company_name,
+                            c.domain AS company_domain,
+                            c.logo_url AS company_logo_url,
+                            p.department,
+                            p.location,
+                            p.work_mode,
+                            p.employment_type,
+                            p.salary_label,
+                            p.apply_url,
+                            p.job_url,
+                            p.apply_mode,
+                            p.easy_apply_available,
+                            p.source_updated_at,
+                            p.posted_label,
+                            p.match_score,
+                            p.connections_count,
+                            p.tags,
+                            COALESCE(p.job_quality_score, p.match_score, 78) AS job_quality_score,
+                            p.quality_reasons,
+                            COALESCE(p.total_comp_label, 'Benchmark needed') AS total_comp_label,
+                            COALESCE(p.compensation_confidence, 'NEEDS_BENCHMARK') AS compensation_confidence,
+                            p.sponsorship_language,
+                            p.visa_confidence_score,
+                            p.visa_reasons,
+                            p.requires_us_work_authorization,
+                            p.contract_or_staffing_risk,
+                            p.stem_opt_risk,
+                            p.h1b_transfer_fit,
+                            p.cap_exempt_fit,
+                            p.experience_years,
+                            p.seniority_label
+                        FROM external_job_postings p
+                        JOIN external_companies c ON c.id = p.company_id
+                        WHERE p.source_job_key = :sourceJobKey
+                          AND p.is_active = true
+                          AND p.expires_at > CURRENT_TIMESTAMP
+                        LIMIT 1
+                        """)
+                .bind("sourceJobKey", sourceJobKey.trim())
+                .map((row, metadata) -> withStoreFallbacks(CandidateJobSummaryResponse.builder()
+                        .jobId(row.get("source_job_key", String.class))
+                        .sourceType(row.get("source_type", String.class))
+                        .sourceName(row.get("source_name", String.class))
+                        .sourceBoardToken(row.get("source_board_token", String.class))
+                        .externalJobId(row.get("external_job_id", String.class))
+                        .title(row.get("title", String.class))
+                        .companyName(row.get("company_name", String.class))
+                        .companyDomain(companyLogoService.normalizeDomain(row.get("company_domain", String.class)))
+                        .companyLogoUrl(companyLogoService.logoUrl(
+                                row.get("company_domain", String.class),
+                                row.get("company_logo_url", String.class)))
+                        .department(row.get("department", String.class))
+                        .location(row.get("location", String.class))
+                        .workMode(row.get("work_mode", String.class))
+                        .employmentType(row.get("employment_type", String.class))
+                        .salaryLabel(row.get("salary_label", String.class))
+                        .applyUrl(row.get("apply_url", String.class))
+                        .jobUrl(row.get("job_url", String.class))
+                        .applyMode(row.get("apply_mode", String.class))
+                        .easyApplyAvailable(row.get("easy_apply_available", Boolean.class))
+                        .sourceUpdatedAt(row.get("source_updated_at", OffsetDateTime.class))
+                        .postedLabel(row.get("posted_label", String.class))
+                        .matchScore(row.get("match_score", Integer.class))
+                        .connectionsCount(row.get("connections_count", Integer.class))
+                        .tags(tagsFrom(row.get("tags", Object.class)))
+                        .jobQualityScore(row.get("job_quality_score", Integer.class))
+                        .qualityReasons(tagsFrom(row.get("quality_reasons", Object.class)))
+                        .totalCompLabel(row.get("total_comp_label", String.class))
+                        .compensationConfidence(row.get("compensation_confidence", String.class))
+                        .sponsorshipLanguage(row.get("sponsorship_language", String.class))
+                        .visaConfidenceScore(row.get("visa_confidence_score", Integer.class))
+                        .visaReasons(tagsFrom(row.get("visa_reasons", Object.class)))
+                        .requiresUsWorkAuthorization(row.get("requires_us_work_authorization", Boolean.class))
+                        .contractOrStaffingRisk(row.get("contract_or_staffing_risk", Boolean.class))
+                        .stemOptRisk(row.get("stem_opt_risk", Boolean.class))
+                        .h1bTransferFit(row.get("h1b_transfer_fit", Boolean.class))
+                        .capExemptFit(row.get("cap_exempt_fit", Boolean.class))
+                        .seniorityLabel(row.get("seniority_label", String.class))
+                        .experienceYears(row.get("experience_years", Integer.class))
+                        .build()))
+                .one();
+    }
+
     private CandidateJobSummaryResponse withStoreFallbacks(CandidateJobSummaryResponse job) {
         if (job.getQualityReasons() == null || job.getQualityReasons().isEmpty()) {
             job.setQualityReasons(qualityReasonsFor(job));
@@ -726,6 +1260,15 @@ public class ExternalJobPostingStore {
         }
         if (job.getJobQualityScore() == null) {
             job.setJobQualityScore(firstNonNull(job.getMatchScore(), 78));
+        }
+        if (job.getSponsorshipLanguage() == null || job.getSponsorshipLanguage().isBlank()) {
+            job.setSponsorshipLanguage("UNKNOWN");
+        }
+        if (job.getVisaReasons() == null || job.getVisaReasons().isEmpty()) {
+            job.setVisaReasons(visaReasonsFor(job));
+        }
+        if (job.getVisaConfidenceScore() == null) {
+            job.setVisaConfidenceScore("NO_SPONSORSHIP".equals(job.getSponsorshipLanguage()) ? 8 : 55);
         }
         return job;
     }
@@ -743,6 +1286,15 @@ public class ExternalJobPostingStore {
         if (detail.getJobQualityScore() == null) {
             detail.setJobQualityScore(firstNonNull(detail.getMatchScore(), 78));
         }
+        if (detail.getSponsorshipLanguage() == null || detail.getSponsorshipLanguage().isBlank()) {
+            detail.setSponsorshipLanguage("UNKNOWN");
+        }
+        if (detail.getVisaReasons() == null || detail.getVisaReasons().isEmpty()) {
+            detail.setVisaReasons(visaReasonsFor(detail));
+        }
+        if (detail.getVisaConfidenceScore() == null) {
+            detail.setVisaConfidenceScore("NO_SPONSORSHIP".equals(detail.getSponsorshipLanguage()) ? 8 : 55);
+        }
         return detail;
     }
 
@@ -755,6 +1307,16 @@ public class ExternalJobPostingStore {
             return spec.bindNull(key, valueType);
         }
         return spec.bind(key, value);
+    }
+
+    private DatabaseClient.GenericExecuteSpec bindNullableShort(
+            DatabaseClient.GenericExecuteSpec spec,
+            String key,
+            Integer value) {
+        if (value == null) {
+            return spec.bindNull(key, Short.class);
+        }
+        return spec.bind(key, value.shortValue());
     }
 
     private List<String> qualityReasonsFor(CandidateJobSummaryResponse job) {
@@ -785,6 +1347,54 @@ public class ExternalJobPostingStore {
                 detail.getJobUrl(),
                 detail.getDepartment(),
                 detail.getDescriptionText());
+    }
+
+    private List<String> visaReasonsFor(CandidateJobSummaryResponse job) {
+        if (job.getVisaReasons() != null && !job.getVisaReasons().isEmpty()) {
+            return job.getVisaReasons();
+        }
+
+        List<String> reasons = new java.util.ArrayList<>();
+        if ("SPONSORS".equalsIgnoreCase(job.getSponsorshipLanguage())) {
+            reasons.add("Posting mentions sponsorship");
+        } else if ("NO_SPONSORSHIP".equalsIgnoreCase(job.getSponsorshipLanguage())) {
+            reasons.add("Posting says sponsorship is not available");
+        } else if ("AUTHORIZATION_REQUIRED".equalsIgnoreCase(job.getSponsorshipLanguage())) {
+            reasons.add("Posting requires US work authorization");
+        } else {
+            reasons.add("Sponsorship not stated");
+        }
+        if (Boolean.TRUE.equals(job.getContractOrStaffingRisk())) {
+            reasons.add("Contract/staffing language needs review");
+        }
+        if (Boolean.TRUE.equals(job.getCapExemptFit())) {
+            reasons.add("Possible cap-exempt employer signal");
+        }
+        return reasons.stream().limit(4).toList();
+    }
+
+    private List<String> visaReasonsFor(CandidateJobDetailResponse detail) {
+        if (detail.getVisaReasons() != null && !detail.getVisaReasons().isEmpty()) {
+            return detail.getVisaReasons();
+        }
+
+        List<String> reasons = new java.util.ArrayList<>();
+        if ("SPONSORS".equalsIgnoreCase(detail.getSponsorshipLanguage())) {
+            reasons.add("Posting mentions sponsorship");
+        } else if ("NO_SPONSORSHIP".equalsIgnoreCase(detail.getSponsorshipLanguage())) {
+            reasons.add("Posting says sponsorship is not available");
+        } else if ("AUTHORIZATION_REQUIRED".equalsIgnoreCase(detail.getSponsorshipLanguage())) {
+            reasons.add("Posting requires US work authorization");
+        } else {
+            reasons.add("Sponsorship not stated");
+        }
+        if (Boolean.TRUE.equals(detail.getContractOrStaffingRisk())) {
+            reasons.add("Contract/staffing language needs review");
+        }
+        if (Boolean.TRUE.equals(detail.getCapExemptFit())) {
+            reasons.add("Possible cap-exempt employer signal");
+        }
+        return reasons.stream().limit(4).toList();
     }
 
     private List<String> qualityReasonsFor(
@@ -852,7 +1462,7 @@ public class ExternalJobPostingStore {
         if (limit == null) {
             return 50;
         }
-        return Math.max(1, Math.min(limit, 500));
+        return Math.max(1, Math.min(limit, MAX_RECOMMENDED_QUERY_LIMIT));
     }
 
     private int normalizeOffset(Integer offset) {

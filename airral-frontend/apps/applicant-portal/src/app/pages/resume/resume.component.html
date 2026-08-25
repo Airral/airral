@@ -1,0 +1,309 @@
+<div class="resume-page">
+  <header class="resume-header">
+    <div>
+      <p class="eyebrow">Resume workspace</p>
+      <h1>Review your resume</h1>
+      <p class="header-copy">Verify what AIRRAL uses for job matching and job-specific resume feedback.</p>
+    </div>
+    <label class="upload-button" [class.busy]="uploading">
+      <span class="material-icons">{{ uploading ? 'hourglass_top' : 'upload_file' }}</span>
+      <span>{{ uploading ? 'Reading resume' : (hasResume ? 'Replace resume' : 'Upload resume') }}</span>
+      <input type="file" accept=".pdf,.docx" (change)="onResumeSelected($event)" [disabled]="uploading" hidden>
+    </label>
+  </header>
+
+  <div class="message success" role="status" *ngIf="successMessage">
+    <span class="material-icons">check_circle</span>
+    <span>{{ successMessage }}</span>
+  </div>
+  <div class="message error" role="alert" *ngIf="errorMessage">
+    <span class="material-icons">error_outline</span>
+    <span>{{ errorMessage }}</span>
+  </div>
+
+  <div class="loading-state" *ngIf="loading">
+    <span class="material-icons spin">autorenew</span>
+    <div>
+      <strong>Loading resume review</strong>
+      <span>Preparing your latest extracted details.</span>
+    </div>
+  </div>
+
+  <section class="empty-state" *ngIf="!loading && !hasResume">
+    <div class="empty-icon"><span class="material-icons">description</span></div>
+    <h2>Start with your current resume</h2>
+    <p>AIRRAL will extract your experience, skills, and target roles so you can verify them before they affect job matches.</p>
+    <label class="upload-button primary" [class.busy]="uploading">
+      <span class="material-icons">{{ uploading ? 'hourglass_top' : 'upload_file' }}</span>
+      <span>{{ uploading ? 'Reading resume' : 'Upload PDF or DOCX' }}</span>
+      <input type="file" accept=".pdf,.docx" (change)="onResumeSelected($event)" [disabled]="uploading" hidden>
+    </label>
+    <small>Maximum file size: 5 MB</small>
+  </section>
+
+  <section class="analysis-error-state" *ngIf="!loading && hasResume && !review">
+    <span class="material-icons">find_in_page</span>
+    <div>
+      <h2>Resume details are unavailable</h2>
+      <p>Replace the current file to run extraction again.</p>
+    </div>
+  </section>
+
+  <div class="resume-workspace" *ngIf="!loading && review">
+    <aside class="review-rail">
+      <section class="rail-panel extraction-panel">
+        <div class="panel-title-row">
+          <span class="status-icon" [ngClass]="confidenceClass">
+            <span class="material-icons">fact_check</span>
+          </span>
+          <div>
+            <p class="panel-label">Extraction</p>
+            <h2>{{ confidenceLabel }}</h2>
+          </div>
+        </div>
+
+        <div class="confidence-row">
+          <strong>{{ confidenceScore }}%</strong>
+          <span>{{ sectionCount }}/5 core sections found</span>
+        </div>
+        <div class="confidence-track" aria-hidden="true">
+          <span [class]="confidenceClass" [style.width.%]="confidenceScore"></span>
+        </div>
+        <p class="parsed-date" *ngIf="review.parsedAt">Parsed {{ review.parsedAt | date:'MMM d, y, h:mm a' }}</p>
+      </section>
+
+      <section class="rail-panel warnings-panel" *ngIf="review.parseWarnings.length; else cleanExtraction">
+        <div class="rail-heading">
+          <span class="material-icons">warning_amber</span>
+          <h3>Check these details</h3>
+        </div>
+        <ul>
+          <li *ngFor="let warning of review.parseWarnings">{{ warning }}</li>
+        </ul>
+      </section>
+      <ng-template #cleanExtraction>
+        <section class="rail-panel clean-panel">
+          <span class="material-icons">verified</span>
+          <div>
+            <h3>No extraction warnings</h3>
+            <p>Still verify dates, titles, and skill names before saving.</p>
+          </div>
+        </section>
+      </ng-template>
+
+      <section class="rail-panel health-panel" *ngIf="health">
+        <div class="health-score-row">
+          <div class="health-score" [class.good]="health.score >= 70" [class.mid]="health.score >= 50 && health.score < 70" [class.low]="health.score < 50">
+            {{ health.score }}
+          </div>
+          <div>
+            <p class="panel-label">Resume health</p>
+            <h3>Grade {{ health.grade }}</h3>
+          </div>
+        </div>
+        <dl class="health-metrics">
+          <div><dt>Words</dt><dd>{{ health.wordCount }}</dd></div>
+          <div><dt>Skills</dt><dd>{{ health.skillCount }}</dd></div>
+        </dl>
+        <div class="top-fixes" *ngIf="health.topFixes.length">
+          <strong>Highest-impact fixes</strong>
+          <ol>
+            <li *ngFor="let fix of health.topFixes.slice(0, 3)">{{ fix }}</li>
+          </ol>
+        </div>
+      </section>
+    </aside>
+
+    <main class="resume-editor">
+      <section class="editor-section">
+        <div class="section-heading">
+          <div>
+            <p class="section-step">01</p>
+            <h2>Career snapshot</h2>
+          </div>
+          <span>Used in first-pass job ranking</span>
+        </div>
+        <div class="field-grid">
+          <label class="field full">
+            <span>Professional headline</span>
+            <input [(ngModel)]="headline" (ngModelChange)="markDirty()" placeholder="Senior Data Scientist">
+          </label>
+          <label class="field full">
+            <span>Professional summary</span>
+            <textarea [(ngModel)]="summary" (ngModelChange)="markDirty()" rows="5" placeholder="A concise summary of your experience and strongest outcomes."></textarea>
+          </label>
+          <label class="field">
+            <span>Location</span>
+            <input [(ngModel)]="location" (ngModelChange)="markDirty()" placeholder="New York, NY">
+          </label>
+          <fieldset class="field mode-field">
+            <legend>Preferred work mode</legend>
+            <div class="segmented-control">
+              <button type="button" [class.active]="workMode === ''" (click)="setWorkMode('')">Any</button>
+              <button type="button" [class.active]="workMode === 'REMOTE'" (click)="setWorkMode('REMOTE')">Remote</button>
+              <button type="button" [class.active]="workMode === 'HYBRID'" (click)="setWorkMode('HYBRID')">Hybrid</button>
+              <button type="button" [class.active]="workMode === 'ONSITE'" (click)="setWorkMode('ONSITE')">On-site</button>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <section class="editor-section">
+        <div class="section-heading">
+          <div>
+            <p class="section-step">02</p>
+            <h2>Targeting signals</h2>
+          </div>
+          <span>Controls which jobs rise to the top</span>
+        </div>
+
+        <div class="tag-section">
+          <label for="roleInput">Target roles</label>
+          <div class="tag-editor">
+            <span class="tag" *ngFor="let role of targetRoles; let index = index">
+              {{ role }}
+              <button type="button" (click)="removeRole(index)" [attr.aria-label]="'Remove ' + role" title="Remove role">
+                <span class="material-icons">close</span>
+              </button>
+            </span>
+            <div class="tag-input-row">
+              <input id="roleInput" [(ngModel)]="roleInput" (keydown)="handleTagKeydown($event, 'role')" placeholder="Add a role">
+              <button type="button" (click)="addRole()" [disabled]="!roleInput.trim()" title="Add role" aria-label="Add role">
+                <span class="material-icons">add</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tag-section">
+          <label for="skillInput">Skills</label>
+          <div class="tag-editor">
+            <span class="tag neutral" *ngFor="let skill of skills; let index = index">
+              {{ skill }}
+              <button type="button" (click)="removeSkill(index)" [attr.aria-label]="'Remove ' + skill" title="Remove skill">
+                <span class="material-icons">close</span>
+              </button>
+            </span>
+            <div class="tag-input-row">
+              <input id="skillInput" [(ngModel)]="skillInput" (keydown)="handleTagKeydown($event, 'skill')" placeholder="Add a skill">
+              <button type="button" (click)="addSkill()" [disabled]="!skillInput.trim()" title="Add skill" aria-label="Add skill">
+                <span class="material-icons">add</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="editor-section">
+        <div class="section-heading with-action">
+          <div>
+            <p class="section-step">03</p>
+            <h2>Experience</h2>
+          </div>
+          <button class="section-action" type="button" (click)="addExperience()">
+            <span class="material-icons">add</span>
+            <span>Add role</span>
+          </button>
+        </div>
+
+        <div class="empty-section" *ngIf="!experience.length">
+          <span class="material-icons">work_history</span>
+          <p>No experience entries were found.</p>
+          <button type="button" (click)="addExperience()">Add experience</button>
+        </div>
+
+        <fieldset class="entry-row" *ngFor="let entry of experience; let index = index; trackBy: trackByIndex">
+          <legend>Experience {{ index + 1 }}</legend>
+          <button class="remove-entry" type="button" (click)="removeExperience(index)" title="Remove experience" aria-label="Remove experience">
+            <span class="material-icons">delete_outline</span>
+          </button>
+          <div class="field-grid">
+            <label class="field">
+              <span>Job title</span>
+              <input [(ngModel)]="entry.title" (ngModelChange)="markDirty()" [name]="'experienceTitle' + index" placeholder="Product Manager">
+            </label>
+            <label class="field">
+              <span>Company</span>
+              <input [(ngModel)]="entry.company" (ngModelChange)="markDirty()" [name]="'experienceCompany' + index" placeholder="Company name">
+            </label>
+            <label class="field">
+              <span>Start date</span>
+              <input [(ngModel)]="entry.startDate" (ngModelChange)="markDirty()" [name]="'experienceStart' + index" placeholder="Jan 2022">
+            </label>
+            <label class="field" [class.disabled]="entry.current === true">
+              <span>End date</span>
+              <input [(ngModel)]="entry.endDate" (ngModelChange)="markDirty()" [name]="'experienceEnd' + index" placeholder="Mar 2025" [disabled]="entry.current === true">
+            </label>
+            <label class="current-role">
+              <input type="checkbox" [(ngModel)]="entry.current" (ngModelChange)="toggleCurrent(entry)" [name]="'experienceCurrent' + index">
+              <span class="check-box"><span class="material-icons">check</span></span>
+              <span>Current role</span>
+            </label>
+            <label class="field full">
+              <span>Highlights</span>
+              <textarea [(ngModel)]="entry.description" (ngModelChange)="markDirty()" [name]="'experienceDescription' + index" rows="4" placeholder="Key outcomes, scope, and measurable impact."></textarea>
+            </label>
+          </div>
+        </fieldset>
+      </section>
+
+      <section class="editor-section">
+        <div class="section-heading with-action">
+          <div>
+            <p class="section-step">04</p>
+            <h2>Education</h2>
+          </div>
+          <button class="section-action" type="button" (click)="addEducation()">
+            <span class="material-icons">add</span>
+            <span>Add education</span>
+          </button>
+        </div>
+
+        <div class="empty-section" *ngIf="!education.length">
+          <span class="material-icons">school</span>
+          <p>No education entries were found.</p>
+          <button type="button" (click)="addEducation()">Add education</button>
+        </div>
+
+        <fieldset class="entry-row" *ngFor="let entry of education; let index = index; trackBy: trackByIndex">
+          <legend>Education {{ index + 1 }}</legend>
+          <button class="remove-entry" type="button" (click)="removeEducation(index)" title="Remove education" aria-label="Remove education">
+            <span class="material-icons">delete_outline</span>
+          </button>
+          <div class="field-grid education-grid">
+            <label class="field full">
+              <span>School</span>
+              <input [(ngModel)]="entry.school" (ngModelChange)="markDirty()" [name]="'educationSchool' + index" placeholder="University name">
+            </label>
+            <label class="field">
+              <span>Degree</span>
+              <input [(ngModel)]="entry.degree" (ngModelChange)="markDirty()" [name]="'educationDegree' + index" placeholder="Bachelor of Science">
+            </label>
+            <label class="field">
+              <span>Field of study</span>
+              <input [(ngModel)]="entry.field" (ngModelChange)="markDirty()" [name]="'educationField' + index" placeholder="Computer Science">
+            </label>
+            <label class="field year-field">
+              <span>Graduation year</span>
+              <input type="number" min="1950" max="2100" [(ngModel)]="entry.graduationYear" (ngModelChange)="markDirty()" [name]="'educationYear' + index" placeholder="2024">
+            </label>
+          </div>
+        </fieldset>
+      </section>
+
+      <footer class="save-bar">
+        <div>
+          <strong>{{ dirty ? 'Unsaved review changes' : 'Resume details are saved' }}</strong>
+          <span>These details power ranking and job-specific fit reports.</span>
+        </div>
+        <div class="save-actions">
+          <a routerLink="/jobs">View jobs</a>
+          <button type="button" (click)="saveReview()" [disabled]="saving || !dirty">
+            <span class="material-icons">{{ saving ? 'hourglass_top' : 'verified' }}</span>
+            <span>{{ saving ? 'Saving' : 'Save verified resume' }}</span>
+          </button>
+        </div>
+      </footer>
+    </main>
+  </div>
+</div>

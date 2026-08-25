@@ -1,141 +1,234 @@
-<section class="panel">
-  <div *ngIf="error" class="empty-state">{{ error }}</div>
-
-  <div *ngIf="!error">
-  <header class="candidates-header">
+<main class="pipeline-page">
+  <header class="page-header">
     <div>
-      <h1>Applicants</h1>
-      <p>Review and manage job applications</p>
+      <p class="eyebrow">Hiring workspace</p>
+      <h1>Candidates</h1>
+      <p class="page-copy">Review evidence, coordinate interviews, and move every applicant toward a clear decision.</p>
     </div>
-
-    <div class="header-actions">
-      <input
-        type="search"
-        [(ngModel)]="searchQuery"
-        placeholder="Search applicants..."
-        class="search-input"
-      />
-
-      @if (permissions.canViewAllApplicants && belowThresholdCount > 0) {
-        <label class="toggle-filter">
-          <input
-            type="checkbox"
-            [(ngModel)]="showBelowThreshold"
-          />
-          Show {{ belowThresholdCount }} below threshold
-        </label>
-      }
-    </div>
+    <button type="button" class="icon-action" title="Refresh candidates" aria-label="Refresh candidates" (click)="load()">
+      <span class="material-icons" aria-hidden="true">refresh</span>
+    </button>
   </header>
 
-  <div class="candidates-layout">
-    <!-- Applicant List -->
-    <div class="candidate-list">
-      @for (app of filteredApplications; track app.id) {
-        <div
-          class="candidate-card"
-          [class.selected]="selectedApplication?.id === app.id"
-          [class.below-threshold]="!app.visibleToHR"
-          (click)="selectApplication(app)"
-        >
-          <div class="candidate-info">
-            <h3>{{ app.applicantName }}</h3>
-            <p class="candidate-email">{{ app.applicantEmail }}</p>
-            <p class="candidate-role">{{ app.job?.title }}</p>
-          </div>
-          <div class="candidate-meta">
-            <div class="ats-score" [style.backgroundColor]="getScoreColor(app.atsScore)">
-              {{ app.atsScore }}%
-            </div>
-            <span class="candidate-stage">{{ app.status }}</span>
-          </div>
-        </div>
-      } @empty {
-        <p class="empty-state">No applicants found</p>
-      }
+  <section class="metrics" aria-label="Candidate pipeline summary">
+    <div><span>All candidates</span><strong>{{ applications.length }}</strong></div>
+    <div><span>Active</span><strong>{{ activeCount }}</strong></div>
+    <div><span>Interviews</span><strong>{{ interviewCount }}</strong></div>
+    <div><span>Open offers</span><strong>{{ offerCount }}</strong></div>
+  </section>
+
+  @if (error) {
+    <div class="notice error-notice" role="alert">
+      <span class="material-icons" aria-hidden="true">error_outline</span>{{ error }}
+    </div>
+  }
+  @if (success) {
+    <div class="notice success-notice" role="status">
+      <span class="material-icons" aria-hidden="true">check_circle</span>{{ success }}
+    </div>
+  }
+
+  <section class="workspace">
+    <div class="filters">
+      <label class="search-control">
+        <span class="material-icons" aria-hidden="true">search</span>
+        <input type="search" [(ngModel)]="searchQuery" placeholder="Search candidate or role" aria-label="Search candidates" />
+      </label>
+      <label class="select-control">
+        <span class="sr-only">Filter by job</span>
+        <select [(ngModel)]="jobFilter">
+          <option value="ALL">All jobs</option>
+          @for (job of jobs; track job.id) {
+            <option [value]="job.id">{{ job.title }}</option>
+          }
+        </select>
+      </label>
     </div>
 
-    <!-- Applicant Detail Panel -->
-    @if (selectedApplication; as app) {
-      <div class="detail-panel">
-        <div class="detail-header">
-          <div>
-            <h2>{{ app.applicantName }}</h2>
-            <p>{{ app.applicantEmail }}</p>
-            @if (app.applicantPhone) {
-              <p>{{ app.applicantPhone }}</p>
-            }
-          </div>
-          <button class="close-btn" (click)="closeDetail()">✕</button>
+    <nav class="stage-tabs" aria-label="Filter by hiring stage">
+      @for (stage of stageOptions; track stage.value) {
+        <button
+          type="button"
+          [class.active]="stageFilter === stage.value"
+          [attr.aria-pressed]="stageFilter === stage.value"
+          (click)="selectStage(stage.value)"
+        >
+          {{ stage.label }} <span>{{ countForStage(stage.value) }}</span>
+        </button>
+      }
+    </nav>
+
+    <div class="review-shell" [class.has-detail]="selectedApplication">
+      <section class="candidate-pane" aria-label="Candidate list">
+        <div class="pane-heading">
+          <strong>{{ filteredApplications.length }} candidate{{ filteredApplications.length === 1 ? '' : 's' }}</strong>
+          <span>Newest first</span>
         </div>
 
-        <div class="detail-content">
-          <!-- ATS Score Section -->
-          <div class="detail-section ats-section">
-            <h3>ATS Match Analysis</h3>
-            <div class="ats-score-large" [style.color]="getScoreColor(app.atsScore)">
-              {{ app.atsScore }}%
-              <span class="score-label">{{ getScoreLabel(app.atsScore) }}</span>
-            </div>
-
-            @if (app.atsMatchedKeywords.length > 0) {
-              <div class="keywords-section">
-                <h4>✓ Matched Keywords</h4>
-                <div class="keyword-tags matched">
-                  @for (keyword of app.atsMatchedKeywords; track keyword) {
-                    <span class="keyword-tag">{{ keyword }}</span>
-                  }
-                </div>
-              </div>
-            }
-
-            @if (app.atsMissingKeywords.length > 0) {
-              <div class="keywords-section">
-                <h4>✗ Missing Keywords</h4>
-                <div class="keyword-tags missing">
-                  @for (keyword of app.atsMissingKeywords; track keyword) {
-                    <span class="keyword-tag">{{ keyword }}</span>
-                  }
-                </div>
+        @if (loading) {
+          <div class="list-state"><span class="spinner"></span>Loading candidates</div>
+        } @else {
+          <div class="candidate-list">
+            @for (application of filteredApplications; track application.id) {
+              <button
+                type="button"
+                class="candidate-row"
+                [class.selected]="selectedApplication?.id === application.id"
+                (click)="selectApplication(application)"
+              >
+                <span class="avatar">{{ initials(application) }}</span>
+                <span class="candidate-summary">
+                  <strong>{{ application.applicantName || application.applicantEmail }}</strong>
+                  <span>{{ jobTitle(application) }}</span>
+                  <span class="applied">Applied {{ application.appliedAt | date: 'MMM d' }}</span>
+                </span>
+                <span class="stage" [attr.data-stage]="application.status">{{ stageLabel(application.status) }}</span>
+              </button>
+            } @empty {
+              <div class="list-state empty-list">
+                <span class="material-icons" aria-hidden="true">person_search</span>
+                <strong>No candidates found</strong>
+                <span>Adjust the search or stage filter.</span>
               </div>
             }
           </div>
+        }
+      </section>
 
-          <div class="detail-section">
-            <h3>Application Info</h3>
-            <p><strong>Position:</strong> {{ app.job?.title }}</p>
-            <p><strong>Status:</strong> {{ app.status }}</p>
-            <p><strong>Applied:</strong> {{ app.appliedAt | date: 'medium' }}</p>
-            @if (app.resumeUrl) {
-              <button
-                (click)="downloadResume(app)"
-                class="btn-download"
-              >
-                📎 Download Resume
+      @if (selectedApplication; as application) {
+        <article class="candidate-detail">
+          <header class="detail-header">
+            <div class="detail-identity">
+              <span class="avatar large">{{ initials(application) }}</span>
+              <div>
+                <div class="name-line">
+                  <h2>{{ application.applicantName || application.applicantEmail }}</h2>
+                  <span class="stage" [attr.data-stage]="application.status">{{ stageLabel(application.status) }}</span>
+                </div>
+                <p>{{ application.applicantEmail }} @if (application.applicantPhone) { · {{ application.applicantPhone }} }</p>
+                <span>{{ jobTitle(application) }} · Applied {{ application.appliedAt | date: 'mediumDate' }}</span>
+              </div>
+            </div>
+            <button type="button" class="icon-action compact" title="Close details" aria-label="Close candidate details" (click)="closeDetail()">
+              <span class="material-icons" aria-hidden="true">close</span>
+            </button>
+          </header>
+
+          <div class="detail-actions">
+            @if (canOpenResume(application)) {
+              <button type="button" class="secondary-button" (click)="openResume(application)">
+                <span class="material-icons" aria-hidden="true">description</span>View resume
               </button>
             }
+            @if (primaryActionLabel(application); as actionLabel) {
+              <button type="button" class="primary-button" [disabled]="saving" (click)="runPrimaryAction(application)">
+                {{ actionLabel }}<span class="material-icons" aria-hidden="true">arrow_forward</span>
+              </button>
+            }
+            @if (application.status !== statuses.HIRED && application.status !== statuses.REJECTED && application.status !== statuses.WITHDRAWN) {
+              <button type="button" class="secondary-button danger" [disabled]="saving" (click)="reject(application)">Reject</button>
+            }
           </div>
 
-          <!-- Notes & Activity -->
-          @if (permissions.canAddApplicantNotes) {
-            <app-candidate-notes
-              [candidateId]="app.id"
-            ></app-candidate-notes>
-          }
+          <div class="detail-body">
+            @if (detailLoading) {
+              <div class="detail-loading"><span class="spinner"></span>Loading candidate history</div>
+            }
 
-          @if (permissions.canViewActivityLog) {
-            <app-activity-log
-              [candidateId]="app.id"
-            ></app-activity-log>
-          }
-        </div>
-      </div>
-    } @else {
-      <!-- Empty State when no applicant selected -->
-      <div class="detail-empty">
-        <p>Select an applicant to view details</p>
-      </div>
-    }
-  </div>
-  </div>
-</section>
+            <section class="detail-section">
+              <div class="section-heading">
+                <div><p class="eyebrow">Application evidence</p><h3>Job alignment</h3></div>
+                <span class="evidence-note">Directional evidence, never a visibility gate</span>
+              </div>
+
+              <div class="evidence-grid">
+                <div>
+                  <h4><span class="material-icons positive" aria-hidden="true">check_circle</span>Found in application</h4>
+                  <div class="keyword-list">
+                    @for (keyword of application.atsMatchedKeywords || []; track keyword) {
+                      <span class="keyword matched">{{ keyword }}</span>
+                    } @empty { <span class="muted">No keyword evidence recorded.</span> }
+                  </div>
+                </div>
+                <div>
+                  <h4><span class="material-icons neutral" aria-hidden="true">help_outline</span>Needs validation</h4>
+                  <div class="keyword-list">
+                    @for (keyword of application.atsMissingKeywords || []; track keyword) {
+                      <span class="keyword missing">{{ keyword }}</span>
+                    } @empty { <span class="muted">No outstanding keyword gaps.</span> }
+                  </div>
+                </div>
+              </div>
+
+              <div class="cover-letter">
+                <h4>Candidate note</h4>
+                <p>{{ application.coverLetter || 'No cover letter was included with this application.' }}</p>
+              </div>
+            </section>
+
+            @if (application.status === statuses.SHORTLISTED) {
+              <section class="detail-section action-section">
+                <div class="section-heading"><div><p class="eyebrow">Next step</p><h3>Schedule interview</h3></div></div>
+                <div class="form-grid">
+                  <label>Date and time<input type="datetime-local" [(ngModel)]="interviewDate" /></label>
+                  <label class="wide">Panel notes<textarea rows="3" [(ngModel)]="interviewNotes" placeholder="Focus areas, panel, or meeting link"></textarea></label>
+                </div>
+                <button type="button" class="primary-button" [disabled]="!interviewDate || saving" (click)="scheduleInterview()">
+                  <span class="material-icons" aria-hidden="true">event</span>Schedule interview
+                </button>
+              </section>
+            }
+
+            @if (application.status === statuses.INTERVIEW_SCHEDULED || application.status === statuses.INTERVIEWED) {
+              <section class="detail-section action-section">
+                <div class="section-heading"><div><p class="eyebrow">Interview</p><h3>Record feedback</h3></div></div>
+                <label class="rating-control">Rating <strong>{{ rating }}/5</strong><input type="range" min="1" max="5" [(ngModel)]="rating" /></label>
+                <label>Feedback<textarea rows="4" [(ngModel)]="feedback" placeholder="Evidence, concerns, and recommended next step"></textarea></label>
+                <button type="button" class="primary-button" [disabled]="!selectedInterviewId || !feedback.trim() || saving" (click)="submitFeedback()">
+                  <span class="material-icons" aria-hidden="true">rate_review</span>Save feedback
+                </button>
+                @if (!selectedInterviewId) { <p class="field-help">No scheduled interview was found for this application.</p> }
+              </section>
+            }
+
+            <section class="detail-section history-section">
+              <div class="section-heading"><div><p class="eyebrow">Team context</p><h3>Notes and activity</h3></div></div>
+              <div class="note-composer">
+                <textarea rows="3" [(ngModel)]="noteText" placeholder="Add interview prep, evidence, or a decision note"></textarea>
+                <button type="button" class="primary-button" [disabled]="!noteText.trim() || saving" (click)="addNote()">
+                  <span class="material-icons" aria-hidden="true">add_comment</span>Add note
+                </button>
+              </div>
+
+              <div class="timeline">
+                @for (encounter of encounters; track encounter.id) {
+                  <div class="timeline-item">
+                    <span class="timeline-icon material-icons" aria-hidden="true">{{ encounter.encounterType === 'NOTE' ? 'sticky_note_2' : encounter.encounterType === 'INTERVIEW_FEEDBACK' ? 'rate_review' : 'history' }}</span>
+                    <div>
+                      <div class="timeline-title"><strong>{{ encounter.title }}</strong><time>{{ encounter.encounteredAt | date: 'MMM d, h:mm a' }}</time></div>
+                      @if (encounter.notes || encounter.description) { <p>{{ encounter.notes || encounter.description }}</p> }
+                      <span>{{ encounter.performedByName || 'AIRRAL' }}</span>
+                    </div>
+                  </div>
+                }
+                <div class="timeline-item">
+                  <span class="timeline-icon material-icons" aria-hidden="true">send</span>
+                  <div>
+                    <div class="timeline-title"><strong>Application received</strong><time>{{ application.appliedAt | date: 'MMM d, h:mm a' }}</time></div>
+                    <span>AIRRAL</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </article>
+      } @else {
+        <aside class="detail-placeholder">
+          <span class="material-icons" aria-hidden="true">assignment_ind</span>
+          <strong>Select a candidate</strong>
+          <p>Review their application evidence, notes, and next hiring action.</p>
+        </aside>
+      }
+    </div>
+  </section>
+</main>

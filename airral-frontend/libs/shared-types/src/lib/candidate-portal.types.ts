@@ -58,12 +58,23 @@ export interface CandidateJobSummary {
   sourceUpdatedAt?: string;
   postedLabel?: string;
   matchScore?: number;
+  matchReasons?: string[];
   connectionsCount?: number;
   tags?: string[];
   jobQualityScore?: number;
   qualityReasons?: string[];
   totalCompLabel?: string;
   compensationConfidence?: 'POSTED_BASE' | 'NEEDS_BENCHMARK' | string;
+  sponsorshipLanguage?: 'SPONSORS' | 'NO_SPONSORSHIP' | 'AUTHORIZATION_REQUIRED' | 'UNKNOWN' | string;
+  visaConfidenceScore?: number;
+  visaReasons?: string[];
+  requiresUsWorkAuthorization?: boolean;
+  contractOrStaffingRisk?: boolean;
+  stemOptRisk?: boolean;
+  h1bTransferFit?: boolean;
+  capExemptFit?: boolean;
+  seniorityLabel?: string;
+  experienceYears?: number;
 }
 
 export interface CandidateJobPageResponse {
@@ -106,6 +117,13 @@ export interface CandidateMatchPreferences {
   seniority?: 'ENTRY' | 'MID' | 'SENIOR' | 'STAFF' | 'LEAD' | string;
   searchStatus?: 'ACTIVE' | 'OPEN' | 'CASUAL' | string;
   needsSponsorship?: boolean;
+  workAuthorizationStatus?: 'US_CITIZEN' | 'GREEN_CARD' | 'H1B' | 'H1B_TRANSFER' | 'F1_OPT' | 'F1_STEM_OPT' | 'H4_EAD' | 'TN' | 'E3' | 'O1' | 'OTHER' | 'UNSPECIFIED' | string;
+  needsSponsorshipNow?: boolean;
+  needsSponsorshipLater?: boolean;
+  requiresEVerify?: boolean;
+  workAuthorizationExpiresAt?: string;
+  openToCapExemptEmployers?: boolean;
+  visaNotes?: string;
   openToRelocation?: boolean;
   salaryRequired?: boolean;
   easyApplyOnly?: boolean;
@@ -135,7 +153,10 @@ export interface CandidateProfile {
   education?: CandidateEducationEntry[];
 
   // Media
+  activeResumeDocumentId?: number;
   resumeUrl?: string;
+  resumeParseStatus?: 'PARSED' | 'PARSE_FAILED' | 'UPLOADED' | string;
+  resumeParsedAt?: string;
   videoIntroUrl?: string;
 
   // Computed
@@ -171,4 +192,115 @@ export interface UpdateCandidateProfileRequest {
   salaryExpectationMax?: number;
   salaryCurrency?: string;
   matchPreferences?: CandidateMatchPreferences;
+}
+
+export interface CandidateResumeReview {
+  resumeDocumentId: number;
+  parseStatus: 'PARSED' | 'PARSE_FAILED' | 'UPLOADED' | string;
+  headline?: string;
+  summary?: string;
+  location?: string;
+  skills: string[];
+  experience: CandidateExperienceEntry[];
+  education: CandidateEducationEntry[];
+  suggestedTargetRoles: string[];
+  suggestedWorkMode?: string;
+  parseConfidenceScore?: number;
+  parseWarnings: string[];
+  experienceYears?: number;
+  parsedAt?: string;
+}
+
+export interface CandidateJobFitResult {
+  id: number;
+  sourceJobKey: string;
+  resumeDocumentId?: number;
+  fitScore: number;
+  visaFitScore?: number;
+  matchedRequirements: string[];
+  missingRequirements: string[];
+  keywordGaps: string[];
+  weakBullets: string[];
+  suggestedRewrites: string[];
+  applicationChecklist: string[];
+  job?: CandidateJobDetail;
+  generatedAt?: string;
+}
+
+export interface CandidateSavedJob {
+  id: number;
+  sourceJobKey: string;
+  status: 'SAVED' | 'APPLYING' | 'APPLIED' | 'INTERVIEWING' | 'OFFER' | 'REJECTED' | 'ARCHIVED' | string;
+  resumeDocumentId?: number;
+  fitResultId?: number;
+  nextStep?: string;
+  nextStepDueAt?: string;
+  notes?: string;
+  job?: CandidateJobSummary;
+  fitResult?: CandidateJobFitResult;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SaveCandidateJobRequest {
+  sourceJobKey: string;
+  status?: string;
+  resumeDocumentId?: number;
+  nextStep?: string;
+  nextStepDueAt?: string;
+  notes?: string;
+}
+
+export interface UpdateCandidateSavedJobRequest {
+  status?: string;
+  resumeDocumentId?: number;
+  fitResultId?: number;
+  nextStep?: string;
+  nextStepDueAt?: string;
+  notes?: string;
+}
+
+export interface CandidateJobFitRequest {
+  sourceJobKey: string;
+  resumeDocumentId?: number;
+}
+
+// Resume Health Score (instant analysis after upload)
+export interface ResumeHealthScore {
+  score: number;
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  categories: Record<string, ResumeHealthCategory>;
+  issues: ResumeHealthIssue[];
+  topFixes: string[];
+  wordCount: number;
+  skillCount: number;
+}
+
+export interface ResumeHealthCategory {
+  label: string;
+  score: number;
+  maxScore: number;
+}
+
+export interface ResumeHealthIssue {
+  code: string;
+  severity: 'critical' | 'warning' | 'info';
+  message: string;
+}
+
+// Notification Preferences
+export interface NotificationPreferences {
+  jobAlertEnabled: boolean;
+  followUpReminderEnabled: boolean;
+  weeklyDigestEnabled: boolean;
+  resumeNudgeEnabled: boolean;
+  savedJobChangeEnabled: boolean;
+}
+
+export interface UpdateNotificationPreferencesRequest {
+  jobAlertEnabled?: boolean;
+  followUpReminderEnabled?: boolean;
+  weeklyDigestEnabled?: boolean;
+  resumeNudgeEnabled?: boolean;
+  savedJobChangeEnabled?: boolean;
 }

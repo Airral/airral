@@ -8,10 +8,30 @@ Before changing `apps/applicant-portal`, read:
 
 - `docs/applicant-portal-design-system.md`
 - `docs/applicant-portal-journey-ui-notes.md`
+- `docs/applicant-launch-wow-plan.md`
 - `docs/job-event-data-sourcing.md`
 - `docs/applicant-portal-job-event-data-strategy.md`
+- `docs/tomorrow-launch-readiness.md`
 
-The current applicant portal direction is job-first, clean, and mostly white. Do not rebuild the old dashboard-style experience with profile hero blocks, daily command centers, side rails, many visible cards, or green-tinted panels.
+The current applicant portal direction is job-first, clean, and mostly white. Launch AIRRAL as a job-market utility first: real jobs, job quality signals, resume-to-job match, and application readiness. Do not rebuild the old dashboard-style experience with profile hero blocks, daily command centers, side rails, many visible cards, green-tinted panels, or a social/feed-first product.
+
+Launch product priority:
+
+- Real active jobs across many industries, not only tech.
+- Clear job quality signals: official source, freshness, salary availability, work mode, location, company stability, and application effort.
+- Resume-to-job match as the main "wow": match score, missing skills, keyword gaps, weak bullets, and concrete resume fixes for the selected job.
+- Application readiness: saved jobs, apply checklist, follow-up reminders, application tracking, and interview prep notes.
+- Mobile-first scanning: compact list, readable selected detail, no noisy social/dashboard panels on first load.
+
+Deferred until user feedback proves demand:
+
+- Messaging
+- Founder spaces
+- Events
+- Social feed/community engagement
+- LinkedIn-style posting
+
+These can remain as backend foundations or lightly linked support modules, but they should not dominate navigation, first-screen UI, or the launch roadmap.
 
 Use this visual rule:
 
@@ -37,8 +57,8 @@ Default applicant journey:
 - Show jobs before profile data.
 - Use a Glassdoor-like split: filters, compact job list, selected job detail.
 - Keep job list cards summary-first and cheap to load.
-- Show reviews, applicants, interview notes, deeper company insight, and room context only in the selected job panel.
-- Rooms, Messages, Events, Resume, and Founder are separate destinations.
+- Show reviews, applicants, interview notes, deeper company insight, resume fit, and application checklist only in the selected job panel.
+- Rooms, Messages, Events, and Founder should be hidden/lightweight secondary destinations until the launch job/resume/application loop is strong.
 
 When in doubt, make the UI calmer and more focused. Teal-green should mean action or selection, not decoration.
 

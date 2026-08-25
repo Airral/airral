@@ -56,9 +56,11 @@ public class SecurityConfig {
                     .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Public endpoints
                         .pathMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/auth/google").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/forgot-password").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/reset-password").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/applications").permitAll()
                         
                         // Swagger/OpenAPI
                         .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/webjars/**").permitAll()
@@ -70,6 +72,7 @@ public class SecurityConfig {
                         // Public candidate job discovery reads normalized public ATS data
                         .pathMatchers(HttpMethod.GET, "/api/candidate/jobs/**").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/jobs/open").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/jobs/statistics/public").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/jobs/*").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/feed").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/feed/signals").permitAll()

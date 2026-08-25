@@ -59,7 +59,9 @@
       "continuous": true,
       "executor": "@angular/build:dev-server",
       "options": {
-        "port": 4202
+        "host": "localhost",
+        "port": 4202,
+        "proxyConfig": "apps/hr-portal/proxy.conf.json"
       },
       "configurations": {
         "production": {
@@ -80,6 +82,8 @@
       "options": {
         "buildTarget": "hr-portal:build",
         "staticFilePath": "dist/apps/hr-portal/browser",
+        "host": "localhost",
+        "port": 4202,
         "spa": true
       }
     }

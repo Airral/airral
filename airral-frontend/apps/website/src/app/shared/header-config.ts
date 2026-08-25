@@ -1,4 +1,5 @@
 import { HeaderNavLink, HeaderCta } from '@airral/shared-ui';
+import { PORTAL_ROUTES } from '@airral/shared-utils';
 
 /**
  * Standard website header navigation configuration
@@ -13,6 +14,6 @@ export const WEBSITE_HEADER_LINKS: HeaderNavLink[] = [
 ];
 
 export const WEBSITE_HEADER_CTAS: HeaderCta[] = [
-  { label: 'Sign in', path: '/login', variant: 'ghost' },
-  { label: 'Start job search', path: '/apply' },
+  { label: 'Sign in', path: `${PORTAL_ROUTES.APPLICANT}/login`, variant: 'ghost', external: true },
+  { label: 'Start job search', path: `${PORTAL_ROUTES.APPLICANT}/login?mode=register`, external: true },
 ];

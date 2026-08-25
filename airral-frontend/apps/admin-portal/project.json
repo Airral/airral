@@ -53,6 +53,7 @@
       "continuous": true,
       "executor": "@angular/build:dev-server",
       "options": {
+        "host": "localhost",
         "port": 4203
       },
       "configurations": {
@@ -74,6 +75,8 @@
       "options": {
         "buildTarget": "admin-portal:build",
         "staticFilePath": "dist/apps/admin-portal/browser",
+        "host": "localhost",
+        "port": 4203,
         "spa": true
       }
     }

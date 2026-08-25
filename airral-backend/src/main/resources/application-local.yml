@@ -42,20 +42,30 @@ airral:
       max-sources-per-run: 500
     greenhouse:
       default-board: airbnb
-      # Public Greenhouse board tokens that return real local test data.
-      board-tokens: airbnb,figma,doordashusa,stripe,chime,affirm,robinhood,datadog,cloudflare,peloton,toast,instacart,andurilindustries,samsara,oscar,duolingo,coursera
+      # Verified working Greenhouse boards (last checked 2026-06-17)
+      board-tokens: airbnb,figma,doordashusa,stripe,chime,affirm,robinhood,datadog,cloudflare,peloton,toast,instacart,andurilindustries,samsara,oscar,duolingo,coursera,discord,pinterest
     lever:
-      # Leave blank until we add verified Lever company slugs.
-      site-names: ""
+      # Verified working Lever sites (last checked 2026-06-17)
+      site-names: matchgroup,rover,nango
     ashby:
       # Local-only: Java's trust store can reject Ashby's cert chain on some dev machines,
       # while macOS/curl accepts it. Keep this out of production config.
       insecure-ssl: true
-      # Public Ashby board names that return real local test data.
-      board-names: Ashby,Ramp
+      # Verified working Ashby boards (last checked 2026-06-17)
+      # Many companies migrated here from Greenhouse/Lever
+      board-names: Ashby,Linear,Notion,Ramp,Vanta,Watershed,Persona,Mercury,Braintrust,Svix,Resend,OpenAI,Zapier,Snyk,Plaid,Replit,Perplexity,Wiz,Sentry,PostHog,Pinecone,Neon,Miro,Loom,Snowflake,Temporal,Supabase,Headway,Raycast,Render,Sierra,Mintlify,Modal,MotherDuck,WorkOS,Weaviate,Synthesia,Sardine,Stytch,Unit,Podium,Prefect,Writer,Railway,TriggerDev,Pylon,Bolt,Lovable,Inngest,E2B,Vapi,Cartesia,Nango
     smartrecruiters:
+      # Local-only: some JDK trust stores reject SmartRecruiters' chain even when curl/macOS accepts it.
+      # Keep production on the default strict JVM trust store.
+      insecure-ssl: true
       # Broad public non-tech coverage: finance, manufacturing, hospitality, services, construction.
       company-identifiers: Visa,BoschGroup,WesternDigital,Experian,ServiceNow,TurnerTownsend,SGS,AccorHotel,NielsenIQ
+    workday:
+      # Local-only: some dev JDK trust stores reject Workday CXS cert chains even when curl/macOS accepts them.
+      insecure-ssl: true
+    workable:
+      # Local-only: some dev JDK trust stores reject Workable's cert chain even when curl/macOS accepts it.
+      insecure-ssl: true
 
 logging:
   level:

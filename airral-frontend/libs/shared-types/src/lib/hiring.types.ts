@@ -162,32 +162,44 @@ export interface ATSScoreResult {
 // HR Encounter - Post-interaction notes and timeline for candidates
 export interface HrEncounter {
   id: number;
+  organizationId: number;
+  encounterType: string;
+  title: string;
+  description?: string;
+  notes?: string;
   applicationId: number;
-  candidateId: number;
-  candidateName: string;
-  candidateEmail: string;
+  candidateId?: number;
+  candidateName?: string;
+  jobId?: number;
   jobTitle?: string;
-  encounterType: 'PHONE_SCREENING' | 'TECHNICAL_INTERVIEW' | 'BEHAVIORAL_INTERVIEW' | 'FINAL_ROUND' | 'FEEDBACK_SESSION' | 'OFFER_DISCUSSION' | 'OTHER';
-  encounteredByUserId: number;
-  encounteredByName: string;
+  performedById?: number;
+  performedByName?: string;
+  interviewId?: number;
+  offerId?: number;
+  outcome?: string;
+  rating?: number;
+  recommendation?: string;
+  priority?: string;
   encounteredAt: string;
-  summary?: string;                      // Notes from the interaction
-  outcome?: string;                      // Result of the encounter
-  followUpRequired: boolean;
-  followUpDate?: string;
-  attachments?: string[];
   createdAt: string;
-  updatedAt: string;
+  metadata?: string;
 }
 
 export interface CreateEncounterRequest {
-  applicationId: number;
-  candidateId: number;
   encounterType: string;
-  summary?: string;
+  title: string;
+  applicationId: number;
+  description?: string;
+  notes?: string;
+  jobId?: number;
+  candidateId?: number;
+  interviewId?: number;
+  offerId?: number;
   outcome?: string;
-  followUpRequired?: boolean;
-  followUpDate?: string;
+  rating?: number;
+  recommendation?: string;
+  priority?: string;
+  metadata?: string;
 }
 
 export interface Interview {

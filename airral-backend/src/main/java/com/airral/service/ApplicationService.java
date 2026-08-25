@@ -59,10 +59,10 @@ public class ApplicationService {
                             .build();
 
                     // Calculate matched/missing keywords
-                    if (job.getAtsKeywords() != null && !job.getAtsKeywords().isEmpty()) {
+                    if (job.getAtsKeywords() != null && job.getAtsKeywords().length > 0) {
                         String coverText = request.getCoverLetter() != null ? 
                                 request.getCoverLetter().toLowerCase() : "";
-                        List<String> keywords = Arrays.asList(job.getAtsKeywords().split(","));
+                        List<String> keywords = Arrays.asList(job.getAtsKeywords());
                         
                         List<String> matched = keywords.stream()
                                 .filter(kw -> coverText.contains(kw.toLowerCase()))
@@ -72,8 +72,8 @@ public class ApplicationService {
                                 .filter(kw -> !coverText.contains(kw.toLowerCase()))
                                 .collect(Collectors.toList());
                         
-                        application.setAtsMatchedKeywords(String.join(",", matched));
-                        application.setAtsMissingKeywords(String.join(",", missing));
+                        application.setAtsMatchedKeywords(matched.toArray(String[]::new));
+                        application.setAtsMissingKeywords(missing.toArray(String[]::new));
                     }
 
                     return applicationRepository.save(application);
@@ -141,12 +141,12 @@ public class ApplicationService {
      * Basic implementation - can be enhanced with ML/AI
      */
     private int calculateAtsScore(Job job, String coverLetter) {
-        if (job.getAtsKeywords() == null || job.getAtsKeywords().isEmpty()) {
+        if (job.getAtsKeywords() == null || job.getAtsKeywords().length == 0) {
             return 75; // Default score if no keywords configured
         }
 
         String coverText = coverLetter != null ? coverLetter.toLowerCase() : "";
-        List<String> keywords = Arrays.asList(job.getAtsKeywords().split(","));
+        List<String> keywords = Arrays.asList(job.getAtsKeywords());
         
         if (keywords.isEmpty()) {
             return 75;
@@ -170,7 +170,7 @@ public class ApplicationService {
                             userRepository.findById(application.getReviewedByHrId())
                                     .map(user -> user.getFullName())
                                     .defaultIfEmpty("Unknown") :
-                            Mono.just(null);
+                            Mono.just("");
 
                     return reviewedByMono.map(reviewedBy ->
                             ApplicationResponse.builder()
@@ -186,11 +186,11 @@ public class ApplicationService {
                                     .status(application.getStatus())
                                     .atsScore(application.getAtsScore())
                                     .atsMatchedKeywords(application.getAtsMatchedKeywords() != null ?
-                                            Arrays.asList(application.getAtsMatchedKeywords().split(",")) : null)
+                                            Arrays.asList(application.getAtsMatchedKeywords()) : null)
                                     .atsMissingKeywords(application.getAtsMissingKeywords() != null ?
-                                            Arrays.asList(application.getAtsMissingKeywords().split(",")) : null)
+                                            Arrays.asList(application.getAtsMissingKeywords()) : null)
                                     .visibleToHr(application.getVisibleToHr())
-                                    .reviewedBy(reviewedBy)
+                                    .reviewedBy(reviewedBy.isBlank() ? null : reviewedBy)
                                     .reviewedByHrAt(application.getReviewedByHrAt())
                                     .appliedAt(application.getAppliedAt())
                                     .updatedAt(application.getUpdatedAt())

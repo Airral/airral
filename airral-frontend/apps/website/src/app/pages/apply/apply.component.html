@@ -3,75 +3,42 @@
 <main class="auth-page">
   <section class="auth-hero">
     <p class="eyebrow">Applicant portal</p>
-    <h1>Start your AIRRAL job search</h1>
-    <p>Open a job-first workspace for roles, match setup, saved jobs, rooms, resume checks, and next steps.</p>
+    <h1>Opening your job search workspace</h1>
+    <p>Account creation happens in the applicant portal so your profile, resume fit, saved jobs, and company signals start together.</p>
   </section>
 
-  <section class="auth-card-wrap">
-    <aside class="auth-context" aria-label="What AIRRAL gives job seekers">
+  <section class="auth-card-wrap doorway">
+    <aside class="auth-context" aria-label="What happens next">
       <h2>What happens next</h2>
       <ul>
         <li>
-          <strong>Jobs open first</strong>
-          <span>Start in the applicant portal, not a profile dashboard.</span>
+          <strong>Create one applicant account</strong>
+          <span>No second website login. The portal owns your applicant workspace.</span>
         </li>
         <li>
-          <strong>Better match inputs</strong>
-          <span>Tell AIRRAL your target role, location, work mode, salary, and skills.</span>
+          <strong>Land on jobs first</strong>
+          <span>Start with real roles, then attach resume fit and saved next steps.</span>
         </li>
         <li>
-          <strong>Context around every role</strong>
-          <span>Use rooms, resume fit, and company signals before applying cold.</span>
+          <strong>Keep context attached</strong>
+          <span>Job IDs, role searches, and sign-in intent carry into the portal.</span>
         </li>
       </ul>
     </aside>
 
-    <form class="auth-card" (ngSubmit)="onSubmit()" #registerForm="ngForm">
-      <h2>Create candidate account</h2>
-
-      <p class="selected-job-note" *ngIf="selectedJobId">
-        We will keep this job attached when you enter the applicant portal.
+    <div class="auth-card">
+      <h2>Continue to AIRRAL</h2>
+      <p class="alt-action">If this page does not move automatically, open the applicant portal here.</p>
+      <a class="btn-primary" [href]="applicantRegisterUrl">Create applicant account</a>
+      <p class="alt-action">
+        Already have an account?
+        <a [href]="applicantLoginUrl">Sign in</a>
       </p>
-
-      <div class="row-2">
-        <div>
-          <label for="firstName">First name</label>
-          <input id="firstName" name="firstName" required [(ngModel)]="firstName" />
-        </div>
-        <div>
-          <label for="lastName">Last name</label>
-          <input id="lastName" name="lastName" required [(ngModel)]="lastName" />
-        </div>
-      </div>
-
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" required [(ngModel)]="email" />
-
-      <label for="phone">Phone (optional)</label>
-      <input id="phone" name="phone" type="tel" [(ngModel)]="phone" />
-
-      <div class="row-2">
-        <div>
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" required [(ngModel)]="password" />
-        </div>
-        <div>
-          <label for="confirmPassword">Confirm password</label>
-          <input id="confirmPassword" name="confirmPassword" type="password" required [(ngModel)]="confirmPassword" />
-        </div>
-      </div>
-
-      <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
-
-      <button class="btn-primary" type="submit" [disabled]="isLoading || !registerForm.form.valid">
-        {{ isLoading ? 'Creating account...' : 'Enter applicant portal' }}
-      </button>
-
       <p class="alt-action">
         Hiring for a team?
-        <a routerLink="/sign-up">Create employer account</a>
+        <a [routerLink]="employerSignUpUrl">Create employer account</a>
       </p>
-    </form>
+    </div>
   </section>
 </main>
 

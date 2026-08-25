@@ -53,6 +53,13 @@ public class UpdateCandidateProfileRequest {
         private String seniority;
         private String searchStatus;
         private Boolean needsSponsorship;
+        private String workAuthorizationStatus;
+        private Boolean needsSponsorshipNow;
+        private Boolean needsSponsorshipLater;
+        private Boolean requiresEVerify;
+        private String workAuthorizationExpiresAt;
+        private Boolean openToCapExemptEmployers;
+        private String visaNotes;
         private Boolean openToRelocation;
         private Boolean salaryRequired;
         private Boolean easyApplyOnly;

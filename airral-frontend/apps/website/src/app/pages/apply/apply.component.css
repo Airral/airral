@@ -92,46 +92,10 @@
   gap: 0.78rem;
 }
 
-.selected-job-note {
-  margin: 0;
-  padding: 0.75rem 0.9rem;
-  border: 1px solid #cfe7df;
-  border-radius: 8px;
-  background: #f2fbf7;
-  color: #006B5B;
-  font-size: 0.9rem;
-  font-weight: 800;
-}
-
-.row-2 {
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-label {
-  display: block;
-  margin-bottom: 0.3rem;
-  color: #111827;
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #cfd8dd;
-  border-radius: 8px;
-  padding: 0.72rem 0.82rem;
-  color: #111827;
-}
-
-input:focus {
-  outline: 3px solid rgba(0, 124, 109, 0.12);
-  border-color: #007C6D;
-}
-
 .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
   border: 0;
   border-radius: 999px;
@@ -140,6 +104,8 @@ input:focus {
   font-weight: 900;
   cursor: pointer;
   background: #007C6D;
+  text-align: center;
+  text-decoration: none;
 }
 
 .btn-primary:hover {
@@ -149,12 +115,6 @@ input:focus {
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.error {
-  margin: 0;
-  color: #b91c1c;
-  font-size: 0.9rem;
 }
 
 .alt-action {
@@ -170,8 +130,7 @@ input:focus {
 }
 
 @media (max-width: 760px) {
-  .auth-card-wrap,
-  .row-2 {
+  .auth-card-wrap {
     grid-template-columns: 1fr;
   }
 }

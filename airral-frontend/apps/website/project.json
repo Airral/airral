@@ -60,7 +60,7 @@
       "continuous": true,
       "executor": "@angular/build:dev-server",
       "options": {
-        "host": "127.0.0.1",
+        "host": "localhost",
         "port": 4200
       },
       "configurations": {
@@ -82,6 +82,8 @@
       "options": {
         "buildTarget": "website:build",
         "staticFilePath": "dist/apps/website/browser",
+        "host": "localhost",
+        "port": 4200,
         "spa": true
       }
     }

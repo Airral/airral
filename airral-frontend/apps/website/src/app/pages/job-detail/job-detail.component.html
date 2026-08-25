@@ -49,8 +49,8 @@
               <li>Check resume fit</li>
               <li>Ask a job room before applying</li>
             </ul>
-            <a class="btn btn-primary" [routerLink]="['/apply']" [queryParams]="{ jobId: job.id }">Create account to apply</a>
-            <a class="btn btn-secondary" [routerLink]="['/login']" [queryParams]="{ jobId: job.id }">Sign in to save</a>
+            <a class="btn btn-primary" [href]="applicantRegisterUrl + '&jobId=' + job.id">Create account to apply</a>
+            <a class="btn btn-secondary" [href]="applicantLoginUrl + '?jobId=' + job.id">Sign in to save</a>
           </aside>
         </div>
       </div>

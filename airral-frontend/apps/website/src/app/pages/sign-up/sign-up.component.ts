@@ -1,8 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
 import { AuthService, buildLocalAuthHandoffUrl } from '@airral/shared-auth';
 import { RegisterRequest, User } from '@airral/shared-types';
@@ -13,7 +11,7 @@ import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-c
 @Component({
   selector: 'app-sign-up',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, RouterLink, HeaderComponent, FooterComponent],
+  imports: [CommonModule, FormsModule, HeaderComponent, FooterComponent],
   templateUrl: './sign-up.component.html',
   styleUrl: './sign-up.component.css',
 })
@@ -28,6 +26,7 @@ export class SignUpComponent {
 
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
+  readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 
   constructor(
     private readonly authApi: AuthApiService,

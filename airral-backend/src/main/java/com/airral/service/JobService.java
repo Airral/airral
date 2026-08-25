@@ -5,11 +5,14 @@ import com.airral.domain.Organization;
 import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.CreateJobRequest;
 import com.airral.dto.response.JobResponse;
+import com.airral.dto.response.PublicStatisticsResponse;
 import com.airral.repository.JobRepository;
 import com.airral.exception.NotFoundException;
 import com.airral.repository.OrganizationRepository;
 import com.airral.repository.UserRepository;
+import io.r2dbc.postgresql.codec.Json;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -22,19 +25,26 @@ public class JobService {
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
     private final OrganizationRepository organizationRepository;
+    private final ExternalJobPostingStore externalJobPostingStore;
+    private final InternalJobCatalogProjectionService internalJobCatalogProjectionService;
 
     public JobService(
             JobRepository jobRepository,
             UserRepository userRepository,
-            OrganizationRepository organizationRepository) {
+            OrganizationRepository organizationRepository,
+            ExternalJobPostingStore externalJobPostingStore,
+            InternalJobCatalogProjectionService internalJobCatalogProjectionService) {
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
+        this.externalJobPostingStore = externalJobPostingStore;
+        this.internalJobCatalogProjectionService = internalJobCatalogProjectionService;
     }
 
     /**
      * Create a new job
      */
+    @Transactional
     public Mono<JobResponse> createJob(CreateJobRequest request, Long organizationId, Long userId) {
         Job job = Job.builder()
                 .organizationId(organizationId)
@@ -51,9 +61,10 @@ public class JobService {
                 .requirements(request.getRequirements())
                 .niceToHave(request.getNiceToHave())
                 .status(request.getStatus() != null ? request.getStatus() : JobStatus.DRAFT)
-                .atsKeywords(request.getAtsKeywords() != null ? 
-                    String.join(",", request.getAtsKeywords()) : null)
-                .atsWeights(request.getAtsWeights())
+                .atsKeywords(request.getAtsKeywords() != null
+                        ? request.getAtsKeywords().toArray(String[]::new)
+                        : null)
+                .atsWeights(request.getAtsWeights() != null ? Json.of(request.getAtsWeights()) : null)
                 .atsMinScore(request.getAtsMinScore() != null ? request.getAtsMinScore() : 70)
                 .linkedInEnabled(request.getLinkedInEnabled())
                 .createdAt(LocalDateTime.now())
@@ -61,6 +72,7 @@ public class JobService {
                 .build();
 
         return jobRepository.save(job)
+                .flatMap(savedJob -> internalJobCatalogProjectionService.sync(savedJob).thenReturn(savedJob))
                 .flatMap(this::toJobResponse);
     }
 
@@ -129,6 +141,7 @@ public class JobService {
     /**
      * Update a job
      */
+    @Transactional
     public Mono<JobResponse> updateJob(Long id, CreateJobRequest request, Long organizationId) {
         return jobRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
@@ -146,25 +159,29 @@ public class JobService {
                     job.setRequirements(request.getRequirements());
                     job.setNiceToHave(request.getNiceToHave());
                     job.setStatus(request.getStatus());
-                    job.setAtsKeywords(request.getAtsKeywords() != null ? 
-                        String.join(",", request.getAtsKeywords()) : null);
-                    job.setAtsWeights(request.getAtsWeights());
+                    job.setAtsKeywords(request.getAtsKeywords() != null
+                            ? request.getAtsKeywords().toArray(String[]::new)
+                            : null);
+                    job.setAtsWeights(request.getAtsWeights() != null ? Json.of(request.getAtsWeights()) : null);
                     job.setAtsMinScore(request.getAtsMinScore());
                     job.setLinkedInEnabled(request.getLinkedInEnabled());
                     job.setUpdatedAt(LocalDateTime.now());
 
                     return jobRepository.save(job);
                 })
+                .flatMap(savedJob -> internalJobCatalogProjectionService.sync(savedJob).thenReturn(savedJob))
                 .flatMap(this::toJobResponse);
     }
 
     /**
      * Delete a job
      */
+    @Transactional
     public Mono<Void> deleteJob(Long id, Long organizationId) {
         return jobRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
-                .flatMap(jobRepository::delete);
+                .flatMap(job -> internalJobCatalogProjectionService.deactivate(job.getId())
+                        .then(jobRepository.delete(job)));
     }
 
     /**
@@ -212,9 +229,10 @@ public class JobService {
                 .requirements(job.getRequirements())
                 .niceToHave(job.getNiceToHave())
                 .status(job.getStatus())
-                .atsKeywords(job.getAtsKeywords() != null ?
-                        Arrays.asList(job.getAtsKeywords().split(",")) : null)
-                .atsWeights(job.getAtsWeights())
+                .atsKeywords(job.getAtsKeywords() != null
+                        ? Arrays.asList(job.getAtsKeywords())
+                        : null)
+                .atsWeights(job.getAtsWeights() != null ? job.getAtsWeights().asString() : null)
                 .atsMinScore(job.getAtsMinScore())
                 .linkedInEnabled(job.getLinkedInEnabled())
                 .linkedinPostId(job.getLinkedinPostId())
@@ -270,5 +288,20 @@ public class JobService {
                 .createdAt(job.getCreatedAt())
                 .updatedAt(job.getUpdatedAt())
                 .build();
+    }
+
+    /**
+     * Get public statistics: total companies with open jobs and total open jobs
+     */
+    public Mono<PublicStatisticsResponse> getPublicStatistics() {
+        return Mono.zip(
+                jobRepository.countOpenJobs(),
+                organizationRepository.countOrganizationsWithOpenJobs(),
+                externalJobPostingStore.countActivePostings(),
+                externalJobPostingStore.countCompaniesWithActivePostings()
+        ).map(tuple -> PublicStatisticsResponse.builder()
+                .totalJobs(tuple.getT1() + tuple.getT3())
+                .totalCompanies(tuple.getT2() + tuple.getT4())
+                .build());
     }
 }

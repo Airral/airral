@@ -2,14 +2,14 @@
 	<div class="hr-shell" [class.menu-open]="menuOpen()">
 	<aside class="sidebar">
 		<div class="brand">
-			<div class="brand-mark">A</div>
+			<div class="brand-mark">AR</div>
 			<div>
 				<p class="brand-title">{{ organizationName }}</p>
 				<p class="brand-sub">{{ tierLabel }}</p>
 			</div>
 		</div>
 
-		<nav class="nav-list" aria-label="HR features">
+		<nav class="nav-list" aria-label="Company hiring">
 			<a
 				*ngFor="let item of navItems"
 				[routerLink]="item.path"
@@ -17,7 +17,7 @@
 				[routerLinkActiveOptions]="{ exact: item.path === '/' }"
 				(click)="closeMenu()"
 			>
-				<span class="nav-icon">{{ item.icon }}</span>
+				<span class="material-icons nav-icon">{{ item.icon }}</span>
 				<span>{{ item.label }}</span>
 			</a>
 		</nav>
@@ -31,13 +31,16 @@
 
 	<main class="main-content">
 		<header class="topbar">
-			<button class="menu-btn" type="button" (click)="toggleMenu()">Menu</button>
+			<button class="menu-btn" type="button" (click)="toggleMenu()" title="Open navigation" aria-label="Open navigation">
+				<span class="material-icons">menu</span>
+			</button>
 
 			<div class="topbar-right">
-				<div class="search-pill">{{ searchLabel }}</div>
 				<div class="org-pill">{{ organizationContext }}</div>
-				<div class="profile-pill">{{ roleLabel }}</div>
-				<button class="logout-btn" type="button" (click)="logout()">Log out</button>
+				<div class="profile-pill" [title]="roleLabel">{{ userInitials }}</div>
+				<button class="logout-btn" type="button" (click)="logout()" title="Sign out" aria-label="Sign out">
+					<span class="material-icons">logout</span>
+				</button>
 			</div>
 		</header>
 

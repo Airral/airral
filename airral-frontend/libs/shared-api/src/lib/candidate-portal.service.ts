@@ -1,14 +1,23 @@
 // libs/shared-api/src/lib/candidate-portal.service.ts
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of, throwError } from 'rxjs';
+import { catchError, map, shareReplay, tap } from 'rxjs/operators';
 import {
   CandidateApplicationView,
+  CandidateJobFitRequest,
+  CandidateJobFitResult,
   CandidateJobPageResponse,
   CandidateJobDetail,
   CandidateJobSummary,
   CandidateProfile,
-  UpdateCandidateProfileRequest
+  CandidateResumeReview,
+  CandidateSavedJob,
+  SaveCandidateJobRequest,
+  UpdateCandidateSavedJobRequest,
+  UpdateCandidateProfileRequest,
+  ResumeHealthScore,
+  NotificationPreferences,
+  UpdateNotificationPreferencesRequest
 } from '@airral/shared-types';
 import { ApplicationApiService } from './application-api.service';
 import { ApiClientService } from './api-client.service';
@@ -17,25 +26,47 @@ import { ApiClientService } from './api-client.service';
   providedIn: 'root'
 })
 export class CandidatePortalService {
+  private candidateProfileRequest$?: Observable<CandidateProfile>;
+  private candidateProfileEmail = '';
+
   constructor(
     private apiClient: ApiClientService,
     private applicationApiService: ApplicationApiService
   ) {}
 
   /** Fetch rich candidate profile from backend. Auto-creates if first visit. */
-  getCandidateProfile(_email: string): Observable<CandidateProfile> {
-    return this.apiClient.get<CandidateProfile>('/candidate/profile');
+  getCandidateProfile(email: string): Observable<CandidateProfile> {
+    const normalizedEmail = this.normalizeEmail(email);
+    if (this.candidateProfileRequest$ && this.candidateProfileEmail === normalizedEmail) {
+      return this.candidateProfileRequest$;
+    }
+
+    this.candidateProfileEmail = normalizedEmail;
+    this.candidateProfileRequest$ = this.apiClient.get<CandidateProfile>('/candidate/profile').pipe(
+      tap((profile) => this.rememberCandidateProfile(profile, normalizedEmail)),
+      catchError((error) => {
+        this.candidateProfileRequest$ = undefined;
+        return throwError(() => error);
+      }),
+      shareReplay({ bufferSize: 1, refCount: false })
+    );
+
+    return this.candidateProfileRequest$;
   }
 
   /** Partial update — only send the fields you want to change. */
   updateCandidateProfile(request: UpdateCandidateProfileRequest): Observable<CandidateProfile> {
-    return this.apiClient.put<CandidateProfile>('/candidate/profile', request);
+    return this.apiClient.put<CandidateProfile>('/candidate/profile', request).pipe(
+      tap((profile) => this.rememberCandidateProfile(profile))
+    );
   }
 
   uploadCandidateResume(file: File): Observable<CandidateProfile> {
     const formData = new FormData();
     formData.append('file', file);
-    return this.apiClient.post<CandidateProfile>('/candidate/profile/resume', formData);
+    return this.apiClient.post<CandidateProfile>('/candidate/profile/resume', formData).pipe(
+      tap((profile) => this.rememberCandidateProfile(profile))
+    );
   }
 
   getRecommendedJobs(limit = 50, boardToken?: string, query?: string): Observable<CandidateJobSummary[]> {
@@ -59,7 +90,12 @@ export class CandidatePortalService {
     limit = 20,
     offset = 0,
     boardToken?: string,
-    query?: string
+    query?: string,
+    maxAgeDays?: number,
+    workMode?: string,
+    salaryPosted?: boolean,
+    experienceLevel?: string,
+    visaFriendly?: boolean
   ): Observable<CandidateJobPageResponse> {
     const params = new URLSearchParams({
       source: 'all',
@@ -73,6 +109,26 @@ export class CandidatePortalService {
 
     if (query?.trim()) {
       params.set('q', query.trim());
+    }
+
+    if (maxAgeDays && maxAgeDays > 0) {
+      params.set('maxAgeDays', String(maxAgeDays));
+    }
+
+    if (workMode && workMode !== 'all') {
+      params.set('workMode', workMode);
+    }
+
+    if (salaryPosted) {
+      params.set('salaryPosted', 'true');
+    }
+
+    if (experienceLevel && experienceLevel !== 'all') {
+      params.set('experienceLevel', experienceLevel);
+    }
+
+    if (visaFriendly) {
+      params.set('visaFriendly', 'true');
     }
 
     return this.apiClient.get<CandidateJobPageResponse>(`/candidate/jobs/recommended/page?${params.toString()}`);
@@ -90,6 +146,46 @@ export class CandidatePortalService {
       boardToken,
       jobId
     );
+  }
+
+  getSavedJobs(): Observable<CandidateSavedJob[]> {
+    return this.apiClient.get<CandidateSavedJob[]>('/candidate/saved-jobs');
+  }
+
+  saveCandidateJob(request: SaveCandidateJobRequest): Observable<CandidateSavedJob> {
+    return this.apiClient.post<CandidateSavedJob>('/candidate/saved-jobs', request);
+  }
+
+  updateSavedJob(id: number, request: UpdateCandidateSavedJobRequest): Observable<CandidateSavedJob> {
+    return this.apiClient.put<CandidateSavedJob>(`/candidate/saved-jobs/${id}`, request);
+  }
+
+  deleteSavedJob(id: number): Observable<void> {
+    return this.apiClient.delete<void>(`/candidate/saved-jobs/${id}`);
+  }
+
+  runJobFit(request: CandidateJobFitRequest): Observable<CandidateJobFitResult> {
+    return this.apiClient.post<CandidateJobFitResult>('/candidate/job-fit', request);
+  }
+
+  /** Get instant resume health score (rule-based analysis of uploaded resume). */
+  getResumeHealth(): Observable<ResumeHealthScore> {
+    return this.apiClient.get<ResumeHealthScore>('/candidate/profile/resume/health');
+  }
+
+  /** Get the structured fields extracted from the active resume for applicant review. */
+  getResumeReview(): Observable<CandidateResumeReview> {
+    return this.apiClient.get<CandidateResumeReview>('/candidate/profile/resume/review');
+  }
+
+  /** Get notification preferences for current user. */
+  getNotificationPreferences(): Observable<NotificationPreferences> {
+    return this.apiClient.get<NotificationPreferences>('/candidate/notifications/preferences');
+  }
+
+  /** Update notification preferences. */
+  updateNotificationPreferences(request: UpdateNotificationPreferencesRequest): Observable<NotificationPreferences> {
+    return this.apiClient.put<NotificationPreferences>('/candidate/notifications/preferences', request);
   }
 
   getCandidateApplications(userId: number): Observable<CandidateApplicationView[]> {
@@ -110,5 +206,14 @@ export class CandidatePortalService {
       interviews: app.interviews || [],
       currentOffer: app.currentOffer
     };
+  }
+
+  private rememberCandidateProfile(profile: CandidateProfile, fallbackEmail = this.candidateProfileEmail): void {
+    this.candidateProfileEmail = this.normalizeEmail(profile.email || fallbackEmail);
+    this.candidateProfileRequest$ = of(profile);
+  }
+
+  private normalizeEmail(email: string | undefined): string {
+    return (email || '').trim().toLowerCase();
   }
 }

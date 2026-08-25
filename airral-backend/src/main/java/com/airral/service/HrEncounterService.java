@@ -36,29 +36,33 @@ public class HrEncounterService {
      * Create a new encounter
      */
     public Mono<EncounterResponse> createEncounter(CreateEncounterRequest request, Long organizationId, Long userId) {
-        HrEncounter encounter = HrEncounter.builder()
-                .organizationId(organizationId)
-                .encounterType(request.getEncounterType())
-                .title(request.getTitle())
-                .description(request.getDescription())
-                .notes(request.getNotes())
-                .applicationId(request.getApplicationId())
-                .jobId(request.getJobId())
-                .candidateId(request.getCandidateId())
-                .performedById(userId)
-                .interviewId(request.getInterviewId())
-                .offerId(request.getOfferId())
-                .outcome(request.getOutcome())
-                .rating(request.getRating())
-                .recommendation(request.getRecommendation())
-                .priority(request.getPriority())
-                .metadata(request.getMetadata())
-                .encounteredAt(LocalDateTime.now())
-                .createdAt(LocalDateTime.now())
-                .build();
+        return applicationRepository.findByIdAndOrganizationId(request.getApplicationId(), organizationId)
+                .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
+                .flatMap(application -> {
+                    HrEncounter encounter = HrEncounter.builder()
+                            .organizationId(organizationId)
+                            .encounterType(request.getEncounterType())
+                            .title(request.getTitle())
+                            .description(request.getDescription())
+                            .notes(request.getNotes())
+                            .applicationId(application.getId())
+                            .jobId(application.getJobId())
+                            .candidateId(application.getApplicantId())
+                            .performedById(userId)
+                            .interviewId(request.getInterviewId())
+                            .offerId(request.getOfferId())
+                            .outcome(request.getOutcome())
+                            .rating(request.getRating())
+                            .recommendation(request.getRecommendation())
+                            .priority(request.getPriority())
+                            .metadata(request.getMetadata())
+                            .encounteredAt(LocalDateTime.now())
+                            .createdAt(LocalDateTime.now())
+                            .build();
 
-        return encounterRepository.save(encounter)
-                .flatMap(this::toEncounterResponse);
+                    return encounterRepository.save(encounter)
+                            .flatMap(this::toEncounterResponse);
+                });
     }
 
     /**
@@ -72,16 +76,16 @@ public class HrEncounterService {
     /**
      * Get encounters for an application (timeline)
      */
-    public Flux<EncounterResponse> getEncountersByApplication(Long applicationId) {
-        return encounterRepository.findByApplicationId(applicationId)
+    public Flux<EncounterResponse> getEncountersByApplication(Long applicationId, Long organizationId) {
+        return encounterRepository.findByApplicationIdAndOrganizationId(applicationId, organizationId)
                 .flatMap(this::toEncounterResponse);
     }
 
     /**
      * Get encounters for a job
      */
-    public Flux<EncounterResponse> getEncountersByJob(Long jobId) {
-        return encounterRepository.findByJobId(jobId)
+    public Flux<EncounterResponse> getEncountersByJob(Long jobId, Long organizationId) {
+        return encounterRepository.findByJobIdAndOrganizationId(jobId, organizationId)
                 .flatMap(this::toEncounterResponse);
     }
 
@@ -119,13 +123,13 @@ public class HrEncounterService {
                 applicationRepository.findById(encounter.getApplicationId())
                         .map(app -> app.getApplicantName())
                         .defaultIfEmpty("Unknown") :
-                Mono.just(null);
+                Mono.just("");
 
         Mono<String> jobTitleMono = encounter.getJobId() != null ?
                 jobRepository.findById(encounter.getJobId())
                         .map(job -> job.getTitle())
                         .defaultIfEmpty("Unknown") :
-                Mono.just(null);
+                Mono.just("");
 
         Mono<String> performedByNameMono = encounter.getPerformedById() != null ?
                 userRepository.findById(encounter.getPerformedById())
@@ -142,9 +146,9 @@ public class HrEncounterService {
                         .description(encounter.getDescription())
                         .notes(encounter.getNotes())
                         .applicationId(encounter.getApplicationId())
-                        .candidateName(tuple.getT1())
+                        .candidateName(tuple.getT1().isBlank() ? null : tuple.getT1())
                         .jobId(encounter.getJobId())
-                        .jobTitle(tuple.getT2())
+                        .jobTitle(tuple.getT2().isBlank() ? null : tuple.getT2())
                         .candidateId(encounter.getCandidateId())
                         .performedById(encounter.getPerformedById())
                         .performedByName(tuple.getT3())

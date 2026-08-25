@@ -17,6 +17,10 @@ const localHostname = typeof window !== 'undefined' && window.location.hostname 
   : 'localhost';
 
 const localPortal = (port: number) => `http://${localHostname}:${port}`;
+const hrDevPorts = ['4202', '4205'];
+const localApiBaseUrl = typeof window !== 'undefined' && hrDevPorts.includes(window.location.port)
+  ? '/api'
+  : `http://${localHostname}:8080/api`;
 
 /**
  * API Base URL
@@ -25,7 +29,7 @@ const localPortal = (port: number) => `http://${localHostname}:${port}`;
  */
 export const API_BASE_URL = isProduction
   ? configuredApiBaseUrl || 'https://api.airral.com'
-  : `http://${localHostname}:8080/api`;
+  : localApiBaseUrl;
 
 /**
  * Portal Routes - Cross-portal navigation URLs

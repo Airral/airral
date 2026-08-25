@@ -1,23 +1,41 @@
 # AIRRAL Applicant User Journey
 
-Last updated: 2026-05-19
+Last updated: 2026-05-27
 
-This is the product journey guide for AIRRAL's applicant portal. Use it when designing onboarding, engagement, empty states, navigation, job detail, rooms, resume tools, events, and founder access.
+Status: launch direction. This journey supersedes older social-workspace and command-center concepts for the applicant portal.
+
+Use this guide when designing onboarding, empty states, navigation, job search, selected job detail, resume tools, application tracking, and job quality signals.
+
+Launch focus:
+
+- Real active jobs across many industries, not only tech.
+- Fast job search and selected job detail.
+- Job quality signals: salary, freshness, source trust, work mode, location, application effort, and company context.
+- Resume-to-selected-job fit with missing skills, keyword gaps, and suggested resume improvements.
+- Application readiness: save, apply, track, follow up, and remember next steps.
+
+Later-stage unlocks after feedback and scale:
+
+- Messaging.
+- Rooms as primary navigation.
+- Founder spaces and QR/private groups.
+- Social feed/community posting.
+- Events not directly tied to an application outcome.
 
 ## Product Promise
 
 AIRRAL should feel worth the user's time in the first session.
 
-The promise is not "browse more jobs." The promise is:
+The promise is not "browse more jobs" or "join another social feed." The promise is:
 
-> Find roles worth applying to, understand the hidden signals, and move one job forward with people and tools beside you.
+> Find roles worth applying to, understand the hidden signals, improve your resume for that role, and move one application forward.
 
 The user came to make progress on their job search. Every first-session screen should answer one of these questions:
 
 - Is there a real role here for me?
 - Is this job worth my time?
 - What should I do next?
-- Can someone help me before I apply?
+- Does my resume/application fit this role?
 - Will AIRRAL remember my work and reduce the mess next time?
 
 ## Research Rules
@@ -100,9 +118,9 @@ Capture more information only when it helps the current action:
 
 - When running resume fit: ask for target role or resume version.
 - When applying: ask for phone, links, work authorization, or application-specific answers.
-- When joining rooms: ask for role/company interests.
+- When joining rooms later: ask for role/company interests only after the core job loop is already useful.
 - When saving jobs: learn company, salary, location, and work-mode preferences.
-- When creating founder/private rooms: ask for group purpose, invite type, and privacy level.
+- When creating founder/private rooms later: ask for group purpose, invite type, and privacy level.
 
 ### Layer 5: Profile Completion Later
 
@@ -119,7 +137,7 @@ Fields that can wait:
 - Video intro
 - Public visibility settings
 
-The rule: never ask for profile data unless AIRRAL can immediately explain how it improves matches, resume fit, rooms, or applications.
+The rule: never ask for profile data unless AIRRAL can immediately explain how it improves matches, resume fit, application readiness, or saved-job tracking.
 
 ### 2. First Personalization
 
@@ -148,7 +166,9 @@ When the user opens a role, AIRRAL should summarize what matters:
 - Company trust
 - Application effort
 - Resume fit
-- People/rooms who can help
+- Missing skills or resume gaps
+- Suggested next step
+- Optional room/context only if it helps the application decision
 
 Long employer descriptions should stay structured:
 
@@ -165,7 +185,6 @@ Activation should happen when the user does one of these:
 
 - Saves a target role
 - Runs resume check against one role
-- Asks a room about one role/company
 - Applies and tracks next step
 
 AIRRAL should guide toward one action, not present every feature equally.
@@ -174,9 +193,9 @@ Best first action CTA order:
 
 1. `Review role`
 2. `Check resume fit`
-3. `Ask room`
-4. `Apply`
-5. `Track next step`
+3. `Apply`
+4. `Track next step`
+5. `Ask room` later, only when there is useful company or role context
 
 ### 5. Return Loop
 
@@ -187,18 +206,18 @@ The returning-user homepage should answer:
 Show:
 
 - New roles since last visit
-- Replies in rooms
 - Saved role changes
 - New salary/company/interview signals
 - Applications that need a next step
-- Events connected to saved companies or target role
+- Resume/application tasks that became important because of saved roles
+- Replies or events later only when they directly support a saved application
 
 Avoid generic streaks. If we use momentum, make it about useful progress:
 
 - `2 roles reviewed this week`
 - `1 resume improved`
 - `3 companies watched`
-- `1 room reply waiting`
+- `1 application needs follow-up`
 
 ## Guidance Pattern
 
@@ -215,13 +234,13 @@ Use contextual guidance, not a forced welcome tour.
 - Tooltips only for unfamiliar concepts:
   - Match score
   - Salary benchmark
-  - Room
   - Resume fit
   - Company signal
+  - Room, later, when rooms are enabled
 - Coach marks only after intent:
   - User opens first job detail.
   - User clicks salary benchmark.
-  - User tries to ask a room.
+  - User runs resume fit.
 
 ### Avoid These
 
@@ -243,19 +262,9 @@ Action: review 3 new roles.
 
 Reward: "Worth applying" shortlist with salary/location/company signals.
 
-Investment: save, hide, apply, or ask room to improve future ranking.
+Investment: save, hide, apply, or track next step to improve future ranking.
 
-### Loop 2: Room Help
-
-Trigger: user saves or reviews a job with uncertain salary, interview loop, or company signal.
-
-Action: ask one focused question.
-
-Reward: peer answer, salary intel, interview note, or recruiter timing.
-
-Investment: follow room, save answer, add company to watchlist.
-
-### Loop 3: Resume Fit
+### Loop 2: Resume Fit
 
 Trigger: user opens a high-match role.
 
@@ -265,7 +274,7 @@ Reward: role-specific fixes, not generic resume advice.
 
 Investment: improved resume and a higher confidence apply action.
 
-### Loop 4: Application Tracking
+### Loop 3: Application Tracking
 
 Trigger: user applies externally.
 
@@ -275,13 +284,23 @@ Reward: clear next step and reminder.
 
 Investment: job history, company watch, interview notes.
 
-### Loop 5: Events and Founder Groups
+### Loop 4: Company Context
 
-Trigger: saved company, target role, or founder/admin creates a private room.
+Trigger: saved company, unclear job quality signal, or upcoming application.
 
-Action: reserve event or join QR room.
+Action: review salary, freshness, source, company news, and application effort.
 
-Reward: warm context and people attached to the job search.
+Reward: a confident apply, save, hide, or follow-up decision.
+
+Investment: company watchlist and better future recommendations.
+
+### Later Loop: Rooms, Events, and Founder Groups
+
+Trigger: enough active users and verified demand for warm help around saved jobs.
+
+Action: ask a focused question, reserve an application-related event, or join a private group.
+
+Reward: credible context attached to an application.
 
 Investment: attendee room, follow-up notes, saved contacts.
 
@@ -297,11 +316,10 @@ Investment: attendee room, follow-up notes, saved contacts.
 8. AIRRAL offers one next move based on the role:
    - Salary missing: `Get benchmark`
    - Resume unclear: `Check resume fit`
-   - Company has room: `Ask room`
    - Strong fit: `Apply`
+   - Already applied: `Track next step`
 9. After action, AIRRAL creates a simple job workspace:
    - role
-   - room
    - resume fit
    - next step
    - notes
@@ -312,22 +330,21 @@ Investment: attendee room, follow-up notes, saved contacts.
 Track activation and engagement based on meaningful progress:
 
 - Account created to first role opened
-- First role opened to saved/applied/room/resume action
+- First role opened to saved/applied/resume action
 - Resume upload rate
 - Role-specific resume check rate
-- Ask-room rate from job detail
 - External apply click rate
 - Applied role tracked rate
-- Day 1 return with new jobs/replies
+- Day 1 return with new jobs or application tasks
 - Jobs hidden or saved, used as ranking feedback
 
 Do not optimize only for time on site. A fast, confident apply decision is a win.
 
-## First Social Slice
+## Deferred Social Slice
 
-Implemented direction: applicant-authored career feed posts.
+Status: later-stage backlog. Do not make this the launch path before the job/resume/application loop is strong.
 
-The Feed tab is where users can post:
+Applicant-authored career feed posts can return later when AIRRAL has enough active job seekers and clear moderation capacity. The Feed tab could support:
 
 - Job-search asks
 - Career updates

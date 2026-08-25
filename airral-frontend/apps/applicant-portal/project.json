@@ -49,8 +49,8 @@
             },
             {
               "type": "anyComponentStyle",
-              "maximumWarning": "8kb",
-              "maximumError": "12kb"
+              "maximumWarning": "24kb",
+              "maximumError": "32kb"
             }
           ],
           "outputHashing": "all"
@@ -67,6 +67,7 @@
       "continuous": true,
       "executor": "@angular/build:dev-server",
       "options": {
+        "host": "localhost",
         "port": 4201
       },
       "configurations": {
@@ -88,6 +89,8 @@
       "options": {
         "buildTarget": "applicant-portal:build",
         "staticFilePath": "dist/apps/applicant-portal/browser",
+        "host": "localhost",
+        "port": 4201,
         "spa": true
       }
     }
