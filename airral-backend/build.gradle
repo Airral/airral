@@ -35,11 +35,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     // R2DBC Database Drivers
-    // 1.1.x is required by the Cloud SQL R2DBC connector, which calls
-    // PostgresqlConnectionFactoryProvider.SSL_NEGOTIATION -- a field that does
-    // not exist before 1.1.0, so 1.0.x fails at runtime with NoSuchFieldError
-    // rather than at compile time. 1.1.1 is what the connector's own POM pins.
-    implementation 'org.postgresql:r2dbc-postgresql:1.1.1.RELEASE'
+    // Highest 1.0.x, which is what cloud-sql-connector 1.25.0 targets. Do not
+    // move to 1.1.x without also moving Spring Boot: 1.1.x needs Netty 4.2.
+    implementation 'org.postgresql:r2dbc-postgresql:1.0.7.RELEASE'
     runtimeOnly 'org.postgresql:postgresql:42.7.3'
     
     // Cloud SQL connectors. The app talks to Postgres over two paths -- R2DBC for
@@ -47,8 +45,14 @@ dependencies {
     // string that works from Cloud Run and from GitHub Actions. Auth is IAM plus
     // an ephemeral client certificate, so the instance needs no authorized
     // networks and no address has to be allowlisted.
-    implementation 'com.google.cloud.sql:cloud-sql-connector-r2dbc-postgres:1.28.4'
-    implementation 'com.google.cloud.sql:postgres-socket-factory:1.28.4'
+    // Pinned to 1.25.x, NOT the latest. 1.26+ calls
+    // PostgresqlConnectionFactoryProvider.SSL_NEGOTIATION, which only exists in
+    // r2dbc-postgresql 1.1.x -- and 1.1.x is built against Netty 4.2, while
+    // Spring Boot 3.2.5 manages Netty 4.1.109 for reactor-netty. Taking the
+    // newest connector therefore forces a Netty major bump across WebFlux.
+    // 1.25.0 targets r2dbc-postgresql 1.0.7 and keeps the whole stack on 4.1.
+    implementation 'com.google.cloud.sql:cloud-sql-connector-r2dbc-postgres:1.25.0'
+    implementation 'com.google.cloud.sql:postgres-socket-factory:1.25.0'
 
     // Flyway for migrations (blocking, runs on startup)
     implementation 'org.flywaydb:flyway-core:10.13.0'
