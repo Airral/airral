@@ -44,6 +44,19 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the database is running
+        # Without this the deploy burns five minutes failing the startup probe
+        # and reports a generic container error, when the real cause is simply
+        # that the scheduled power-down has the database switched off.
+        run: |
+          set -euo pipefail
+          STATE=$(gcloud sql instances describe airral-db --format='value(state)')
+          if [ "$STATE" != "RUNNABLE" ]; then
+            echo "::error::Cloud SQL is $STATE. Run 'GCP · Cloud SQL Power' with action=start first."
+            exit 1
+          fi
+          echo "database is RUNNABLE"
+
       - name: Deploy to Cloud Run
         env:
           IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/airral/airral-api

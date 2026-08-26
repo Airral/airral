@@ -68,7 +68,24 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Skip if the database is stopped
+        id: db
+        # The database is powered down outside 08:00-20:00 ET, and the 4-hourly
+        # schedule overlaps that window. Exit cleanly rather than failing the
+        # run every night and burying real failures in red.
+        run: |
+          set -euo pipefail
+          STATE=$(gcloud sql instances describe airral-db --format='value(state)')
+          echo "database state: $STATE"
+          if [ "$STATE" != "RUNNABLE" ]; then
+            echo "::notice::Database is $STATE; skipping this sync."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run sync
+        if: steps.db.outputs.skip != 'true'
         env:
           SPRING_PROFILES_ACTIVE: gcp,sync
           CLOUD_SQL_INSTANCE: ${{ vars.CLOUD_SQL_INSTANCE }}
@@ -86,7 +103,7 @@ jobs:
           java -jar build/libs/*.jar 2>&1 | tee /tmp/sync.log
 
       - name: Summary
-        if: always()
+        if: always() && steps.db.outputs.skip != 'true'
         run: |
           {
             echo "### External job sync"

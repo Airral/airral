@@ -74,6 +74,10 @@ say "3/6  Cloud SQL Postgres (takes ~5-10 minutes on first run)"
 # --edition=ENTERPRISE is required: new instances now default to
 # ENTERPRISE_PLUS, which rejects shared-core tiers and costs far more.
 #
+# Backups run at 15:00 UTC, which is inside the 08:00-20:00 ET window that
+# gcp-cloudsql-power.yml keeps the instance up for. A stopped instance skips its
+# automated backups entirely, so a window outside those hours never fires.
+#
 # The instance keeps its default public IP but gets NO authorized networks, so
 # no raw IP can reach it. All access goes through the Cloud SQL connectors,
 # which authenticate with IAM and an ephemeral client certificate. That is what
@@ -87,7 +91,7 @@ if ! gcloud sql instances describe "$SQL_INSTANCE" >/dev/null 2>&1; then
     --storage-size=10GB \
     --storage-type=SSD \
     --backup \
-    --backup-start-time=08:00 \
+    --backup-start-time=15:00 \
     --availability-type=zonal
 else
   echo "instance already exists"
@@ -155,6 +159,28 @@ for role in roles/cloudsql.client roles/secretmanager.secretAccessor \
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${DEPLOY_SA}" --role="$role" --condition=None >/dev/null
 done
+# Starting and stopping the database on a schedule needs instances.update.
+# A custom role rather than roles/cloudsql.editor: the deployer is reachable
+# from a public repository's Actions, so it gets the two permissions it needs
+# and no access to schemas, users, backups or databases.
+if ! gcloud iam roles describe airralSqlPowerToggle --project="$PROJECT_ID" >/dev/null 2>&1; then
+  cat > /tmp/airral-sqlpower-role.yaml <<'ROLE'
+title: "AIRRAL Cloud SQL power toggle"
+description: "Start and stop the POC database on a schedule."
+stage: "GA"
+includedPermissions:
+- cloudsql.instances.get
+- cloudsql.instances.list
+- cloudsql.instances.update
+ROLE
+  gcloud iam roles create airralSqlPowerToggle --project="$PROJECT_ID" \
+    --file=/tmp/airral-sqlpower-role.yaml >/dev/null
+  echo "created custom role airralSqlPowerToggle"
+fi
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${DEPLOY_SA}" \
+  --role="projects/${PROJECT_ID}/roles/airralSqlPowerToggle" --condition=None >/dev/null
+
 echo "roles granted"
 
 # ---------------------------------------------------------------------------

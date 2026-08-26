@@ -1,0 +1,144 @@
+name: GCP · Cloud SQL Power
+
+# Starts the POC database at 08:00 ET and stops it at 20:00 ET, and can be run
+# by hand at any time. A stopped Cloud SQL instance is not billed for CPU or
+# memory -- only storage -- so a 12-hour day roughly halves the compute cost,
+# which is the largest line item in this project.
+#
+# GitHub cron is UTC only and has no DST handling, so each transition is
+# scheduled at BOTH candidate UTC hours and the job then checks the real
+# America/New_York hour and acts on only one of them. That keeps the switch at
+# 08:00/20:00 ET year-round instead of drifting by an hour twice a year.
+#
+# Note: while the database is stopped the API returns errors. The website and
+# the three portals are static and stay up regardless.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'What to do'
+        required: true
+        default: start
+        type: choice
+        options:
+          - start
+          - stop
+          - status
+  schedule:
+    - cron: '0 12 * * *'   # 08:00 ET while EDT
+    - cron: '0 13 * * *'   # 08:00 ET while EST
+    - cron: '0 0  * * *'   # 20:00 ET while EDT
+    - cron: '0 1  * * *'   # 20:00 ET while EST
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  # Two starts at once would collide on the instance update operation.
+  group: cloudsql-power
+  cancel-in-progress: false
+
+jobs:
+  power:
+    name: Cloud SQL power
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Decide the action
+        id: decide
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ACTION='${{ inputs.action }}'
+            echo "manual run: $ACTION"
+          else
+            # Only one of the two scheduled UTC hours is the intended ET hour;
+            # the other is the wrong side of DST and must do nothing.
+            ET_HOUR=$(TZ=America/New_York date +%H)
+            ET_NOW=$(TZ=America/New_York date '+%Y-%m-%d %H:%M %Z')
+            case "$ET_HOUR" in
+              08) ACTION=start ;;
+              20) ACTION=stop ;;
+              *)  ACTION=skip ;;
+            esac
+            echo "scheduled run at $ET_NOW -> $ACTION"
+          fi
+          echo "action=$ACTION" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        if: steps.decide.outputs.action != 'skip'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - name: Set up gcloud
+        if: steps.decide.outputs.action != 'skip'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Apply
+        id: apply
+        if: steps.decide.outputs.action != 'skip'
+        env:
+          INSTANCE: airral-db
+        run: |
+          set -euo pipefail
+          state() {
+            gcloud sql instances describe "$INSTANCE" --format='value(state)'
+          }
+
+          BEFORE=$(state)
+          echo "current state: $BEFORE"
+
+          case '${{ steps.decide.outputs.action }}' in
+            start)
+              if [ "$BEFORE" = "RUNNABLE" ]; then
+                echo "already running, nothing to do"
+              else
+                gcloud sql instances patch "$INSTANCE" --activation-policy=ALWAYS --quiet
+                # patch returns once the operation is accepted, not once the
+                # instance is serving, so wait for it to actually be usable.
+                for i in $(seq 1 30); do
+                  S=$(state)
+                  echo "  waiting: $S"
+                  [ "$S" = "RUNNABLE" ] && break
+                  sleep 10
+                done
+              fi
+              ;;
+            stop)
+              if [ "$BEFORE" = "STOPPED" ]; then
+                echo "already stopped, nothing to do"
+              else
+                gcloud sql instances patch "$INSTANCE" --activation-policy=NEVER --quiet
+              fi
+              ;;
+            status)
+              echo "status only, making no change"
+              ;;
+          esac
+
+          AFTER=$(state)
+          echo "after=$AFTER" >> "$GITHUB_OUTPUT"
+          echo "final state: $AFTER"
+
+          if [ '${{ steps.decide.outputs.action }}' = 'start' ] && [ "$AFTER" != "RUNNABLE" ]; then
+            echo "::error::Instance did not reach RUNNABLE (state: $AFTER)."
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Cloud SQL power"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Trigger | ${{ github.event_name }} |"
+            echo "| Action | \`${{ steps.decide.outputs.action }}\` |"
+            echo "| State | \`${{ steps.apply.outputs.after || 'unchanged' }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
