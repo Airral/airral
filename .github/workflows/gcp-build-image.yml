@@ -1,10 +1,15 @@
 name: GCP · Build & Push Image
 
-# Stage 1 of 2. Builds the backend container from a release tag and pushes it to
-# Artifact Registry. Deploying is a separate, manually run workflow
-# (gcp-deploy-api.yml) given the same version, so a build can be promoted to
-# Cloud Run whenever you choose -- and rolled back by deploying an older tag
-# that is already in the registry.
+# Stage 1 of 2. Builds a container from a release tag and pushes it to Artifact
+# Registry. Deploying is a separate, manually run workflow given the same
+# version, so a build can be promoted whenever you choose -- and rolled back by
+# deploying an older tag that is already in the registry.
+#
+# Two services are built this way:
+#   api      -> airral-backend, Spring Boot on Cloud Run
+#   website  -> airral-frontend, static Angular behind nginx on Cloud Run
+# The three portals are static and go to Firebase Hosting instead, via
+# gcp-deploy-frontend.yml -- no container involved.
 #
 # Manual only, by design. Nothing here triggers on push.
 
@@ -12,19 +17,29 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release tag to build (e.g. v1.0.0). Must already exist as a git tag.'
+        description: 'Release tag to build (e.g. v1.3.0). Must already exist as a git tag.'
         required: true
         type: string
+      service:
+        description: 'Which image to build'
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - api
+          - website
 
 permissions:
   contents: read
   id-token: write   # required to mint the OIDC token for Workload Identity
 
 jobs:
-  build:
-    name: Build ${{ inputs.version }}
+  resolve:
+    name: Resolve build matrix
     runs-on: ubuntu-latest
-
+    outputs:
+      services: ${{ steps.pick.outputs.services }}
     steps:
       - name: Validate version is usable as a container tag
         run: |
@@ -34,6 +49,25 @@ jobs:
             exit 1
           fi
 
+      - name: Pick services
+        id: pick
+        run: |
+          case '${{ inputs.service }}' in
+            api)     echo 'services=["api"]' >> "$GITHUB_OUTPUT" ;;
+            website) echo 'services=["website"]' >> "$GITHUB_OUTPUT" ;;
+            *)       echo 'services=["api","website"]' >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  build:
+    name: Build ${{ matrix.service }} ${{ inputs.version }}
+    needs: resolve
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.resolve.outputs.services) }}
+
+    steps:
       - name: Checkout the tag
         uses: actions/checkout@v5
         with:
@@ -41,8 +75,8 @@ jobs:
           fetch-depth: 0
 
       - name: Confirm the ref really is a tag
-        # Guards against typos silently building a branch and publishing it under
-        # a version number that does not correspond to a release.
+        # Guards against a typo silently building a branch and publishing it
+        # under a version number that corresponds to no release.
         run: |
           if ! git rev-parse -q --verify 'refs/tags/${{ inputs.version }}' >/dev/null; then
             echo "::error::'${{ inputs.version }}' is not a git tag in this repository."
@@ -65,32 +99,46 @@ jobs:
       - name: Build and push
         id: build
         env:
-          IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/airral/airral-api
+          REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/airral
         run: |
           set -euo pipefail
+          case '${{ matrix.service }}' in
+            api)
+              CONTEXT=airral-backend
+              IMAGE="$REGISTRY/airral-api"
+              BUILD_ARGS=""
+              ;;
+            website)
+              CONTEXT=airral-frontend
+              IMAGE="$REGISTRY/airral-website"
+              BUILD_ARGS="--build-arg APP=website"
+              ;;
+          esac
+
+          SHA=$(git rev-parse --short HEAD)
           # Tagged with the version and the commit sha: the version is what you
-          # deploy, the sha is what makes the build traceable if a tag is moved.
-          docker build \
+          # deploy, the sha is what keeps the build traceable if a tag moves.
+          docker build $BUILD_ARGS \
             -t "$IMAGE:${{ inputs.version }}" \
-            -t "$IMAGE:sha-$(git rev-parse --short HEAD)" \
-            airral-backend
+            -t "$IMAGE:sha-$SHA" \
+            "$CONTEXT"
           docker push "$IMAGE:${{ inputs.version }}"
-          docker push "$IMAGE:sha-$(git rev-parse --short HEAD)"
+          docker push "$IMAGE:sha-$SHA"
 
           DIGEST=$(gcloud artifacts docker images describe \
             "$IMAGE:${{ inputs.version }}" --format='value(image_summary.digest)')
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         run: |
           {
-            echo "### Image pushed"
+            echo "### ${{ matrix.service }} image pushed"
             echo ""
             echo "| | |"
             echo "|---|---|"
-            echo "| Version | \`${{ inputs.version }}\` |"
-            echo "| Commit | \`$(git rev-parse --short HEAD)\` |"
+            echo "| Image | \`${{ steps.build.outputs.image }}:${{ inputs.version }}\` |"
+            echo "| Commit | \`${{ steps.build.outputs.sha }}\` |"
             echo "| Digest | \`${{ steps.build.outputs.digest }}\` |"
-            echo ""
-            echo "Deploy it with the **GCP · Deploy API to Cloud Run** workflow using version \`${{ inputs.version }}\`."
           } >> "$GITHUB_STEP_SUMMARY"

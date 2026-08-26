@@ -1,8 +1,11 @@
-name: GCP · Deploy Frontends to Firebase Hosting
+name: GCP · Deploy Portals to Firebase Hosting
 
-# Builds the Angular apps from a release tag and publishes them to Firebase
-# Hosting. All four are static bundles, so there is no container and no Cloud Run
-# service involved.
+# Builds the three portal apps from a release tag and publishes them to Firebase
+# Hosting, which is free and needs no container.
+#
+# The marketing website is NOT here: it is deployed to Cloud Run as an nginx
+# image by gcp-deploy-website.yml, because the airral.com domain mappings
+# already point at that Cloud Run service.
 #
 # The API base URL is written into runtime-config.js at deploy time rather than
 # baked into the bundle, so the same build can be pointed at a different backend
@@ -25,7 +28,6 @@ on:
         type: choice
         options:
           - all
-          - website
           - hr-portal
           - applicant-portal
           - admin-portal
@@ -76,7 +78,7 @@ jobs:
         id: apps
         run: |
           if [ "${{ inputs.apps }}" = "all" ]; then
-            echo "list=website hr-portal applicant-portal admin-portal" >> "$GITHUB_OUTPUT"
+            echo "list=hr-portal applicant-portal admin-portal" >> "$GITHUB_OUTPUT"
           else
             echo "list=${{ inputs.apps }}" >> "$GITHUB_OUTPUT"
           fi
@@ -143,7 +145,6 @@ jobs:
             echo "| API base URL | \`${{ inputs.api_base_url }}\` |"
             echo "| Result | ${{ job.status }} |"
             echo ""
-            echo "- website · https://airral-web.web.app"
             echo "- hr-portal · https://airral-hr.web.app"
             echo "- applicant-portal · https://airral-apply.web.app"
             echo "- admin-portal · https://airral-admin.web.app"

@@ -5,10 +5,15 @@
   "targets": {
     "airral-a0e81": {
       "hosting": {
-        "website": ["airral-web"],
-        "hr-portal": ["airral-hr"],
-        "applicant-portal": ["airral-apply"],
-        "admin-portal": ["airral-admin"]
+        "hr-portal": [
+          "airral-hr"
+        ],
+        "applicant-portal": [
+          "airral-apply"
+        ],
+        "admin-portal": [
+          "airral-admin"
+        ]
       }
     }
   }
