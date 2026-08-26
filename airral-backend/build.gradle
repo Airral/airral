@@ -35,7 +35,11 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     // R2DBC Database Drivers
-    implementation 'org.postgresql:r2dbc-postgresql:1.0.4.RELEASE'
+    // 1.1.x is required by the Cloud SQL R2DBC connector, which calls
+    // PostgresqlConnectionFactoryProvider.SSL_NEGOTIATION -- a field that does
+    // not exist before 1.1.0, so 1.0.x fails at runtime with NoSuchFieldError
+    // rather than at compile time. 1.1.1 is what the connector's own POM pins.
+    implementation 'org.postgresql:r2dbc-postgresql:1.1.1.RELEASE'
     runtimeOnly 'org.postgresql:postgresql:42.7.3'
     
     // Cloud SQL connectors. The app talks to Postgres over two paths -- R2DBC for
