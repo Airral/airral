@@ -6,7 +6,14 @@ plugins {
 
 group = 'com.airral'
 version = '1.0.0'
-sourceCompatibility = '17'
+
+// Pin the JDK for every environment (local, CI, Docker) without hardcoding a
+// machine-specific path. Matches the temurin-21 runtime image.
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
 
 configurations {
     compileOnly {
