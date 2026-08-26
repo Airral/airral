@@ -71,6 +71,8 @@ fi
 say "3/6  Cloud SQL Postgres (takes ~5-10 minutes on first run)"
 # ---------------------------------------------------------------------------
 # db-f1-micro, zonal, no HA: ~\$11/month, the dominant cost of the POC.
+# --edition=ENTERPRISE is required: new instances now default to
+# ENTERPRISE_PLUS, which rejects shared-core tiers and costs far more.
 #
 # The instance keeps its default public IP but gets NO authorized networks, so
 # no raw IP can reach it. All access goes through the Cloud SQL connectors,
@@ -79,6 +81,7 @@ say "3/6  Cloud SQL Postgres (takes ~5-10 minutes on first run)"
 if ! gcloud sql instances describe "$SQL_INSTANCE" >/dev/null 2>&1; then
   gcloud sql instances create "$SQL_INSTANCE" \
     --database-version=POSTGRES_16 \
+    --edition=ENTERPRISE \
     --tier=db-f1-micro \
     --region="$REGION" \
     --storage-size=10GB \
@@ -122,7 +125,12 @@ create_secret() {  # name, value
 # Must be 32+ bytes and must not be the dev default: JwtTokenProvider rejects
 # both at startup, so a bad value here fails the deploy rather than shipping.
 create_secret jwt-encryption-secret "$(openssl rand -base64 48 | tr -d '\n')"
-create_secret google-oauth-client-id ""
+# google-oauth-client-id is deliberately NOT created here: Secret Manager rejects
+# an empty payload, and a secret with no version cannot be mounted. Create it when
+# you actually configure Google sign-in:
+#   gcloud secrets create google-oauth-client-id --replication-policy=automatic
+#   printf '%s' "<client-id>" | gcloud secrets versions add google-oauth-client-id --data-file=-
+# The app treats a blank GOOGLE_OAUTH_CLIENT_ID as "Google sign-in disabled".
 
 # ---------------------------------------------------------------------------
 say "5/6  Service accounts and roles"

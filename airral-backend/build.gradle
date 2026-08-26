@@ -38,6 +38,14 @@ dependencies {
     implementation 'org.postgresql:r2dbc-postgresql:1.0.4.RELEASE'
     runtimeOnly 'org.postgresql:postgresql:42.7.3'
     
+    // Cloud SQL connectors. The app talks to Postgres over two paths -- R2DBC for
+    // the app and JDBC for Flyway -- and these give both an identical connection
+    // string that works from Cloud Run and from GitHub Actions. Auth is IAM plus
+    // an ephemeral client certificate, so the instance needs no authorized
+    // networks and no address has to be allowlisted.
+    implementation 'com.google.cloud.sql:cloud-sql-connector-r2dbc-postgres:1.28.4'
+    implementation 'com.google.cloud.sql:postgres-socket-factory:1.28.4'
+
     // Flyway for migrations (blocking, runs on startup)
     implementation 'org.flywaydb:flyway-core:10.13.0'
     implementation 'org.flywaydb:flyway-database-postgresql:10.13.0'
