@@ -1,0 +1,47 @@
+# GCP runtime profile: Cloud Run service and the GitHub Actions sync job.
+#
+# Both reach Cloud SQL through the Google connectors rather than a host:port, so
+# the instance needs no authorized networks and no address is ever allowlisted.
+# Auth is IAM (Application Default Credentials) plus an ephemeral client
+# certificate: on Cloud Run that is the airral-api service account, in Actions it
+# is the github-actions account obtained via Workload Identity.
+#
+# The app needs Postgres over two paths -- R2DBC for itself, JDBC for Flyway --
+# so both are configured from the same CLOUD_SQL_INSTANCE and DB_NAME.
+#
+# Activate with: --spring.profiles.active=gcp   (or gcp,sync for the sync job)
+spring:
+  config:
+    activate:
+      on-profile: gcp
+
+  r2dbc:
+    url: r2dbc:gcp:postgres://${CLOUD_SQL_INSTANCE}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    pool:
+      # Cloud SQL db-f1-micro allows far fewer connections than the default
+      # 15/30, and every Cloud Run instance opens its own pool. Keep this small:
+      # the ceiling is roughly pool max-size x Cloud Run max-instances.
+      initial-size: 2
+      max-size: 5
+      max-idle-time: 10m
+
+  flyway:
+    url: jdbc:postgresql:///${DB_NAME}?cloudSqlInstance=${CLOUD_SQL_INSTANCE}&socketFactory=com.google.cloud.sql.postgres.SocketFactory
+    user: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+airral:
+  jobs:
+    sync:
+      # The Cloud Run service must never run the sync in-process: CPU is throttled
+      # once a response is sent, so background work stalls part-way. The scheduled
+      # GitHub Actions job drives it instead, via the `sync` profile.
+      enabled: false
+      run-on-startup: false
+
+logging:
+  level:
+    root: INFO
+    com.airral: INFO

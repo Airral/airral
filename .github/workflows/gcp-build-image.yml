@@ -1,0 +1,96 @@
+name: GCP · Build & Push Image
+
+# Stage 1 of 2. Builds the backend container from a release tag and pushes it to
+# Artifact Registry. Deploying is a separate, manually run workflow
+# (gcp-deploy-api.yml) given the same version, so a build can be promoted to
+# Cloud Run whenever you choose -- and rolled back by deploying an older tag
+# that is already in the registry.
+#
+# Manual only, by design. Nothing here triggers on push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag to build (e.g. v1.0.0). Must already exist as a git tag.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write   # required to mint the OIDC token for Workload Identity
+
+jobs:
+  build:
+    name: Build ${{ inputs.version }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate version is usable as a container tag
+        run: |
+          V='${{ inputs.version }}'
+          if ! printf '%s' "$V" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9._-]{0,126}$'; then
+            echo "::error::'$V' is not a valid container image tag."
+            exit 1
+          fi
+
+      - name: Checkout the tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.version }}
+          fetch-depth: 0
+
+      - name: Confirm the ref really is a tag
+        # Guards against typos silently building a branch and publishing it under
+        # a version number that does not correspond to a release.
+        run: |
+          if ! git rev-parse -q --verify 'refs/tags/${{ inputs.version }}' >/dev/null; then
+            echo "::error::'${{ inputs.version }}' is not a git tag in this repository."
+            exit 1
+          fi
+          echo "building $(git rev-parse --short HEAD) from tag ${{ inputs.version }}"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push
+        id: build
+        env:
+          IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/airral/airral-api
+        run: |
+          set -euo pipefail
+          # Tagged with the version and the commit sha: the version is what you
+          # deploy, the sha is what makes the build traceable if a tag is moved.
+          docker build \
+            -t "$IMAGE:${{ inputs.version }}" \
+            -t "$IMAGE:sha-$(git rev-parse --short HEAD)" \
+            airral-backend
+          docker push "$IMAGE:${{ inputs.version }}"
+          docker push "$IMAGE:sha-$(git rev-parse --short HEAD)"
+
+          DIGEST=$(gcloud artifacts docker images describe \
+            "$IMAGE:${{ inputs.version }}" --format='value(image_summary.digest)')
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Image pushed"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Version | \`${{ inputs.version }}\` |"
+            echo "| Commit | \`$(git rev-parse --short HEAD)\` |"
+            echo "| Digest | \`${{ steps.build.outputs.digest }}\` |"
+            echo ""
+            echo "Deploy it with the **GCP · Deploy API to Cloud Run** workflow using version \`${{ inputs.version }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -42,7 +42,8 @@ spring:
 
 # Server Configuration
 server:
-  port: 8080
+  # Cloud Run injects PORT and requires the container to listen on it.
+  port: ${PORT:8080}
   error:
     include-message: ${SERVER_ERROR_INCLUDE_MESSAGE:never}
     include-binding-errors: ${SERVER_ERROR_INCLUDE_BINDING_ERRORS:never}

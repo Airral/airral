@@ -1,0 +1,101 @@
+name: GCP · Deploy API to Cloud Run
+
+# Stage 2 of 2. Deploys an image that gcp-build-image.yml already pushed. It
+# never builds, so what reaches Cloud Run is byte-for-byte what was tested, and
+# rolling back is just deploying an older version that is still in the registry.
+#
+# Manual only, by design. Nothing here triggers on push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g. v1.0.0). Must already be in Artifact Registry.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.version }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify the image exists
+        # Fails here with a clear message rather than leaving Cloud Run to retry
+        # pulling a tag that was never built.
+        env:
+          IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/airral/airral-api
+        run: |
+          if ! gcloud artifacts docker images describe "$IMAGE:${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "::error::No image tagged '${{ inputs.version }}'. Run 'GCP · Build & Push Image' first."
+            exit 1
+          fi
+
+      - name: Deploy to Cloud Run
+        env:
+          IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/airral/airral-api
+        run: |
+          set -euo pipefail
+          # ^@^ changes the env-var delimiter from comma to @, because
+          # CORS_ALLOWED_ORIGINS is itself a comma-separated list.
+          gcloud run deploy airral-api \
+            --image "$IMAGE:${{ inputs.version }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --service-account "${{ vars.GCP_API_SA }}" \
+            --allow-unauthenticated \
+            --port 8080 \
+            --cpu 1 \
+            --memory 1Gi \
+            --min-instances 0 \
+            --max-instances 3 \
+            --timeout 300 \
+            --startup-probe httpGet.path=/actuator/health,initialDelaySeconds=10,periodSeconds=10,failureThreshold=30 \
+            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=gcp@CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}@DB_NAME=${{ vars.DB_NAME }}@DB_USER=${{ vars.DB_USER }}@AIRRAL_RELEASE_VERSION=${{ inputs.version }}@CORS_ALLOWED_ORIGINS=https://airral.com,https://www.airral.com,https://app.airral.com,https://apply.airral.com,https://admin.airral.com,https://airral-web.web.app,https://airral-hr.web.app,https://airral-apply.web.app,https://airral-admin.web.app" \
+            --set-secrets "DB_PASSWORD=db-password:latest,JWT_ENCRYPTION_SECRET=jwt-encryption-secret:latest"
+
+      - name: Smoke test
+        id: smoke
+        run: |
+          set -euo pipefail
+          URL=$(gcloud run services describe airral-api \
+            --region "${{ vars.GCP_REGION }}" --format='value(status.url)')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "checking $URL/actuator/health"
+          for i in $(seq 1 20); do
+            CODE=$(curl -s -o /tmp/health -w '%{http_code}' "$URL/actuator/health" || true)
+            if [ "$CODE" = "200" ]; then
+              echo "healthy: $(cat /tmp/health)"
+              exit 0
+            fi
+            echo "  attempt $i: HTTP $CODE"
+            sleep 10
+          done
+          echo "::error::Service did not report healthy. Recent logs:"
+          gcloud run services logs read airral-api --region "${{ vars.GCP_REGION }}" --limit 50 || true
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Cloud Run deploy"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Version | \`${{ inputs.version }}\` |"
+            echo "| URL | ${{ steps.smoke.outputs.url }} |"
+            echo "| Result | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

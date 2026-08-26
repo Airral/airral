@@ -61,8 +61,12 @@
         }
       ]
     </script>
+    <script src="runtime-config.js"></script>
     <script>
-      window.AIRRAL_RUNTIME_CONFIG = window.AIRRAL_RUNTIME_CONFIG || { googleClientId: '' };
+      window.AIRRAL_RUNTIME_CONFIG = Object.assign(
+        { apiBaseUrl: '', googleClientId: '' },
+        window.AIRRAL_RUNTIME_CONFIG || {}
+      );
     </script>
   </head>
   <body>

@@ -1,0 +1,84 @@
+{
+  "hosting": [
+    {
+      "target": "website",
+      "public": "dist/apps/website/browser",
+      "ignore": ["**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "**/*.@(js|css|woff|woff2|ttf|eot|otf|png|jpg|jpeg|gif|svg|webp|ico)",
+          "headers": [
+            { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+          ]
+        },
+        {
+          "source": "/@(index.html|runtime-config.js)",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "hr-portal",
+      "public": "dist/apps/hr-portal/browser",
+      "ignore": ["**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "**/*.@(js|css|woff|woff2|ttf|eot|otf|png|jpg|jpeg|gif|svg|webp|ico)",
+          "headers": [
+            { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+          ]
+        },
+        {
+          "source": "/@(index.html|runtime-config.js)",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "applicant-portal",
+      "public": "dist/apps/applicant-portal/browser",
+      "ignore": ["**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "**/*.@(js|css|woff|woff2|ttf|eot|otf|png|jpg|jpeg|gif|svg|webp|ico)",
+          "headers": [
+            { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+          ]
+        },
+        {
+          "source": "/@(index.html|runtime-config.js)",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "admin-portal",
+      "public": "dist/apps/admin-portal/browser",
+      "ignore": ["**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "**/*.@(js|css|woff|woff2|ttf|eot|otf|png|jpg|jpeg|gif|svg|webp|ico)",
+          "headers": [
+            { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+          ]
+        },
+        {
+          "source": "/@(index.html|runtime-config.js)",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+          ]
+        }
+      ]
+    }
+  ]
+}

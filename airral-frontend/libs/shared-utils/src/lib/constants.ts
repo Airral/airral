@@ -3,7 +3,21 @@
 declare const process: { env?: Record<string, string | undefined> } | undefined;
 
 const runtimeEnv = typeof process !== 'undefined' ? process.env ?? {} : {};
-const configuredApiBaseUrl = runtimeEnv['AIRRAL_API_BASE_URL'] || runtimeEnv['API_BASE_URL'];
+
+// Injected by runtime-config.js, which the deploy rewrites per environment.
+// Read via a cast rather than `declare global` so this does not collide with the
+// Window augmentation in shared-ui's google-auth-button component.
+const browserRuntimeConfig =
+  (typeof window !== 'undefined'
+    ? (window as unknown as {
+        AIRRAL_RUNTIME_CONFIG?: { apiBaseUrl?: string };
+      }).AIRRAL_RUNTIME_CONFIG
+    : undefined) ?? {};
+
+const configuredApiBaseUrl =
+  (browserRuntimeConfig.apiBaseUrl || '').trim() ||
+  runtimeEnv['AIRRAL_API_BASE_URL'] ||
+  runtimeEnv['API_BASE_URL'];
 const serverProduction =
   runtimeEnv['AIRRAL_ENV'] === 'production' ||
   runtimeEnv['NODE_ENV'] === 'production';
@@ -27,9 +41,11 @@ const localApiBaseUrl = typeof window !== 'undefined' && hrDevPorts.includes(win
  * Development: current local hostname on port 8080
  * Production:  https://api.airral.com
  */
-export const API_BASE_URL = isProduction
-  ? configuredApiBaseUrl || 'https://api.airral.com'
-  : localApiBaseUrl;
+export const API_BASE_URL = configuredApiBaseUrl
+  ? configuredApiBaseUrl
+  : isProduction
+    ? 'https://api.airral.com'
+    : localApiBaseUrl;
 
 /**
  * Portal Routes - Cross-portal navigation URLs

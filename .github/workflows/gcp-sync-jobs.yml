@@ -1,0 +1,97 @@
+name: GCP · Sync External Jobs
+
+# Runs the external job sync as a one-shot batch and exits.
+#
+# This lives in Actions rather than on Cloud Run on purpose: Cloud Run throttles
+# CPU once a response is sent, so in-process background work stalls part-way, and
+# keeping a always-on instance just to run a timer would cost more than the rest
+# of the POC. Actions minutes are free on a public repository.
+#
+# It runs the same Java connectors as the application -- there is one
+# implementation of the ATS integrations, not a copy reimplemented here.
+#
+# Each run also hard-purges postings that have been inactive past
+# airral.jobs.purge-after-days, skipping any a candidate saved or ran a fit
+# against.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every 4 hours. GitHub's scheduler is best-effort and can drift by 10-30
+    # minutes under load, which is fine for a 4-hourly refresh. Scheduled
+    # workflows are disabled automatically after 60 days without repo activity.
+    - cron: '0 */4 * * *'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  # The sync also takes a database lease, so a concurrent run would exit as a
+  # no-op. Cancelling here just avoids burning a runner on it.
+  group: external-job-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync external jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: airral-backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Build sync jar
+        run: |
+          chmod +x gradlew
+          ./gradlew bootJar -x test --no-daemon
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run sync
+        env:
+          SPRING_PROFILES_ACTIVE: gcp,sync
+          CLOUD_SQL_INSTANCE: ${{ vars.CLOUD_SQL_INSTANCE }}
+          DB_NAME: ${{ vars.DB_NAME }}
+          DB_USER: ${{ vars.DB_USER }}
+        run: |
+          set -euo pipefail
+          # Pulled at run time rather than stored as a GitHub secret, so Secret
+          # Manager stays the single source of truth for the password.
+          DB_PASSWORD="$(gcloud secrets versions access latest --secret=db-password)"
+          JWT_ENCRYPTION_SECRET="$(gcloud secrets versions access latest --secret=jwt-encryption-secret)"
+          export DB_PASSWORD JWT_ENCRYPTION_SECRET
+          # JwtTokenProvider validates the secret at startup even though a batch
+          # run issues no tokens, so it has to be present.
+          java -jar build/libs/*.jar 2>&1 | tee /tmp/sync.log
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### External job sync"
+            echo ""
+            echo '```'
+            grep -E 'One-shot sync finished|sync failed|Auto-disabling' /tmp/sync.log | tail -20 || echo "no summary line found"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
