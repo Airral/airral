@@ -110,8 +110,17 @@ airral:
         timeout-ms: ${AIRRAL_FEED_GDELT_TIMEOUT_MS:5000}
   jobs:
     country: ${AIRRAL_JOBS_COUNTRY:US}
-    retention-days: ${AIRRAL_JOBS_RETENTION_DAYS:45}
-    max-age-days: ${AIRRAL_JOBS_MAX_AGE_DAYS:45}
+    # Soft-expire: postings a source has not refreshed in this many days drop out of
+    # search (is_active = false). Keeps the feed to genuinely fresh roles.
+    retention-days: ${AIRRAL_JOBS_RETENTION_DAYS:15}
+    max-age-days: ${AIRRAL_JOBS_MAX_AGE_DAYS:15}
+    # Hard purge: rows inactive for this many days are physically deleted, reclaiming
+    # disk. Rows a candidate saved or ran a fit against are kept regardless, because
+    # candidate_saved_jobs.source_job_key has no foreign key and the applicant tracker
+    # resolves job details live. The window is also a grace period: a source that
+    # 404s transiently is auto-disabled and all its postings deactivated, so purging
+    # on deactivation alone would drop a whole board over a blip.
+    purge-after-days: ${AIRRAL_JOBS_PURGE_AFTER_DAYS:15}
     live-fallback:
       # Keep cold-cache user requests from fanning out to hundreds of ATS boards.
       # Large source sets should be served from the scheduled AIRRAL cache.

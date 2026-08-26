@@ -5,6 +5,7 @@ public record ExternalJobSyncResult(
         int sourcesCount,
         int jobsSeen,
         int jobsUpserted,
-        long jobsExpired
+        long jobsExpired,
+        long jobsPurged
 ) {
 }

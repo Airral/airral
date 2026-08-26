@@ -22,6 +22,7 @@ public class ExternalJobSyncService {
     private final ExternalJobPostingStore externalJobPostingStore;
     private final CandidateJobSearchService candidateJobSearchService;
     private final int retentionDays;
+    private final int purgeAfterDays;
     private final int limitPerSource;
     private final int leaseMinutes;
     private final int sourceConcurrency;
@@ -32,6 +33,7 @@ public class ExternalJobSyncService {
             ExternalJobPostingStore externalJobPostingStore,
             CandidateJobSearchService candidateJobSearchService,
             @Value("${airral.jobs.retention-days:60}") int retentionDays,
+            @Value("${airral.jobs.purge-after-days:15}") int purgeAfterDays,
             @Value("${airral.jobs.sync.limit-per-source:500}") int limitPerSource,
             @Value("${airral.jobs.sync.lease-minutes:50}") int leaseMinutes,
             @Value("${airral.jobs.sync.source-concurrency:6}") int sourceConcurrency,
@@ -40,6 +42,7 @@ public class ExternalJobSyncService {
         this.externalJobPostingStore = externalJobPostingStore;
         this.candidateJobSearchService = candidateJobSearchService;
         this.retentionDays = Math.max(1, retentionDays);
+        this.purgeAfterDays = Math.max(1, purgeAfterDays);
         this.limitPerSource = Math.max(1, Math.min(limitPerSource, 500));
         this.leaseMinutes = Math.max(5, leaseMinutes);
         this.sourceConcurrency = Math.max(1, Math.min(sourceConcurrency, 20));
@@ -55,7 +58,7 @@ public class ExternalJobSyncService {
                 .flatMap(leaseAcquired -> {
                     if (!leaseAcquired) {
                         log.info("Skipping external job sync because another instance owns the sync lease");
-                        return Mono.just(new ExternalJobSyncResult("SKIPPED_LOCKED", 0, 0, 0, 0));
+                        return Mono.just(new ExternalJobSyncResult("SKIPPED_LOCKED", 0, 0, 0, 0, 0));
                     }
 
                     return runWithLease()
@@ -134,15 +137,17 @@ public class ExternalJobSyncService {
         String status = errorMessage.isBlank() ? "SUCCESS" : "PARTIAL_SUCCESS";
 
         return externalJobPostingStore.expireOldJobs(retentionDays)
-                .flatMap(jobsExpired -> externalJobPostingStore.completeSyncRun(
-                                runId,
-                                status,
-                                sources.size(),
-                                jobsSeen,
-                                jobsUpserted,
-                                jobsExpired,
-                                errorMessage.isBlank() ? null : errorMessage)
-                        .thenReturn(new ExternalJobSyncResult(status, sources.size(), jobsSeen, jobsUpserted, jobsExpired)));
+                .flatMap(jobsExpired -> externalJobPostingStore.purgeExpiredJobs(purgeAfterDays)
+                        .flatMap(jobsPurged -> externalJobPostingStore.completeSyncRun(
+                                        runId,
+                                        status,
+                                        sources.size(),
+                                        jobsSeen,
+                                        jobsUpserted,
+                                        jobsExpired,
+                                        errorMessage.isBlank() ? null : errorMessage)
+                                .thenReturn(new ExternalJobSyncResult(
+                                        status, sources.size(), jobsSeen, jobsUpserted, jobsExpired, jobsPurged))));
     }
 
     private Mono<Long> releaseLease() {

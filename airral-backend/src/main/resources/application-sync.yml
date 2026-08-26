@@ -1,0 +1,32 @@
+# One-shot sync profile: fetch external jobs, expire stale ones, purge old rows, exit.
+# Driven by an external scheduler (GitHub Actions) rather than an in-process timer, so
+# the Cloud Run service can stay scale-to-zero and serve reads only.
+#
+# Run with: java -jar app.jar --spring.profiles.active=sync
+spring:
+  config:
+    activate:
+      on-profile: sync
+  main:
+    # No HTTP listener: this is a batch run, not a service.
+    web-application-type: none
+
+airral:
+  jobs:
+    sync:
+      # ExternalJobSyncRunner drives the sync; the in-process scheduler must stay off
+      # so the run is not triggered twice in the same process.
+      enabled: false
+      run-on-startup: false
+    # The reconciler's startup listener is fire-and-forget; a one-shot run would exit
+    # mid-flight. It is idempotent, so leave it to the long-running service.
+    internal-reconcile:
+      enabled: false
+  notifications:
+    scheduler:
+      enabled: false
+
+logging:
+  level:
+    com.airral.service.ExternalJobSyncService: INFO
+    com.airral.service.ExternalJobSyncRunner: INFO

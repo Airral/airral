@@ -974,6 +974,41 @@ public class ExternalJobPostingStore {
                 .rowsUpdated();
     }
 
+    /**
+     * Hard-deletes postings that have been inactive for at least {@code purgeAfterDays},
+     * reclaiming the disk that {@link #expireOldJobs(int)} only soft-deletes.
+     *
+     * <p>Rows still referenced by a candidate's saved job or fit result are kept:
+     * those tables hold {@code source_job_key} as a plain column with no foreign key,
+     * and the applicant tracker resolves job details live, so deleting a referenced
+     * posting degrades the tracker to "Saved job / Source unavailable".
+     *
+     * <p>The {@code deleted_at} grace window also protects against a transient board
+     * outage: a source that returns HTTP 404 is auto-disabled and all of its postings
+     * deactivated, so purging on deactivation alone would drop a whole board over a blip.
+     */
+    public Mono<Long> purgeExpiredJobs(int purgeAfterDays) {
+        OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusDays(Math.max(1, purgeAfterDays));
+        return databaseClient.sql("""
+                        DELETE FROM external_job_postings p
+                        WHERE p.is_active = false
+                          AND p.source_type <> 'AIRRAL_INTERNAL'
+                          AND p.deleted_at IS NOT NULL
+                          AND p.deleted_at < :cutoff
+                          AND NOT EXISTS (
+                              SELECT 1 FROM candidate_saved_jobs s
+                              WHERE s.source_job_key = p.source_job_key
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1 FROM candidate_job_fit_results f
+                              WHERE f.source_job_key = p.source_job_key
+                          )
+                        """)
+                .bind("cutoff", cutoff)
+                .fetch()
+                .rowsUpdated();
+    }
+
     public Mono<Long> deactivateInternalJob(Long internalJobId) {
         if (internalJobId == null) {
             return Mono.just(0L);
