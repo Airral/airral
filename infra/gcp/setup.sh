@@ -92,6 +92,7 @@ if ! gcloud sql instances describe "$SQL_INSTANCE" >/dev/null 2>&1; then
     --storage-type=SSD \
     --backup \
     --backup-start-time=15:00 \
+    --retained-backups-count=3 \
     --availability-type=zonal
 else
   echo "instance already exists"
@@ -108,8 +109,31 @@ else
   gcloud sql users create "$DB_USER" --instance="$SQL_INSTANCE" --password="$DB_PASSWORD"
 fi
 
+# Cap disk growth. Cloud SQL disks auto-grow and can never be shrunk, so an
+# unbounded limit means one runaway raises the monthly bill permanently. gcloud
+# does not expose this field on `sql instances patch`, hence the direct call.
+curl -s -X PATCH \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  "https://sqladmin.googleapis.com/v1/projects/${PROJECT_ID}/instances/${SQL_INSTANCE}" \
+  -d '{"settings":{"storageAutoResizeLimit":"20"}}' >/dev/null
+echo "storage growth capped at 20GB"
+
 INSTANCE_CONNECTION_NAME="$(gcloud sql instances describe "$SQL_INSTANCE" \
   --format='value(connectionName)')"
+
+# ---------------------------------------------------------------------------
+say "3b/6  Artifact Registry retention"
+# ---------------------------------------------------------------------------
+# Keep only the 3 most recent image versions per service. The registry
+# otherwise grows without bound, and a POC has no reason to hold more than a
+# couple of rollback targets. The deploy workflows prune Cloud Run revisions to
+# match, so a surviving revision always still has an image behind it.
+gcloud artifacts repositories set-cleanup-policies airral \
+  --location="$REGION" \
+  --policy="$(cd "$(dirname "$0")" && pwd)/artifact-cleanup-policy.json" \
+  --no-dry-run >/dev/null
+echo "cleanup policy applied: keep 3 versions of airral-api and airral-website"
 
 # ---------------------------------------------------------------------------
 say "4/6  Secrets"

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "keep-three-most-recent",
+    "action": { "type": "Keep" },
+    "mostRecentVersions": {
+      "packageNamePrefixes": ["airral-api", "airral-website"],
+      "keepCount": 3
+    }
+  },
+  {
+    "name": "delete-everything-else",
+    "action": { "type": "Delete" },
+    "condition": {
+      "tagState": "ANY",
+      "olderThan": "1d"
+    }
+  }
+]

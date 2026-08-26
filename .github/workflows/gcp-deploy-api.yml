@@ -100,6 +100,35 @@ jobs:
           gcloud run services logs read airral-api --region "${{ vars.GCP_REGION }}" --limit 50 || true
           exit 1
 
+      - name: Prune old revisions
+        # Cloud Run has no retention policy and keeps every revision forever.
+        # Inactive revisions are not billed, so this is hygiene rather than cost
+        # -- but it matters because Artifact Registry only keeps 3 image
+        # versions: without this you accumulate revisions pinned to images that
+        # have been deleted, which look rollback-able and are not.
+        # A revision serving traffic is never deleted, whatever its age.
+        run: |
+          set -euo pipefail
+          SVC=airral-api
+          REGION="${{ vars.GCP_REGION }}"
+
+          ACTIVE=$(gcloud run services describe "$SVC" --region "$REGION" \
+            --format='value(status.traffic[].revisionName)' | tr ';,' '\n' | sed '/^$/d' | sort -u)
+          echo "serving traffic: $(echo "$ACTIVE" | tr '\n' ' ')"
+
+          gcloud run revisions list --service "$SVC" --region "$REGION" \
+            --sort-by='~metadata.creationTimestamp' \
+            --format='value(metadata.name)' | tail -n +4 | while read -r rev; do
+              [ -z "$rev" ] && continue
+              if printf '%s\n' "$ACTIVE" | grep -qx "$rev"; then
+                echo "  keeping $rev (serving traffic)"
+                continue
+              fi
+              echo "  deleting $rev"
+              gcloud run revisions delete "$rev" --region "$REGION" --quiet
+            done
+          echo "revisions remaining: $(gcloud run revisions list --service "$SVC" --region "$REGION" --format='value(metadata.name)' | wc -l)"
+
       - name: Summary
         if: always()
         run: |
