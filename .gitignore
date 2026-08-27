@@ -10,3 +10,6 @@ tmp/
 airral-backend/build/
 airral-frontend/dist/
 airral-frontend/node_modules/
+
+# Design working files (prototypes, not shipped code)
+.design/
