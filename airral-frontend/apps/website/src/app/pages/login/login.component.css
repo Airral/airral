@@ -1,81 +1,38 @@
-.auth-page {
-  min-height: 100vh;
-  padding-bottom: 3rem;
-  background: #fbfbfa;
-}
+/* Login. A redirect shim, so the only local job is centring one
+   pane and giving it enough height not to sit under the header. */
 
-.auth-hero {
-  padding: 4.5rem 1.5rem 2rem;
-  text-align: center;
-}
-
-.auth-hero h1 {
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 2.8rem);
-  color: #0f172a;
-}
-
-.auth-hero p {
-  margin: 0.75rem auto 0;
-  max-width: 42rem;
-  color: #4b5563;
-}
-
-.auth-card-wrap {
-  padding: 0 1.25rem;
+.auth {
+  padding-top: 150px;
   display: flex;
   justify-content: center;
 }
 
-.auth-card {
-  width: min(100%, 28rem);
-  display: grid;
-  gap: 0.8rem;
-  background: #ffffff;
-  border: 1px solid #e1e5e9;
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 16px 45px -28px rgba(15, 23, 42, 0.35);
-}
-
-.auth-card h2 {
-  margin: 0 0 0.25rem;
-  color: #0f172a;
-}
-
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 0.4rem;
-  border: 0;
-  border-radius: 999px;
-  padding: 0.78rem 1rem;
-  color: #ffffff;
-  font-weight: 700;
-  cursor: pointer;
-  background: #007C6D;
+.auth__pane {
+  width: min(100%, 560px);
   text-align: center;
-  text-decoration: none;
 }
 
-.btn-primary:hover {
-  background: #006B5B;
+.auth__h1 {
+  margin: 16px auto 0;
+  font-size: clamp(30px, 3.8vw, 44px);
+  max-width: 20ch;
 }
 
-.btn-primary:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
+.auth__lede {
+  margin: 20px auto 0;
 }
 
-.alt-action {
-  margin: 0.35rem 0 0;
-  font-size: 0.92rem;
-  color: #334155;
+.auth__cta {
+  justify-content: center;
+  margin-top: 34px;
 }
 
-.alt-action a {
-  color: #006B5B;
-  font-weight: 800;
-  text-decoration: none;
+.auth__fine {
+  margin-top: 24px;
+}
+
+@media (max-width: 900px) {
+  .auth {
+    padding-top: 112px;
+  }
 }

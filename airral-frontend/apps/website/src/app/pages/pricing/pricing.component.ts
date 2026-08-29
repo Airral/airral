@@ -1,9 +1,33 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+// apps/website/src/app/pages/pricing/pricing.component.ts
+import {
+  AfterViewInit,
+  Component,
+  Inject,
+  OnDestroy,
+  PLATFORM_ID,
+} from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
+import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
+
+interface Plan {
+  name: string;
+  price: string;
+  period: string;
+  description: string;
+  features: string[];
+  cta: string;
+  /** External portal URL, or an in-app route. One of the two is set. */
+  href?: string;
+  route?: string;
+}
+
+interface Faq {
+  question: string;
+  answer: string;
+}
 
 @Component({
   selector: 'app-pricing',
@@ -12,132 +36,137 @@ import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-c
   templateUrl: './pricing.component.html',
   styleUrls: ['./pricing.component.css'],
 })
-export class PricingComponent {
-  readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
+export class PricingComponent implements AfterViewInit, OnDestroy {
+  readonly headerLinks = WEBSITE_HEADER_LINKS;
+  readonly headerCtas = WEBSITE_HEADER_CTAS;
 
-  // Pricing for companies using AIRRAL ATS
-  // Note: Job seekers ALWAYS use AIRRAL for free
-  readonly plans = [
+  readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
+  readonly hrRegisterUrl = `${PORTAL_ROUTES.HR}/login?mode=register`;
+
+  private observers: IntersectionObserver[] = [];
+
+  /**
+   * Plans are for companies hiring on Airral. Candidates never pay —
+   * see the free-for-candidates section on the page.
+   */
+  readonly plans: Plan[] = [
     {
       name: 'Quick Hire',
       price: 'Free',
       period: '',
-      description: 'Perfect for startups and small businesses',
+      description: 'For a first few roles.',
       features: [
-        'Up to 5 active jobs',
+        'Up to 5 open jobs',
         '3 team members',
-        'Basic applicant tracking',
-        'Email support',
+        'Applicant tracking',
         'Application forms',
         'Candidate profiles',
+        'Email support',
       ],
-      cta: 'Get Started',
-      highlighted: false,
-      popular: false,
+      cta: 'Start free',
+      href: this.hrRegisterUrl,
     },
     {
       name: 'Professional',
       price: '$199',
       period: '/month',
-      description: 'For growing companies',
+      description: 'For a team hiring regularly.',
       features: [
-        'Unlimited job postings',
+        'Unlimited job posts',
         'Up to 20 team members',
-        'Advanced analytics',
         'Interview scheduling',
         'Calendar integration',
         'Department management',
-        'Priority support',
         'Custom workflows',
+        'Reporting on your pipeline',
+        'Priority support',
       ],
-      cta: 'Start Free Trial',
-      highlighted: true,
-      popular: true,
+      cta: 'Start a trial',
+      href: this.hrRegisterUrl,
     },
     {
       name: 'Enterprise',
       price: '$499',
       period: '/month',
-      description: 'For large organizations',
+      description: 'For hiring across many teams.',
       features: [
         'Everything in Professional',
         'Unlimited team members',
-        'White label option',
+        'Single sign-on',
         'API access',
         'Custom integrations',
-        'SSO authentication',
-        'Dedicated support',
-        '99.9% SLA',
+        'White label option',
+        'A named contact for support',
       ],
-      cta: 'Contact Sales',
-      highlighted: false,
-      popular: false,
+      cta: 'Talk to us',
+      route: '/contact',
     },
   ];
 
-  readonly faqs = [
+  readonly faqs: Faq[] = [
     {
-      question: 'Is AIRRAL free for job seekers?',
-      answer: 'Yes! Job seekers can browse jobs, apply, and track applications completely free. AIRRAL is always free for candidates.',
+      question: 'Is Airral free for job seekers?',
+      answer:
+        'Yes. Browsing jobs, applying and tracking your applications cost nothing, and there is no paid tier for candidates.',
     },
     {
-      question: 'Is there a free trial for companies?',
-      answer: 'Yes! Quick Hire is free forever with up to 5 active jobs. Professional and Enterprise plans offer a 14-day free trial with full access.',
+      question: 'Can a company try it before paying?',
+      answer:
+        'Quick Hire is free for as long as you need it, with up to five open jobs. Professional and Enterprise come with a 14-day trial that has everything switched on.',
     },
     {
       question: 'What payment methods do you accept?',
-      answer: 'We accept all major credit cards (Visa, Mastercard, Amex), ACH bank transfers, and wire transfers for enterprise customers.',
+      answer:
+        'All major credit cards, ACH bank transfer, and wire transfer on Enterprise.',
     },
     {
-      question: 'Can I upgrade or downgrade my plan?',
-      answer: 'Yes, you can change your plan at any time. Upgrades take effect immediately. Downgrades take effect at the end of your billing cycle.',
+      question: 'Can I change plan later?',
+      answer:
+        'Yes. An upgrade takes effect straight away. A downgrade takes effect at the end of the billing period you have already paid for.',
     },
   ];
 
-  readonly headerLinks = WEBSITE_HEADER_LINKS;
-  readonly headerCtas = WEBSITE_HEADER_CTAS;
+  constructor(@Inject(PLATFORM_ID) private readonly platformId: object) {}
 
-  readonly headerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'Pricing',
-    links: [
-      { label: 'Home', path: '/' },
-      { label: 'How It Works', path: '/how-it-works' },
-      { label: 'Contact', path: '/contact' },
-    ],
-    ctas: [
-      { label: 'Get Started', path: this.applicantRegisterUrl, external: true },
-    ],
-  };
+  ngAfterViewInit(): void {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
 
-  readonly footerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'Fair hiring for everyone.',
-    columns: [
-      {
-        title: 'Product',
-        links: [
-          { label: 'For Candidates', path: '/' },
-          { label: 'For Employers', path: '/for-employers' },
-          { label: 'Pricing', path: '/pricing' },
-        ],
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
+    this.watchReveals();
+  }
+
+  ngOnDestroy(): void {
+    this.observers.forEach((o) => o.disconnect());
+  }
+
+  /** Reveal each `.rise` element once, as it comes into view. */
+  private watchReveals(): void {
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.rise'));
+    if (!els.length) {
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-in');
+            io.unobserve(entry.target);
+          }
+        });
       },
-      {
-        title: 'Company',
-        links: [
-          { label: 'About Us', path: '/about' },
-          { label: 'Contact', path: '/contact' },
-          { label: 'Blog', path: '/blog' },
-        ],
-      },
-      {
-        title: 'Resources',
-        links: [
-          { label: 'Help Center', path: '/help' },
-          { label: 'Privacy', path: '/privacy' },
-          { label: 'Terms', path: '/terms' },
-        ],
-      },
-    ],
-  };
+      { threshold: 0.16 }
+    );
+
+    els.forEach((el, i) => {
+      el.style.transitionDelay = `${Math.min(i % 5, 4) * 80}ms`;
+      io.observe(el);
+    });
+    this.observers.push(io);
+  }
 }

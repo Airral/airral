@@ -1,76 +1,118 @@
-<airral-header
-  [links]="headerLinks"
-  [ctas]="headerCtas">
-</airral-header>
+<div class="backdrop" aria-hidden="true"></div>
 
-<main>
-  <section class="hero">
-    <div class="hero-content">
-      <p class="eyebrow">Public job previews</p>
-      <h1>Preview roles, then continue in AIRRAL</h1>
-      <p>Use public pages to decide what is worth a closer look. Create an account to save roles, match your resume, ask rooms, and apply with context.</p>
-      <div class="hero-actions">
-        <a [href]="applicantRegisterUrl" class="btn btn-primary">Create account to apply</a>
-        <a [href]="applicantLoginUrl" class="btn btn-secondary">Sign in to save</a>
-      </div>
+<airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
+
+<main class="above">
+  <!-- ── hero ── -->
+  <header class="hero container">
+    <p class="kicker">Open roles</p>
+
+    <h1 class="hero__h1">Have a look around,<br /><span class="soft">no account needed.</span></h1>
+
+    <p class="hero__lede">
+      Read any role in full before you decide it is worth your time. Sign in when you want to
+      save one, tailor your résumé to it, or apply.
+    </p>
+
+    <div class="cta-row hero__cta">
+      <a class="btn" [href]="applicantRegisterUrl">Create an account</a>
+      <a class="btn btn--glass" [href]="applicantLoginUrl">Sign in</a>
     </div>
-  </section>
+  </header>
 
-  <div class="container">
-    <div class="search-bar">
+  <!-- ── the list ── -->
+  <section class="section--tight container" aria-labelledby="roles-heading">
+    <h2 class="vh" id="roles-heading">Open roles</h2>
+
+    <div class="field glass">
+      <label class="vh" for="job-search">Search open roles</label>
+      <span class="field__icon" aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7" />
+          <path d="M20 20l-3.6-3.6" />
+        </svg>
+      </span>
       <input
+        id="job-search"
         type="text"
+        class="field__input"
         [(ngModel)]="searchQuery"
         (input)="onSearchChange()"
-        placeholder="Preview by title, skill, company, or location"
-        class="search-input"
+        placeholder="Title, skill, team or location"
       />
     </div>
 
-    <div class="departments">
+    <div class="chips" role="group" aria-label="Filter by team">
       <button
+        type="button"
         *ngFor="let dept of departments"
-        [class.active]="dept === activeDepartment"
+        class="btn btn--sm"
+        [class.btn--glass]="dept !== activeDepartment"
+        [attr.aria-pressed]="dept === activeDepartment"
         (click)="selectDepartment(dept)"
-        class="dept-chip"
       >
         {{ dept }}
       </button>
     </div>
 
-    <div *ngIf="loading" class="loading">Loading jobs...</div>
-    <div *ngIf="error" class="error">{{ error }}</div>
+    <p class="notice glass" *ngIf="loading">Loading roles…</p>
 
-    <div class="jobs-grid" *ngIf="!loading && !error">
-      <div class="job-card" *ngFor="let job of filteredJobs">
-        <div class="job-header">
-          <h3>{{ job.title }}</h3>
-          <span class="dept-badge">{{ job.department }}</span>
+    <p class="notice glass" *ngIf="error">{{ error }}</p>
+
+    <div class="jobs" *ngIf="!loading && !error">
+      <article class="card glass job" *ngFor="let job of filteredJobs">
+        <div class="job__top">
+          <h3 class="h3">{{ job.title }}</h3>
+          <span class="tag" *ngIf="job.department">{{ job.department }}</span>
         </div>
-        <p class="job-description">{{ (job.description || '') | slice: 0:100 }}{{ (job.description || '').length > 100 ? '...' : '' }}</p>
-        <p class="job-info">{{ job.location || 'Location flexible' }} • {{ job.employmentType || job.department || 'Open role' }}</p>
-        <div class="job-actions">
-          <a class="btn btn-secondary" [routerLink]="['/jobs', job.id]">Preview</a>
-          <a class="btn btn-primary" [href]="applicantRegisterUrl + '&jobId=' + job.id">Create account</a>
+
+        <p class="body-2 job__blurb" *ngIf="job.description">
+          {{ (job.description || '') | slice: 0:100 }}{{ (job.description || '').length > 100 ? '…' : '' }}
+        </p>
+
+        <p class="fine job__meta">
+          {{ job.location || 'Location flexible' }} ·
+          {{ job.employmentType || job.department || 'Open role' }}
+        </p>
+
+        <div class="cta-row job__cta">
+          <a class="btn btn--glass btn--sm" [routerLink]="['/jobs', job.id]">Read the role</a>
+          <a class="btn btn--sm" [href]="applicantRegisterUrl + '&jobId=' + job.id">Apply</a>
         </div>
+      </article>
+    </div>
+
+    <!-- filters matched nothing -->
+    <div
+      class="notice glass"
+      *ngIf="!loading && !error && filteredJobs.length === 0 && jobs.length > 0"
+    >
+      <p class="body-2">Nothing matches that yet.</p>
+      <div class="cta-row notice__cta">
+        <button
+          type="button"
+          class="btn btn--glass btn--sm"
+          (click)="activeDepartment = 'All'; searchQuery = ''; applyFilters()"
+        >
+          Clear filters
+        </button>
       </div>
     </div>
 
-    <!-- Empty state when jobs exist but filters don't match -->
-    <div *ngIf="!loading && !error && filteredJobs.length === 0 && jobs.length > 0" class="no-results">
-      <p>No jobs found matching your criteria.</p>
-      <button (click)="activeDepartment = 'All'; searchQuery = ''; applyFilters()" class="btn btn-secondary">
-        Clear Filters
-      </button>
+    <!-- nothing posted at all -->
+    <div class="notice glass" *ngIf="!loading && !error && jobs.length === 0">
+      <h3 class="h3">No roles are open right now</h3>
+      <p class="body-2 notice__body">
+        Create an account and Airral will keep watching for you, so you hear about a role
+        without checking back.
+      </p>
+      <div class="cta-row notice__cta">
+        <a class="btn btn--sm" [href]="applicantRegisterUrl">Create an account</a>
+        <a class="btn btn--glass btn--sm" routerLink="/for-employers">I’m hiring</a>
+      </div>
     </div>
-
-    <!-- Empty state when NO jobs exist at all -->
-    <div *ngIf="!loading && !error && jobs.length === 0" class="no-results">
-      <h3>Public roles are warming up</h3>
-      <p>Create a candidate account to use matching, saved roles, rooms, and resume workflow while the public preview grows.</p>
-      <p>Companies: <a routerLink="/for-employers">open employer tools</a></p>
-    </div>
-  </div>
+  </section>
 </main>
 
 <airral-footer></airral-footer>

@@ -1,11 +1,24 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  AfterViewInit,
+  Component,
+  Inject,
+  OnDestroy,
+  PLATFORM_ID,
+} from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
+import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 
 interface EmployerBenefit {
-  icon: string;
+  /** Path data for the card's inline icon. */
+  path: string;
+  title: string;
+  description: string;
+}
+
+interface EmployerStep {
+  n: string;
   title: string;
   description: string;
 }
@@ -28,37 +41,57 @@ interface EmployerPlan {
   templateUrl: './for-employers.component.html',
   styleUrls: ['./for-employers.component.css'],
 })
-export class ForEmployersComponent {
+export class ForEmployersComponent implements AfterViewInit, OnDestroy {
+  readonly headerLinks = WEBSITE_HEADER_LINKS;
+  readonly headerCtas = WEBSITE_HEADER_CTAS;
+
+  private observers: IntersectionObserver[] = [];
+
   readonly benefits: EmployerBenefit[] = [
     {
-      icon: '🎯',
-      title: 'Owner-ready ATS',
-      description: 'Post roles, collect applications, review candidates, and keep every decision in one workspace.',
+      path: 'M4 6h16M4 12h16M4 18h10',
+      title: 'One place for every role',
+      description:
+        'Post a role, publish the application, and every candidate who applies stays attached to the job they applied to.',
     },
     {
-      icon: '⚡',
-      title: 'Move with focus',
-      description: 'Track who needs review, what interview comes next, and which candidates are ready for a decision.',
+      path: 'M4 19V5m0 14h16M8 15V9m4 6V7m4 8v-4',
+      title: 'Stages you can see',
+      description:
+        'Open roles, candidate stages and what is waiting on a decision, without a spreadsheet anyone has to remember to update.',
     },
     {
-      icon: '💰',
-      title: 'Built for lean teams',
-      description: 'Start free with Quick Hire, then upgrade only when your hiring motion needs more room.',
+      path: 'M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M17 4.5a3.5 3.5 0 0 1 0 6.9M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35',
+      title: 'Decisions with the team',
+      description:
+        'Invite owners, hiring managers and interviewers. Their notes and feedback sit with the candidate, not in a thread.',
     },
     {
-      icon: '📊',
-      title: 'Pipeline clarity',
-      description: 'See active roles, candidate stages, team feedback, and offer work without spreadsheet drift.',
+      path: 'M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v6h6M9 14l2 2 4-4',
+      title: 'Offers and follow-up',
+      description:
+        'Draft, approve and send an offer from the same record, and keep applicants told where they stand.',
+    },
+  ];
+
+  readonly steps: EmployerStep[] = [
+    {
+      n: '1',
+      title: 'Open the role',
+      description:
+        'Create a role, publish the application, and keep every inbound candidate attached to the right job.',
     },
     {
-      icon: '🤝',
-      title: 'Team decisions',
-      description: 'Invite owners, hiring managers, and interviewers to evaluate candidates with shared context.',
+      n: '2',
+      title: 'Review together',
+      description:
+        'Move candidates through stages with notes, scorecards and team feedback in one shared view.',
     },
     {
-      icon: '🔒',
-      title: 'Candidate respect',
-      description: 'Give applicants a cleaner process with organized roles, status visibility, and timely follow-up.',
+      n: '3',
+      title: 'Interview and close',
+      description:
+        'Schedule the next step, decide with context, and keep candidates informed through the process.',
     },
   ];
 
@@ -67,9 +100,15 @@ export class ForEmployersComponent {
       name: 'Quick Hire',
       price: 'Free',
       period: '',
-      description: 'Perfect for startups and small businesses',
-      features: ['Up to 5 active jobs', '3 team members', 'Basic applicant tracking', 'Email support', 'Application forms'],
-      cta: 'Get Started',
+      description: 'For a first few hires.',
+      features: [
+        'Up to 5 active jobs',
+        '3 team members',
+        'Basic applicant tracking',
+        'Email support',
+        'Application forms',
+      ],
+      cta: 'Get started',
       route: '/sign-up',
       highlighted: false,
     },
@@ -77,9 +116,16 @@ export class ForEmployersComponent {
       name: 'Professional',
       price: '$199',
       period: '/month',
-      description: 'For growing companies',
-      features: ['Unlimited job postings', 'Up to 20 team members', 'Advanced analytics', 'Interview scheduling', 'Calendar integration', 'Priority support'],
-      cta: 'Start Free Trial',
+      description: 'For a team hiring continuously.',
+      features: [
+        'Unlimited job postings',
+        'Up to 20 team members',
+        'Advanced analytics',
+        'Interview scheduling',
+        'Calendar integration',
+        'Priority support',
+      ],
+      cta: 'Start free trial',
       route: '/sign-up',
       highlighted: true,
     },
@@ -87,14 +133,62 @@ export class ForEmployersComponent {
       name: 'Enterprise',
       price: '$499',
       period: '/month',
-      description: 'For large organizations',
-      features: ['Everything in Professional', 'Unlimited team members', 'White label option', 'API access', 'SSO authentication', 'Dedicated support'],
-      cta: 'Contact Sales',
+      description: 'For larger organisations.',
+      features: [
+        'Everything in Professional',
+        'Unlimited team members',
+        'White label option',
+        'API access',
+        'SSO authentication',
+        'Dedicated support',
+      ],
+      cta: 'Contact sales',
       route: '/contact',
       highlighted: false,
     },
   ];
 
-  readonly headerLinks = WEBSITE_HEADER_LINKS;
-  readonly headerCtas = WEBSITE_HEADER_CTAS;
+  constructor(@Inject(PLATFORM_ID) private readonly platformId: object) {}
+
+  ngAfterViewInit(): void {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
+    this.watchReveals();
+  }
+
+  ngOnDestroy(): void {
+    this.observers.forEach((o) => o.disconnect());
+  }
+
+  /** Reveal each `.rise` element once, as it comes into view. */
+  private watchReveals(): void {
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.rise'));
+    if (!els.length) {
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-in');
+            io.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.16 }
+    );
+
+    els.forEach((el, i) => {
+      el.style.transitionDelay = `${Math.min(i % 5, 4) * 80}ms`;
+      io.observe(el);
+    });
+    this.observers.push(io);
+  }
 }

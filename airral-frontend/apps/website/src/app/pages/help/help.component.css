@@ -1,5 +1,90 @@
-.container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; min-height: 100vh; }
-.container h1 { font-size: 32px; color: #0f172a; }
-.container p { color: #64748b; }
-.container a { color: #006B5B; text-decoration: none; }
-.container a:hover { text-decoration: underline; }
+/* Help page. Layout, glass, buttons, type and grids all come from
+   the global system in styles.css — only page-local rhythm lives here. */
+
+/* ── hero ── */
+
+.hero {
+  padding: 138px 0 76px;
+  text-align: center;
+}
+
+.hero__h1 {
+  margin-top: 18px;
+  font-size: clamp(44px, 7.4vw, 92px);
+}
+
+.hero__lede {
+  margin: 26px auto 0;
+}
+
+.hero__cta {
+  justify-content: center;
+  margin-top: 38px;
+}
+
+/* ── where to look ── */
+
+.topics {
+  margin-top: 52px;
+}
+
+/* The cards are links, so they need to fill their grid cell. */
+.topic {
+  display: block;
+}
+
+.topics .h3 {
+  margin-top: 22px;
+}
+
+.topics .body-2 {
+  margin-top: 10px;
+}
+
+/* ── answers ── */
+
+.pane__h2 {
+  margin-top: 16px;
+}
+
+.answers {
+  margin-top: 38px;
+}
+
+.answer {
+  padding: 24px 0;
+}
+
+.answer .body-2 {
+  margin-top: 10px;
+  max-width: 62ch;
+}
+
+/* ── close ── */
+
+.end {
+  text-align: center;
+}
+
+.end__h2 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  font-size: clamp(40px, 6.2vw, 76px);
+}
+
+.end__lede {
+  margin: 22px auto 0;
+}
+
+.end__cta {
+  justify-content: center;
+  margin-top: 34px;
+}
+
+@media (max-width: 900px) {
+  .hero {
+    padding: 112px 0 56px;
+  }
+}

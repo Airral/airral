@@ -1,8 +1,61 @@
-.container { max-width: 900px; margin: 0 auto; padding: 40px 24px; min-height: 100vh; }
-.legal-content h1 { font-size: 32px; color: #0f172a; margin-bottom: 32px; }
-.legal-nav { display: flex; gap: 24px; margin-bottom: 40px; flex-wrap: wrap; }
-.legal-nav a { color: #006B5B; text-decoration: none; font-weight: 500; }
-.legal-nav a:hover { text-decoration: underline; }
-.legal-body h2 { font-size: 24px; color: #0f172a; margin-top: 32px; margin-bottom: 16px; }
-.legal-body h3 { font-size: 18px; color: #0f172a; margin-top: 24px; margin-bottom: 12px; }
-.legal-body p { color: #475569; line-height: 1.8; margin-bottom: 16px; }
+/* Legal page. Layout, glass, buttons and type all come from the
+   global system in styles.css — only the document rhythm and the
+   document switcher live here. */
+
+.legal-head {
+  padding: 132px 0 0;
+}
+
+.legal-head__h1 {
+  margin-top: 14px;
+}
+
+.legal-head__lede {
+  margin-top: 20px;
+}
+
+.legal-nav {
+  margin-top: 34px;
+}
+
+/* The document you are on reads as pressed, not coloured. */
+.legal-nav a[aria-current='page'] {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(20, 20, 28, 0.18), var(--sh-1);
+}
+
+/* ── the document ── */
+
+.doc {
+  max-width: 820px;
+}
+
+.doc h2 {
+  margin-top: 38px;
+}
+
+.doc h2:first-child {
+  margin-top: 0;
+}
+
+.doc p {
+  margin-top: 12px;
+  max-width: 62ch;
+}
+
+.doc a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.doc__note {
+  margin-top: 40px;
+  padding-top: 24px;
+}
+
+@media (max-width: 900px) {
+  .legal-head {
+    padding: 104px 0 0;
+  }
+}

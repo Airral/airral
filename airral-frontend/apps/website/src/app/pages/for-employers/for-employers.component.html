@@ -1,102 +1,115 @@
-<airral-header
-  [links]="headerLinks"
-  [ctas]="headerCtas">
-</airral-header>
+<div class="backdrop" aria-hidden="true"></div>
 
-<main>
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-content">
-      <h1>Hire like a serious company before you have a recruiting team</h1>
-      <p class="hero-subtitle">AIRRAL gives startups and small businesses a clean ATS for posting roles, reviewing candidates, running interviews, and moving offers forward.</p>
-      <div class="hero-cta">
-        <a routerLink="/sign-up" class="btn btn-primary">Start Quick Hire</a>
-        <a routerLink="/pricing" class="btn btn-secondary">Compare Plans</a>
+<airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
+
+<main class="above">
+  <!-- ── hero ── -->
+  <header class="hero container">
+    <p class="kicker">For employers</p>
+
+    <h1 class="display">Run hiring<br /><span class="soft">before you have a recruiter.</span></h1>
+
+    <p class="hero__lede">
+      One place to post roles, review candidates, run interviews and send offers — so the
+      process stops living in inboxes and side notes.
+    </p>
+
+    <div class="cta-row hero__cta">
+      <a class="btn" routerLink="/sign-up">Start Quick Hire</a>
+      <a class="btn btn--glass" routerLink="/pricing">Compare plans</a>
+    </div>
+
+    <p class="fine hero__fine">Quick Hire is free. No card to start.</p>
+  </header>
+
+  <!-- ── what you get ── -->
+  <section class="section container" id="what">
+    <p class="kicker rise">What you get</p>
+    <h2 class="h2 rise">Everything about a hire, in one place.</h2>
+    <p class="lede rise">
+      Nobody has to ask where a candidate got to or who said what. The role, the applications,
+      the feedback and the offer all sit on the same record.
+    </p>
+
+    <div class="grid grid--2 benefits">
+      <article class="card glass rise" *ngFor="let benefit of benefits">
+        <span class="glyph" aria-hidden="true">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path [attr.d]="benefit.path" />
+          </svg>
+        </span>
+        <h3 class="h3">{{ benefit.title }}</h3>
+        <p class="body-2">{{ benefit.description }}</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── how it goes ── -->
+  <section class="section--tight container" id="how">
+    <div class="pane glass rise">
+      <p class="kicker">How it goes</p>
+      <h2 class="h2 pane__h2">From first job post to first offer.</h2>
+
+      <div class="grid grid--3 steps">
+        <div class="step" *ngFor="let step of steps">
+          <span class="step__n" aria-hidden="true">{{ step.n }}</span>
+          <h3 class="h3">{{ step.title }}</h3>
+          <p class="body-2">{{ step.description }}</p>
+        </div>
       </div>
     </div>
   </section>
 
-  <div class="container">
-    <!-- Benefits -->
-    <section class="benefits-section">
-      <h2>Everything a growing team needs to run a real hiring process</h2>
-      <div class="benefits-grid">
-        <div class="benefit-card" *ngFor="let benefit of benefits">
-          <div class="benefit-icon">{{ benefit.icon }}</div>
-          <h3>{{ benefit.title }}</h3>
-          <p>{{ benefit.description }}</p>
-        </div>
-      </div>
-    </section>
+  <!-- ── plans ── -->
+  <section class="section container" id="plans">
+    <p class="kicker rise">Plans</p>
+    <h2 class="h2 rise">Start free, move up when you need to.</h2>
+    <p class="lede rise">
+      Quick Hire covers a first few hires. The paid plans add team seats, unlimited roles and
+      scheduling.
+    </p>
 
-    <!-- How It Works for Employers -->
-    <section class="how-it-works-section">
-      <h2>From first job post to first offer</h2>
-      <div class="steps-grid">
-        <div class="step-card">
-          <div class="step-number">1</div>
-          <h3>Open the role</h3>
-          <p>Create a role, publish the application, and keep every inbound candidate attached to the right job.</p>
-        </div>
-        <div class="step-card">
-          <div class="step-number">2</div>
-          <h3>Review together</h3>
-          <p>Move candidates through stages with notes, scorecards, and team feedback in one shared view.</p>
-        </div>
-        <div class="step-card">
-          <div class="step-number">3</div>
-          <h3>Interview and close</h3>
-          <p>Schedule the next step, make decisions with context, and keep candidates informed through the process.</p>
-        </div>
-      </div>
-    </section>
+    <div class="grid grid--3 plans">
+      <article class="card glass rise" *ngFor="let plan of plans"
+               [class.plan--lead]="plan.highlighted">
+        <h3 class="h3">{{ plan.name }}</h3>
 
-    <!-- Pricing -->
-    <section class="pricing-section">
-      <h2>Small team-friendly pricing</h2>
-      <p class="pricing-subtitle">Start with Quick Hire, then expand when your team and pipeline grow.</p>
-      <div class="pricing-grid">
-        <div class="pricing-card" *ngFor="let plan of plans" [class.highlighted]="plan.highlighted">
-          <h3>{{ plan.name }}</h3>
-          <div class="price">{{ plan.price }}<span class="period">{{ plan.period }}</span></div>
-          <p class="plan-description">{{ plan.description }}</p>
-          <ul class="features-list">
-            <li *ngFor="let feature of plan.features">✓ {{ feature }}</li>
-          </ul>
-          <a [routerLink]="plan.route" class="btn btn-plan">{{ plan.cta }}</a>
-        </div>
-      </div>
-    </section>
+        <p class="plan__price">
+          {{ plan.price }}<span class="plan__period">{{ plan.period }}</span>
+        </p>
 
-    <!-- Stats -->
-    <section class="stats-section">
-      <div class="stat">
-        <div class="stat-value">Free</div>
-        <div class="stat-label">Quick Hire plan</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">5</div>
-        <div class="stat-label">Active jobs included</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">3</div>
-        <div class="stat-label">Teammates included</div>
-      </div>
-      <div class="stat">
-        <div class="stat-value">1</div>
-        <div class="stat-label">Shared hiring pipeline</div>
-      </div>
-    </section>
+        <p class="fine plan__desc">{{ plan.description }}</p>
 
-    <!-- CTA -->
-    <section class="cta-section">
-      <div class="cta-card">
-        <h2>Ready to run hiring with more focus?</h2>
-        <p>Give your team a real system before the process starts living in inboxes and side notes.</p>
-        <a routerLink="/sign-up" class="btn btn-primary">Start Quick Hire</a>
+        <ul class="plan__features">
+          <li class="body-2" *ngFor="let feature of plan.features">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <path d="M4 12.5l5 5L20 6.5" />
+            </svg>
+            <span>{{ feature }}</span>
+          </li>
+        </ul>
+
+        <a class="btn btn--glass btn--sm plan__cta" [routerLink]="plan.route">{{ plan.cta }}</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── close ── -->
+  <section class="section--tight container">
+    <div class="pane glass rise end">
+      <h2 class="h2 end__h2">Open your first role today.</h2>
+      <p class="lede end__lede">
+        Quick Hire is free, and you can invite the rest of the team when you need them.
+      </p>
+      <div class="cta-row end__cta">
+        <a class="btn" routerLink="/sign-up">Start Quick Hire</a>
+        <a class="btn btn--glass" routerLink="/contact">Talk to us</a>
       </div>
-    </section>
-  </div>
+    </div>
+  </section>
 </main>
 
 <airral-footer></airral-footer>

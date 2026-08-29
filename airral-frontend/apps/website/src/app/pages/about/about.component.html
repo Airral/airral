@@ -1,66 +1,65 @@
-<airral-header
-  [links]="headerLinks"
-  [ctas]="headerCtas">
-</airral-header>
+<div class="backdrop" aria-hidden="true"></div>
 
-<main>
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-content">
-      <h1>Building the Future of Hiring</h1>
-      <p class="hero-subtitle">We're on a mission to make hiring fairer, faster, and more human.</p>
-    </div>
-  </section>
+<airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
 
-  <!-- Mission -->
-  <section class="mission-section">
-    <div class="container">
-      <div class="mission-card">
-        <h2>Our Mission</h2>
-        <p class="mission-statement">{{ mission }}</p>
+<main class="above">
+  <!-- ── hero ── -->
+  <header class="hero container">
+    <p class="kicker">About Airral</p>
+    <h1 class="display">We got tired<br /><span class="soft">of job boards.</span></h1>
+    <p class="hero__lede">
+      Airral is a hiring product with two halves. One does the looking for people who want a
+      job. The other keeps a company's hiring in one place instead of six spreadsheets.
+    </p>
+  </header>
+
+  <!-- ── what we're building ── -->
+  <section class="section--tight container" id="what">
+    <div class="pane glass rise">
+      <p class="kicker">What we're building</p>
+      <h2 class="h2 pane__h2">Both sides of the same conversation.</h2>
+      <p class="lede pane__lede">
+        Applying for work and hiring for work are the same event seen from two chairs, so we
+        build them as one product. A candidate tells Airral what they are after once; it keeps
+        watching, and reworks their résumé for the roles worth applying to. A company gets the
+        applications, interviews, feedback and offers for a role in a single view.
+      </p>
+      <p class="lede pane__lede">
+        We are early. Some of this is live today, some of it is still being built — including
+        opening Airral up so assistants like Claude can search it directly.
+      </p>
+      <div class="cta-row pane__cta">
+        <a class="btn btn--glass" routerLink="/how-it-works">How it works</a>
       </div>
     </div>
   </section>
 
-  <!-- Values -->
-  <section class="values-section">
-    <div class="container">
-      <h2>Our Core Values</h2>
-      <div class="values-grid">
-        <div class="value-card" *ngFor="let value of values">
-          <h3>{{ value.title }}</h3>
-          <p>{{ value.description }}</p>
-        </div>
-      </div>
+  <!-- ── how we work ── -->
+  <section class="section container" id="principles">
+    <p class="kicker rise">How we work</p>
+    <h2 class="h2 rise">Three things we won't trade away.</h2>
+
+    <div class="grid grid--3 principles">
+      <article class="card glass rise" *ngFor="let p of principles">
+        <span class="glyph" aria-hidden="true">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+        </span>
+        <h3 class="h3">{{ p.title }}</h3>
+        <p class="body-2">{{ p.description }}</p>
+      </article>
     </div>
   </section>
 
-  <!-- Timeline -->
-  <section class="timeline-section">
-    <div class="container">
-      <h2>Our Journey</h2>
-      <div class="timeline">
-        <div class="timeline-item" *ngFor="let milestone of milestones">
-          <div class="timeline-marker">{{ milestone.year }}</div>
-          <div class="timeline-content">
-            <p>{{ milestone.event }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- CTA -->
-  <section class="cta-section">
-    <div class="container">
-      <div class="cta-card">
-        <h2>Ready to Join Our Team?</h2>
-        <p>We're always looking for talented people to help us revolutionize hiring.</p>
-        <div class="cta-actions">
-          <a [href]="applicantRegisterUrl" class="btn btn-primary">Explore Opportunities</a>
-          <a routerLink="/contact" class="btn btn-secondary">Get in Touch</a>
-        </div>
-      </div>
+  <!-- ── close ── -->
+  <section class="section end container">
+    <h2 class="end__h2 rise">Have a look<br /><span class="soft">for yourself.</span></h2>
+    <p class="lede end__lede rise">Free to start, and you can browse without an account.</p>
+    <div class="cta-row end__cta rise">
+      <a class="btn" [href]="applicantRegisterUrl">Start a job search</a>
+      <a class="btn btn--glass" routerLink="/contact">Talk to us</a>
     </div>
   </section>
 </main>

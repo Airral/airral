@@ -1,42 +1,59 @@
 /* =========================================================
-   AIRRAL — Website global styles & design tokens
+   AIRRAL — website design system
+
+   Light neutral ground. Frosted glass on the panes, never in
+   the background. Colour appears only on the brand mark, the
+   badge, the terminal caret and the focus ring — nowhere else.
    ========================================================= */
 
 :root {
-  /* Color palette */
-  --color-bg: #fbfbfa;
-  --color-surface: #ffffff;
-  --color-surface-alt: #f6f7f6;
-  --color-text: #111827;
-  --color-muted: #4b5563;
-  --color-subtle: #667789;
-  --color-border: #e1e5e9;
+  /* ── ground & ink ── */
+  --bg: #f6f6f8;
+  --bg-grid: #efeff3;
+  --ink: #14141c;
+  --ink-2: #55555f;
+  --ink-3: #8a8a95;
 
-  --color-primary: #007C6D;
-  --color-primary-2: #006B5B;
-  --color-accent: #3a63d6;
-  --color-success: #16a34a;
-  --color-danger: #dc2626;
+  /* The one accent. Reserved for the brand mark, the "soon"
+     badge, the terminal caret and keyboard focus. Do not spend
+     it on headings, links, borders or section decoration. */
+  --accent: #6d4aff;
+  --accent-deep: #4a28c4;
+  --accent-lift: #8a6bff;
 
-  --gradient-brand: linear-gradient(135deg, #006B5B 0%, #007C6D 64%, #20b59e 100%);
-  --gradient-soft: linear-gradient(135deg, rgba(0, 124, 109, 0.07), rgba(58, 99, 214, 0.06));
+  /* ── glass, tuned for a light ground ──
+     Frost is white; edges are ink, not white. */
+  --g-fill: rgba(255, 255, 255, 0.66);
+  --g-fill-2: rgba(255, 255, 255, 0.86);
+  --g-edge: rgba(20, 20, 28, 0.09);
+  --g-edge-lit: rgba(255, 255, 255, 0.9);
+  --g-blur: blur(20px) saturate(150%);
 
-  /* Effects */
-  --radius-sm: 10px;
-  --radius-md: 16px;
-  --radius-lg: 24px;
-  --shadow-sm: 0 4px 14px -8px rgba(15, 23, 42, 0.18);
-  --shadow-md: 0 14px 40px -22px rgba(15, 23, 42, 0.35);
-  --shadow-lg: 0 30px 80px -30px rgba(0, 124, 109, 0.2);
+  --sh-1: 0 1px 2px rgba(20, 20, 28, 0.04), 0 10px 30px rgba(20, 20, 28, 0.07);
+  --sh-2: 0 2px 4px rgba(20, 20, 28, 0.05), 0 20px 48px rgba(20, 20, 28, 0.11);
+  --sh-ink: 0 2px 6px rgba(20, 20, 28, 0.14), 0 10px 26px rgba(20, 20, 28, 0.16);
 
-  /* Layout */
-  --container: 1200px;
+  /* ── shape & rhythm ── */
+  --r-sm: 12px;
+  --r: 22px;
+  --r-lg: 30px;
+  --container: 1160px;
+  --sec: 120px;
+  --sec-tight: 84px;
+
+  /* ── type ── */
+  --f-display: 'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --f-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
 
   color-scheme: light;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 html,
@@ -46,25 +63,36 @@ body {
 }
 
 body {
-  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont,
-    'Helvetica Neue', Arial, sans-serif;
-  color: var(--color-text);
-  background: var(--color-bg);
+  font-family: var(--f-body);
+  font-size: 17px;
+  line-height: 1.62;
+  color: var(--ink);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  line-height: 1.55;
+  overflow-x: hidden;
 }
 
 h1,
 h2,
 h3,
 h4 {
-  color: var(--color-text);
-  letter-spacing: 0;
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
 }
 
 a {
   color: inherit;
+  text-decoration: none;
 }
 
 img,
@@ -77,9 +105,292 @@ button {
   font-family: inherit;
 }
 
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 10px;
+}
+
+/* =========================================================
+   Layout
+   ========================================================= */
+
 .container {
   width: 100%;
   max-width: var(--container);
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 30px;
+}
+
+.section {
+  padding: var(--sec) 0;
+}
+
+.section--tight {
+  padding: var(--sec-tight) 0;
+}
+
+/* The faint grid the frost blurs. Fades out down the page so
+   it never competes with content. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: linear-gradient(var(--bg-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 46px 46px;
+  background-position: -1px -1px;
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 0%, #000 30%, transparent 78%);
+  mask-image: radial-gradient(120% 90% at 50% 0%, #000 30%, transparent 78%);
+}
+
+/* Everything real sits above the grid. */
+.above {
+  position: relative;
+  z-index: 2;
+}
+
+/* =========================================================
+   Glass
+   ========================================================= */
+
+.glass {
+  position: relative;
+  overflow: hidden;
+  background: var(--g-fill);
+  -webkit-backdrop-filter: var(--g-blur);
+  backdrop-filter: var(--g-blur);
+  border: 1px solid var(--g-edge);
+  border-radius: var(--r);
+  box-shadow: var(--sh-1);
+}
+
+/* Light catching the top edge of a pane. */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(160deg, var(--g-edge-lit), transparent 34%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.pane {
+  padding: 64px 60px 68px;
+}
+
+.card {
+  padding: 32px 28px 34px;
+  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.32s ease,
+    box-shadow 0.32s ease;
+}
+
+.card:hover {
+  transform: translateY(-7px);
+  background: var(--g-fill-2);
+  box-shadow: var(--sh-2);
+}
+
+/* =========================================================
+   Buttons
+   ========================================================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 54px;
+  padding: 0 30px;
+  border: 0;
+  border-radius: 999px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: var(--sh-ink);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s ease,
+    background 0.22s ease;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(20, 20, 28, 0.16), 0 18px 40px rgba(20, 20, 28, 0.2);
+}
+
+.btn--glass {
+  background: var(--g-fill-2);
+  color: var(--ink);
+  -webkit-backdrop-filter: var(--g-blur);
+  backdrop-filter: var(--g-blur);
+  box-shadow: inset 0 0 0 1px var(--g-edge), var(--sh-1);
+}
+
+.btn--glass:hover {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(20, 20, 28, 0.14), var(--sh-2);
+}
+
+.btn--sm {
+  min-height: 44px;
+  padding: 0 22px;
+  font-size: 15px;
+}
+
+/* =========================================================
+   Type helpers
+   ========================================================= */
+
+.kicker {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.display {
+  font-size: clamp(48px, 8.6vw, 104px);
+}
+
+.h2 {
+  font-size: clamp(36px, 5.2vw, 64px);
+  max-width: 16ch;
+}
+
+.h3 {
+  font-size: 21px;
+  letter-spacing: -0.02em;
+}
+
+/* The one place the pale tone is allowed: display sizes only,
+   where 3:1 is the correct contrast threshold. */
+.soft {
+  color: var(--ink-3);
+}
+
+.lede {
+  font-size: clamp(18px, 1.9vw, 21px);
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 33em;
+}
+
+.body-2 {
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.fine {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+/* =========================================================
+   Grids
+   ========================================================= */
+
+.grid {
+  display: grid;
+  gap: 20px;
+}
+
+.grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cta-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+/* A glass square holding an icon. Ink icon, white frost. */
+.glyph {
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: linear-gradient(160deg, #fff, #f1f1f5);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(20, 20, 28, 0.06),
+    0 6px 16px rgba(20, 20, 28, 0.07);
+}
+
+/* Hairline between stacked rows. */
+.rule {
+  border-top: 1px solid var(--g-edge);
+}
+
+/* =========================================================
+   Scroll reveal
+   ========================================================= */
+
+.rise {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.rise.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 900px) {
+  :root {
+    --sec: 84px;
+    --sec-tight: 64px;
+    --r: 18px;
+    --r-lg: 22px;
+  }
+
+  .container {
+    padding: 0 18px;
+  }
+
+  .grid--2,
+  .grid--3 {
+    grid-template-columns: 1fr;
+  }
+
+  .pane {
+    padding: 38px 24px 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .rise {
+    opacity: 1;
+    transform: none;
+  }
 }

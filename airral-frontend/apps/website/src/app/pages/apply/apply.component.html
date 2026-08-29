@@ -1,43 +1,63 @@
+<div class="backdrop" aria-hidden="true"></div>
+
 <airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
 
-<main class="auth-page">
-  <section class="auth-hero">
-    <p class="eyebrow">Applicant portal</p>
-    <h1>Opening your job search workspace</h1>
-    <p>Account creation happens in the applicant portal so your profile, resume fit, saved jobs, and company signals start together.</p>
-  </section>
-
-  <section class="auth-card-wrap doorway">
-    <aside class="auth-context" aria-label="What happens next">
-      <h2>What happens next</h2>
-      <ul>
-        <li>
-          <strong>Create one applicant account</strong>
-          <span>No second website login. The portal owns your applicant workspace.</span>
-        </li>
-        <li>
-          <strong>Land on jobs first</strong>
-          <span>Start with real roles, then attach resume fit and saved next steps.</span>
-        </li>
-        <li>
-          <strong>Keep context attached</strong>
-          <span>Job IDs, role searches, and sign-in intent carry into the portal.</span>
-        </li>
-      </ul>
-    </aside>
-
-    <div class="auth-card">
-      <h2>Continue to AIRRAL</h2>
-      <p class="alt-action">If this page does not move automatically, open the applicant portal here.</p>
-      <a class="btn-primary" [href]="applicantRegisterUrl">Create applicant account</a>
-      <p class="alt-action">
-        Already have an account?
-        <a [href]="applicantLoginUrl">Sign in</a>
+<main class="above">
+  <section class="section container">
+    <div class="pane glass">
+      <p class="kicker">Applicant portal</p>
+      <h1 class="h2 pane__h1">Taking you to your job search.</h1>
+      <p class="lede pane__lede">
+        Your account and everything in it live in the applicant portal. This page hands you
+        straight over. If it does not move on its own, use the button below.
       </p>
-      <p class="alt-action">
+
+      <div class="cta-row pane__cta">
+        <a class="btn" [href]="applicantRegisterUrl">Create an account</a>
+        <a class="btn btn--glass" [href]="applicantLoginUrl">Sign in</a>
+      </div>
+
+      <p class="fine pane__fine">
         Hiring for a team?
-        <a [routerLink]="employerSignUpUrl">Create employer account</a>
+        <a class="link" [routerLink]="employerSignUpUrl">Create an employer account</a>
       </p>
+
+      <div class="grid grid--3 next">
+        <div class="next__item rule">
+          <span class="glyph" aria-hidden="true">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.6-3.6" />
+            </svg>
+          </span>
+          <h2 class="h3">Jobs first</h2>
+          <p class="body-2">You land on roles that are open right now, not an empty profile form.</p>
+        </div>
+
+        <div class="next__item rule">
+          <span class="glyph" aria-hidden="true">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+              <path d="M14 3v5h5" />
+            </svg>
+          </span>
+          <h2 class="h3">Your résumé</h2>
+          <p class="body-2">Add it once and it gets reworked for the specific role you apply to.</p>
+        </div>
+
+        <div class="next__item rule">
+          <span class="glyph" aria-hidden="true">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 4h14v16l-7-4-7 4z" />
+            </svg>
+          </span>
+          <h2 class="h3">One account</h2>
+          <p class="body-2">No separate website login. Saved jobs and applications stay in one place.</p>
+        </div>
+      </div>
     </div>
   </section>
 </main>

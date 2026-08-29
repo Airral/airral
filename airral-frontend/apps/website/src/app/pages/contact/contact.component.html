@@ -1,105 +1,179 @@
-<airral-header
-  [links]="headerLinks"
-  [ctas]="headerCtas">
-</airral-header>
+<div class="backdrop" aria-hidden="true"></div>
 
-<main>
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-content">
-      <h1>Get in Touch</h1>
-      <p class="hero-subtitle">Questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.</p>
+<airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
+
+<main class="above">
+  <!-- ── hero ── -->
+  <header class="hero container">
+    <h1 class="display">Get in touch,<br /><span class="soft">get a real answer.</span></h1>
+    <p class="hero__lede">
+      Whether it is your job search, your account, or hiring with us — write to us and a person
+      will read it.
+    </p>
+  </header>
+
+  <!-- ── form + channels ── -->
+  <section class="section--tight container">
+    <div class="grid contact">
+      <div class="pane glass rise">
+        <p class="kicker">Send a message</p>
+        <h2 class="h2 form__h2">Tell us what you need.</h2>
+
+        <div class="form__status" aria-live="polite">
+          <p class="note" *ngIf="submitted">
+            <span class="note__mark" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 12.5l5 5L20 6.5" />
+              </svg>
+            </span>
+            Thanks — your message is with us. We will be in touch.
+          </p>
+        </div>
+
+        <form class="form" (ngSubmit)="onSubmit()">
+          <p class="field">
+            <label class="field__label" for="name">Full name</label>
+            <input
+              class="field__input"
+              type="text"
+              id="name"
+              [(ngModel)]="formData.name"
+              name="name"
+              placeholder="Your name"
+              required
+            />
+          </p>
+
+          <p class="field">
+            <label class="field__label" for="email">Email address</label>
+            <input
+              class="field__input"
+              type="email"
+              id="email"
+              [(ngModel)]="formData.email"
+              name="email"
+              placeholder="you@example.com"
+              required
+            />
+          </p>
+
+          <p class="field">
+            <label class="field__label" for="subject">Subject</label>
+            <input
+              class="field__input"
+              type="text"
+              id="subject"
+              [(ngModel)]="formData.subject"
+              name="subject"
+              placeholder="What is this about?"
+            />
+          </p>
+
+          <p class="field">
+            <label class="field__label" for="message">Message</label>
+            <textarea
+              class="field__input field__input--area"
+              id="message"
+              [(ngModel)]="formData.message"
+              name="message"
+              placeholder="As much detail as you like."
+              rows="6"
+              required
+            ></textarea>
+          </p>
+
+          <div class="cta-row form__cta">
+            <button class="btn" type="submit">Send message</button>
+          </div>
+        </form>
+      </div>
+
+      <aside class="channels rise">
+        <p class="kicker">Other ways</p>
+        <h2 class="h3 channels__h3">Straight to the right inbox.</h2>
+
+        <ng-container *ngFor="let c of channels">
+          <a
+            class="card glass channel"
+            *ngIf="c.route; else externalChannel"
+            [routerLink]="c.route"
+          >
+            <ng-container
+              [ngTemplateOutlet]="channelBody"
+              [ngTemplateOutletContext]="{ c: c }"
+            ></ng-container>
+          </a>
+
+          <ng-template #externalChannel>
+            <a class="card glass channel" [href]="c.href">
+              <ng-container
+                [ngTemplateOutlet]="channelBody"
+                [ngTemplateOutletContext]="{ c: c }"
+              ></ng-container>
+            </a>
+          </ng-template>
+        </ng-container>
+      </aside>
     </div>
   </section>
 
-  <div class="container">
-    <div class="contact-grid">
-      <!-- Contact Form -->
-      <section class="contact-form-section">
-        <div class="form-card">
-          <h2>Send us a Message</h2>
+  <!-- ── questions ── -->
+  <section class="section--tight container">
+    <p class="kicker rise">Before you write</p>
+    <h2 class="h2 rise">A few things people ask first.</h2>
 
-          <div *ngIf="submitted" class="success-message">
-            ✓ Thank you! We've received your message and will be in touch soon.
-          </div>
-
-          <form (ngSubmit)="onSubmit()" class="contact-form">
-            <div class="form-group">
-              <label for="name">Full Name</label>
-              <input
-                type="text"
-                id="name"
-                [(ngModel)]="formData.name"
-                name="name"
-                placeholder="Your name"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="email">Email Address</label>
-              <input
-                type="email"
-                id="email"
-                [(ngModel)]="formData.email"
-                name="email"
-                placeholder="your@email.com"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="subject">Subject</label>
-              <input
-                type="text"
-                id="subject"
-                [(ngModel)]="formData.subject"
-                name="subject"
-                placeholder="What's this about?"
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="message">Message</label>
-              <textarea
-                id="message"
-                [(ngModel)]="formData.message"
-                name="message"
-                placeholder="Tell us more..."
-                rows="6"
-                required
-              ></textarea>
-            </div>
-
-            <button type="submit" class="btn-submit">Send Message</button>
-          </form>
-        </div>
-      </section>
-
-      <!-- Contact Info -->
-      <section class="contact-info-section">
-        <h2>Other Ways to Reach Us</h2>
-        <div class="contact-cards">
-          <a href="#" class="contact-card" *ngFor="let info of contactInfo">
-            <div class="contact-icon">{{ info.icon }}</div>
-            <h3>{{ info.title }}</h3>
-            <p>{{ info.description }}</p>
-          </a>
-        </div>
-      </section>
+    <div class="faqs">
+      <details class="faq glass rise" *ngFor="let faq of faqs">
+        <summary class="faq__q">
+          {{ faq.question }}
+          <span class="faq__mark" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 9.5l6 6 6-6" />
+            </svg>
+          </span>
+        </summary>
+        <p class="body-2 faq__a">{{ faq.answer }}</p>
+      </details>
     </div>
-
-    <!-- FAQs -->
-    <section class="faq-section">
-      <h2>Frequently Asked Questions</h2>
-      <div class="faq-list">
-        <details class="faq-item" *ngFor="let faq of faqs">
-          <summary>{{ faq.question }}</summary>
-          <p>{{ faq.answer }}</p>
-        </details>
-      </div>
-    </section>
-  </div>
+  </section>
 </main>
 
 <airral-footer></airral-footer>
+
+<!-- The inside of a channel card, shared by the routed and external variants. -->
+<ng-template #channelBody let-c="c">
+  <span class="glyph" aria-hidden="true">
+    <svg
+      *ngIf="c.icon === 'mail'"
+      width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"
+    >
+      <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
+      <path d="M3.5 7l8.5 6 8.5-6" />
+    </svg>
+    <svg
+      *ngIf="c.icon === 'sales'"
+      width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"
+    >
+      <rect x="2.5" y="7" width="19" height="13" rx="2.5" />
+      <path d="M9 7V5.5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2V7" />
+      <path d="M2.5 12.5h19" />
+    </svg>
+    <svg
+      *ngIf="c.icon === 'help'"
+      width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.6 9.4a2.5 2.5 0 1 1 3.6 2.3c-.8.4-1.2 1-1.2 1.8" />
+      <path d="M12 17h.01" />
+    </svg>
+  </span>
+  <span class="channel__text">
+    <b class="h3">{{ c.title }}</b>
+    <span class="fine">{{ c.detail }}</span>
+  </span>
+</ng-template>

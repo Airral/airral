@@ -1,23 +1,56 @@
+<div class="backdrop" aria-hidden="true"></div>
+
 <airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
-<main class="container">
-  <div class="legal-content">
-    <h1>Legal</h1>
-    <nav class="legal-nav">
-      <a routerLink="/terms">Terms of Service</a>
-      <a routerLink="/privacy">Privacy Policy</a>
-      <a routerLink="/cookies">Cookie Policy</a>
+
+<main class="above">
+  <!-- ── which document you are reading ── -->
+  <header class="container legal-head">
+    <p class="kicker">Legal</p>
+    <h1 class="h2 legal-head__h1">Terms of service</h1>
+    <p class="lede legal-head__lede">
+      Last updated January 2026. These terms cover your use of the Airral website and the
+      services we offer through it.
+    </p>
+
+    <nav class="cta-row legal-nav" aria-label="Legal documents">
+      <a class="btn btn--glass btn--sm" routerLink="/terms" aria-current="page">
+        Terms of service
+      </a>
+      <a class="btn btn--glass btn--sm" routerLink="/privacy">Privacy policy</a>
+      <a class="btn btn--glass btn--sm" routerLink="/cookies">Cookie policy</a>
     </nav>
-    <div class="legal-body">
-      <h2>Terms of Service</h2>
-      <p>Last updated: January 2026</p>
-      <h3>1. Agreement to Terms</h3>
-      <p>By accessing and using the AIRRAL website and services, you accept and agree to be bound by the terms and provision of this agreement.</p>
-      <h3>2. Use License</h3>
-      <p>Permission is granted to temporarily download one copy of the materials (information or software) on AIRRAL's website for personal, non-commercial transitory viewing only.</p>
-      <h3>3. Disclaimer</h3>
-      <p>The materials on AIRRAL's website are provided on an 'as is' basis. AIRRAL makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement of intellectual property or other violation of rights.</p>
-      <p><em>For full terms and conditions, please contact support@airral.io</em></p>
-    </div>
-  </div>
+  </header>
+
+  <!-- ── the document ── -->
+  <section class="section--tight container">
+    <article class="pane glass doc rise">
+      <h2 class="h3">1. Agreement to terms</h2>
+      <p class="body-2">
+        By using the Airral website and services you agree to be bound by these terms. If you do
+        not agree with them, do not use the services.
+      </p>
+
+      <h2 class="h3">2. Use licence</h2>
+      <p class="body-2">
+        You may download one copy of the material on the Airral website for personal,
+        non-commercial viewing. This licence does not transfer ownership of the material and may
+        be withdrawn at any time.
+      </p>
+
+      <h2 class="h3">3. Disclaimer</h2>
+      <p class="body-2">
+        The material on the Airral website is provided as is. Airral makes no warranties,
+        express or implied, and disclaims all other warranties including implied warranties of
+        merchantability, fitness for a particular purpose, and non-infringement of intellectual
+        property or other rights.
+      </p>
+
+      <p class="fine rule doc__note">
+        This page is a summary. For the full terms and conditions, write to
+        <a href="mailto:support&#64;airral.io">support&#64;airral.io</a>.
+      </p>
+    </article>
+  </section>
 </main>
+
 <airral-footer></airral-footer>

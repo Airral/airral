@@ -1,301 +1,123 @@
-<airral-header
-  [links]="headerLinks"
-  [ctas]="headerCtas">
-</airral-header>
+<div class="backdrop" aria-hidden="true"></div>
 
-<main class="home">
-  <section class="hero">
-    <div class="hero-color-field" aria-hidden="true"></div>
+<airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
 
-    <div class="container hero-inner">
-      <div class="hero-copy">
-        <span class="eyebrow">
-          <span class="pulse-dot"></span>
-          Jobs-first applicant workspace
+<main class="above">
+  <!-- ── hero ── -->
+  <header class="hero container">
+    <span class="pill glass"><i>Soon</i> Airral works inside Claude and ChatGPT</span>
+
+    <h1 class="display">Job hunting,<br /><span class="soft">minus the hunting.</span></h1>
+
+    <p class="hero__lede">
+      You’ve got better things to do than refresh job boards. Airral does the looking, tells
+      you what’s worth your time, and gets your résumé ready for it.
+    </p>
+
+    <div class="cta-row hero__cta">
+      <a class="btn" [href]="applicantPortal + '/login?mode=register'">Get started — it’s free</a>
+      <a class="btn btn--glass" routerLink="/for-employers">I’m hiring</a>
+    </div>
+
+    <p class="fine hero__fine">No card. No account needed to look around.</p>
+  </header>
+
+  <!-- ── the idea ── -->
+  <section class="section container" id="idea">
+    <p class="kicker rise">The idea</p>
+    <h2 class="h2 rise">Searching is the boring part. So we took it.</h2>
+    <p class="lede rise">
+      Nobody enjoys scrolling job boards at 11pm. Airral watches the market for you, learns
+      what you’re actually after, and only speaks up when there’s something worth your
+      attention.
+    </p>
+
+    <div class="grid grid--3 promises">
+      <article class="card glass rise" *ngFor="let p of promises">
+        <span class="glyph" aria-hidden="true">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.6-3.6" />
+          </svg>
         </span>
+        <h3 class="h3">{{ p.title }}</h3>
+        <p class="body-2">{{ p.description }}</p>
+      </article>
+    </div>
+  </section>
 
-        <h1>Airral</h1>
+  <!-- ── for your AI ── -->
+  <section class="section--tight container" id="mcp">
+    <div class="pane glass rise">
+      <p class="kicker">Coming soon</p>
+      <h2 class="h2 pane__h2">Ask your AI to find you a job. It’ll use Airral.</h2>
+      <p class="lede pane__lede">
+        We’re opening Airral up so assistants like Claude can search it directly. Your job hunt
+        stops being a website you visit and becomes something you just ask for.
+      </p>
 
-        <p class="hero-sub">
-          {{ displayedHeroText }}
+      <div class="terminal" #terminal>
+        <div class="terminal__bar" aria-hidden="true"><i></i><i></i><i></i></div>
+
+        <p class="terminal__line">
+          <span class="terminal__caret">&rsaquo;</span>
+          <span class="terminal__you" [class.is-typing]="!answered()">{{ typed() }}</span>
         </p>
 
-        <div class="hero-actions">
-          <a class="btn-primary" [href]="applicantRegisterUrl">Start job search</a>
-          <a class="btn-ghost" routerLink="/jobs">Browse roles</a>
-        </div>
-
-        <p class="hero-note">
-          Already searching?
-          <a [href]="applicantLoginUrl">Sign in</a>
-          <span aria-hidden="true">/</span>
-          Hiring for a company?
-          <a routerLink="/for-employers">Employer tools</a>
-        </p>
-      </div>
-
-      <div class="hero-stage">
-        <aside class="stage-card stage-card-top">
-          <span>Live job radar</span>
-          <strong>Fresh roles, ranked before you apply</strong>
-        </aside>
-
-        <div
-          class="product-preview"
-          aria-label="AIRRAL applicant portal preview"
-          (mousemove)="onPreviewMouseMove($event)">
-          <div class="preview-toolbar">
-            <span class="preview-mark" aria-hidden="true">AR</span>
-            <div>
-              <strong>Jobs</strong>
-              <span>Matched for Senior Frontend Engineer</span>
-            </div>
-            <button type="button" (click)="improvePreviewMatches()">Improve matches</button>
-          </div>
-
-          <div class="preview-grid">
-            <aside class="preview-list" aria-label="Example job list">
-              <button
-                *ngFor="let job of previewJobs; index as i"
-                type="button"
-                class="preview-job"
-                [class.selected]="i === selectedPreviewIndex"
-                [attr.aria-pressed]="i === selectedPreviewIndex"
-                (click)="selectPreviewJob(i)"
-              >
-                <span class="company-mark">{{ job.mark }}</span>
-                <div>
-                  <h3>{{ job.listTitle }}</h3>
-                  <p>{{ job.listMeta }}</p>
-                  <strong>{{ job.match }}</strong>
-                </div>
-              </button>
-            </aside>
-
-            <section
-              class="preview-detail"
-              aria-label="Example selected job detail"
-              aria-live="polite"
-            >
-              <p class="preview-source">{{ selectedPreviewJob.source }}</p>
-              <h2>{{ selectedPreviewJob.title }}</h2>
-              <p>{{ selectedPreviewJob.location }}</p>
-
-              <div class="preview-actions">
-                <a
-                  class="preview-action primary"
-                  [href]="applicantRegisterUrl + '&role=' + selectedPreviewJob.slug"
-                >Apply</a>
-                <a
-                  class="preview-action secondary"
-                  [href]="applicantLoginUrl + '?next=room&role=' + selectedPreviewJob.slug"
-                >Ask room</a>
-              </div>
-
-              <div class="signal-row">
-                <span *ngFor="let signal of selectedPreviewJob.signals">
-                  <strong>{{ signal.label }}</strong>
-                  {{ signal.value }}
-                </span>
-              </div>
-
-              <div class="context-panel">
-                <h3>What matters before you apply</h3>
-                <p>{{ selectedPreviewJob.context }}</p>
-              </div>
-            </section>
-          </div>
-        </div>
-
-        <aside class="stage-card stage-card-bottom">
-          <span>Warm context</span>
-          <strong>Rooms, resume fit, salary, source, and timing together</strong>
-        </aside>
-      </div>
-    </div>
-  </section>
-
-  <section class="proof-strip" aria-label="AIRRAL applicant value">
-    <div class="container proof-grid">
-      <article>
-        <span>01</span>
-        <h2>Role radar</h2>
-        <p>Find fresh jobs by source, signal, salary, location, and fit instead of scrolling stale boards.</p>
-      </article>
-      <article>
-        <span>02</span>
-        <h2>Context first</h2>
-        <p>Know why a role is worth your time before you start another application.</p>
-      </article>
-      <article>
-        <span>03</span>
-        <h2>Applicant room</h2>
-        <p>Keep saved roles, resume checks, notes, and warm conversations attached to the job.</p>
-      </article>
-    </div>
-  </section>
-
-  <section class="candidate-flow" aria-labelledby="candidate-flow-title">
-    <div class="container flow-shell">
-      <header class="section-head">
-        <p class="section-kicker">Built for the current job market</p>
-        <h2 id="candidate-flow-title">A job search should feel alive, not like paperwork</h2>
-        <p class="section-sub">AIRRAL turns role discovery into a guided product experience: scan signal, open context, decide faster, and keep momentum.</p>
-      </header>
-
-      <div class="process-grid">
-        <article class="step-card" *ngFor="let step of processSteps; index as i">
-          <span class="step-number">0{{ i + 1 }}</span>
-          <h3>{{ step.title }}</h3>
-          <p>{{ step.description }}</p>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <section class="jobs-section">
-    <div class="container">
-      <header class="section-head jobs-head">
-        <div>
-          <p class="section-kicker">Open roles</p>
-          <h2>Preview real jobs, then continue in your applicant portal</h2>
-          <p class="section-sub">Public roles create discovery. The AIRRAL account is where saving, matching, rooms, resume checks, and applying become a workflow.</p>
-        </div>
-
-        <form class="search-card" (submit)="$event.preventDefault(); searchJobs()">
-          <div class="search-field">
-            <span class="search-icon" aria-hidden="true">Search</span>
-            <input
-              type="search"
-              placeholder="Search by title, skill, or keyword"
-              [(ngModel)]="searchQuery"
-              (ngModelChange)="onSearchChange()"
-              name="q"
-              aria-label="Search jobs"
-            />
-          </div>
-          <button type="submit" class="btn-primary">Search roles</button>
-        </form>
-
-        <div class="chip-row" role="tablist" aria-label="Filter by department">
-          <button
-            *ngFor="let dep of departments"
-            type="button"
-            class="chip"
-            [class.active]="dep === activeDepartment"
-            (click)="selectDepartment(dep)"
-            role="tab"
-            [attr.aria-selected]="dep === activeDepartment"
-          >
-            {{ dep }}
-          </button>
-        </div>
-      </header>
-
-      <div *ngIf="loading" class="state">Loading jobs...</div>
-
-      <div *ngIf="error && !loading" class="state empty">
-        <h3>Refreshing roles</h3>
-        <p>We could not load public previews right now. You can still create a candidate account and use the applicant portal.</p>
-        <div class="state-actions">
-          <button (click)="loadJobs()" class="btn-ghost">Try again</button>
-          <a [href]="applicantRegisterUrl" class="btn-primary">Create candidate account</a>
-        </div>
-      </div>
-
-      <div *ngIf="!loading && !error" class="jobs-grid">
-        <article
-          *ngFor="let job of filteredJobs"
-          class="job-card"
-        >
-          <header class="job-card-head">
-            <span class="job-pill">{{ job.department || 'General' }}</span>
-            <span class="job-status">{{ job.status }}</span>
-          </header>
-
-          <h3 class="job-title">
-            <a class="job-card-link" [routerLink]="['/jobs', job.id]">{{ job.title }}</a>
-          </h3>
-          <p class="job-desc">
-            {{ (job.description || '') | slice:0:140 }}{{ (job.description || '').length > 140 ? '...' : '' }}
+        <div class="terminal__reply" [class.is-shown]="answered()">
+          <p class="terminal__line">
+            <span class="terminal__caret">&middot;</span>
+            <span class="terminal__ai">Looking through what’s open right now…</span>
           </p>
-
-          <footer class="job-card-foot">
-            <span class="job-date">Posted {{ job.createdAt | date:'mediumDate' }}</span>
-            <div class="job-actions">
-              <a
-                class="btn-ghost"
-                [routerLink]="['/jobs', job.id]"
-              >Preview</a>
-              <a
-                class="btn-primary"
-                [href]="applicantRegisterUrl + '&jobId=' + job.id"
-              >Create account</a>
-            </div>
-          </footer>
-        </article>
-
-        <div *ngIf="filteredJobs.length === 0 && jobs.length > 0" class="state empty">
-          <p>No matching roles. Try clearing filters or a different keyword.</p>
-        </div>
-
-        <div *ngIf="jobs.length === 0" class="state empty">
-          <h3>Start with your applicant workspace</h3>
-          <p>The public job preview is still warming up. Create a candidate account to use matching and saved-role workflow.</p>
-          <a [href]="applicantRegisterUrl" class="btn-primary">Create candidate account</a>
+          <p class="terminal__line">
+            <span class="terminal__caret">&middot;</span>
+            <span class="terminal__ai">
+              Found <b>three worth your time</b>. One pays above your last role and doesn’t need
+              you to move.
+            </span>
+          </p>
+          <p class="terminal__line">
+            <span class="terminal__caret">&middot;</span>
+            <span class="terminal__ai">Want me to rewrite your résumé for it?</span>
+          </p>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="features">
-    <div class="container">
-      <header class="section-head centered">
-        <p class="section-kicker">Applicant advantage</p>
-        <h2>Make every role feel worth opening</h2>
-        <p class="section-sub">The experience should pull candidates forward with useful signal, not bury them in generic listings.</p>
-      </header>
+  <!-- ── for companies ── -->
+  <section class="section container" id="companies">
+    <div class="pane glass rise">
+      <p class="kicker">For companies</p>
+      <h2 class="h2 pane__h2 pane__h2--sm">Hiring, without the spreadsheet.</h2>
+      <p class="lede pane__lede">
+        Everything about a hire in one place, so nobody has to ask where a candidate got to or
+        who said what.
+      </p>
 
-      <div class="features-grid">
-        <article class="feature" *ngFor="let f of features">
-          <div class="feature-icon" aria-hidden="true">{{ f.icon }}</div>
-          <h3>{{ f.title }}</h3>
-          <p>{{ f.description }}</p>
-        </article>
+      <div class="grid grid--2 modules">
+        <div class="module rule" *ngFor="let m of modules">
+          <b>{{ m.name }}</b>
+          <span>{{ m.what }}</span>
+        </div>
+      </div>
+
+      <div class="cta-row modules__cta">
+        <a class="btn btn--glass" routerLink="/for-employers">Take a look</a>
       </div>
     </div>
   </section>
 
-  <section class="faq">
-    <div class="container faq-inner">
-      <header class="section-head centered">
-        <p class="section-kicker">Product direction</p>
-        <h2>Frequently asked questions</h2>
-        <p class="section-sub">How AIRRAL should feel now: applicant-first, alive, and useful before sign-up.</p>
-      </header>
-
-      <div class="faq-list">
-        <details class="faq-item" *ngFor="let item of faqs">
-          <summary>{{ item.question }}</summary>
-          <p>{{ item.answer }}</p>
-        </details>
-      </div>
-    </div>
-  </section>
-
-  <section class="cta">
-    <div class="container">
-      <div class="cta-card">
-        <div>
-          <p class="section-kicker">Start here</p>
-          <h2>Turn job search into a product people want to come back to</h2>
-          <p>Send candidates to the applicant portal first. AIRRAL can become the place they check before applying anywhere else.</p>
-        </div>
-        <div class="cta-actions">
-          <a class="btn-primary" [href]="applicantRegisterUrl">Create candidate account</a>
-          <a class="btn-ghost-dark" routerLink="/for-employers">Employer tools</a>
-        </div>
-      </div>
+  <!-- ── close ── -->
+  <section class="section end container">
+    <h2 class="end__h2 rise">Let’s get you<br /><span class="soft">out of here.</span></h2>
+    <p class="lede end__lede rise">
+      Free to start. You can always go back to refreshing job boards.
+    </p>
+    <div class="cta-row end__cta rise">
+      <a class="btn" [href]="applicantPortal + '/login?mode=register'">Get started</a>
+      <a class="btn btn--glass" routerLink="/for-employers">I’m hiring</a>
     </div>
   </section>
 </main>

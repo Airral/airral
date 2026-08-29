@@ -1,6 +1,117 @@
+<div class="backdrop" aria-hidden="true"></div>
+
 <airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
-<main class="container">
-  <h1>Help & Resources</h1>
-  <p>Coming soon! Visit our <a routerLink="/contact">contact page</a> to reach our support team.</p>
+
+<main class="above">
+  <!-- ── hero ── -->
+  <header class="hero container">
+    <p class="kicker">Help</p>
+    <h1 class="display hero__h1">Stuck? Start<br /><span class="soft">here.</span></h1>
+    <p class="lede hero__lede">
+      Answers to the questions we get asked most, and where to go when the answer isn’t on this
+      page.
+    </p>
+    <div class="cta-row hero__cta">
+      <a class="btn" routerLink="/contact">Contact support</a>
+      <a class="btn btn--glass" routerLink="/how-it-works">How Airral works</a>
+    </div>
+  </header>
+
+  <!-- ── where to look ── -->
+  <section class="section--tight container" id="topics">
+    <p class="kicker rise">Where to look</p>
+    <h2 class="h2 rise">Four pages that answer most of it.</h2>
+
+    <div class="grid grid--2 topics">
+      <a class="card glass rise topic" routerLink="/how-it-works">
+        <span class="glyph" aria-hidden="true">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M15.4 8.6l-2 4.8-4.8 2 2-4.8z" />
+          </svg>
+        </span>
+        <h3 class="h3">How it works</h3>
+        <p class="body-2">
+          What Airral does once you tell it what you’re after, and what it hands you before you
+          apply.
+        </p>
+      </a>
+
+      <a class="card glass rise topic" routerLink="/jobs">
+        <span class="glyph" aria-hidden="true">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.6-3.6" />
+          </svg>
+        </span>
+        <h3 class="h3">Browsing jobs</h3>
+        <p class="body-2">
+          Open roles, what each one asks for, and the detail behind a listing. No account needed
+          to look.
+        </p>
+      </a>
+
+      <a class="card glass rise topic" routerLink="/pricing">
+        <span class="glyph" aria-hidden="true">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.5 13.2l-7.3 7.3a2 2 0 0 1-2.8 0l-6.9-6.9a2 2 0 0 1-.6-1.4V4.5a1 1 0 0 1 1-1h7.7a2 2 0 0 1 1.4.6l6.9 6.9a2 2 0 0 1 .6 1.4z" />
+            <path d="M7.8 7.8h.01" />
+          </svg>
+        </span>
+        <h3 class="h3">Plans and billing</h3>
+        <p class="body-2">
+          What is free, what is paid, and which parts of Airral each plan covers.
+        </p>
+      </a>
+
+      <a class="card glass rise topic" routerLink="/for-employers">
+        <span class="glyph" aria-hidden="true">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 20.5h18" />
+            <path d="M5 20.5V6a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v14.5" />
+            <path d="M14 10h4a1 1 0 0 1 1 1v9.5" />
+            <path d="M8 9h3M8 13h3" />
+          </svg>
+        </span>
+        <h3 class="h3">Hiring with Airral</h3>
+        <p class="body-2">
+          Posting a role, moving candidates through stages, and what your team sees in one place.
+        </p>
+      </a>
+    </div>
+  </section>
+
+  <!-- ── answers ── -->
+  <section class="section container" id="answers">
+    <div class="pane glass rise">
+      <p class="kicker">Common questions</p>
+      <h2 class="h2 pane__h2">Asked often enough to write down.</h2>
+
+      <div class="answers">
+        <div class="answer rule" *ngFor="let a of answers">
+          <h3 class="h3">{{ a.question }}</h3>
+          <p class="body-2">{{ a.answer }}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── close ── -->
+  <section class="section--tight end container">
+    <h2 class="end__h2 rise">Still stuck?<br /><span class="soft">Say so.</span></h2>
+    <p class="lede end__lede rise">
+      If your question isn’t here, write to us and a person will read it.
+    </p>
+    <div class="cta-row end__cta rise">
+      <a class="btn" routerLink="/contact">Contact support</a>
+      <a class="btn btn--glass btn--sm" routerLink="/privacy">Privacy</a>
+      <a class="btn btn--glass btn--sm" routerLink="/terms">Terms</a>
+    </div>
+  </section>
 </main>
+
 <airral-footer></airral-footer>

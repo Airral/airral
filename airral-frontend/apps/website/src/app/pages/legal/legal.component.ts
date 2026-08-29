@@ -1,7 +1,8 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+// apps/website/src/app/pages/legal/legal.component.ts
+import { AfterViewInit, Component, Inject, OnDestroy, PLATFORM_ID } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
+import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 
 @Component({
@@ -11,23 +12,51 @@ import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-c
   templateUrl: './legal.component.html',
   styleUrls: ['./legal.component.css'],
 })
-export class LegalComponent {
-  readonly legalType = 'terms'; // Can be 'terms', 'privacy', or 'cookies'
+export class LegalComponent implements AfterViewInit, OnDestroy {
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
-  readonly headerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'Legal',
-    links: [{ label: 'Home', path: '/' }],
-    ctas: [{ label: 'Contact', path: '/contact', external: false }],
-  };
-  readonly footerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'Fair hiring for everyone.',
-    columns: [
-      { title: 'Legal', links: [{ label: 'Terms', path: '/terms' }, { label: 'Privacy', path: '/privacy' }] },
-      { title: 'Company', links: [{ label: 'About', path: '/about' }] },
-      { title: 'Contact', links: [{ label: 'Support', path: '/contact' }] },
-    ],
-  };
+
+  private observers: IntersectionObserver[] = [];
+
+  constructor(@Inject(PLATFORM_ID) private readonly platformId: object) {}
+
+  ngAfterViewInit(): void {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    this.watchReveals();
+  }
+
+  ngOnDestroy(): void {
+    this.observers.forEach((o) => o.disconnect());
+  }
+
+  /** Reveal each `.rise` element once, as it comes into view. */
+  private watchReveals(): void {
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.rise'));
+    if (!els.length) {
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-in');
+            io.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.16 }
+    );
+
+    els.forEach((el, i) => {
+      el.style.transitionDelay = `${Math.min(i % 5, 4) * 80}ms`;
+      io.observe(el);
+    });
+    this.observers.push(io);
+  }
 }

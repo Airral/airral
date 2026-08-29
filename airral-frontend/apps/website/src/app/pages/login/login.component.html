@@ -1,19 +1,34 @@
+<div class="backdrop" aria-hidden="true"></div>
+
 <airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
 
-<main class="auth-page">
-  <section class="auth-hero">
-    <h1>Opening your applicant workspace</h1>
-    <p>Sign in happens in the AIRRAL applicant portal so your jobs, resume fit, profile, and saved roles stay in one place.</p>
-  </section>
+<main class="above">
+  <section class="section container auth">
+    <div class="pane glass auth__pane">
+      <p class="kicker">Sign in</p>
 
-  <section class="auth-card-wrap">
-    <div class="auth-card">
-      <h2>Continue to AIRRAL</h2>
-      <p class="alt-action">If this page does not move automatically, open the applicant portal here.</p>
-      <a class="btn-primary" [href]="applicantLoginUrl">Open applicant sign in</a>
-      <p class="alt-action">
-        New to AIRRAL?
-        <a [href]="applicantRegisterUrl">Create applicant account</a>
+      <h1 class="h2 auth__h1">Taking you to the applicant portal.</h1>
+
+      <p class="lede auth__lede">
+        Signing in happens in the applicant portal, so your saved roles, résumé and profile
+        stay in one place.
+      </p>
+
+      <div class="cta-row auth__cta">
+        <a class="btn" [href]="applicantLoginUrl">
+          <span>Open sign in</span>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true">
+            <path d="M5 12h13" />
+            <path d="M13 6l6 6-6 6" />
+          </svg>
+        </a>
+        <a class="btn btn--glass" [href]="applicantRegisterUrl">Create an account</a>
+      </div>
+
+      <p class="fine auth__fine">
+        This page should move on its own. Use the button if it doesn’t.
       </p>
     </div>
   </section>

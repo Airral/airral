@@ -25,48 +25,6 @@ export class JobDetailComponent implements OnInit {
   readonly applicantLoginUrl = `${PORTAL_ROUTES.APPLICANT}/login`;
   readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 
-  readonly headerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'Job Details',
-    links: [
-      { label: 'Home', path: '/' },
-      { label: 'Jobs', path: '/jobs' },
-    ],
-    ctas: [
-      { label: 'Apply Now', path: '#', external: false },
-    ],
-  };
-
-  readonly footerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'Fair hiring for everyone.',
-    columns: [
-      {
-        title: 'Product',
-        links: [
-          { label: 'For Candidates', path: '/' },
-          { label: 'For Employers', path: '/for-employers' },
-          { label: 'Pricing', path: '/pricing' },
-        ],
-      },
-      {
-        title: 'Company',
-        links: [
-          { label: 'About Us', path: '/about' },
-          { label: 'Contact', path: '/contact' },
-        ],
-      },
-      {
-        title: 'Resources',
-        links: [
-          { label: 'Help Center', path: '/help' },
-          { label: 'Privacy', path: '/privacy' },
-          { label: 'Terms', path: '/terms' },
-        ],
-      },
-    ],
-  };
-
   constructor(
     private route: ActivatedRoute,
     private jobService: JobApiService,

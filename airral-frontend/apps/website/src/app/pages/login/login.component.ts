@@ -1,3 +1,4 @@
+// apps/website/src/app/pages/login/login.component.ts
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Component, Inject, OnInit, PLATFORM_ID } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';

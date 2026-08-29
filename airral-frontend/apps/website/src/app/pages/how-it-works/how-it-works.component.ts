@@ -1,8 +1,22 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+// apps/website/src/app/pages/how-it-works/how-it-works.component.ts
+import {
+  AfterViewInit,
+  Component,
+  Inject,
+  OnDestroy,
+  PLATFORM_ID,
+} from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
+import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
+import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
+
+interface Step {
+  number: number;
+  title: string;
+  description: string;
+}
 
 @Component({
   selector: 'app-how-it-works',
@@ -11,116 +25,119 @@ import { PORTAL_ROUTES } from '@airral/shared-utils';
   templateUrl: './how-it-works.component.html',
   styleUrls: ['./how-it-works.component.css'],
 })
-export class HowItWorksComponent {
+export class HowItWorksComponent implements AfterViewInit, OnDestroy {
+  readonly headerLinks = WEBSITE_HEADER_LINKS;
+  readonly headerCtas = WEBSITE_HEADER_CTAS;
   readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 
-  readonly candidateSteps = [
+  private observers: IntersectionObserver[] = [];
+
+  readonly candidateSteps: Step[] = [
     {
       number: 1,
-      title: 'Create Your Profile',
-      description: 'Build a comprehensive profile showcasing your skills, experience, and career goals.',
+      title: 'Say what you’re after',
+      description:
+        'Once: what you’ve done, what you want next, and where you’re willing to work. That is the whole setup.',
     },
     {
       number: 2,
-      title: 'Get Matched',
-      description: 'Our AI finds job opportunities perfectly aligned with your expertise and preferences.',
+      title: 'Airral does the looking',
+      description:
+        'It keeps watching what’s open and puts a role in front of you when it fits — with the reason it thinks so.',
     },
     {
       number: 3,
-      title: 'Apply with One Click',
-      description: 'Submit tailored applications instantly. Your profile is automatically pre-screened.',
+      title: 'Your résumé gets reworked',
+      description:
+        'Before you apply, it rewrites your résumé for that specific role: the wording they used, the things they asked for twice.',
     },
     {
       number: 4,
-      title: 'Track & Interview',
-      description: 'Monitor your applications in real-time and schedule interviews seamlessly.',
+      title: 'Apply and follow it',
+      description:
+        'Send the application and see where it actually is — screening, interview, decision — instead of guessing.',
     },
     {
       number: 5,
-      title: 'Get Hired',
-      description: 'Receive and accept offers. Start your new role with confidence.',
+      title: 'Interviews and offers',
+      description:
+        'Times get agreed and offers arrive in the same place you applied from. Nothing lives in your inbox.',
     },
   ];
 
-  readonly employerSteps = [
+  readonly employerSteps: Step[] = [
     {
       number: 1,
-      title: 'Post a Job',
-      description: 'Create a job listing with detailed requirements. Our system learns what you need.',
+      title: 'Post the role',
+      description:
+        'Write it once, with what the job actually needs. That description is what candidates are measured against.',
     },
     {
       number: 2,
-      title: 'Get Qualified Candidates',
-      description: 'AI screening surfaces top-fit candidates ranked by compatibility.',
+      title: 'Applications arrive screened',
+      description:
+        'Each one is checked against the role and ranked, with the reasoning attached so you can disagree with it.',
     },
     {
       number: 3,
-      title: 'Evaluate & Collaborate',
-      description: 'Built-in tools for screening, interviewing, and team feedback.',
+      title: 'Interview as a team',
+      description:
+        'Scheduling and feedback sit on the role, so nobody has to chase who spoke to whom.',
     },
     {
       number: 4,
-      title: 'Make an Offer',
-      description: 'Send offer letters and track acceptance with integrated workflows.',
+      title: 'Make the offer',
+      description: 'Draft it, get it approved, send it, and see whether it was accepted.',
     },
     {
       number: 5,
-      title: 'Onboard New Team Member',
-      description: 'Automated onboarding checklists and document management.',
+      title: 'Start them properly',
+      description: 'Onboarding checklists and the documents a new hire has to sign, in one place.',
     },
   ];
 
-  readonly headerLinks: HeaderNavLink[] = [
-    { label: 'Home', path: '/' },
-    { label: 'For Employers', path: '/for-employers' },
-    { label: 'Pricing', path: '/pricing' },
-  ];
+  constructor(@Inject(PLATFORM_ID) private readonly platformId: object) {}
 
-  readonly headerCtas: HeaderCta[] = [
-    { label: 'Get Started', path: this.applicantRegisterUrl, external: true },
-  ];
+  ngAfterViewInit(): void {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
 
-  readonly headerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'How It Works',
-    links: [
-      { label: 'Home', path: '/' },
-      { label: 'For Employers', path: '/for-employers' },
-      { label: 'Pricing', path: '/pricing' },
-    ],
-    ctas: [
-      { label: 'Get Started', path: this.applicantRegisterUrl, external: true },
-    ],
-  };
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      return;
+    }
 
-  readonly footerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'Fair hiring for everyone.',
-    columns: [
-      {
-        title: 'Product',
-        links: [
-          { label: 'For Candidates', path: '/' },
-          { label: 'For Employers', path: '/for-employers' },
-          { label: 'Pricing', path: '/pricing' },
-        ],
+    this.watchReveals();
+  }
+
+  ngOnDestroy(): void {
+    this.observers.forEach((o) => o.disconnect());
+  }
+
+  /** Reveal each `.rise` element once, as it comes into view. */
+  private watchReveals(): void {
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.rise'));
+    if (!els.length) {
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-in');
+            io.unobserve(entry.target);
+          }
+        });
       },
-      {
-        title: 'Company',
-        links: [
-          { label: 'About Us', path: '/about' },
-          { label: 'Contact', path: '/contact' },
-          { label: 'Blog', path: '/blog' },
-        ],
-      },
-      {
-        title: 'Resources',
-        links: [
-          { label: 'Help Center', path: '/help' },
-          { label: 'Privacy', path: '/privacy' },
-          { label: 'Terms', path: '/terms' },
-        ],
-      },
-    ],
-  };
+      { threshold: 0.16 }
+    );
+
+    els.forEach((el, i) => {
+      el.style.transitionDelay = `${Math.min(i % 5, 4) * 80}ms`;
+      io.observe(el);
+    });
+    this.observers.push(io);
+  }
 }

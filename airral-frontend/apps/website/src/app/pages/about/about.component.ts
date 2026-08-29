@@ -1,13 +1,20 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+// apps/website/src/app/pages/about/about.component.ts
+import {
+  AfterViewInit,
+  Component,
+  Inject,
+  OnDestroy,
+  PLATFORM_ID,
+} from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
+import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 
-interface Milestone {
-  year: number;
-  event: string;
+interface Principle {
+  title: string;
+  description: string;
 }
 
 @Component({
@@ -17,72 +24,73 @@ interface Milestone {
   templateUrl: './about.component.html',
   styleUrls: ['./about.component.css'],
 })
-export class AboutComponent {
-  readonly mission =
-    'To revolutionize hiring by making it faster, fairer, and more human-centered.';
-
-  readonly values = [
-    {
-      title: 'Inclusivity',
-      description: 'We believe in removing barriers and creating equal opportunities for all.',
-    },
-    {
-      title: 'Transparency',
-      description: 'Clear communication builds trust. We keep candidates and teams informed every step.',
-    },
-    {
-      title: 'Innovation',
-      description: 'We leverage AI and modern tools to make hiring smarter and less biased.',
-    },
-    {
-      title: 'Speed',
-      description: 'Fast hiring doesn\'t mean rushed. We find the right match quickly.',
-    },
-  ];
-
-  // Timeline updated to reflect current product status
-  readonly milestones: Milestone[] = [
-    { year: 2026, event: 'AIRRAL ATS platform launched with multi-tenant architecture' },
-    { year: 2026, event: 'Full-featured HR portal with analytics and interview scheduling' },
-    { year: 2026, event: 'Quick Hire free tier introduced for startups' },
-    { year: 2026, event: 'Enterprise features: SSO, API access, white label' },
-  ];
-
+export class AboutComponent implements AfterViewInit, OnDestroy {
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
   readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 
-  readonly footerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'Fair hiring for everyone.',
-    columns: [
-      {
-        title: 'Product',
-        links: [
-          { label: 'For Candidates', path: '/' },
-          { label: 'For Employers', path: '/for-employers' },
-          { label: 'Pricing', path: '/pricing' },
-          { label: 'How It Works', path: '/how-it-works' },
-        ],
+  private observers: IntersectionObserver[] = [];
+
+  /** How we decide what to build. Each one describes something the product does. */
+  readonly principles: Principle[] = [
+    {
+      title: 'Say why',
+      description:
+        'Every match comes with the reason behind it, in plain words. No score you cannot question, no ranking you cannot see the workings of.',
+    },
+    {
+      title: 'Do the reading',
+      description:
+        'Airral watches for openings so you do not have to sit on job boards. It speaks up when something fits, and stays quiet when nothing does.',
+    },
+    {
+      title: 'One place per hire',
+      description:
+        'Applications, interviews, feedback and offers live together. Nobody has to ask where a candidate got to or who said what.',
+    },
+  ];
+
+  constructor(@Inject(PLATFORM_ID) private readonly platformId: object) {}
+
+  ngAfterViewInit(): void {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
+    this.watchReveals();
+  }
+
+  ngOnDestroy(): void {
+    this.observers.forEach((o) => o.disconnect());
+  }
+
+  /** Reveal each `.rise` element once, as it comes into view. */
+  private watchReveals(): void {
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.rise'));
+    if (!els.length) {
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-in');
+            io.unobserve(entry.target);
+          }
+        });
       },
-      {
-        title: 'Company',
-        links: [
-          { label: 'About Us', path: '/about' },
-          { label: 'Blog', path: '/blog' },
-          { label: 'Careers', path: '/careers' },
-          { label: 'Contact', path: '/contact' },
-        ],
-      },
-      {
-        title: 'Resources',
-        links: [
-          { label: 'Help Center', path: '/help' },
-          { label: 'Privacy', path: '/privacy' },
-          { label: 'Terms', path: '/terms' },
-          { label: 'Status', path: 'https://status.airral.io', external: true },
-        ],
-      },
-    ],
-  };
+      { threshold: 0.16 }
+    );
+
+    els.forEach((el, i) => {
+      el.style.transitionDelay = `${Math.min(i % 5, 4) * 80}ms`;
+      io.observe(el);
+    });
+    this.observers.push(io);
+  }
 }

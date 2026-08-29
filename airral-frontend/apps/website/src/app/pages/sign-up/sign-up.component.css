@@ -1,94 +1,99 @@
-.auth-page {
-  min-height: 100vh;
-  padding-bottom: 3rem;
-  background: #fbfbfa;
+/* Employer sign-up. Layout, glass, buttons and type come from the
+   global system in styles.css. The only thing genuinely local here
+   is the form control styling. */
+
+.signup {
+  align-items: start;
+  gap: 40px;
+  padding-top: 78px;
 }
 
-.auth-hero {
-  padding: 4.2rem 1.5rem 2rem;
-  text-align: center;
+.signup__h1 {
+  margin-top: 16px;
 }
 
-.auth-hero h1 {
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 2.8rem);
+.signup__lede {
+  margin-top: 20px;
 }
 
-.auth-hero p {
-  margin: 0.8rem auto 0;
-  max-width: 42rem;
-  color: #475569;
+.signup__list {
+  margin: 34px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.auth-card-wrap {
+.signup__list li {
   display: flex;
-  justify-content: center;
-  padding: 0 1.25rem;
+  align-items: center;
+  gap: 16px;
 }
 
-.auth-card {
-  width: min(100%, 34rem);
-  background: #ffffff;
-  border: 1px solid #e1e5e9;
-  border-radius: 8px;
-  box-shadow: 0 20px 50px -30px rgba(15, 23, 42, 0.35);
-  padding: 1.5rem;
+/* ── the form ── */
+
+.form {
   display: grid;
-  gap: 0.78rem;
+  gap: 18px;
 }
 
-label {
+.field__label {
   display: block;
-  font-size: 0.9rem;
+  margin-bottom: 8px;
+  font-size: 15px;
   font-weight: 600;
-  margin-bottom: 0.3rem;
 }
 
-input {
+.field__opt {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.field__input {
   width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.65rem;
-  padding: 0.7rem 0.82rem;
+  min-height: 48px;
+  padding: 0 15px;
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--g-fill-2);
+  border: 1px solid var(--g-edge);
+  border-radius: var(--r-sm);
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
-input:focus {
-  outline: 3px solid rgba(0, 124, 109, 0.12);
-  border-color: #007C6D;
-}
-
-.btn-primary {
-  border: 0;
-  border-radius: 999px;
-  padding: 0.78rem 1rem;
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-  background: #007C6D;
-}
-
-.btn-primary:hover {
-  background: #006B5B;
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.field__input:focus {
+  background: #fff;
+  border-color: rgba(20, 20, 28, 0.28);
 }
 
 .error {
-  margin: 0;
-  color: #b91c1c;
-  font-size: 0.9rem;
+  font-size: 15px;
+  font-weight: 600;
+  color: #b3261e;
 }
 
-.alt-action {
-  margin: 0.2rem 0 0;
-  font-size: 0.92rem;
+.form__submit {
+  width: 100%;
 }
 
-.alt-action a {
-  color: #006B5B;
-  font-weight: 800;
-  text-decoration: none;
+.form__submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: var(--sh-1);
+}
+
+.form__alt {
+  text-align: center;
+}
+
+.form__link {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .signup {
+    padding-top: 44px;
+  }
 }

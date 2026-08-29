@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { AuthApiService } from '@airral/shared-api';
 import { AuthService, buildLocalAuthHandoffUrl } from '@airral/shared-auth';
 import { RegisterRequest, User } from '@airral/shared-types';
-import { FooterComponent, HeaderComponent, HeaderCta, HeaderNavLink } from '@airral/shared-ui';
+import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 

@@ -1,79 +1,128 @@
-<airral-header
-  [links]="headerLinks"
-  [ctas]="headerCtas">
-</airral-header>
+<div class="backdrop" aria-hidden="true"></div>
 
-<main>
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-content">
-      <h1>How AIRRAL Works</h1>
-      <p class="hero-subtitle">Whether you're looking for your dream job or building the perfect team, we make the process simple and transparent.</p>
+<airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
+
+<main class="above">
+  <!-- ── hero ── -->
+  <header class="hero container">
+    <p class="kicker">How it works</p>
+    <h1 class="display">Two sides,<br /><span class="soft">one process.</span></h1>
+    <p class="hero__lede">
+      Looking for work, or filling a role. Here is what actually happens on each side, step by
+      step.
+    </p>
+  </header>
+
+  <!-- ── for job seekers ── -->
+  <section class="section--tight container" id="job-seekers">
+    <div class="pane glass rise">
+      <p class="kicker">For job seekers</p>
+      <h2 class="h2 pane__h2">You describe the job once. Airral goes looking.</h2>
+
+      <ol class="steps">
+        <li class="step rule" *ngFor="let step of candidateSteps">
+          <span class="glyph step__n" aria-hidden="true">{{ step.number }}</span>
+          <div class="step__body">
+            <h3 class="h3">{{ step.title }}</h3>
+            <p class="body-2">{{ step.description }}</p>
+          </div>
+        </li>
+      </ol>
+
+      <div class="cta-row steps__cta">
+        <a class="btn" [href]="applicantRegisterUrl">Start a job search</a>
+      </div>
     </div>
   </section>
 
-  <div class="container">
-    <!-- For Candidates -->
-    <section class="process-section">
-      <h2>For Job Seekers</h2>
-      <p class="section-subtitle">Find work that matches your passion and skills</p>
-      <div class="steps-container">
-        <div class="process-step" *ngFor="let step of candidateSteps; let i = index">
-          <div class="step-badge">{{ step.number }}</div>
-          <h3>{{ step.title }}</h3>
-          <p>{{ step.description }}</p>
-          <div class="arrow" *ngIf="i < candidateSteps.length - 1">↓</div>
-        </div>
-      </div>
-    </section>
+  <!-- ── for employers ── -->
+  <section class="section--tight container" id="employers">
+    <div class="pane glass rise">
+      <p class="kicker">For employers</p>
+      <h2 class="h2 pane__h2">One role, one place, from posting to first day.</h2>
 
-    <!-- For Employers -->
-    <section class="process-section">
-      <h2>For Employers</h2>
-      <p class="section-subtitle">Build great teams with less effort</p>
-      <div class="steps-container">
-        <div class="process-step" *ngFor="let step of employerSteps; let i = index">
-          <div class="step-badge">{{ step.number }}</div>
-          <h3>{{ step.title }}</h3>
-          <p>{{ step.description }}</p>
-          <div class="arrow" *ngIf="i < employerSteps.length - 1">↓</div>
-        </div>
-      </div>
-    </section>
+      <ol class="steps">
+        <li class="step rule" *ngFor="let step of employerSteps">
+          <span class="glyph step__n" aria-hidden="true">{{ step.number }}</span>
+          <div class="step__body">
+            <h3 class="h3">{{ step.title }}</h3>
+            <p class="body-2">{{ step.description }}</p>
+          </div>
+        </li>
+      </ol>
 
-    <!-- Key Features -->
-    <section class="features-section">
-      <h2>What Makes AIRRAL Different</h2>
-      <div class="features-grid">
-        <div class="feature-item">
-          <h3>🧠 AI-Powered Matching</h3>
-          <p>Our machine learning algorithm learns from successful hires to find better matches every time.</p>
-        </div>
-        <div class="feature-item">
-          <h3>⚡ Lightning Fast</h3>
-          <p>What traditionally takes months now takes weeks. Speed without sacrificing quality.</p>
-        </div>
-        <div class="feature-item">
-          <h3>🤝 Built for Collaboration</h3>
-          <p>Real-time communication tools keep everyone aligned throughout the hiring process.</p>
-        </div>
-        <div class="feature-item">
-          <h3>📊 Data-Driven Insights</h3>
-          <p>Analytics and dashboards give you full visibility into your hiring pipeline.</p>
-        </div>
+      <div class="cta-row steps__cta">
+        <a class="btn btn--glass" routerLink="/for-employers">See it for employers</a>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- CTA -->
-    <section class="cta-section">
-      <h2>Ready to Get Started?</h2>
-      <p>Join thousands of job seekers and employers using AIRRAL every day.</p>
-      <div class="cta-buttons">
-        <a [href]="applicantRegisterUrl" class="btn btn-primary">I'm Looking for Work</a>
-        <a routerLink="/for-employers" class="btn btn-secondary">I'm Hiring</a>
-      </div>
-    </section>
-  </div>
+  <!-- ── what holds it together ── -->
+  <section class="section container" id="principles">
+    <p class="kicker rise">Underneath</p>
+    <h2 class="h2 rise">Three things that hold both sides together.</h2>
+
+    <div class="grid grid--3 principles">
+      <article class="card glass rise">
+        <span class="glyph" aria-hidden="true">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 16v-4" />
+            <path d="M12 8.2v.1" />
+          </svg>
+        </span>
+        <h3 class="h3">Reasons, not scores</h3>
+        <p class="body-2">
+          Every match comes with the reason behind it, so a candidate or a hiring manager can
+          read it and say no.
+        </p>
+      </article>
+
+      <article class="card glass rise">
+        <span class="glyph" aria-hidden="true">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 3h8l4 4v14H6z" />
+            <path d="M14 3v4h4" />
+            <path d="M9.5 13h5" />
+            <path d="M9.5 17h3" />
+          </svg>
+        </span>
+        <h3 class="h3">Written for the role</h3>
+        <p class="body-2">
+          A résumé is rewritten against the job description in front of it, not sent as one
+          generic document to everybody.
+        </p>
+      </article>
+
+      <article class="card glass rise">
+        <span class="glyph" aria-hidden="true">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+            <path d="M3.5 9.5h17" />
+            <path d="M9 14h6" />
+          </svg>
+        </span>
+        <h3 class="h3">One record per hire</h3>
+        <p class="body-2">
+          Applications, interviews, feedback and offers sit on the role itself, so the history is
+          the same for everyone reading it.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── close ── -->
+  <section class="section end container">
+    <h2 class="end__h2 rise">Pick a side<br /><span class="soft">and get going.</span></h2>
+    <p class="lede end__lede rise">Free to start. No card, no account needed to look around.</p>
+    <div class="cta-row end__cta rise">
+      <a class="btn" [href]="applicantRegisterUrl">I’m looking for work</a>
+      <a class="btn btn--glass" routerLink="/for-employers">I’m hiring</a>
+    </div>
+  </section>
 </main>
 
 <airral-footer></airral-footer>

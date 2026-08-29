@@ -1,6 +1,119 @@
+<div class="backdrop" aria-hidden="true"></div>
+
 <airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
-<main class="container">
-  <h1>Blog</h1>
-  <p>Coming soon! Check back for insights on hiring, careers, and more.</p>
+
+<main class="above">
+  <!-- ── head ── -->
+  <header class="head container">
+    <p class="kicker">Blog</p>
+    <h1 class="display head__h1">
+      Nothing written<br /><span class="soft">yet.</span>
+    </h1>
+    <p class="lede head__lede">
+      We would rather build the thing than write about building it. When we do have something
+      to say — how the matching works, what we got wrong, what changed — it will show up here.
+    </p>
+  </header>
+
+  <!-- ── what will land here ── -->
+  <section class="section--tight container">
+    <div class="pane glass rise">
+      <p class="kicker">What we plan to write about</p>
+      <h2 class="h2 pane__h2">Notes from the work, not thought leadership.</h2>
+
+      <div class="grid grid--2 topics">
+        <div class="topic rule">
+          <span class="glyph" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.6-3.6" />
+            </svg>
+          </span>
+          <div>
+            <h3 class="h3">How the matching decides</h3>
+            <p class="body-2">
+              Why a role was shown to someone, in plain terms, and where the reasoning still
+              falls down.
+            </p>
+          </div>
+        </div>
+
+        <div class="topic rule">
+          <span class="glyph" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19V5a1 1 0 0 1 1-1h9l5 5v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z" />
+              <path d="M14 4v5h5" />
+              <path d="M8 13h7M8 16.5h4" />
+            </svg>
+          </span>
+          <div>
+            <h3 class="h3">Résumés and what they hide</h3>
+            <p class="body-2">
+              What we see when a résumé is rewritten for a role, and what a hiring team reads
+              into it.
+            </p>
+          </div>
+        </div>
+
+        <div class="topic rule">
+          <span class="glyph" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+            </svg>
+          </span>
+          <div>
+            <h3 class="h3">What we changed and why</h3>
+            <p class="body-2">
+              Release notes with the reasoning attached, so you can tell whether a change was
+              for you.
+            </p>
+          </div>
+        </div>
+
+        <div class="topic rule">
+          <span class="glyph" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7l-8-4Z" />
+              <path d="M9 12l2.2 2.2L15.5 10" />
+            </svg>
+          </span>
+          <div>
+            <h3 class="h3">What we do with your data</h3>
+            <p class="body-2">
+              Where your details go, who can see them, and how long we keep them.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── somewhere to go instead ── -->
+  <section class="section container">
+    <p class="kicker rise">In the meantime</p>
+    <h2 class="h2 rise">Pages that already have something in them.</h2>
+
+    <div class="grid grid--3 pointers">
+      <a class="card glass rise pointer" *ngFor="let p of pointers" [routerLink]="p.path">
+        <h3 class="h3">{{ p.title }}</h3>
+        <p class="body-2">{{ p.what }}</p>
+        <span class="pointer__go" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h13M12.5 5.5 19 12l-6.5 6.5" />
+          </svg>
+        </span>
+      </a>
+    </div>
+
+    <div class="cta-row pointers__cta rise">
+      <a class="btn btn--glass" routerLink="/contact">Ask us something</a>
+    </div>
+  </section>
 </main>
+
 <airral-footer></airral-footer>

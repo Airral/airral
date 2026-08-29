@@ -1,41 +1,138 @@
+<div class="backdrop" aria-hidden="true"></div>
+
 <airral-header [links]="headerLinks" [ctas]="headerCtas"></airral-header>
 
-<main class="auth-page">
-  <section class="auth-hero">
-    <h1>Create Employer Account</h1>
-    <p>Post roles, manage candidates, and run hiring pipelines with your team.</p>
-  </section>
+<main class="above">
+  <section class="section--tight container">
+    <div class="grid grid--2 signup">
+      <!-- ── what the account is for ── -->
+      <div class="signup__intro">
+        <p class="kicker">For companies</p>
+        <h1 class="h2 signup__h1">Create your employer account.</h1>
+        <p class="lede signup__lede">
+          Post a role, see everyone who applied, and keep the whole hire in one place — so
+          nobody has to ask where a candidate got to.
+        </p>
 
-  <section class="auth-card-wrap">
-    <form class="auth-card" (ngSubmit)="onSubmit()" #employerForm="ngForm">
-      <h2>Start hiring on AIRRAL</h2>
+        <ul class="grid signup__list">
+          <li>
+            <span class="glyph" aria-hidden="true">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 6h16M4 12h10M4 18h7" />
+              </svg>
+            </span>
+            <span class="body-2">Job posts, published once.</span>
+          </li>
+          <li>
+            <span class="glyph" aria-hidden="true">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+                <circle cx="9.5" cy="7" r="3.4" />
+                <path d="M17 11l2 2 4-4" />
+              </svg>
+            </span>
+            <span class="body-2">Every candidate, every stage, one view.</span>
+          </li>
+          <li>
+            <span class="glyph" aria-hidden="true">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                <path d="M14 3v5h5" />
+                <path d="M9 15l2 2 4-4" />
+              </svg>
+            </span>
+            <span class="body-2">Offers drafted, approved and tracked.</span>
+          </li>
+        </ul>
+      </div>
 
-      <label for="companyName">Company name</label>
-      <input id="companyName" name="companyName" required [(ngModel)]="companyName" />
+      <!-- ── the form ── -->
+      <div class="pane glass">
+        <form class="form" (ngSubmit)="onSubmit()" #employerForm="ngForm" novalidate>
+          <h2 class="h3">Start hiring on Airral</h2>
 
-      <label for="fullName">Your full name</label>
-      <input id="fullName" name="fullName" required [(ngModel)]="fullName" />
+          <div class="field">
+            <label class="field__label" for="companyName">Company name</label>
+            <input
+              class="field__input"
+              id="companyName"
+              name="companyName"
+              autocomplete="organization"
+              required
+              [(ngModel)]="companyName"
+            />
+          </div>
 
-      <label for="workEmail">Work email</label>
-      <input id="workEmail" name="workEmail" type="email" required [(ngModel)]="workEmail" />
+          <div class="field">
+            <label class="field__label" for="fullName">Your full name</label>
+            <input
+              class="field__input"
+              id="fullName"
+              name="fullName"
+              autocomplete="name"
+              required
+              [(ngModel)]="fullName"
+            />
+          </div>
 
-      <label for="phone">Work phone (optional)</label>
-      <input id="phone" name="phone" type="tel" [(ngModel)]="phone" />
+          <div class="field">
+            <label class="field__label" for="workEmail">Work email</label>
+            <input
+              class="field__input"
+              id="workEmail"
+              name="workEmail"
+              type="email"
+              autocomplete="email"
+              required
+              [(ngModel)]="workEmail"
+            />
+          </div>
 
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" required [(ngModel)]="password" />
+          <div class="field">
+            <label class="field__label" for="phone">Work phone <span class="field__opt">(optional)</span></label>
+            <input
+              class="field__input"
+              id="phone"
+              name="phone"
+              type="tel"
+              autocomplete="tel"
+              [(ngModel)]="phone"
+            />
+          </div>
 
-      <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+          <div class="field">
+            <label class="field__label" for="password">Password</label>
+            <input
+              class="field__input"
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              required
+              [(ngModel)]="password"
+            />
+          </div>
 
-      <button class="btn-primary" type="submit" [disabled]="isLoading || !employerForm.form.valid">
-        {{ isLoading ? 'Creating account...' : 'Create employer account' }}
-      </button>
+          <p class="error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
 
-      <p class="alt-action">
-        Looking for jobs?
-        <a [href]="applicantRegisterUrl">Create candidate account</a>
-      </p>
-    </form>
+          <button
+            class="btn form__submit"
+            type="submit"
+            [disabled]="isLoading || !employerForm.form.valid"
+          >
+            {{ isLoading ? 'Creating account…' : 'Create employer account' }}
+          </button>
+
+          <p class="fine form__alt">
+            Looking for a job instead?
+            <a class="form__link" [href]="applicantRegisterUrl">Create a candidate account</a>
+          </p>
+        </form>
+      </div>
+    </div>
   </section>
 </main>
 

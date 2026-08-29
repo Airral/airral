@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { HeaderComponent, FooterComponent, HeaderNavLink, HeaderCta } from '@airral/shared-ui';
+import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { JobApiService } from '@airral/shared-api';
 import { Job } from '@airral/shared-types';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
@@ -30,50 +30,6 @@ export class JobsBrowseComponent implements OnInit {
   readonly headerCtas = WEBSITE_HEADER_CTAS;
   readonly applicantLoginUrl = `${PORTAL_ROUTES.APPLICANT}/login`;
   readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
-
-  readonly headerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'Browse Jobs',
-    links: [
-      { label: 'Home', path: '/' },
-      { label: 'How It Works', path: '/how-it-works' },
-      { label: 'About', path: '/about' },
-    ],
-    ctas: [
-      { label: 'For Employers', path: '/for-employers', external: false },
-    ],
-  };
-
-  readonly footerConfig = {
-    brand: 'AIRRAL',
-    tagline: 'Fair hiring for everyone.',
-    columns: [
-      {
-        title: 'Product',
-        links: [
-          { label: 'For Candidates', path: '/' },
-          { label: 'For Employers', path: '/for-employers' },
-          { label: 'Pricing', path: '/pricing' },
-        ],
-      },
-      {
-        title: 'Company',
-        links: [
-          { label: 'About Us', path: '/about' },
-          { label: 'Contact', path: '/contact' },
-          { label: 'Blog', path: '/blog' },
-        ],
-      },
-      {
-        title: 'Resources',
-        links: [
-          { label: 'Help Center', path: '/help' },
-          { label: 'Privacy', path: '/privacy' },
-          { label: 'Terms', path: '/terms' },
-        ],
-      },
-    ],
-  };
 
   constructor(
     private jobService: JobApiService,
@@ -118,7 +74,7 @@ export class JobsBrowseComponent implements OnInit {
     );
 
     if (!jobs) {
-      this.error = 'Failed to load jobs';
+      this.error = 'We could not load the roles just now. Try again in a moment.';
       this.loading = false;
       return;
     }

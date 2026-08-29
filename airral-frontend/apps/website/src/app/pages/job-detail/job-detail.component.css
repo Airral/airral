@@ -1,49 +1,156 @@
-.job-detail-container { min-height: 100vh; }
-.container { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
-.back-link { color: #006B5B; text-decoration: none; font-weight: 500; margin-bottom: 24px; display: inline-block; }
-.back-link:hover { text-decoration: underline; }
-.job-header { margin: 32px 0 16px 0; display: flex; align-items: center; gap: 16px; }
-.job-header h1 { margin: 0; font-size: 36px; color: #0f172a; }
-.dept-badge { background: #E7F5F1; color: #006B5B; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-.job-meta { color: #64748b; font-size: 14px; margin-bottom: 32px; }
-.job-content { display: grid; grid-template-columns: 1fr 300px; gap: 40px; }
-.job-main h2 { font-size: 20px; color: #0f172a; margin-top: 32px; margin-bottom: 16px; }
-.job-main p { color: #475569; line-height: 1.8; }
-.job-main ul { color: #475569; line-height: 1.8; }
-.job-main li { margin-bottom: 8px; }
-.job-sidebar { position: sticky; top: 100px; height: fit-content; }
-.conversion-panel {
-  border: 1px solid #d9dee3;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 18px;
+/* Job detail. Layout, type and glass come from styles.css — only
+   the things unique to this page live here. */
+
+.job {
+  padding-top: 128px;
 }
-.panel-kicker {
-  margin: 0 0 8px;
-  color: #006B5B;
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
+
+/* ── back link ── */
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-2);
 }
-.conversion-panel h2 {
-  margin: 0;
-  color: #111827;
-  font-size: 20px;
+
+.back:hover {
+  color: var(--ink);
 }
-.conversion-panel p:not(.panel-kicker) {
-  margin: 10px 0;
-  color: #475569;
-  line-height: 1.5;
+
+/* ── heading block ── */
+
+.job__head {
+  margin-top: 22px;
 }
-.conversion-panel ul {
-  margin: 0 0 16px;
-  padding-left: 18px;
-  color: #475569;
-  line-height: 1.6;
+
+.job__title {
+  margin-top: 14px;
+  font-size: clamp(34px, 4.6vw, 58px);
+  max-width: 22ch;
 }
-.btn { width: 100%; padding: 12px 16px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-bottom: 12px; font-size: 14px; }
-.btn-primary { background: #007C6D; color: white; }
-.btn-primary:hover { opacity: 0.9; }
-.btn-secondary { background: white; color: #006B5B; border: 2px solid #007C6D; }
-.btn-secondary:hover { background: #f3f4f6; }
-@media (max-width: 768px) { .job-content { grid-template-columns: 1fr; } }
+
+.job__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 16px;
+  color: var(--ink-2);
+}
+
+/* Dot separators drawn, not typed, so no stray glyph reaches a
+   screen reader. */
+.job__meta li + li::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-right: 14px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  opacity: 0.5;
+  vertical-align: middle;
+}
+
+/* ── body and rail ── */
+
+.job__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 336px;
+  gap: 24px;
+  margin-top: 44px;
+  align-items: start;
+}
+
+.job__body {
+  padding: 44px 44px 48px;
+}
+
+.job__text {
+  margin-top: 16px;
+  white-space: pre-line;
+}
+
+.job__h {
+  margin-top: 38px;
+}
+
+.job__list {
+  margin: 16px 0 0;
+  padding-left: 22px;
+}
+
+.job__list li {
+  margin-top: 8px;
+}
+
+/* ── apply panel ── */
+
+.job__rail {
+  position: sticky;
+  top: 100px;
+}
+
+.job__panel {
+  padding: 30px 28px 32px;
+}
+
+.job__panel-h,
+.job__panel-lede {
+  margin-top: 12px;
+}
+
+.job__panel-list {
+  margin: 20px 0 0;
+  padding-left: 20px;
+}
+
+.job__panel-list li {
+  margin-top: 7px;
+}
+
+.job__panel-cta {
+  display: grid;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+/* ── loading and gone states ── */
+
+.job__status {
+  margin-top: 40px;
+}
+
+.job__gone {
+  margin-top: 32px;
+}
+
+.job__gone-lede,
+.job__gone-cta {
+  margin-top: 22px;
+}
+
+@media (max-width: 900px) {
+  .job {
+    padding-top: 96px;
+  }
+
+  .job__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .job__body {
+    padding: 30px 24px 34px;
+  }
+
+  .job__rail {
+    position: static;
+  }
+}
