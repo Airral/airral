@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "website",
+      "runtimeExecutable": "node_modules/.bin/nx",
+      "runtimeArgs": [
+        "serve",
+        "website",
+        "--host=localhost",
+        "--port=4200"
+      ],
+      "port": 4200,
+      "cwd": "airral-frontend"
+    }
+  ]
+}

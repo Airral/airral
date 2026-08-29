@@ -4,7 +4,7 @@
 /* ── hero ── */
 
 .hero {
-  padding: 138px 0 76px;
+  padding-block: 138px 76px;
   text-align: center;
 }
 
@@ -85,6 +85,6 @@
 
 @media (max-width: 900px) {
   .hero {
-    padding: 112px 0 56px;
+    padding-block: 112px 56px;
   }
 }

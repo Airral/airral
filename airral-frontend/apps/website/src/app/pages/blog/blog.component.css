@@ -4,7 +4,7 @@
 /* ── head ── */
 
 .head {
-  padding: 150px 0 96px;
+  padding-block: 150px 96px;
   text-align: center;
 }
 
@@ -73,7 +73,7 @@
 
 @media (max-width: 900px) {
   .head {
-    padding: 118px 0 72px;
+    padding-block: 118px 72px;
   }
 
   .topics {

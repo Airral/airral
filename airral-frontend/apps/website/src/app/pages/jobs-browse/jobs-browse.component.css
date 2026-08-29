@@ -19,7 +19,7 @@
 /* ── hero ── */
 
 .hero {
-  padding: 138px 0 20px;
+  padding-block: 138px 20px;
   text-align: center;
 }
 
@@ -153,7 +153,7 @@
 
 @media (max-width: 900px) {
   .hero {
-    padding: 110px 0 12px;
+    padding-block: 110px 12px;
   }
 
   .jobs {

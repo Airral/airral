@@ -3,7 +3,7 @@
    document switcher live here. */
 
 .legal-head {
-  padding: 132px 0 0;
+  padding-block: 132px 0;
 }
 
 .legal-head__h1 {
@@ -56,6 +56,6 @@
 
 @media (max-width: 900px) {
   .legal-head {
-    padding: 104px 0 0;
+    padding-block: 104px 0;
   }
 }

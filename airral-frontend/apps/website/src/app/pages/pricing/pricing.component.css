@@ -5,7 +5,7 @@
 /* ── hero ── */
 
 .hero {
-  padding: 150px 0 24px;
+  padding-block: 150px 24px;
   text-align: center;
 }
 
@@ -175,7 +175,7 @@
 
 @media (max-width: 900px) {
   .hero {
-    padding: 118px 0 12px;
+    padding-block: 118px 12px;
   }
 
   .plan__price {

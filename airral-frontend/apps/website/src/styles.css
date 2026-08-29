@@ -119,15 +119,17 @@ button {
   width: 100%;
   max-width: var(--container);
   margin: 0 auto;
-  padding: 0 30px;
+  /* padding-inline, not the shorthand: a `padding: X 0` rule on the same
+     element (a hero, a section) would otherwise wipe the gutters out. */
+  padding-inline: 30px;
 }
 
 .section {
-  padding: var(--sec) 0;
+  padding-block: var(--sec);
 }
 
 .section--tight {
-  padding: var(--sec-tight) 0;
+  padding-block: var(--sec-tight);
 }
 
 /* The faint grid the frost blurs. Fades out down the page so
@@ -364,7 +366,7 @@ button {
   }
 
   .container {
-    padding: 0 18px;
+    padding-inline: 18px;
   }
 
   .grid--2,

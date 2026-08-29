@@ -16,6 +16,8 @@ import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-c
 import { PORTAL_ROUTES } from '@airral/shared-utils';
 
 interface Promise_ {
+  /** Inline SVG path data, drawn on a 24x24 grid. */
+  icon: string;
   title: string;
   description: string;
 }
@@ -51,16 +53,22 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
 
   readonly promises: Promise_[] = [
     {
+      // eye
+      icon: 'M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z M12 9.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2z',
       title: 'It looks, you don’t',
       description:
         'Tell it what you’re after once. It keeps watching, day and night, and only interrupts when something actually fits.',
     },
     {
+      // speech mark
+      icon: 'M20 4H4a1.6 1.6 0 0 0-1.6 1.6v9.2A1.6 1.6 0 0 0 4 16.4h3.4L12 21l4.6-4.6H20a1.6 1.6 0 0 0 1.6-1.6V5.6A1.6 1.6 0 0 0 20 4z M8 10.2h8',
       title: 'It explains itself',
       description:
         'Every suggestion comes with the reason behind it. No black box, no mystery score — just a straight answer you can argue with.',
     },
     {
+      // document with a check
+      icon: 'M15 3H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7z M15 3v4h4 M9.5 14.5l1.8 1.8 3.7-4',
       title: 'It gets you ready',
       description:
         'Before you apply, it reworks your résumé for that specific role — the wording they used, the things they asked for twice.',

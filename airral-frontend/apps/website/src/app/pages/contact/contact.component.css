@@ -6,7 +6,7 @@
 /* ── hero ── */
 
 .hero {
-  padding: 140px 0 20px;
+  padding-block: 140px 20px;
   text-align: center;
 }
 
@@ -188,7 +188,7 @@
 
 @media (max-width: 900px) {
   .hero {
-    padding: 112px 0 8px;
+    padding-block: 112px 8px;
   }
 
   .contact {
