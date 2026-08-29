@@ -342,13 +342,18 @@ button {
    Scroll reveal
    ========================================================= */
 
-.rise {
+/* Content is VISIBLE BY DEFAULT. The reveal is opt-in: the root component
+   adds `js-reveal` to <html> only once it can actually drive the animation.
+   So a prerendered document, a crawler, JS switched off, or any browser
+   where IntersectionObserver does not deliver callbacks still shows the
+   whole page rather than a blank one. Never gate content on JS. */
+.js-reveal .rise {
   opacity: 0;
   transform: translateY(24px);
   transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.rise.is-in {
+.js-reveal .rise.is-in {
   opacity: 1;
   transform: none;
 }
@@ -391,7 +396,7 @@ button {
     transition: none !important;
   }
 
-  .rise {
+  .js-reveal .rise {
     opacity: 1;
     transform: none;
   }

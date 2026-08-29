@@ -1,11 +1,9 @@
 import {
-  AfterViewInit,
   Component,
   Inject,
-  OnDestroy,
   PLATFORM_ID,
 } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
@@ -41,11 +39,9 @@ interface EmployerPlan {
   templateUrl: './for-employers.component.html',
   styleUrls: ['./for-employers.component.css'],
 })
-export class ForEmployersComponent implements AfterViewInit, OnDestroy {
+export class ForEmployersComponent {
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
-
-  private observers: IntersectionObserver[] = [];
 
   readonly benefits: EmployerBenefit[] = [
     {
@@ -150,45 +146,4 @@ export class ForEmployersComponent implements AfterViewInit, OnDestroy {
 
   constructor(@Inject(PLATFORM_ID) private readonly platformId: object) {}
 
-  ngAfterViewInit(): void {
-    if (!isPlatformBrowser(this.platformId)) {
-      return;
-    }
-
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return;
-    }
-
-    this.watchReveals();
-  }
-
-  ngOnDestroy(): void {
-    this.observers.forEach((o) => o.disconnect());
-  }
-
-  /** Reveal each `.rise` element once, as it comes into view. */
-  private watchReveals(): void {
-    const els = Array.from(document.querySelectorAll<HTMLElement>('.rise'));
-    if (!els.length) {
-      return;
-    }
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-in');
-            io.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.16 }
-    );
-
-    els.forEach((el, i) => {
-      el.style.transitionDelay = `${Math.min(i % 5, 4) * 80}ms`;
-      io.observe(el);
-    });
-    this.observers.push(io);
-  }
 }

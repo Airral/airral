@@ -100,39 +100,11 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
     } else {
       this.watchTerminal();
     }
-
-    this.watchReveals();
   }
 
   ngOnDestroy(): void {
     this.observers.forEach((o) => o.disconnect());
     this.timers.forEach((t) => clearTimeout(t));
-  }
-
-  /** Reveal each `.rise` element once, as it comes into view. */
-  private watchReveals(): void {
-    const els = Array.from(document.querySelectorAll<HTMLElement>('.rise'));
-    if (!els.length) {
-      return;
-    }
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-in');
-            io.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.16 }
-    );
-
-    els.forEach((el, i) => {
-      el.style.transitionDelay = `${Math.min(i % 5, 4) * 80}ms`;
-      io.observe(el);
-    });
-    this.observers.push(io);
   }
 
   /** The page's one orchestrated moment: the ask types, the answer lands. */

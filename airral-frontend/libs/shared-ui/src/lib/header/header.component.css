@@ -59,6 +59,7 @@
   display: flex;
   align-items: center;
   gap: 11px;
+  min-height: 44px;
   text-decoration: none;
   color: var(--ink, #14141c);
 }
@@ -116,6 +117,11 @@
 }
 
 .nav-links a {
+  /* 44px of hit area even though the text is 15.5px — a 20px link fails
+     WCAG 2.5.8 outright and is miserable on a touch screen. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   font-size: 15.5px;
   font-weight: 500;
   color: var(--ink-2, #55555f);

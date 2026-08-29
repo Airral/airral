@@ -1,12 +1,10 @@
 // apps/website/src/app/pages/contact/contact.component.ts
 import {
-  AfterViewInit,
   Component,
   Inject,
-  OnDestroy,
   PLATFORM_ID,
 } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
@@ -37,7 +35,7 @@ interface Faq {
   templateUrl: './contact.component.html',
   styleUrls: ['./contact.component.css'],
 })
-export class ContactComponent implements AfterViewInit, OnDestroy {
+export class ContactComponent {
   formData = {
     name: '',
     email: '',
@@ -89,25 +87,7 @@ export class ContactComponent implements AfterViewInit, OnDestroy {
     },
   ];
 
-  private observers: IntersectionObserver[] = [];
-
   constructor(@Inject(PLATFORM_ID) private readonly platformId: object) {}
-
-  ngAfterViewInit(): void {
-    if (!isPlatformBrowser(this.platformId)) {
-      return;
-    }
-
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return;
-    }
-
-    this.watchReveals();
-  }
-
-  ngOnDestroy(): void {
-    this.observers.forEach((o) => o.disconnect());
-  }
 
   onSubmit() {
     if (this.formData.name && this.formData.email && this.formData.message) {
@@ -119,29 +99,4 @@ export class ContactComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  /** Reveal each `.rise` element once, as it comes into view. */
-  private watchReveals(): void {
-    const els = Array.from(document.querySelectorAll<HTMLElement>('.rise'));
-    if (!els.length) {
-      return;
-    }
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-in');
-            io.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.16 }
-    );
-
-    els.forEach((el, i) => {
-      el.style.transitionDelay = `${Math.min(i % 5, 4) * 80}ms`;
-      io.observe(el);
-    });
-    this.observers.push(io);
-  }
 }
