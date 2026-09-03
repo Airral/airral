@@ -41,7 +41,7 @@ echo "region:  $REGION"
 # ---------------------------------------------------------------------------
 say "1/6  Enable the APIs that are still missing"
 # ---------------------------------------------------------------------------
-# run / artifactregistry / firebasehosting / sts / iamcredentials are already on.
+# run / artifactregistry / sts / iamcredentials are already on.
 gcloud services enable \
   sqladmin.googleapis.com \
   secretmanager.googleapis.com \
@@ -177,9 +177,11 @@ done
 
 # Deployer already has run.admin + artifactregistry.writer. It additionally
 # needs to run the sync job against the database, read secrets, deploy Cloud Run
-# services that run *as* airral-api, and publish the frontends.
+# services that run *as* airral-api. No Firebase role: all four frontends are
+# Cloud Run services now, and this identity is reachable from a public
+# repository's Actions, so it holds nothing it does not use.
 for role in roles/cloudsql.client roles/secretmanager.secretAccessor \
-            roles/iam.serviceAccountUser roles/firebasehosting.admin; do
+            roles/iam.serviceAccountUser; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${DEPLOY_SA}" --role="$role" --condition=None >/dev/null
 done

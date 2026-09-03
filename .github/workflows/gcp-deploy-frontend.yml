@@ -8,11 +8,10 @@ name: GCP · Deploy Frontend to Cloud Run
 # zero -- so they share one workflow. The only per-app differences are the
 # service name, the image name and which custom domain is mapped to it.
 #
-# Why Cloud Run rather than Firebase Hosting, which is also free: the container
-# entrypoint writes runtime-config.js at start-up from environment variables.
-# On Firebase that file has to be baked into the bundle at deploy time, so
-# repointing a portal at a different API or a different sibling portal means a
-# full rebuild. Here it is an environment variable change.
+# All four run as containers rather than static uploads because the entrypoint
+# writes runtime-config.js at start-up from environment variables. A static host
+# has to bake that file into the bundle, which makes repointing a portal at a
+# different API or sibling portal cost a full rebuild; here it is an env change.
 #
 # Manual only, by design. Nothing here triggers on push.
 
@@ -30,6 +29,7 @@ on:
         type: choice
         options:
           - all
+          - portals
           - website
           - applicant
           - hr
@@ -55,8 +55,9 @@ jobs:
         id: pick
         run: |
           case '${{ inputs.app }}' in
-            all) echo 'apps=["website","applicant","hr","admin"]' >> "$GITHUB_OUTPUT" ;;
-            *)   echo 'apps=["${{ inputs.app }}"]' >> "$GITHUB_OUTPUT" ;;
+            all)     echo 'apps=["website","applicant","hr","admin"]' >> "$GITHUB_OUTPUT" ;;
+            portals) echo 'apps=["applicant","hr","admin"]' >> "$GITHUB_OUTPUT" ;;
+            *)       echo 'apps=["${{ inputs.app }}"]' >> "$GITHUB_OUTPUT" ;;
           esac
 
   deploy:
