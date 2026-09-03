@@ -60,7 +60,6 @@ export class LoginComponent {
     const email = response.email || response.userEmail || this.email;
     const user = userFromAuthResponse(response, { email });
 
-    this.authService.login(user, response.token);
     this.isLoading = false;
     this.redirectByRole(role, user, response.token);
   }
@@ -74,6 +73,7 @@ export class LoginComponent {
       user,
       token,
       router: this.router,
+      authService: this.authService,
       returnUrl: this.route.snapshot.queryParamMap.get('returnUrl'),
     });
   }

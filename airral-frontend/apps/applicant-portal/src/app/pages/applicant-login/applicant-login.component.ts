@@ -192,18 +192,19 @@ export class ApplicantLoginComponent {
 
     const user = userFromAuthResponse(response, { email: this.email.trim() });
 
-    this.authService.login(user, response.token);
     this.loading = false;
     this.googleLoading = false;
 
     // An employer who signed in here is forwarded to the HR portal with their
     // session, rather than being told to go there and left to find it.
+    // routeAfterAuth stores the session only if we are staying.
     routeAfterAuth({
       role,
       currentPortal: this.portal,
       user,
       token: response.token,
       router: this.router,
+      authService: this.authService,
       returnUrl: this.route.snapshot.queryParamMap.get('returnUrl'),
       sameOriginDefault: this.isRegisterMode ? '/onboarding' : undefined,
     });

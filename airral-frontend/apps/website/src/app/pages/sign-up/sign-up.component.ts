@@ -1,10 +1,11 @@
 import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
 import {
   AuthService,
-  buildLocalAuthHandoffUrl,
+  routeAfterAuth,
   userFromAuthResponse,
 } from '@airral/shared-auth';
 import { RegisterRequest } from '@airral/shared-types';
@@ -34,7 +35,8 @@ export class SignUpComponent {
 
   constructor(
     private readonly authApi: AuthApiService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly router: Router
   ) {}
 
   onSubmit(): void {
@@ -59,15 +61,26 @@ export class SignUpComponent {
 
     this.authApi.register(payload).subscribe({
       next: (res) => {
-        const role = res.role || 'HR_MANAGER';
         const user = userFromAuthResponse(res, {
           email: this.workEmail,
           phone: this.phone,
         });
 
-        this.authService.login(user, res.token);
         this.isLoading = false;
-        window.location.href = buildLocalAuthHandoffUrl(PORTAL_ROUTES.HR, user, res.token);
+
+        // The marketing site never serves a signed-in user, so it stores no
+        // session -- routeAfterAuth hands this one to the portal the role
+        // belongs to. Going through it rather than hardcoding the HR portal
+        // also means an account that comes back as an applicant lands
+        // somewhere that works, instead of on a portal that will bounce it.
+        routeAfterAuth({
+          role: res.role,
+          currentPortal: 'website',
+          user,
+          token: res.token,
+          router: this.router,
+          authService: this.authService,
+        });
       },
       error: () => {
         this.errorMessage = 'Unable to create employer account right now. Please try again.';
