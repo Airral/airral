@@ -1,8 +1,10 @@
 // libs/shared-auth/src/lib/token.service.ts
 import { Injectable } from '@angular/core';
 
-const TOKEN_KEY = 'auth_token';
-const USER_KEY = 'current_user';
+import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from './auth-storage-keys';
+
+const TOKEN_KEY = AUTH_TOKEN_KEY;
+const USER_KEY = AUTH_USER_KEY;
 const memoryStore = new Map<string, string>();
 
 const memoryStorage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = {
