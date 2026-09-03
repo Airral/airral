@@ -8,8 +8,9 @@ import {
   PORTAL_ID,
   PortalId,
   routeAfterAuth,
+  userFromAuthResponse,
 } from '@airral/shared-auth';
-import { AuthResponse, RegisterRequest, User } from '@airral/shared-types';
+import { AuthResponse, RegisterRequest } from '@airral/shared-types';
 import { USER_ROLES } from '@airral/shared-utils';
 import { GoogleAuthButtonComponent } from '@airral/shared-ui';
 
@@ -189,15 +190,7 @@ export class ApplicantLoginComponent {
   private handleAuthSuccess(response: AuthResponse): void {
     const role = response.role || USER_ROLES.APPLICANT;
 
-    const user: User = {
-      id: response.userId ?? 0,
-      email: response.email || response.userEmail || this.email.trim(),
-      firstName: response.firstName,
-      lastName: response.lastName,
-      roles: [role],
-      role,
-      isActive: true,
-    };
+    const user = userFromAuthResponse(response, { email: this.email.trim() });
 
     this.authService.login(user, response.token);
     this.loading = false;

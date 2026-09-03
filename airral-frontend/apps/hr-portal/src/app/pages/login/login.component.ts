@@ -3,7 +3,12 @@ import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService, PORTAL_ID, routeAfterAuth } from '@airral/shared-auth';
+import {
+  AuthService,
+  PORTAL_ID,
+  routeAfterAuth,
+  userFromAuthResponse,
+} from '@airral/shared-auth';
 import { AuthResponse, User } from '@airral/shared-types';
 import { PORTAL_ROUTES, USER_ROLES } from '@airral/shared-utils';
 
@@ -53,18 +58,7 @@ export class LoginComponent {
   private handleAuthSuccess(response: AuthResponse): void {
     const role = response.role || USER_ROLES.APPLICANT;
     const email = response.email || response.userEmail || this.email;
-    const user: User = {
-      id: response.userId ?? 0,
-      email,
-      firstName: response.firstName,
-      lastName: response.lastName,
-      organizationId: response.organizationId,
-      organizationName: response.organizationName,
-      organizationTier: response.organizationTier,
-      roles: [role],
-      role,
-      isActive: true,
-    };
+    const user = userFromAuthResponse(response, { email });
 
     this.authService.login(user, response.token);
     this.isLoading = false;

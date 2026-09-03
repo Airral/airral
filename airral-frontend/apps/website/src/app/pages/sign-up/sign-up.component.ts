@@ -2,8 +2,12 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService, buildLocalAuthHandoffUrl } from '@airral/shared-auth';
-import { RegisterRequest, User } from '@airral/shared-types';
+import {
+  AuthService,
+  buildLocalAuthHandoffUrl,
+  userFromAuthResponse,
+} from '@airral/shared-auth';
+import { RegisterRequest } from '@airral/shared-types';
 import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
@@ -56,16 +60,10 @@ export class SignUpComponent {
     this.authApi.register(payload).subscribe({
       next: (res) => {
         const role = res.role || 'HR_MANAGER';
-        const user: User = {
-          id: res.userId ?? 0,
-          email: res.email || this.workEmail,
-          firstName: res.firstName || firstName,
-          lastName: res.lastName || last.join(' '),
+        const user = userFromAuthResponse(res, {
+          email: this.workEmail,
           phone: this.phone,
-          roles: [role],
-          role,
-          isActive: true,
-        };
+        });
 
         this.authService.login(user, res.token);
         this.isLoading = false;

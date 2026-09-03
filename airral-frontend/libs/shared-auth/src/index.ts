@@ -8,3 +8,4 @@ export * from './lib/auth-handoff';
 export * from './lib/auth-storage-keys';
 export * from './lib/portal-id';
 export * from './lib/post-auth-routing';
+export * from './lib/user-from-auth-response';
