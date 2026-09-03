@@ -8,24 +8,38 @@ import { consumeLocalAuthHandoff } from './auth-handoff';
 import { PORTAL_ID, PortalId } from './portal-id';
 
 /**
- * Whether this app serves its own /login. The admin portal does not -- it is
- * reached by handoff -- so an unauthenticated visitor there belongs on the
- * marketing site's login, not on a route that does not exist.
+ * Where an unauthenticated visitor to this app belongs.
+ *
+ * Returning null means "this app serves its own /login", which is the only
+ * case where a returnUrl survives, since it is a same-origin path.
+ *
+ * The admin portal has no /login of its own. It used to fall through to the
+ * marketing site, whose /login shim forwards to the applicant portal -- so an
+ * administrator opening the admin portal was asked to "continue your job
+ * search". Administrators are HR-side users; USER_ROLES.ADMIN is accepted by
+ * the HR login, so that is where they go.
  */
-function hasOwnLogin(portal: PortalId | null): boolean {
-  return portal === 'hr' || portal === 'applicant';
+function loginUrlFor(portal: PortalId | null): string | null {
+  switch (portal) {
+    case 'hr':
+    case 'applicant':
+      return null;
+    case 'admin':
+      return `${PORTAL_ROUTES.HR}/login`;
+    default:
+      return `${PORTAL_ROUTES.WEBSITE}/login`;
+  }
+}
+
+function currentPathAsReturnUrl(): string {
+  return encodeURIComponent(
+    `${window.location.pathname}${window.location.search}${window.location.hash}`
+  );
 }
 
 function redirectToLogin(portal: PortalId | null): false {
-  if (hasOwnLogin(portal)) {
-    const returnUrl = encodeURIComponent(
-      `${window.location.pathname}${window.location.search}${window.location.hash}`
-    );
-    window.location.href = `/login?returnUrl=${returnUrl}`;
-    return false;
-  }
-
-  window.location.href = `${PORTAL_ROUTES.WEBSITE}/login`;
+  const elsewhere = loginUrlFor(portal);
+  window.location.href = elsewhere ?? `/login?returnUrl=${currentPathAsReturnUrl()}`;
   return false;
 }
 
