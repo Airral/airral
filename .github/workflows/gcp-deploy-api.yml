@@ -65,6 +65,12 @@ jobs:
           # ^@^ changes the env-var delimiter from comma to @, because
           # CORS_ALLOWED_ORIGINS is itself a comma-separated list.
           #
+          # GOOGLE_OAUTH_CLIENT_ID must be the same client id the browsers use:
+          # GoogleIdentityService checks it against the token's aud claim, so a
+          # mismatch rejects every real sign-in. Empty is safe -- the service
+          # fails closed with "Google sign-in is not configured" -- which is
+          # what it has been doing, since this variable was never passed at all.
+          #
           # Only hosts we control are listed. The four *.web.app origins were
           # dropped when Firebase Hosting was retired: a released Firebase site
           # ID can be claimed by anyone, and these are allowed with
@@ -82,7 +88,7 @@ jobs:
             --max-instances 3 \
             --timeout 300 \
             --startup-probe httpGet.path=/actuator/health,initialDelaySeconds=10,periodSeconds=10,failureThreshold=30 \
-            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=gcp@CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}@DB_NAME=${{ vars.DB_NAME }}@DB_USER=${{ vars.DB_USER }}@AIRRAL_RELEASE_VERSION=${{ inputs.version }}@CORS_ALLOWED_ORIGINS=https://airral.com,https://www.airral.com,https://app.airral.com,https://apply.airral.com,https://admin.airral.com" \
+            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=gcp@CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}@DB_NAME=${{ vars.DB_NAME }}@DB_USER=${{ vars.DB_USER }}@AIRRAL_RELEASE_VERSION=${{ inputs.version }}@CORS_ALLOWED_ORIGINS=https://airral.com,https://www.airral.com,https://app.airral.com,https://apply.airral.com,https://admin.airral.com@GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}" \
             --set-secrets "DB_PASSWORD=db-password:latest,JWT_ENCRYPTION_SECRET=jwt-encryption-secret:latest"
 
       - name: Smoke test

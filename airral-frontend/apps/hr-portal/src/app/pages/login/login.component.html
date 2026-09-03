@@ -28,6 +28,15 @@
 
       <form class="login-form" (ngSubmit)="onSubmit()" #loginForm="ngForm">
 
+        <airral-google-auth-button
+          text="signin_with"
+          context="signin"
+          [disabled]="isLoading || googleLoading"
+          (credentialReceived)="handleGoogleCredential($event)"
+        />
+
+        <div class="auth-divider"><span>or use email</span></div>
+
         <div class="input-group">
           <label for="email">Email Address</label>
           <div class="input-wrapper">
