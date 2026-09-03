@@ -5,11 +5,14 @@ name: GCP · Build & Push Image
 # version, so a build can be promoted whenever you choose -- and rolled back by
 # deploying an older tag that is already in the registry.
 #
-# Two services are built this way:
-#   api      -> airral-backend, Spring Boot on Cloud Run
-#   website  -> airral-frontend, static Angular behind nginx on Cloud Run
-# The three portals are static and go to Firebase Hosting instead, via
-# gcp-deploy-frontend.yml -- no container involved.
+# Every service is built this way:
+#   api        -> airral-backend, Spring Boot
+#   website    -> apps/website, static Angular behind nginx
+#   applicant  -> apps/applicant-portal
+#   hr         -> apps/hr-portal
+#   admin      -> apps/admin-portal
+# The four frontends share one Dockerfile, parameterised by APP -- the only
+# difference between their images is which dist/ directory nginx serves.
 #
 # Manual only, by design. Nothing here triggers on push.
 
@@ -23,12 +26,16 @@ on:
       service:
         description: 'Which image to build'
         required: true
-        default: both
+        default: all
         type: choice
         options:
-          - both
+          - all
+          - frontends
           - api
           - website
+          - applicant
+          - hr
+          - admin
 
 permissions:
   contents: read
@@ -53,9 +60,9 @@ jobs:
         id: pick
         run: |
           case '${{ inputs.service }}' in
-            api)     echo 'services=["api"]' >> "$GITHUB_OUTPUT" ;;
-            website) echo 'services=["website"]' >> "$GITHUB_OUTPUT" ;;
-            *)       echo 'services=["api","website"]' >> "$GITHUB_OUTPUT" ;;
+            all)       echo 'services=["api","website","applicant","hr","admin"]' >> "$GITHUB_OUTPUT" ;;
+            frontends) echo 'services=["website","applicant","hr","admin"]' >> "$GITHUB_OUTPUT" ;;
+            *)         echo 'services=["${{ inputs.service }}"]' >> "$GITHUB_OUTPUT" ;;
           esac
 
   build:
@@ -102,18 +109,22 @@ jobs:
           REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/airral
         run: |
           set -euo pipefail
+          # A frontend's nx project name is not always its short name, and the
+          # image name follows the short name so the registry reads cleanly.
           case '${{ matrix.service }}' in
-            api)
-              CONTEXT=airral-backend
-              IMAGE="$REGISTRY/airral-api"
-              BUILD_ARGS=""
-              ;;
-            website)
-              CONTEXT=airral-frontend
-              IMAGE="$REGISTRY/airral-website"
-              BUILD_ARGS="--build-arg APP=website"
-              ;;
+            api)       CONTEXT=airral-backend  IMAGE="$REGISTRY/airral-api"       APP="" ;;
+            website)   CONTEXT=airral-frontend IMAGE="$REGISTRY/airral-website"   APP=website ;;
+            applicant) CONTEXT=airral-frontend IMAGE="$REGISTRY/airral-applicant" APP=applicant-portal ;;
+            hr)        CONTEXT=airral-frontend IMAGE="$REGISTRY/airral-hr"        APP=hr-portal ;;
+            admin)     CONTEXT=airral-frontend IMAGE="$REGISTRY/airral-admin"     APP=admin-portal ;;
+            *) echo "::error::unknown service '${{ matrix.service }}'"; exit 1 ;;
           esac
+          # Not `[ -n "$APP" ] && ...`: under `set -e` a false test is a failed
+          # command, which would abort the api build, whose APP is empty.
+          BUILD_ARGS=""
+          if [ -n "$APP" ]; then
+            BUILD_ARGS="--build-arg APP=$APP"
+          fi
 
           SHA=$(git rev-parse --short HEAD)
           # Tagged with the version and the commit sha: the version is what you

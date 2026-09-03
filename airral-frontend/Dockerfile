@@ -1,10 +1,13 @@
 # Static Angular app served by nginx, for Cloud Run.
 #
-# Parameterised by APP so the same file builds any of the four frontends, though
-# only the website is deployed this way -- the three portals go to Firebase
-# Hosting, which is free and needs no container.
+# Parameterised by APP so the same file builds any of the four frontends. All
+# four are deployed this way: the entrypoint writes runtime-config.js from
+# environment variables at container start, so one image can be repointed at a
+# different API or a different sibling portal without a rebuild -- which a
+# static host cannot do.
 #
 # Build with:  docker build --build-arg APP=website -t airral-website airral-frontend
+# APP is an nx project name: website, applicant-portal, hr-portal, admin-portal.
 FROM node:20.19.0-bookworm-slim AS builder
 
 WORKDIR /app
