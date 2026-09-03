@@ -71,7 +71,7 @@ jobs:
             --memory 256Mi \
             --min-instances 0 \
             --max-instances 3 \
-            --set-env-vars "AIRRAL_API_BASE_URL=${{ inputs.api_base_url }},GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }},AIRRAL_RELEASE_VERSION=${{ inputs.version }}"
+            --set-env-vars "^@^AIRRAL_API_BASE_URL=${{ inputs.api_base_url }}@AIRRAL_WEBSITE_URL=${{ vars.URL_WEBSITE }}@AIRRAL_APPLICANT_URL=${{ vars.URL_APPLICANT }}@AIRRAL_HR_URL=${{ vars.URL_HR }}@AIRRAL_ADMIN_URL=${{ vars.URL_ADMIN }}@GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}@AIRRAL_RELEASE_VERSION=${{ inputs.version }}"
 
       - name: Smoke test
         id: smoke

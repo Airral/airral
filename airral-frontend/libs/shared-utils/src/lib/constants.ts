@@ -10,7 +10,13 @@ const runtimeEnv = typeof process !== 'undefined' ? process.env ?? {} : {};
 const browserRuntimeConfig =
   (typeof window !== 'undefined'
     ? (window as unknown as {
-        AIRRAL_RUNTIME_CONFIG?: { apiBaseUrl?: string };
+        AIRRAL_RUNTIME_CONFIG?: {
+          apiBaseUrl?: string;
+          websiteUrl?: string;
+          applicantUrl?: string;
+          hrUrl?: string;
+          adminUrl?: string;
+        };
       }).AIRRAL_RUNTIME_CONFIG
     : undefined) ?? {};
 
@@ -48,15 +54,30 @@ export const API_BASE_URL = configuredApiBaseUrl
     : localApiBaseUrl;
 
 /**
- * Portal Routes - Cross-portal navigation URLs
- * Development: localhost with different ports
- * Production:  airral.com subdomains
+ * Cross-portal navigation URLs.
+ *
+ * Resolution order per portal: runtime-config.js, then the airral.com
+ * subdomain in production, then localhost in development.
+ *
+ * These are deliberately runtime-configurable rather than compiled in. A
+ * portal that has not had its subdomain pointed yet (or lives on a preview
+ * host) can be reached by setting it at deploy time, instead of shipping a
+ * link to a hostname that does not resolve — which silently breaks every
+ * call to action on the site.
  */
+const portal = (configured: string | undefined, productionUrl: string, devPort: number) => {
+  const trimmed = (configured || '').trim().replace(/\/$/, '');
+  if (trimmed) {
+    return trimmed;
+  }
+  return isProduction ? productionUrl : localPortal(devPort);
+};
+
 export const PORTAL_ROUTES = {
-  WEBSITE: isProduction ? 'https://www.airral.com' : localPortal(4200),
-  APPLICANT: isProduction ? 'https://apply.airral.com' : localPortal(4201),
-  HR: isProduction ? 'https://app.airral.com' : localPortal(4202),
-  ADMIN: isProduction ? 'https://admin.airral.com' : localPortal(4203)
+  WEBSITE: portal(browserRuntimeConfig.websiteUrl, 'https://www.airral.com', 4200),
+  APPLICANT: portal(browserRuntimeConfig.applicantUrl, 'https://apply.airral.com', 4201),
+  HR: portal(browserRuntimeConfig.hrUrl, 'https://app.airral.com', 4202),
+  ADMIN: portal(browserRuntimeConfig.adminUrl, 'https://admin.airral.com', 4203)
 };
 
 export const USER_ROLES = {
