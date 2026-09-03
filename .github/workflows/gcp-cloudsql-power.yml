@@ -5,10 +5,11 @@ name: GCP · Cloud SQL Power
 # memory -- only storage -- so a 12-hour day roughly halves the compute cost,
 # which is the largest line item in this project.
 #
-# GitHub cron is UTC only and has no DST handling, so each transition is
-# scheduled at BOTH candidate UTC hours and the job then checks the real
-# America/New_York hour and acts on only one of them. That keeps the switch at
-# 08:00/20:00 ET year-round instead of drifting by an hour twice a year.
+# GitHub cron is UTC only and has no DST handling. Rather than scheduling the
+# two transitions, this runs hourly and asks whether the current
+# America/New_York time is inside the window, then converges on that answer.
+# One expression stays correct across DST, and no single run is load-bearing --
+# GitHub's scheduler is best-effort and often hours late.
 #
 # Note: while the database is stopped the API returns errors. The website and
 # the three portals are static and stay up regardless.
@@ -26,10 +27,12 @@ on:
           - stop
           - status
   schedule:
-    - cron: '0 12 * * *'   # 08:00 ET while EDT
-    - cron: '0 13 * * *'   # 08:00 ET while EST
-    - cron: '0 0 * * *'   # 20:00 ET while EDT
-    - cron: '0 1 * * *'   # 20:00 ET while EST
+    # Hourly, because the job converges on the desired state rather than acting
+    # at a transition. One expression is DST-correct on its own -- the window is
+    # evaluated in America/New_York -- and it bounds the cost of GitHub's late
+    # scheduling: a delayed run can now leave the database up for about an extra
+    # hour rather than a whole night.
+    - cron: '0 * * * *'
 
 permissions:
   contents: read
@@ -55,16 +58,26 @@ jobs:
             ACTION='${{ inputs.action }}'
             echo "manual run: $ACTION"
           else
-            # Only one of the two scheduled UTC hours is the intended ET hour;
-            # the other is the wrong side of DST and must do nothing.
+            # Converge on the state the schedule wants, rather than acting only
+            # at the instant of a transition.
+            #
+            # This previously required the ET hour to be exactly 08 or 20. That
+            # never fired: GitHub's cron is best-effort and routinely runs 45
+            # minutes to several hours late, by which point the hour has moved
+            # on, so every scheduled run skipped and the schedule silently did
+            # nothing for its entire life. Asking "should it be up right now?"
+            # is delay-tolerant, idempotent, and self-healing -- a missed
+            # transition is corrected by the next run instead of being lost.
+            #
+            # 10# forces base ten: an hour like 08 is not valid octal.
             ET_HOUR=$(TZ=America/New_York date +%H)
             ET_NOW=$(TZ=America/New_York date '+%Y-%m-%d %H:%M %Z')
-            case "$ET_HOUR" in
-              08) ACTION=start ;;
-              20) ACTION=stop ;;
-              *)  ACTION=skip ;;
-            esac
-            echo "scheduled run at $ET_NOW -> $ACTION"
+            if [ "$((10#$ET_HOUR))" -ge 8 ] && [ "$((10#$ET_HOUR))" -lt 20 ]; then
+              ACTION=start
+            else
+              ACTION=stop
+            fi
+            echo "scheduled run at $ET_NOW -> $ACTION (within 08:00-20:00 ET? $([ "$ACTION" = start ] && echo yes || echo no))"
           fi
           echo "action=$ACTION" >> "$GITHUB_OUTPUT"
 
