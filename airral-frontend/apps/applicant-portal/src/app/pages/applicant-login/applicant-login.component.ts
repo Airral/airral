@@ -3,7 +3,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService } from '@airral/shared-auth';
+import { AuthService, safeReturnUrl } from '@airral/shared-auth';
 import { AuthResponse, RegisterRequest, User } from '@airral/shared-types';
 import { USER_ROLES } from '@airral/shared-utils';
 import { GoogleAuthButtonComponent } from '@airral/shared-ui';
@@ -211,7 +211,6 @@ export class ApplicantLoginComponent {
       return '/onboarding';
     }
 
-    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-    return returnUrl && !returnUrl.startsWith('/login') ? returnUrl : '/';
+    return safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
   }
 }

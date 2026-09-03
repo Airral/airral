@@ -5,30 +5,22 @@ import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { consumeLocalAuthHandoff } from './auth-handoff';
+import { PORTAL_ID, PortalId } from './portal-id';
 
-function isLocalDevHost(): boolean {
-  return (
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname === '0.0.0.0'
-  );
+/**
+ * Whether this app serves its own /login. The admin portal does not -- it is
+ * reached by handoff -- so an unauthenticated visitor there belongs on the
+ * marketing site's login, not on a route that does not exist.
+ */
+function hasOwnLogin(portal: PortalId | null): boolean {
+  return portal === 'hr' || portal === 'applicant';
 }
 
-function isLocalHrPortal(): boolean {
-  return isLocalDevHost() && window.location.port === '4202';
-}
-
-function isApplicantPortalHost(): boolean {
-  return window.location.origin === PORTAL_ROUTES.APPLICANT || (isLocalDevHost() && window.location.port === '4201');
-}
-
-function isHrPortalHost(): boolean {
-  return window.location.origin === PORTAL_ROUTES.HR || isLocalHrPortal();
-}
-
-function redirectToLogin(): false {
-  if (isHrPortalHost() || isApplicantPortalHost()) {
-    const returnUrl = encodeURIComponent(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+function redirectToLogin(portal: PortalId | null): false {
+  if (hasOwnLogin(portal)) {
+    const returnUrl = encodeURIComponent(
+      `${window.location.pathname}${window.location.search}${window.location.hash}`
+    );
     window.location.href = `/login?returnUrl=${returnUrl}`;
     return false;
   }
@@ -40,6 +32,7 @@ function redirectToLogin(): false {
 export const authGuard: CanActivateFn = () => {
   const authService = inject(AuthService);
   const tokenService = inject(TokenService);
+  const portal = inject(PORTAL_ID, { optional: true });
 
   if (consumeLocalAuthHandoff(authService)) {
     return true;
@@ -56,5 +49,5 @@ export const authGuard: CanActivateFn = () => {
     authService.logout();
   }
 
-  return redirectToLogin();
+  return redirectToLogin(portal);
 };

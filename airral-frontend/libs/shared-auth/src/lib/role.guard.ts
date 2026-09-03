@@ -4,6 +4,7 @@ import { inject } from '@angular/core';
 import { AuthService } from './auth.service';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { consumeLocalAuthHandoff } from './auth-handoff';
+import { PORTAL_ID, PortalId } from './portal-id';
 
 function isLocalDevHost(): boolean {
   return (
@@ -13,28 +14,28 @@ function isLocalDevHost(): boolean {
   );
 }
 
-function isHrPortalHost(): boolean {
-  return window.location.origin === PORTAL_ROUTES.HR || (isLocalDevHost() && window.location.port === '4202');
-}
-
-function isApplicantPortalHost(): boolean {
-  return window.location.origin === PORTAL_ROUTES.APPLICANT || (isLocalDevHost() && window.location.port === '4201');
+/** See auth.guard.ts: the admin portal has no /login of its own. */
+function hasOwnLogin(portal: PortalId | null): boolean {
+  return portal === 'hr' || portal === 'applicant';
 }
 
 function redirectToLocalLogin(): false {
-  const returnUrl = encodeURIComponent(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+  const returnUrl = encodeURIComponent(
+    `${window.location.pathname}${window.location.search}${window.location.hash}`
+  );
   window.location.href = `/login?returnUrl=${returnUrl}`;
   return false;
 }
 
 export const roleGuard: CanActivateFn = (route) => {
   const authService = inject(AuthService);
+  const portal = inject(PORTAL_ID, { optional: true });
   const requiredRoles = (route.data?.['roles'] as string[] | undefined) ?? [];
 
   consumeLocalAuthHandoff(authService);
 
   if (!authService.isAuthenticated()) {
-    if (isHrPortalHost() || isApplicantPortalHost()) {
+    if (hasOwnLogin(portal)) {
       return redirectToLocalLogin();
     }
     window.location.href = `${PORTAL_ROUTES.WEBSITE}/login`;
@@ -58,7 +59,7 @@ export const roleGuard: CanActivateFn = (route) => {
   }
 
   // On HR portal in dev, redirect to home instead of external website
-  if (isHrPortalHost() && isLocalDevHost()) {
+  if (portal === 'hr' && isLocalDevHost()) {
     window.location.href = '/';
     return false;
   }

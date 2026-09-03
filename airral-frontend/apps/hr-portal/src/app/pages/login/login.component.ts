@@ -1,9 +1,14 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService, buildLocalAuthHandoffUrl } from '@airral/shared-auth';
+import {
+  AuthService,
+  buildLocalAuthHandoffUrl,
+  PORTAL_ID,
+  safeReturnUrl,
+} from '@airral/shared-auth';
 import { AuthResponse, User } from '@airral/shared-types';
 import { PORTAL_ROUTES, USER_ROLES } from '@airral/shared-utils';
 
@@ -18,6 +23,8 @@ export class LoginComponent {
   private readonly authApi = inject(AuthApiService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly portal = inject(PORTAL_ID, { optional: true });
 
   email = '';
   password = '';
@@ -71,17 +78,26 @@ export class LoginComponent {
 
   private redirectByRole(role: string, user: User, token: string): void {
     const normalizedRole = role.toUpperCase();
-
-    if (
+    const belongsHere =
       normalizedRole === USER_ROLES.ADMIN ||
       normalizedRole === USER_ROLES.HR_MANAGER ||
       normalizedRole === USER_ROLES.MANAGER ||
-      normalizedRole === USER_ROLES.EMPLOYEE
-    ) {
-      window.location.href = buildLocalAuthHandoffUrl(PORTAL_ROUTES.HR, user, token);
+      normalizedRole === USER_ROLES.EMPLOYEE;
+
+    if (belongsHere && this.portal === 'hr') {
+      // Already on this origin: authService.login() has stored the session, so
+      // navigate in place. Handing off to our own absolute URL would reload the
+      // whole app, put the token in the address bar and browser history for no
+      // reason, and discard the returnUrl the guard came here with -- which is
+      // why a deep link into the portal used to dump you on the dashboard.
+      this.router.navigateByUrl(
+        safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'))
+      );
       return;
     }
 
-    window.location.href = buildLocalAuthHandoffUrl(PORTAL_ROUTES.APPLICANT, user, token);
+    // A genuinely different origin, so the session has to travel with the URL.
+    const target = belongsHere ? PORTAL_ROUTES.HR : PORTAL_ROUTES.APPLICANT;
+    window.location.href = buildLocalAuthHandoffUrl(target, user, token);
   }
 }
