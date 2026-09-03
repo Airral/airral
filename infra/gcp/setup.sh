@@ -153,11 +153,23 @@ create_secret() {  # name, value
 # Must be 32+ bytes and must not be the dev default: JwtTokenProvider rejects
 # both at startup, so a bad value here fails the deploy rather than shipping.
 create_secret jwt-encryption-secret "$(openssl rand -base64 48 | tr -d '\n')"
-# google-oauth-client-id is deliberately NOT created here: Secret Manager rejects
-# an empty payload, and a secret with no version cannot be mounted. Create it when
-# you actually configure Google sign-in:
-#   gcloud secrets create google-oauth-client-id --replication-policy=automatic
-#   printf '%s' "<client-id>" | gcloud secrets versions add google-oauth-client-id --data-file=-
+
+# The CORS allowlist. Not confidential -- anyone can discover it by sending
+# OPTIONS with different Origin headers -- but it decides who may make
+# credentialed cross-origin calls, so it lives here to be versioned and
+# audit-logged, and so a new origin does not need a commit to the workflow that
+# deploys the API. gcp-deploy-api.yml mounts it as CORS_ALLOWED_ORIGINS.
+#
+# printf, never echo: a trailing newline would ride along on the final origin
+# and stop it matching the Origin header it is supposed to allow.
+create_secret cors-allowed-origins \
+  "https://airral.com,https://www.airral.com,https://app.airral.com,https://apply.airral.com,https://admin.airral.com"
+
+# google-oauth-client-id is deliberately NOT created: a client id is public by
+# design -- the browser ships it -- so it is a plain repository variable,
+# GOOGLE_OAUTH_CLIENT_ID, not a secret. The client *secret* would belong here,
+# and the ID-token flow this app uses does not have one. Secret Manager also
+# rejects an empty payload, so a placeholder could not be created anyway.
 # The app treats a blank GOOGLE_OAUTH_CLIENT_ID as "Google sign-in disabled".
 
 # ---------------------------------------------------------------------------
