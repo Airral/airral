@@ -64,6 +64,12 @@ jobs:
           set -euo pipefail
           # ^@^ changes the env-var delimiter from comma to @, because
           # CORS_ALLOWED_ORIGINS is itself a comma-separated list.
+          #
+          # Only hosts we control are listed. The four *.web.app origins were
+          # dropped when Firebase Hosting was retired: a released Firebase site
+          # ID can be claimed by anyone, and these are allowed with
+          # allowCredentials(true), so a stale entry is a standing offer of a
+          # credentialed cross-origin channel to whoever registers the name.
           gcloud run deploy airral-api \
             --image "$IMAGE:${{ inputs.version }}" \
             --region "${{ vars.GCP_REGION }}" \
@@ -76,7 +82,7 @@ jobs:
             --max-instances 3 \
             --timeout 300 \
             --startup-probe httpGet.path=/actuator/health,initialDelaySeconds=10,periodSeconds=10,failureThreshold=30 \
-            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=gcp@CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}@DB_NAME=${{ vars.DB_NAME }}@DB_USER=${{ vars.DB_USER }}@AIRRAL_RELEASE_VERSION=${{ inputs.version }}@CORS_ALLOWED_ORIGINS=https://airral.com,https://www.airral.com,https://app.airral.com,https://apply.airral.com,https://admin.airral.com,https://airral-web.web.app,https://airral-hr.web.app,https://airral-apply.web.app,https://airral-admin.web.app" \
+            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=gcp@CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}@DB_NAME=${{ vars.DB_NAME }}@DB_USER=${{ vars.DB_USER }}@AIRRAL_RELEASE_VERSION=${{ inputs.version }}@CORS_ALLOWED_ORIGINS=https://airral.com,https://www.airral.com,https://app.airral.com,https://apply.airral.com,https://admin.airral.com" \
             --set-secrets "DB_PASSWORD=db-password:latest,JWT_ENCRYPTION_SECRET=jwt-encryption-secret:latest"
 
       - name: Smoke test
