@@ -3,12 +3,7 @@ import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import {
-  AuthService,
-  buildLocalAuthHandoffUrl,
-  PORTAL_ID,
-  safeReturnUrl,
-} from '@airral/shared-auth';
+import { AuthService, PORTAL_ID, routeAfterAuth } from '@airral/shared-auth';
 import { AuthResponse, User } from '@airral/shared-types';
 import { PORTAL_ROUTES, USER_ROLES } from '@airral/shared-utils';
 
@@ -77,27 +72,15 @@ export class LoginComponent {
   }
 
   private redirectByRole(role: string, user: User, token: string): void {
-    const normalizedRole = role.toUpperCase();
-    const belongsHere =
-      normalizedRole === USER_ROLES.ADMIN ||
-      normalizedRole === USER_ROLES.HR_MANAGER ||
-      normalizedRole === USER_ROLES.MANAGER ||
-      normalizedRole === USER_ROLES.EMPLOYEE;
-
-    if (belongsHere && this.portal === 'hr') {
-      // Already on this origin: authService.login() has stored the session, so
-      // navigate in place. Handing off to our own absolute URL would reload the
-      // whole app, put the token in the address bar and browser history for no
-      // reason, and discard the returnUrl the guard came here with -- which is
-      // why a deep link into the portal used to dump you on the dashboard.
-      this.router.navigateByUrl(
-        safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'))
-      );
-      return;
-    }
-
-    // A genuinely different origin, so the session has to travel with the URL.
-    const target = belongsHere ? PORTAL_ROUTES.HR : PORTAL_ROUTES.APPLICANT;
-    window.location.href = buildLocalAuthHandoffUrl(target, user, token);
+    // Shared with the applicant login so the two doors cannot drift apart:
+    // whichever one you arrive at, your role decides where you end up.
+    routeAfterAuth({
+      role,
+      currentPortal: this.portal,
+      user,
+      token,
+      router: this.router,
+      returnUrl: this.route.snapshot.queryParamMap.get('returnUrl'),
+    });
   }
 }

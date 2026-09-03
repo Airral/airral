@@ -1,9 +1,14 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, Inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService, safeReturnUrl } from '@airral/shared-auth';
+import {
+  AuthService,
+  PORTAL_ID,
+  PortalId,
+  routeAfterAuth,
+} from '@airral/shared-auth';
 import { AuthResponse, RegisterRequest, User } from '@airral/shared-types';
 import { USER_ROLES } from '@airral/shared-utils';
 import { GoogleAuthButtonComponent } from '@airral/shared-ui';
@@ -33,7 +38,8 @@ export class ApplicantLoginComponent {
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly authApi: AuthApiService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    @Inject(PORTAL_ID) private readonly portal: PortalId
   ) {
     this.mode = this.route.snapshot.queryParamMap.get('mode') === 'register' ? 'register' : 'login';
     this.googleAvailable = this.hasGoogleClientId();
@@ -182,13 +188,6 @@ export class ApplicantLoginComponent {
 
   private handleAuthSuccess(response: AuthResponse): void {
     const role = response.role || USER_ROLES.APPLICANT;
-    const normalizedRole = role.toUpperCase();
-    if (normalizedRole !== USER_ROLES.APPLICANT && normalizedRole !== USER_ROLES.ADMIN) {
-      this.errorMessage = 'This login is for applicants. Employer users should use the HR portal.';
-      this.loading = false;
-      this.googleLoading = false;
-      return;
-    }
 
     const user: User = {
       id: response.userId ?? 0,
@@ -203,14 +202,17 @@ export class ApplicantLoginComponent {
     this.authService.login(user, response.token);
     this.loading = false;
     this.googleLoading = false;
-    this.router.navigateByUrl(this.resolvePostAuthUrl());
-  }
 
-  private resolvePostAuthUrl(): string {
-    if (this.isRegisterMode) {
-      return '/onboarding';
-    }
-
-    return safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
+    // An employer who signed in here is forwarded to the HR portal with their
+    // session, rather than being told to go there and left to find it.
+    routeAfterAuth({
+      role,
+      currentPortal: this.portal,
+      user,
+      token: response.token,
+      router: this.router,
+      returnUrl: this.route.snapshot.queryParamMap.get('returnUrl'),
+      sameOriginDefault: this.isRegisterMode ? '/onboarding' : undefined,
+    });
   }
 }
