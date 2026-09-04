@@ -91,6 +91,10 @@ file:
 # External job source connectors
 airral:
   auth:
+    # One account promoted to ADMIN at start-up. Nothing in the public API can
+    # create an admin, so the first one has to come from somewhere; the
+    # alternative was hand-run SQL against production. Blank disables it.
+    bootstrap-admin-email: ${AIRRAL_BOOTSTRAP_ADMIN_EMAIL:}
     google:
       client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
       jwk-url: ${GOOGLE_OAUTH_JWK_URL:https://www.googleapis.com/oauth2/v3/certs}

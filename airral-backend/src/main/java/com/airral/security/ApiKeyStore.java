@@ -256,4 +256,48 @@ public class ApiKeyStore {
 
     public record UserForKey(Long id, String email, Long organizationId, String role) {
     }
+
+    /** Why a key that was presented did not resolve. */
+    public enum MissReason { UNKNOWN, REVOKED, EXPIRED, USER_INACTIVE }
+
+    /**
+     * Explain a failed lookup, for the error message only.
+     *
+     * <p>Deliberately a second query rather than relaxing the filters in
+     * {@link #resolve}. That one is on every authenticated request and rides
+     * the partial index on {@code (key_hash) WHERE revoked_at IS NULL}; widening
+     * it to report status would give up the index for every successful call to
+     * improve the message on a failing one. This runs only after a miss, so the
+     * cost lands on the path that is already an error.
+     *
+     * <p>Distinguishing "expired" from "unknown" does leak that a given key
+     * once existed. Against a 256-bit random secret that oracle is worthless --
+     * an attacker cannot produce a candidate to test -- while a holder of a real
+     * key that quietly stopped working has no way to tell an expiry from a typo.
+     */
+    public Mono<MissReason> explainMiss(String keyHash) {
+        return databaseClient.sql("""
+                        SELECT k.revoked_at, k.expires_at, u.is_active
+                        FROM api_keys k
+                        JOIN users u ON u.id = k.user_id
+                        WHERE k.key_hash = :hash
+                        """)
+                .bind("hash", keyHash)
+                .map((row, meta) -> {
+                    if (row.get("revoked_at", LocalDateTime.class) != null) {
+                        return MissReason.REVOKED;
+                    }
+                    LocalDateTime expiresAt = row.get("expires_at", LocalDateTime.class);
+                    if (expiresAt != null && expiresAt.isBefore(LocalDateTime.now())) {
+                        return MissReason.EXPIRED;
+                    }
+                    Boolean active = row.get("is_active", Boolean.class);
+                    if (active != null && !active) {
+                        return MissReason.USER_INACTIVE;
+                    }
+                    return MissReason.UNKNOWN;
+                })
+                .one()
+                .defaultIfEmpty(MissReason.UNKNOWN);
+    }
 }
