@@ -3,9 +3,11 @@ package com.airral.security;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import io.r2dbc.spi.Parameters;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Service;
 
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
@@ -132,5 +134,126 @@ public class ApiKeyStore {
                 .bind("cutoff", cutoff)
                 .fetch()
                 .rowsUpdated();
+    }
+
+    /** A key as it may be shown after issuance: identity, never the secret. */
+    public record KeySummary(
+            String keyId,
+            String name,
+            String role,
+            List<String> scopes,
+            String environment,
+            LocalDateTime lastUsedAt,
+            LocalDateTime expiresAt,
+            LocalDateTime revokedAt,
+            LocalDateTime createdAt) {
+    }
+
+    /**
+     * Store a new key. The caller holds the only copy of the raw value and must
+     * return it to the user in this one response.
+     */
+    public Mono<Long> insert(
+            Long userId,
+            Long organizationId,
+            String role,
+            List<String> scopes,
+            String keyHash,
+            String keyId,
+            String environment,
+            String name,
+            Long issuedBy,
+            int ratePerMinute,
+            LocalDateTime expiresAt) {
+
+        return databaseClient.sql("""
+                        INSERT INTO api_keys (
+                            user_id, organization_id, role, scopes,
+                            key_hash, key_id, environment, name, issued_by,
+                            rate_per_minute, expires_at
+                        ) VALUES (
+                            :userId, :organizationId, :role, :scopes,
+                            :keyHash, :keyId, :environment, :name, :issuedBy,
+                            :ratePerMinute, :expiresAt
+                        )
+                        RETURNING id
+                        """)
+                .bind("userId", userId)
+                .bind("organizationId", organizationId == null ? Parameters.in(Long.class) : Parameters.in(organizationId))
+                .bind("role", role)
+                .bind("scopes", scopes.toArray(new String[0]))
+                .bind("keyHash", keyHash)
+                .bind("keyId", keyId)
+                .bind("environment", environment)
+                .bind("name", name)
+                .bind("issuedBy", issuedBy == null ? Parameters.in(Long.class) : Parameters.in(issuedBy))
+                .bind("ratePerMinute", ratePerMinute)
+                .bind("expiresAt", expiresAt == null ? Parameters.in(LocalDateTime.class) : Parameters.in(expiresAt))
+                .map((row, meta) -> row.get("id", Long.class))
+                .one();
+    }
+
+    /** Every key belonging to one user, including revoked ones. */
+    public Flux<KeySummary> listForUser(String email) {
+        return databaseClient.sql("""
+                        SELECT k.key_id, k.name, k.role, k.scopes, k.environment,
+                               k.last_used_at, k.expires_at, k.revoked_at, k.created_at
+                        FROM api_keys k
+                        JOIN users u ON u.id = k.user_id
+                        WHERE lower(u.email) = lower(:email)
+                        ORDER BY k.created_at DESC
+                        """)
+                .bind("email", email)
+                .map((row, meta) -> {
+                    String[] scopes = row.get("scopes", String[].class);
+                    return new KeySummary(
+                            row.get("key_id", String.class),
+                            row.get("name", String.class),
+                            row.get("role", String.class),
+                            scopes == null ? List.of() : List.of(scopes),
+                            row.get("environment", String.class),
+                            row.get("last_used_at", LocalDateTime.class),
+                            row.get("expires_at", LocalDateTime.class),
+                            row.get("revoked_at", LocalDateTime.class),
+                            row.get("created_at", LocalDateTime.class));
+                })
+                .all();
+    }
+
+    /**
+     * Revoke by public id, which is the only identifier anyone has after
+     * issuance. Already-revoked keys are left alone so the original reason and
+     * timestamp survive a second attempt.
+     */
+    public Mono<Long> revoke(String keyId, String reason) {
+        return databaseClient.sql("""
+                        UPDATE api_keys
+                        SET revoked_at = CURRENT_TIMESTAMP,
+                            revoked_reason = :reason
+                        WHERE key_id = :keyId AND revoked_at IS NULL
+                        """)
+                .bind("keyId", keyId)
+                .bind("reason", reason == null ? "revoked" : reason)
+                .fetch()
+                .rowsUpdated();
+    }
+
+    /** The user a key is being issued for, and the role that fixes its scopes. */
+    public Mono<UserForKey> findUser(String email) {
+        return databaseClient.sql("""
+                        SELECT id, email, organization_id, role
+                        FROM users
+                        WHERE lower(email) = lower(:email) AND is_active = true
+                        """)
+                .bind("email", email)
+                .map((row, meta) -> new UserForKey(
+                        row.get("id", Long.class),
+                        row.get("email", String.class),
+                        row.get("organization_id", Long.class),
+                        row.get("role", String.class)))
+                .one();
+    }
+
+    public record UserForKey(Long id, String email, Long organizationId, String role) {
     }
 }

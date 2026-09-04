@@ -94,6 +94,12 @@ airral:
     google:
       client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
       jwk-url: ${GOOGLE_OAUTH_JWK_URL:https://www.googleapis.com/oauth2/v3/certs}
+  mcp:
+    # The hostname that serves only /mcp. Blank disables the restriction, which
+    # is what local development wants -- one origin serving everything. Set in
+    # deployment so mcp.airral.com behaves now the way it will once the MCP
+    # endpoint becomes its own service.
+    hostname: ${AIRRAL_MCP_HOSTNAME:}
   company-logos:
     # Public Brandfetch client id for browser-rendered company logo CDN URLs.
     # Leave blank to fall back to stored company logo URLs / monograms.

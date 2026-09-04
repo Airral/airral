@@ -79,6 +79,18 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.GET, "/api/feed/news").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/seo/**").permitAll()
                         
+                        // Key management is admin-only, and reached with a
+                        // session token rather than an API key: issuing
+                        // credentials from a credential would let a leaked
+                        // admin key mint its own replacements, so revoking it
+                        // would no longer be final.
+                        .pathMatchers("/api/admin/**").hasAuthority("ADMIN")
+
+                        // MCP falls through to authenticated() below. The
+                        // endpoint itself grants nothing on role alone: tools
+                        // are filtered by the scopes on the presented key, so a
+                        // session token reaching it sees an empty tool list.
+
                         // All other endpoints require authentication
                         .anyExchange().authenticated()
                 )
