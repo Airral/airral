@@ -12,13 +12,28 @@ import reactor.core.publisher.Mono;
 @Component
 public class SecurityContextRepository implements ServerSecurityContextRepository {
 
+    /**
+     * Where the reason an API key was refused is left for the authentication
+     * entry point to render.
+     *
+     * <p>It has to travel by exchange attribute rather than by exception: the
+     * reason is only known here, while the 401 body is only written there, and
+     * a thrown ResponseStatusException does not carry its reason into the
+     * response body unless message inclusion is switched on globally -- which
+     * would start surfacing framework internals on every other error too.
+     */
+    public static final String KEY_REJECTION_ATTRIBUTE = "airral.apiKeyRejection";
+
     private final AuthenticationManager authenticationManager;
     private final ApiKeyAuthenticationManager apiKeyAuthenticationManager;
+    private final ApiKeyStore apiKeyStore;
 
     public SecurityContextRepository(AuthenticationManager authenticationManager,
-                                     ApiKeyAuthenticationManager apiKeyAuthenticationManager) {
+                                     ApiKeyAuthenticationManager apiKeyAuthenticationManager,
+                                     ApiKeyStore apiKeyStore) {
         this.authenticationManager = authenticationManager;
         this.apiKeyAuthenticationManager = apiKeyAuthenticationManager;
+        this.apiKeyStore = apiKeyStore;
     }
 
     @Override
@@ -53,7 +68,20 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
 
         if (ApiKeyFormat.looksLikeApiKey(presented)) {
             return this.apiKeyAuthenticationManager.authenticate(auth)
-                    .map(SecurityContextImpl::new);
+                    // Explicit witness: without it the chain infers
+                    // Mono<SecurityContextImpl> and switchIfEmpty below will
+                    // not accept an empty Mono<SecurityContext>.
+                    .<SecurityContext>map(SecurityContextImpl::new)
+                    // On a miss, spend one more query working out why, so the
+                    // holder is told whether the key expired, was revoked or was
+                    // mistyped instead of getting a bare 401. Only on failure,
+                    // so the indexed lookup every successful request makes is
+                    // untouched.
+                    .switchIfEmpty(Mono.defer(() -> apiKeyStore
+                            .explainMiss(ApiKeyFormat.sha256(presented))
+                            .doOnNext(reason -> exchange.getAttributes()
+                                    .put(KEY_REJECTION_ATTRIBUTE, reason))
+                            .then(Mono.empty())));
         }
 
         if (!looksLikeEncryptedJwe(presented)) {

@@ -13,7 +13,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import com.airral.exception.ApiKeyRateLimitExceededException;
-import com.airral.exception.ApiKeyRejectedException;
 import com.airral.security.AuthenticationManager.AuthenticationDetails;
 
 import reactor.core.publisher.Mono;
@@ -56,10 +55,6 @@ public class ApiKeyAuthenticationManager implements ReactiveAuthenticationManage
         return apiKeyStore.resolve(hash)
                 .flatMap(this::enforceRateLimit)
                 .map(this::toAuthentication)
-                // A key that does not resolve gets one extra query to say why.
-                // Only reached on failure, so the indexed fast path is untouched.
-                .switchIfEmpty(Mono.defer(() -> apiKeyStore.explainMiss(hash)
-                        .flatMap(reason -> Mono.error(new ApiKeyRejectedException(describe(reason))))))
                 // An unknown, revoked or expired key resolves to empty, which
                 // Spring turns into a 401. Nothing about which of those it was
                 // is reported back: that distinction is useful to an attacker
@@ -69,25 +64,12 @@ public class ApiKeyAuthenticationManager implements ReactiveAuthenticationManage
                 // be flattened into one -- it has to reach the caller as a 429,
                 // so it is re-raised rather than swallowed here.
                 .onErrorResume(error -> {
-                    if (error instanceof ApiKeyRateLimitExceededException
-                            || error instanceof ApiKeyRejectedException) {
+                    if (error instanceof ApiKeyRateLimitExceededException) {
                         return Mono.error(error);
                     }
                     log.warn("API key authentication failed: {}", error.getMessage());
                     return Mono.empty();
                 });
-    }
-
-    /** Wording aimed at whoever has to act on it, which is the key's holder. */
-    private String describe(ApiKeyStore.MissReason reason) {
-        return switch (reason) {
-            case EXPIRED -> "This API key has expired. Ask an AIRRAL admin to issue a new one.";
-            case REVOKED -> "This API key has been revoked and cannot be reactivated. "
-                    + "Ask an AIRRAL admin to issue a new one.";
-            case USER_INACTIVE -> "The account this API key belongs to is no longer active.";
-            case UNKNOWN -> "This API key is not recognised. Check it was copied in full, "
-                    + "including the airral_ak_ prefix.";
-        };
     }
 
     private Mono<ApiKeyStore.ResolvedKey> enforceRateLimit(ApiKeyStore.ResolvedKey key) {

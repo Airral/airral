@@ -5,13 +5,20 @@ import com.airral.security.SecurityContextRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import java.nio.charset.StandardCharsets;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+
+import com.airral.exception.ApiKeyRejectedException;
+import com.airral.security.ApiKeyStore;
+import com.airral.security.SecurityContextRepository;
 import reactor.core.publisher.Mono;
 
 @Configuration
@@ -38,9 +45,29 @@ public class SecurityConfig {
         return http
                 .cors(cors -> { })
                 .exceptionHandling(exceptionHandling -> exceptionHandling
+                        // Writes a body only when there is something useful to
+                        // say. SecurityContextRepository leaves the reason an
+                        // API key was refused on the exchange, because that is
+                        // where it is known and here is where a 401 is
+                        // rendered. Everything else stays a bare 401: a session
+                        // token failing needs no explanation, and inventing one
+                        // would describe the auth scheme to whoever is probing.
                         .authenticationEntryPoint((exchange, ex) -> {
                             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                            return Mono.empty();
+
+                            Object reason = exchange.getAttributes()
+                                    .get(SecurityContextRepository.KEY_REJECTION_ATTRIBUTE);
+                            if (!(reason instanceof ApiKeyStore.MissReason missReason)) {
+                                return Mono.empty();
+                            }
+
+                            String message = ApiKeyRejectedException.describe(missReason);
+                            byte[] body = ("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\""
+                                    + message + "\"}").getBytes(StandardCharsets.UTF_8);
+                            exchange.getResponse().getHeaders()
+                                    .setContentType(MediaType.APPLICATION_JSON);
+                            return exchange.getResponse().writeWith(Mono.just(
+                                    exchange.getResponse().bufferFactory().wrap(body)));
                         })
                         .accessDeniedHandler((exchange, denied) -> {
                             exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);

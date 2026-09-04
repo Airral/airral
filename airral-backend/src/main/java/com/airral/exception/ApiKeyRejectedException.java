@@ -1,26 +1,36 @@
 package com.airral.exception;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import com.airral.security.ApiKeyStore;
 
 /**
- * A presented API key that will not authenticate, with the reason.
+ * Wording for a refused API key, aimed at the person who has to act on it.
  *
- * <p>Extends {@link ResponseStatusException} rather than {@link ApiException}
- * for the same reason {@link ApiKeyRateLimitExceededException} does: this is
- * raised while the security context loads, before a handler exists, where
- * {@code GlobalExceptionHandler} never sees it.
+ * <p>Ordinarily an authentication failure should not explain itself. Here it
+ * can: the secret half of a key is 256 bits of CSPRNG output, so an attacker
+ * has no candidate worth testing and learning that some key once existed is
+ * worth nothing. Meanwhile a holder whose key stopped working overnight would
+ * otherwise face a bare 401 with no way to tell an expiry from a bad paste.
  *
- * <p>Says which of expired, revoked or unknown it was. Ordinarily an
- * authentication error should not explain itself, but the secret half of a key
- * is 256 bits of CSPRNG output: an attacker cannot produce a candidate worth
- * testing, so there is no enumeration to protect against. Meanwhile a person
- * whose key stopped working overnight would otherwise be debugging a bare 401
- * with no way to tell an expiry from a typo.
+ * <p>Not an exception any more -- the reason is rendered by the authentication
+ * entry point, which is the one place a 401 body is written. Kept in the
+ * exception package because that is where the message lived when it was thrown.
  */
-public class ApiKeyRejectedException extends ResponseStatusException {
+public final class ApiKeyRejectedException {
 
-    public ApiKeyRejectedException(String reason) {
-        super(HttpStatus.UNAUTHORIZED, reason);
+    private ApiKeyRejectedException() {
+    }
+
+    public static String describe(ApiKeyStore.MissReason reason) {
+        if (reason == null) {
+            return "This API key could not be verified.";
+        }
+        return switch (reason) {
+            case EXPIRED -> "This API key has expired. Ask an AIRRAL admin to issue a new one.";
+            case REVOKED -> "This API key has been revoked and cannot be reactivated. "
+                    + "Ask an AIRRAL admin to issue a new one.";
+            case USER_INACTIVE -> "The account this API key belongs to is no longer active.";
+            case UNKNOWN -> "This API key is not recognised. Check it was copied in full, "
+                    + "including the airral_ak_ prefix.";
+        };
     }
 }
