@@ -13,9 +13,12 @@ import reactor.core.publisher.Mono;
 public class SecurityContextRepository implements ServerSecurityContextRepository {
 
     private final AuthenticationManager authenticationManager;
+    private final ApiKeyAuthenticationManager apiKeyAuthenticationManager;
 
-    public SecurityContextRepository(AuthenticationManager authenticationManager) {
+    public SecurityContextRepository(AuthenticationManager authenticationManager,
+                                     ApiKeyAuthenticationManager apiKeyAuthenticationManager) {
         this.authenticationManager = authenticationManager;
+        this.apiKeyAuthenticationManager = apiKeyAuthenticationManager;
     }
 
     @Override
@@ -23,23 +26,42 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
         throw new UnsupportedOperationException("Not supported - stateless JWT authentication");
     }
 
+    /**
+     * Both credential types arrive in the same header, so this decides which one
+     * is present and hands it to the manager that understands it.
+     *
+     * <p>The two formats cannot be confused: a session token is a JWE, which is
+     * exactly five dot-separated segments, and an API key begins
+     * {@code airral_ak_} and contains no dots. Anything matching neither is
+     * ignored, which Spring turns into a 401 -- the same treatment an
+     * unrecognised token got before keys existed.
+     *
+     * <p>Both managers produce the same principal shape, so nothing downstream
+     * of here knows or cares which branch ran.
+     */
     @Override
     public Mono<SecurityContext> load(ServerWebExchange exchange) {
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String authToken = authHeader.substring(7);
-            if (!looksLikeEncryptedJwe(authToken)) {
-                return Mono.empty();
-            }
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return Mono.empty();
+        }
 
-            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(authToken, authToken);
-            
-            return this.authenticationManager.authenticate(auth)
+        String presented = authHeader.substring(7);
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(presented, presented);
+
+        if (ApiKeyFormat.looksLikeApiKey(presented)) {
+            return this.apiKeyAuthenticationManager.authenticate(auth)
                     .map(SecurityContextImpl::new);
         }
 
-        return Mono.empty();
+        if (!looksLikeEncryptedJwe(presented)) {
+            return Mono.empty();
+        }
+
+        return this.authenticationManager.authenticate(auth)
+                .map(SecurityContextImpl::new);
     }
 
     private boolean looksLikeEncryptedJwe(String token) {
