@@ -7,7 +7,7 @@
   The only remedy is revoking the key, which means noticing first. So the shape
   of a key is stripped on the way out, whatever code path produced it.
 
-  This is defence in depth rather than the primary control -- no code in this
+  This is defence in depth rather than the primary control. No code in this
   service logs a raw key, and the raw value exists only in the response body of
   the call that issues it. But a future debug statement printing an
   Authorization header is exactly the kind of thing that gets added under time
@@ -15,20 +15,23 @@
 
   Spring Boot's own defaults are included, so log levels continue to come from
   logging.level.* in application.yml.
+
+  Note for editors: XML forbids a double hyphen inside a comment, and an
+  unparseable logback config aborts start-up before anything can report why.
 -->
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <!-- airral_ak_live_<id>_<secret>: match the prefix and everything that can
-         follow it in a key, so a partial paste is redacted too. -->
+    <!-- Matches airral_ak_live_<id>_<secret>: the prefix plus everything that
+         can follow it, so a partially pasted key is redacted too. -->
     <property name="KEY_PATTERN" value="airral_ak_[A-Za-z0-9_]{8,}"/>
     <property name="KEY_MASK" value="airral_ak_[REDACTED]"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <!-- Keeps the format previously set by logging.pattern.console.
-                 The throwable is redacted separately: logback appends stack
-                 traces outside %msg, so a key inside an exception message
+                 The throwable is redacted separately because logback appends
+                 stack traces outside %msg, so a key inside an exception message
                  would otherwise slip past. -->
             <pattern>%d{yyyy-MM-dd HH:mm:ss} - %replace(%msg){'${KEY_PATTERN}', '${KEY_MASK}'}%n%replace(%wEx){'${KEY_PATTERN}', '${KEY_MASK}'}</pattern>
         </encoder>
