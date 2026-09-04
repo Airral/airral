@@ -1,5 +1,7 @@
 package com.airral.mcp;
 
+import java.net.InetSocketAddress;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -45,14 +47,8 @@ public class McpHostFilter implements WebFilter {
             return chain.filter(exchange);
         }
 
-        // Cloud Run terminates TLS and forwards the original host, so prefer
-        // X-Forwarded-Host; Host is the container's own address behind it.
-        String forwarded = exchange.getRequest().getHeaders().getFirst("X-Forwarded-Host");
-        String host = forwarded != null
-                ? forwarded
-                : String.valueOf(exchange.getRequest().getHeaders().getHost());
-
-        if (host == null || !stripPort(host).equalsIgnoreCase(mcpHostname)) {
+        String host = requestHost(exchange);
+        if (host == null || !host.equalsIgnoreCase(mcpHostname)) {
             return chain.filter(exchange);
         }
 
@@ -66,6 +62,28 @@ public class McpHostFilter implements WebFilter {
         // with different credentials.
         exchange.getResponse().setStatusCode(HttpStatus.NOT_FOUND);
         return exchange.getResponse().setComplete();
+    }
+
+    /**
+     * The hostname the client asked for, without its port.
+     *
+     * <p>Not {@code String.valueOf(getHeaders().getHost())}. That stringifies an
+     * InetSocketAddress as {@code mcp.airral.com/<unresolved>:443}, which
+     * matches no hostname and silently disabled this whole filter -- and Cloud
+     * Run does not send X-Forwarded-Host, so the broken branch was the only one
+     * ever taken. getHostString() returns the name alone.
+     *
+     * <p>X-Forwarded-Host is still preferred where a proxy does set it, and only
+     * its first entry is read: the header accumulates a comma-separated trail
+     * through a proxy chain, and the client's own value is at the front.
+     */
+    private static String requestHost(ServerWebExchange exchange) {
+        String forwarded = exchange.getRequest().getHeaders().getFirst("X-Forwarded-Host");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return stripPort(forwarded.split(",")[0].trim());
+        }
+        InetSocketAddress hostHeader = exchange.getRequest().getHeaders().getHost();
+        return hostHeader == null ? null : hostHeader.getHostString();
     }
 
     private static String stripPort(String host) {
