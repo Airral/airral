@@ -62,10 +62,13 @@ jobs:
           IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/airral/airral-api
         run: |
           set -euo pipefail
-          # ^@^ changes the env-var delimiter from comma to @. No value below
-          # contains a comma any more, now that CORS_ALLOWED_ORIGINS is a
-          # secret, but it is kept so that adding one later cannot silently
-          # split a value into two variables.
+          # ^|^ sets the delimiter between variables. It has to be a character
+          # that appears in none of the values, and the obvious candidates are
+          # all taken: comma is in CORS origin lists, @ is in every email
+          # address, and colon and slash are in URLs and the Cloud SQL instance
+          # name. Getting this wrong does not fail cleanly -- @ as the delimiter
+          # split AIRRAL_BOOTSTRAP_ADMIN_EMAIL=admin1@airral.com into two
+          # variables and gcloud rejected the whole deploy.
           #
           # GOOGLE_OAUTH_CLIENT_ID must be the same client id the browsers use:
           # GoogleIdentityService checks it against the token's aud claim, so a
@@ -99,7 +102,7 @@ jobs:
             --max-instances 3 \
             --timeout 300 \
             --startup-probe httpGet.path=/actuator/health,initialDelaySeconds=10,periodSeconds=10,failureThreshold=30 \
-            --set-env-vars "^@^SPRING_PROFILES_ACTIVE=gcp@CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}@DB_NAME=${{ vars.DB_NAME }}@DB_USER=${{ vars.DB_USER }}@AIRRAL_RELEASE_VERSION=${{ inputs.version }}@GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}@AIRRAL_MCP_HOSTNAME=mcp.airral.com@AIRRAL_BOOTSTRAP_ADMIN_EMAIL=${{ vars.BOOTSTRAP_ADMIN_EMAIL }}" \
+            --set-env-vars "^|^SPRING_PROFILES_ACTIVE=gcp|CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}|DB_NAME=${{ vars.DB_NAME }}|DB_USER=${{ vars.DB_USER }}|AIRRAL_RELEASE_VERSION=${{ inputs.version }}|GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}|AIRRAL_MCP_HOSTNAME=mcp.airral.com|AIRRAL_BOOTSTRAP_ADMIN_EMAIL=${{ vars.BOOTSTRAP_ADMIN_EMAIL }}" \
             --set-secrets "DB_PASSWORD=db-password:latest,JWT_ENCRYPTION_SECRET=jwt-encryption-secret:latest,CORS_ALLOWED_ORIGINS=cors-allowed-origins:latest"
 
       - name: Smoke test
