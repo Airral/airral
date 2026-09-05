@@ -47,6 +47,35 @@ public class ApiKeyIssuanceService {
             LocalDateTime expiresAt) {
     }
 
+    /**
+     * Whether a user may issue a key for themselves.
+     *
+     * <p>Everyone can, today, while MCP is free. This exists now rather than
+     * when pricing is decided so there is exactly one place to change, and so
+     * the gate is never written into a portal's UI: a check that only hides a
+     * button is not a check, since the endpoint is still reachable with a
+     * session token.
+     *
+     * <p>When it does become paid, employers gate naturally on
+     * organizations.tier, which is already modelled and already travels on every
+     * request. Applicants have no plan concept at all, which is a reason to keep
+     * their side free rather than a reason to build subscriptions for them: a
+     * job seeker pointing their own agent at the corpus is candidate supply
+     * arriving for nothing.
+     */
+    public boolean mayIssueForSelf(String role, String organizationTier) {
+        return true;
+    }
+
+    /**
+     * Issue a key on someone's behalf.
+     *
+     * <p>Deliberately does not consult {@link #mayIssueForSelf}. An admin needs
+     * to hand a key to a prospect mid-demo, or to a paying customer whose
+     * billing has not landed yet, and a grant that cannot bypass the paywall is
+     * a support problem waiting to happen. Who granted it is recorded in
+     * issued_by.
+     */
     public Mono<IssuedKey> issue(
             String forEmail,
             String name,

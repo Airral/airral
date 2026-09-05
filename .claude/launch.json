@@ -12,6 +12,18 @@
       ],
       "port": 4200,
       "cwd": "airral-frontend"
+    },
+    {
+      "name": "admin-portal",
+      "runtimeExecutable": "node_modules/.bin/nx",
+      "runtimeArgs": [
+        "serve",
+        "admin-portal",
+        "--host=localhost",
+        "--port=4203"
+      ],
+      "port": 4203,
+      "cwd": "airral-frontend"
     }
   ]
 }

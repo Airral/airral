@@ -1,0 +1,383 @@
+/* Brand tokens from the website's design system rather than this portal's
+   placeholder palette, so admin screens stop drifting from the product. */
+:host {
+  --ink: #14141c;
+  --ink-2: #55555f;
+  --ink-3: #8a8a95;
+  --bg: #f6f6f8;
+  --surface: #ffffff;
+  --edge: rgba(20, 20, 28, 0.1);
+  --accent: #6d4aff;
+  --accent-deep: #4a28c4;
+  --accent-wash: rgba(109, 74, 255, 0.08);
+  --danger: #b4241f;
+  --danger-wash: rgba(180, 36, 31, 0.08);
+  --warn: #a24b06;
+  --warn-wash: rgba(162, 75, 6, 0.1);
+  --ok: #0e7a5c;
+  --ok-wash: rgba(14, 122, 92, 0.1);
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  display: block;
+  background: var(--bg);
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+.page {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 44px 24px 80px;
+}
+
+/* ── head ── */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 10px;
+}
+h1 {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0 0 10px;
+}
+.lede {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1.55;
+  max-width: 60ch;
+}
+h2 {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+/* ── lookup ── */
+.lookup {
+  margin: 32px 0 0;
+}
+.lookup label,
+.field-label,
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 7px;
+}
+.lookup-row {
+  display: flex;
+  gap: 10px;
+}
+input,
+select {
+  font: inherit;
+  font-size: 15px;
+  padding: 11px 13px;
+  border: 1px solid var(--edge);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  min-width: 0;
+}
+.lookup-row input {
+  flex: 1;
+}
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+/* ── buttons ── */
+.btn {
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 11px 18px;
+  border-radius: 9px;
+  border: 1px solid var(--edge);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--ink-3);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
+.btn-quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-2);
+}
+.btn-danger {
+  color: var(--danger);
+  border-color: var(--edge);
+  background: var(--surface);
+  align-self: flex-start;
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-wash);
+  border-color: var(--danger);
+}
+
+.error {
+  margin: 18px 0 0;
+  padding: 12px 15px;
+  border-radius: 9px;
+  background: var(--danger-wash);
+  color: var(--danger);
+  font-size: 14.5px;
+}
+
+/* ── the one-time reveal ──
+   Deliberately the loudest thing on the page: it cannot be recovered, so a
+   missed copy means issuing another key. */
+.issued {
+  margin: 26px 0 0;
+  padding: 22px;
+  border-radius: 13px;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: 0 8px 30px rgba(109, 74, 255, 0.14);
+}
+.issued-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.issued-warning {
+  margin: 0 0 18px;
+  color: var(--accent-deep);
+  font-weight: 600;
+  font-size: 14.5px;
+}
+.secret-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+.secret {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 11px 13px;
+  border-radius: 9px;
+  background: var(--bg);
+  border: 1px solid var(--edge);
+  word-break: break-all;
+  user-select: all;
+}
+.secret-cmd {
+  font-size: 12px;
+}
+.issued-note {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+/* ── results ── */
+.results {
+  margin-top: 38px;
+}
+.results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--edge);
+}
+.count {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+  margin-left: 10px;
+  letter-spacing: 0.02em;
+}
+
+.issue-form {
+  margin: 20px 0 0;
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+}
+.issue-fields {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.field {
+  flex: 1;
+  min-width: 220px;
+}
+.field-narrow {
+  flex: 0 0 190px;
+}
+.field input,
+.field select {
+  width: 100%;
+}
+.hint {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+.empty {
+  margin: 26px 0 0;
+  color: var(--ink-2);
+  font-size: 15px;
+}
+
+/* ── key rows ── */
+.key-list {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.key {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+}
+/* A revoked key stays visible but reads as inert, so the list is a history
+   rather than only a roster of what is live. */
+.key-dead {
+  opacity: 0.6;
+}
+.key-main {
+  min-width: 0;
+  flex: 1;
+}
+.key-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-bottom: 7px;
+}
+.key-name {
+  font-weight: 700;
+  font-size: 15.5px;
+}
+.pill {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--ok-wash);
+  color: var(--ok);
+}
+.pill-off {
+  background: var(--danger-wash);
+  color: var(--danger);
+}
+.pill-warn {
+  background: var(--warn-wash);
+  color: var(--warn);
+}
+.key-prefix {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: var(--bg);
+  padding: 3px 8px;
+  border-radius: 6px;
+  word-break: break-all;
+}
+.key-meta {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.scopes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.scope {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+}
+
+@media (max-width: 620px) {
+  .page {
+    padding: 28px 16px 60px;
+  }
+  h1 {
+    font-size: 27px;
+  }
+  .lookup-row,
+  .secret-row {
+    flex-direction: column;
+  }
+  .key {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
