@@ -15,11 +15,25 @@ import { PortalId, safeReturnUrl } from './portal-id';
  * applicants", offering no link onward, which dead-ended anyone who took the
  * website's Sign in button while holding an employer account.
  *
- * ADMIN resolves to the HR portal. The admin portal is a separate surface for
- * platform statistics and is not where an administrator signs in -- it has no
- * login of its own.
+ * A platform admin goes to the admin portal, and that is decided by
+ * isPlatformAdmin rather than by the role. ADMIN alone is ambiguous: it is also
+ * held by people who administer their own organisation and belong in the HR
+ * portal.
+ *
+ * <p>Without this the admin portal is simply unreachable. It has no login of
+ * its own, so its guard sends you to the HR login; signing in there leaves the
+ * session on the HR origin, and localStorage is scoped per origin, so returning
+ * to the admin portal finds no session and bounces you back. Verified in
+ * production before this existed: admin.airral.com redirected to
+ * app.airral.com with no way through.
  */
-export function portalForRole(role: string | null | undefined): PortalId {
+export function portalForRole(
+  role: string | null | undefined,
+  isPlatformAdmin = false
+): PortalId {
+  if (isPlatformAdmin) {
+    return 'admin';
+  }
   switch ((role ?? '').toUpperCase()) {
     case USER_ROLES.ADMIN:
     case USER_ROLES.HR_MANAGER:
@@ -69,7 +83,7 @@ export function routeAfterAuth(opts: {
   /** Overrides returnUrl when staying put, e.g. '/onboarding' after signup. */
   sameOriginDefault?: string;
 }): void {
-  const target = portalForRole(opts.role);
+  const target = portalForRole(opts.role, opts.user.isPlatformAdmin === true);
 
   if (target === opts.currentPortal) {
     opts.authService.login(opts.user, opts.token);
