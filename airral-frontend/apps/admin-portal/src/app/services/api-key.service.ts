@@ -48,20 +48,23 @@ export class ApiKeyService {
    * Goes through ApiClientService rather than HttpClient directly, so the URL
    * is built from API_BASE_URL. The admin portal is served from its own origin,
    * so a relative '/api/...' would resolve to admin.airral.com and 404.
+   *
+   * Paths here omit the leading '/api' because API_BASE_URL already ends with
+   * it -- including it produced /api/api/admin/api-keys and a 500.
    */
   issue(request: IssueApiKeyRequest): Observable<IssuedApiKey> {
-    return this.api.post<IssuedApiKey>('/api/admin/api-keys', request);
+    return this.api.post<IssuedApiKey>('/admin/api-keys', request);
   }
 
   listFor(email: string): Observable<ApiKeySummary[]> {
     return this.api.get<ApiKeySummary[]>(
-      `/api/admin/api-keys?email=${encodeURIComponent(email)}`
+      `/admin/api-keys?email=${encodeURIComponent(email)}`
     );
   }
 
   revoke(keyId: string, reason: string): Observable<unknown> {
     return this.api.delete(
-      `/api/admin/api-keys/${encodeURIComponent(keyId)}?reason=${encodeURIComponent(reason)}`
+      `/admin/api-keys/${encodeURIComponent(keyId)}?reason=${encodeURIComponent(reason)}`
     );
   }
 }
