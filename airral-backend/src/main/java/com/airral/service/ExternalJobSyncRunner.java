@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import com.airral.security.ApiKeyStore;
+import com.airral.security.LoginThrottle;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -41,14 +42,17 @@ public class ExternalJobSyncRunner implements ApplicationRunner {
 
     private final ExternalJobSyncService externalJobSyncService;
     private final ApiKeyStore apiKeyStore;
+    private final LoginThrottle loginThrottle;
     private final Duration timeout;
 
     public ExternalJobSyncRunner(
             ExternalJobSyncService externalJobSyncService,
             ApiKeyStore apiKeyStore,
+            LoginThrottle loginThrottle,
             @Value("${airral.jobs.sync.cli-timeout-minutes:90}") int timeoutMinutes) {
         this.externalJobSyncService = externalJobSyncService;
         this.apiKeyStore = apiKeyStore;
+        this.loginThrottle = loginThrottle;
         this.timeout = Duration.ofMinutes(Math.max(1, timeoutMinutes));
     }
 
@@ -72,6 +76,7 @@ public class ExternalJobSyncRunner implements ApplicationRunner {
                 result.jobsPurged());
 
         purgeApiKeyUsage();
+        purgeLoginAttempts();
 
         // A lost lease race is a normal no-op, not a workflow failure.
         if ("FAILED".equals(result.status())) {
@@ -92,6 +97,18 @@ public class ExternalJobSyncRunner implements ApplicationRunner {
      * housekeeping; failing the sync over it would throw away a completed job
      * refresh for no benefit.
      */
+    /** Same reasoning as the key usage purge: an external scheduler, not a timer. */
+    private void purgeLoginAttempts() {
+        try {
+            Long removed = loginThrottle
+                    .purgeBefore(LocalDateTime.now().minusDays(USAGE_RETENTION_DAYS))
+                    .block(Duration.ofMinutes(1));
+            log.info("Login attempt windows purged: {}", removed == null ? 0 : removed);
+        } catch (RuntimeException e) {
+            log.warn("Could not purge login attempt windows: {}", e.getMessage());
+        }
+    }
+
     private void purgeApiKeyUsage() {
         try {
             Long removed = apiKeyStore

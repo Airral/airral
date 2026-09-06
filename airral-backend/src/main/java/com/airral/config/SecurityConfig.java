@@ -74,6 +74,29 @@ public class SecurityConfig {
                             return Mono.empty();
                         })
                 )
+                // The API serves JSON to scripts and agents, never a document
+                // a browser renders, so its headers are about what a stolen or
+                // mistaken response can be used for rather than about rendering.
+                .headers(headers -> headers
+                        // Refuse to be framed at all: nothing here is ever
+                        // legitimately embedded.
+                        .frameOptions(frame -> frame.mode(
+                                org.springframework.security.web.server.header
+                                        .XFrameOptionsServerHttpHeadersWriter.Mode.DENY))
+                        // Stop a browser guessing a JSON body is something it
+                        // can execute.
+                        .contentTypeOptions(contentType -> { })
+                        // Two years, so the browser refuses plain HTTP to this
+                        // host even on a first visit after the cache expires.
+                        .hsts(hsts -> hsts.maxAge(java.time.Duration.ofDays(730)).includeSubdomains(true))
+                        .referrerPolicy(referrer -> referrer.policy(
+                                org.springframework.security.web.server.header
+                                        .ReferrerPolicyServerHttpHeadersWriter.ReferrerPolicy.NO_REFERRER))
+                        // An API response should never be treated as a page, so
+                        // the strictest possible policy is also the correct one.
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"))
+                )
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
@@ -85,9 +108,17 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/google").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
-                        .pathMatchers(HttpMethod.POST, "/api/auth/forgot-password").permitAll()
-                        .pathMatchers(HttpMethod.POST, "/api/auth/reset-password").permitAll()
-                        .pathMatchers(HttpMethod.POST, "/api/applications").permitAll()
+                        // forgot-password and reset-password were allow-listed
+                        // with nothing behind them -- no controller, no service,
+                        // and a dead href="#" on the login form. Removed rather
+                        // than left describing a surface that does not exist.
+                        //
+                        // POST /api/applications was public too. It is the only
+                        // write endpoint outside the auth flow that took no
+                        // credential, so an employer's pipeline could be filled
+                        // with fabricated applications by anyone. Nothing needed
+                        // it: the only caller is the HR portal, which is signed
+                        // in, so it now falls through to authenticated() below.
                         
                         // Swagger/OpenAPI
                         .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/webjars/**").permitAll()

@@ -34,6 +34,9 @@ ARG APP=website
 # Templates are rendered by the base image's entrypoint, which substitutes
 # ${PORT}; scripts in /docker-entrypoint.d run before nginx starts.
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
+# Not a template: it contains no variables, and putting it in templates/ would
+# have envsubst rewrite the CSP's $ characters.
+COPY nginx/security-headers.conf /etc/nginx/security-headers.conf
 COPY docker-entrypoint.d/10-runtime-config.sh /docker-entrypoint.d/10-runtime-config.sh
 RUN chmod +x /docker-entrypoint.d/10-runtime-config.sh
 

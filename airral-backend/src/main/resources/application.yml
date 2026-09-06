@@ -91,6 +91,15 @@ file:
 # External job source connectors
 airral:
   auth:
+    throttle:
+      # Failed sign-ins are counted per email and per source address over a
+      # fifteen minute window. The address limit is far looser on purpose: an
+      # office or a mobile network puts many legitimate users behind one
+      # address, and a tight limit there locks out innocents while an attacker
+      # simply rotates hosts.
+      enabled: ${AIRRAL_LOGIN_THROTTLE_ENABLED:true}
+      max-per-email: ${AIRRAL_LOGIN_MAX_PER_EMAIL:5}
+      max-per-address: ${AIRRAL_LOGIN_MAX_PER_ADDRESS:30}
     # One account promoted to ADMIN at start-up. Nothing in the public API can
     # create an admin, so the first one has to come from somewhere; the
     # alternative was hand-run SQL against production. Blank disables it.
