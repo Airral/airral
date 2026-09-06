@@ -13,9 +13,12 @@ import java.util.List;
 public class AuthenticationManager implements ReactiveAuthenticationManager {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final TokenVersionCache tokenVersionCache;
 
-    public AuthenticationManager(JwtTokenProvider jwtTokenProvider) {
+    public AuthenticationManager(JwtTokenProvider jwtTokenProvider,
+                                 TokenVersionCache tokenVersionCache) {
         this.jwtTokenProvider = jwtTokenProvider;
+        this.tokenVersionCache = tokenVersionCache;
     }
 
     @Override
@@ -53,7 +56,16 @@ public class AuthenticationManager implements ReactiveAuthenticationManager {
                     isPlatformAdmin
             ));
 
-            return Mono.just(auth);
+            // The signature says the token is genuine; the version says it has
+            // not been revoked since. Without this a stolen token stays good
+            // for its full 24 hours no matter what anyone does about it.
+            Long userId = jwtTokenProvider.getUserIdFromToken(authToken);
+            int presentedVersion = jwtTokenProvider.getTokenVersionFromToken(authToken);
+
+            return tokenVersionCache.current(userId)
+                    .flatMap(currentVersion -> presentedVersion < currentVersion
+                            ? Mono.empty()
+                            : Mono.<Authentication>just(auth));
         } catch (Exception e) {
             return Mono.empty();
         }

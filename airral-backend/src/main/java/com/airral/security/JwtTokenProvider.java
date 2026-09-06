@@ -73,9 +73,26 @@ public class JwtTokenProvider {
     /**
      * Generate JWT token with user claims
      */
+    /**
+     * Kept for callers that predate session revocation. Version 0 is the
+     * default every existing user carries, so these behave exactly as before.
+     */
+    public String generateToken(Long userId, String email, String role, Long organizationId,
+                                String organizationTier, Boolean isPlatformAdmin,
+                                String department, Long managerId) {
+        return generateToken(userId, email, role, organizationId, organizationTier,
+                isPlatformAdmin, department, managerId, 0);
+    }
+
+    /**
+     * @param tokenVersion the user's session generation. Compared on
+     *        validation, so incrementing it in the database invalidates every
+     *        token already issued -- the only way a stateless token becomes
+     *        revocable.
+     */
     public String generateToken(Long userId, String email, String role, Long organizationId, 
                                 String organizationTier, Boolean isPlatformAdmin, 
-                                String department, Long managerId) {
+                                String department, Long managerId, int tokenVersion) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpiration);
 
@@ -86,6 +103,7 @@ public class JwtTokenProvider {
         claims.put("organizationId", organizationId);
         claims.put("organizationTier", organizationTier);
         claims.put("isPlatformAdmin", isPlatformAdmin != null ? isPlatformAdmin : false);
+        claims.put("tokenVersion", tokenVersion);
         
         if (department != null) {
             claims.put("department", department);
@@ -187,6 +205,19 @@ public class JwtTokenProvider {
     /**
      * Extract role from JWT token
      */
+    /**
+     * The session generation this token was issued for.
+     *
+     * <p>Defaults to 0 rather than failing, so tokens minted before this claim
+     * existed keep working until they expire. Everyone lands on the same
+     * version within a day without a forced sign-out.
+     */
+    public int getTokenVersionFromToken(String token) {
+        Claims claims = parseClaims(token);
+        Integer version = claims.get("tokenVersion", Integer.class);
+        return version == null ? 0 : version;
+    }
+
     public String getRoleFromToken(String token) {
         Claims claims = parseClaims(token);
         return claims.get("role", String.class);

@@ -369,7 +369,8 @@ public class AuthService {
                 null,
                 user.isPlatformAdmin(),
                 user.getDepartment(),
-                user.getManagerId()
+                user.getManagerId(),
+                user.getTokenVersion() == null ? 0 : user.getTokenVersion()
             );
 
             return Mono.just(AuthResponse.builder()
@@ -400,7 +401,8 @@ public class AuthService {
                             org.getTier().name(),
                             user.isPlatformAdmin(),
                             user.getDepartment(),
-                            user.getManagerId()
+                            user.getManagerId(),
+                        user.getTokenVersion() == null ? 0 : user.getTokenVersion()
                     );
 
                     return AuthResponse.builder()

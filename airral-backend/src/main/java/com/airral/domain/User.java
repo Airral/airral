@@ -44,6 +44,12 @@ public class User {
     // Status & verification
     private Boolean isActive;
     private Boolean emailVerified;
+
+    /**
+     * Session generation. Incrementing it invalidates every token already
+     * issued to this user, which is what makes a stateless session revocable.
+     */
+    private Integer tokenVersion;
     private String invitationToken;
     private LocalDateTime invitationExpiresAt;
 

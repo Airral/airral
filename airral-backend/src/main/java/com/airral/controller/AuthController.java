@@ -5,9 +5,12 @@ import com.airral.dto.request.GoogleAuthRequest;
 import com.airral.dto.request.RegisterRequest;
 import com.airral.dto.response.AuthResponse;
 import com.airral.exception.UnauthorizedException;
+import com.airral.security.JwtTokenProvider;
 import com.airral.security.LoginThrottle;
+import com.airral.security.TokenVersionCache;
 import com.airral.service.AuthService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,10 +26,17 @@ public class AuthController {
 
     private final AuthService authService;
     private final LoginThrottle loginThrottle;
+    private final TokenVersionCache tokenVersionCache;
+    private final JwtTokenProvider jwtTokenProvider;
 
-    public AuthController(AuthService authService, LoginThrottle loginThrottle) {
+    public AuthController(AuthService authService,
+                          LoginThrottle loginThrottle,
+                          TokenVersionCache tokenVersionCache,
+                          JwtTokenProvider jwtTokenProvider) {
         this.authService = authService;
         this.loginThrottle = loginThrottle;
+        this.tokenVersionCache = tokenVersionCache;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
     /**
@@ -57,6 +67,34 @@ public class AuthController {
                     }
                     return Mono.error(error);
                 });
+    }
+
+    /**
+     * Sign out everywhere.
+     * POST /api/auth/revoke-sessions
+     *
+     * <p>Invalidates every outstanding token for the caller, including the one
+     * making this request. The ordinary logout is client-side only -- it drops
+     * the token from storage, which does nothing about a copy someone else
+     * already has. This is the one that helps after a laptop goes missing.
+     */
+    @PostMapping("/revoke-sessions")
+    public Mono<ResponseEntity<Map<String, Object>>> revokeSessions(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
+
+        Long userId = jwtTokenProvider.getUserIdFromToken(extractToken(authHeader));
+
+        return tokenVersionCache.revokeAll(userId)
+                .map(version -> ResponseEntity.ok(Map.<String, Object>of(
+                        "revoked", true,
+                        "message", "Every session for this account has been signed out. "
+                                + "You will need to sign in again.")));
+    }
+
+    private String extractToken(String authHeader) {
+        return authHeader != null && authHeader.startsWith("Bearer ")
+                ? authHeader.substring(7)
+                : authHeader;
     }
 
     /**
