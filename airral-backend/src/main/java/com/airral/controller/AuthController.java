@@ -100,76 +100,38 @@ public class AuthController {
     /**
      * The caller's address as seen from outside.
      *
-     * <p>Cloud Run terminates TLS and forwards the original client, so the
-     * socket address is a Google front end and the same for everybody. Reading
-     * it instead of X-Forwarded-For would put every user in one bucket and lock
-     * out the world on the first attack.
+     * <p>Deliberately defensive at every step. Cloud Run terminates TLS, so the
+     * socket peer is a Google front end; forward-headers-strategy makes Spring
+     * apply X-Forwarded-For to the request and then <em>remove</em> the header,
+     * so code that reads it directly finds nothing. Worse, the resulting
+     * InetSocketAddress can be unresolved -- getAddress() returns null -- and
+     * dereferencing it threw an NPE that turned every sign-in into a 500.
      *
-     * <p>Takes the first entry, which is the original client. Later entries are
-     * proxies, and a client-supplied header could prepend anything -- but on
-     * Cloud Run the platform rewrites this, so the first entry is trustworthy
-     * here in a way it would not be behind an arbitrary proxy.
+     * <p>An address is only used to bucket rate limiting. Failing to determine
+     * one must never fail the request: "unknown" simply shares a bucket.
      */
     private String clientAddress(ServerWebExchange exchange) {
         String forwarded = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
             int comma = forwarded.indexOf(',');
-            return (comma < 0 ? forwarded : forwarded.substring(0, comma)).trim();
+            String first = (comma < 0 ? forwarded : forwarded.substring(0, comma)).trim();
+            if (!first.isEmpty()) {
+                return first;
+            }
         }
+
         InetSocketAddress remote = exchange.getRequest().getRemoteAddress();
-        return remote == null ? "unknown" : remote.getAddress().getHostAddress();
-    }
-
-    /**
-     * Google Identity Services endpoint
-     * POST /api/auth/google
-     */
-    @PostMapping("/google")
-    public Mono<ResponseEntity<AuthResponse>> googleLogin(@Valid @RequestBody GoogleAuthRequest request) {
-        return authService.loginWithGoogle(request)
-                .map(ResponseEntity::ok);
-    }
-
-    /**
-     * Register endpoint
-     * POST /api/auth/register
-     */
-    @PostMapping("/register")
-    public Mono<ResponseEntity<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
-        return authService.register(request)
-                .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
-    }
-
-    /**
-     * Test endpoint to verify JWT authentication
-     * GET /api/auth/me
-     */
-    @GetMapping("/me")
-    public Mono<ResponseEntity<String>> getCurrentUser(
-            @RequestHeader(value = "Authorization", required = false) String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Missing or invalid authorization header"));
+        if (remote != null) {
+            if (remote.getAddress() != null) {
+                return remote.getAddress().getHostAddress();
+            }
+            // Unresolved, which is normal once the forwarded header has been
+            // applied and stripped. The host string still names the client.
+            if (remote.getHostString() != null && !remote.getHostString().isBlank()) {
+                return remote.getHostString();
+            }
         }
-        return Mono.just(ResponseEntity.ok("Authenticated successfully"));
+        return "unknown";
     }
 
-    /**
-     * Logout endpoint
-     * DELETE /api/auth/logout
-     */
-    @DeleteMapping("/logout")
-    public Mono<ResponseEntity<Map<String, String>>> logout(
-            @RequestHeader(value = "Authorization", required = false) String authHeader) {
-        // For JWT-based stateless auth, logout is primarily client-side (token deletion)
-        // Server can optionally track token blacklist if needed
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .<Map<String, String>>body(Map.of("message", "Invalid or missing token")));
-        }
-        
-        // Token invalidation would go here (optional blacklist check)
-        // For now, we just confirm logout on client side
-        return Mono.just(ResponseEntity.ok(Map.of("message", "Logged out successfully")));
-    }
 }
