@@ -42,6 +42,12 @@ spring:
 
 # Server Configuration
 server:
+  # Cloud Run terminates TLS and forwards the original scheme. Without this the
+  # container sees plain http, Spring Security decides the request is insecure,
+  # and silently omits Strict-Transport-Security -- the header is configured and
+  # simply never sent. Verified: HSTS was absent from live responses until this
+  # was set.
+  forward-headers-strategy: framework
   # Cloud Run injects PORT and requires the container to listen on it.
   port: ${PORT:8080}
   error:
