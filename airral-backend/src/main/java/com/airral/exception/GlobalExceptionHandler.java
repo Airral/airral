@@ -2,6 +2,7 @@ package com.airral.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
@@ -50,6 +51,32 @@ public class GlobalExceptionHandler {
         errorResponse.put("validationErrors", validationErrors);
         
         return Mono.just(ResponseEntity.badRequest().body(errorResponse));
+    }
+
+    /**
+     * Exceptions that already carry their own status.
+     *
+     * <p>Without this the RuntimeException catch-all below claims them --
+     * ResponseStatusException is a RuntimeException -- and a deliberate 429 or
+     * 404 is reported as an Internal Server Error. That is exactly what
+     * happened to login throttling: the limit fired correctly and the caller
+     * was told the server had broken.
+     *
+     * <p>Spring prefers the most specific handler, so declaring this is enough
+     * to take precedence.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public Mono<ResponseEntity<Map<String, Object>>> handleResponseStatusException(
+            ResponseStatusException ex) {
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("status", ex.getStatusCode().value());
+        errorResponse.put("error", HttpStatus.valueOf(ex.getStatusCode().value()).getReasonPhrase());
+        errorResponse.put("message", ex.getReason());
+        errorResponse.put("timestamp", LocalDateTime.now());
+        // Headers matter here: Retry-After is the only actionable part of a 429.
+        return Mono.just(ResponseEntity.status(ex.getStatusCode())
+                .headers(ex.getHeaders())
+                .body(errorResponse));
     }
 
     @ExceptionHandler(RuntimeException.class)
