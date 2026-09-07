@@ -27,12 +27,21 @@ on:
           - stop
           - status
   schedule:
-    # Hourly, because the job converges on the desired state rather than acting
-    # at a transition. One expression is DST-correct on its own -- the window is
-    # evaluated in America/New_York -- and it bounds the cost of GitHub's late
-    # scheduling: a delayed run can now leave the database up for about an extra
-    # hour rather than a whole night.
-    - cron: '0 * * * *'
+    # Every twenty minutes, because the job converges on the desired state
+    # rather than acting at a transition, so extra runs are free no-ops. One
+    # expression is DST-correct on its own, since the window is evaluated in
+    # America/New_York.
+    #
+    # The interval is what bounds drift. GitHub's scheduler is best-effort and
+    # frequently late, and on an hourly cron that showed up as a real window of
+    # roughly 09:30-23:15 instead of the intended 08:00-20:00: the database was
+    # down when people would use it and up when nobody would. Three firing
+    # opportunities an hour cuts that to about twenty minutes at each end.
+    #
+    # Offset off the hour on purpose. :00, :15, :30 and :45 are the most
+    # contended minutes on GitHub's shared schedulers and the most likely to be
+    # delayed or dropped.
+    - cron: '3,23,43 * * * *'
 
 permissions:
   contents: read
@@ -111,15 +120,16 @@ jobs:
               if [ "$BEFORE" = "RUNNABLE" ]; then
                 echo "already running, nothing to do"
               else
-                gcloud sql instances patch "$INSTANCE" --activation-policy=ALWAYS --quiet
-                # patch returns once the operation is accepted, not once the
-                # instance is serving, so wait for it to actually be usable.
-                for i in $(seq 1 30); do
-                  S=$(state)
-                  echo "  waiting: $S"
-                  [ "$S" = "RUNNABLE" ] && break
-                  sleep 10
-                done
+                # --async plus an explicit wait, rather than polling on a
+                # guessed timeout. The previous loop gave up after five minutes
+                # and reported failure while the start carried on and succeeded
+                # -- a scheduled job that cries wolf stops being a signal, and
+                # tripling the run frequency would have tripled the noise.
+                OP=$(gcloud sql instances patch "$INSTANCE" \
+                       --activation-policy=ALWAYS --quiet --async \
+                       --format='value(name)')
+                echo "start operation: $OP"
+                gcloud sql operations wait "$OP" --timeout=900 || true
               fi
               ;;
             stop)
