@@ -1,11 +1,21 @@
+/* One viewport height, claimed once.
+   :host, .onboarding-page and .onboarding-shell each used to declare
+   min-height: 100vh, and the shell added 100px of padding on top. Nested, that
+   made the document a full viewport plus ~148px before a single option was
+   rendered -- and since the shell is a grid with a 1fr middle row, the extra
+   height became empty space that pushed Continue below the fold. On step 1 the
+   user had to scroll past nothing to reach the only button on the page.
+
+   dvh rather than vh: on mobile, vh is the viewport with browser chrome
+   *hidden*, so a 100vh element is always taller than what you can actually see
+   -- the same bug again, on every phone. */
 :host {
   display: block;
-  min-height: 100vh;
   background: #f9fafb;
 }
 
 .onboarding-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr;
   background: #f9fafb;
@@ -35,10 +45,14 @@
   max-width: 640px;
   width: 100%;
   margin: 0 auto;
-  padding: 60px 32px 40px;
+  padding: 40px 32px 0;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  min-height: 100vh;
+  /* content sizes to content; no 1fr row, so nothing stretches to create the
+     dead space the footer used to sit below. */
+  grid-template-rows: auto auto auto;
+  align-content: start;
+  /* Fills the parent rather than demanding a viewport of its own. */
+  min-height: 100%;
   background: #ffffff;
   border-left: 1px solid #e5e7eb;
   border-right: 1px solid #e5e7eb;
@@ -530,13 +544,22 @@
 }
 
 /* ── Footer navigation ────────────────────────────── */
+/* Sticky, so the primary action is reachable whatever the step contains.
+   Step 2 and 3 are taller than step 1, and a fixed-position footer would need
+   to know the content height in advance. Sticky needs nothing: it sits under
+   the content until the content would push it out of view, then holds. */
 .onboarding-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 32px;
+  gap: 16px;
+  position: sticky;
+  bottom: 0;
+  padding: 20px 0 24px;
   margin-top: 32px;
   border-top: 1px solid #e5e7eb;
+  /* Opaque: the content scrolls underneath it. */
+  background: #ffffff;
 }
 
 .footer-spacer {
@@ -611,7 +634,8 @@
 
 /* ── Loading state ────────────────────────────────── */
 .onboarding-loading {
-  min-height: 100vh;
+  /* dvh for the same reason as above. */
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   place-content: center;
