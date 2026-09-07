@@ -5,7 +5,7 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { CandidatePortalService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
 import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, ResumeHealthScore } from '@airral/shared-types';
-import { catchError, finalize, of, Subscription, timeout } from 'rxjs';
+import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
 import { getOnboardingJobSearchSeed, OnboardingJobSearchSeed } from '../../utils/job-search-seed';
 
 interface JobDescriptionSection {
@@ -29,7 +29,17 @@ interface JobDescriptionView {
   styleUrl: './jobs.component.css',
 })
 export class JobsComponent implements OnInit, OnDestroy {
-  private readonly jobsTimeoutMs = 15000;
+  /**
+   * Long enough to survive an API cold start.
+   *
+   * <p>The API runs at min-instances 0, so the first request after a quiet
+   * period waits for a Spring Boot start -- measured at about twelve seconds,
+   * longer when the database has just woken. Fifteen seconds was therefore
+   * guaranteed to fail on the visit that matters most: now that this page is
+   * public, a first-time visitor's opening impression could be an error on the
+   * one page whose purpose is to show what the product does.
+   */
+  private readonly jobsTimeoutMs = 30000;
   private readonly detailTimeoutMs = 12000;
   private readonly searchDebounceMs = 350;
   private readonly detailCache = new Map<string, CandidateJobDetail>();
@@ -178,9 +188,15 @@ export class JobsComponent implements OnInit, OnDestroy {
       )
       .pipe(
         timeout(this.jobsTimeoutMs),
+        // One retry, because the failure mode is nearly always a cold start:
+        // the first request wakes the API and the second finds it warm --
+        // measured at 196ms once running. This turns a dead end into a slow
+        // first load. Only once, so a genuine outage still surfaces rather
+        // than hammering a service that is already down.
+        retry({ count: 1, delay: 1000 }),
         catchError(() => {
           if (requestId === this.jobsRequestId) {
-            this.jobsError = 'Jobs are taking longer than expected. Try refreshing the search.';
+            this.jobsError = 'Still waking up. Give it a moment, or refresh the search.';
           }
           return of(null);
         }),
