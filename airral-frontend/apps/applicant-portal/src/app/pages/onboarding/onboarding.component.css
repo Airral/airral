@@ -544,6 +544,15 @@
 }
 
 /* ── Footer navigation ────────────────────────────── */
+/* The step content reserves the footer's height beneath itself.
+   Without this the sticky footer overlaps whatever is last on the page --
+   measured at exactly the same offset as the "Your level" row, so the control
+   that enables Continue sat underneath the bar containing Continue. Anything
+   sticky has to be paid for in padding by the content it floats over. */
+.step-content {
+  padding-bottom: 106px;
+}
+
 /* Sticky, so the primary action is reachable whatever the step contains.
    Step 2 and 3 are taller than step 1, and a fixed-position footer would need
    to know the content height in advance. Sticky needs nothing: it sits under
