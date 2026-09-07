@@ -198,6 +198,17 @@
     <p class="setup-error" role="alert" *ngIf="setupError">{{ setupError }}</p>
 
     <!-- Navigation -->
+    <!-- A way out. The form makes matches better, it does not make the product
+         usable -- someone who wants to look before answering three screens of
+         questions should be able to, and the jobs list is public now anyway.
+         Skipping marks onboarding done so the guard stops redirecting; the same
+         questions live on the profile page whenever they want them. -->
+    <p class="onboarding-skip">
+      <button type="button" (click)="skipOnboarding()">
+        Skip for now and browse jobs
+      </button>
+    </p>
+
     <footer class="onboarding-footer">
       <button class="btn-back" type="button" (click)="prevStep()" *ngIf="step > 1">
         <span class="material-icons">arrow_back</span>

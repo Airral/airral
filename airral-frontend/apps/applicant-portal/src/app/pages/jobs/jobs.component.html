@@ -1,4 +1,20 @@
 <div class="jobs-page">
+  <!-- Shown only to a visitor without an account, and only once they reach for
+       something that needs one. Not a banner on arrival: the point of making
+       this page public was to let people see the product before being asked
+       for anything. -->
+  <div class="signup-nudge" *ngIf="signUpPrompt()" role="status">
+    <div class="signup-nudge-text">
+      <strong>Create a free account to {{ signUpPrompt() }}.</strong>
+      <span>Searching stays free. You keep the jobs you save and your resume analysis.</span>
+    </div>
+    <div class="signup-nudge-actions">
+      <a class="signup-nudge-cta" [href]="signUpUrl()">Create account</a>
+      <button type="button" class="signup-nudge-dismiss" (click)="dismissSignUpPrompt()"
+              aria-label="Dismiss">Not now</button>
+    </div>
+  </div>
+
   <div class="jobs-search" role="search">
     <div class="search-box">
       <span class="material-icons search-icon">search</span>

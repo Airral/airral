@@ -2162,3 +2162,91 @@
 .whats-new-notice .material-icons {
   font-size: 16px;
 }
+
+/* ── Sign-up nudge ──
+   Appears only when an anonymous visitor tries to save a job or run a resume
+   fit. Deliberately not a banner on arrival: the reason this page is public is
+   so people can see the analysis before being asked for anything, and a
+   sign-up wall that merely moved down the page would defeat that. */
+.signup-nudge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.signup-nudge-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.signup-nudge-text strong {
+  font-size: 15px;
+  color: #064e3b;
+}
+
+.signup-nudge-text span {
+  font-size: 13.5px;
+  color: #047857;
+}
+
+.signup-nudge-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.signup-nudge-cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 9px;
+  background: #007C6D;
+  color: #ffffff;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.signup-nudge-cta:hover {
+  background: #00695c;
+}
+
+.signup-nudge-dismiss {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #047857;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.signup-nudge-cta:focus-visible,
+.signup-nudge-dismiss:focus-visible {
+  outline: 2px solid #007C6D;
+  outline-offset: 2px;
+}
+
+@media (max-width: 620px) {
+  .signup-nudge-actions {
+    width: 100%;
+  }
+  .signup-nudge-cta {
+    flex: 1;
+    justify-content: center;
+  }
+}

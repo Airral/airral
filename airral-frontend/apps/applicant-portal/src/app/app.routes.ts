@@ -4,11 +4,6 @@ import { onboardingGuard, onboardingPageGuard } from './guards/onboarding.guard'
 
 const authenticatedRoutes: Route[] = [
   {
-    path: 'jobs',
-    loadComponent: () =>
-      import('./pages/jobs/jobs.component').then((m) => m.JobsComponent),
-  },
-  {
     path: 'tracker',
     loadComponent: () =>
       import('./pages/tracker/tracker.component').then((m) => m.TrackerComponent),
@@ -23,7 +18,7 @@ const authenticatedRoutes: Route[] = [
     loadComponent: () =>
       import('./pages/profile/profile.component').then((m) => m.ProfileComponent),
   },
-  { path: '', redirectTo: 'jobs', pathMatch: 'full' },
+  { path: '', redirectTo: '/jobs', pathMatch: 'full' },
 ];
 
 export const appRoutes: Route[] = [
@@ -40,10 +35,26 @@ export const appRoutes: Route[] = [
       import('./pages/onboarding/onboarding.component').then((m) => m.OnboardingComponent),
   },
   {
+    // Public on purpose. Someone arriving here came to look for work, and the
+    // job list is the only thing on this site that shows what AIRRAL is for --
+    // the analysis panel, the quality score, the salary. Putting a login in
+    // front of it asked people to trust the product before seeing it, and the
+    // corpus is public data anyway: the same search answers without a
+    // credential, which is how every job in it was found in the first place.
+    //
+    // Saving, resume fit and resume health still need an account. Those are
+    // prompted at the point they are used, where the ask has an obvious reason.
+    path: 'jobs',
+    loadComponent: () =>
+      import('./pages/jobs/jobs.component').then((m) => m.JobsComponent),
+  },
+  {
     path: '',
     canActivate: [authGuard, roleGuard, onboardingGuard],
     data: { roles: ['APPLICANT', 'ADMIN'] },
     children: authenticatedRoutes,
   },
-  { path: '**', redirectTo: '' },
+  // An unknown path lands on the jobs list rather than a login form. Previously
+  // this redirected to '', whose guard bounced a visitor straight to /login.
+  { path: '**', redirectTo: 'jobs' },
 ];

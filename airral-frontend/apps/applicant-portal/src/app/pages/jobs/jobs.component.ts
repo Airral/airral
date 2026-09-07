@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
@@ -91,6 +91,7 @@ export class JobsComponent implements OnInit, OnDestroy {
       return;
     }
 
+    this.signedIn.set(this.auth.isAuthenticated());
     this.loadJobs();
     this.loadResumeHealth();
     this.checkProfileUpdate();
@@ -125,6 +126,11 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   private loadResumeHealth(): void {
+    // Silent. Nobody asked for this, so an anonymous visitor should not be
+    // interrupted by it -- it simply does not load.
+    if (!this.signedIn()) {
+      return;
+    }
     this.candidateApi.getResumeHealth().pipe(
       catchError(() => of(null))
     ).subscribe((health) => {
@@ -426,6 +432,9 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   saveSelectedJob(): void {
+    if (!this.requireAccount('save this job so it is still here when you come back')) {
+      return;
+    }
     const sourceJobKey = this.getSelectedSourceJobKey();
     if (!sourceJobKey || this.savingJob) {
       return;
@@ -453,6 +462,9 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   runFitForSelectedJob(): void {
+    if (!this.requireAccount('check your resume against this job')) {
+      return;
+    }
     const sourceJobKey = this.getSelectedSourceJobKey();
     if (!sourceJobKey || this.fittingJob) {
       return;
@@ -490,6 +502,49 @@ export class JobsComponent implements OnInit, OnDestroy {
     this.onboardingSearchSeed = getOnboardingJobSearchSeed(this.auth.getCurrentUser()?.email);
     this.searchQuery = this.onboardingSearchSeed?.query ?? '';
     this.onboardingStartPending = true;
+  }
+
+  /**
+   * Whether the visitor has an account.
+   *
+   * <p>This page is reachable without one, deliberately: searching and reading
+   * a posting need no credential, and the analysis panel is the only thing that
+   * shows what AIRRAL actually does. Asking people to sign up before seeing it
+   * meant asking them to trust the product sight unseen -- and the corpus is
+   * public data regardless, since the same search answers without a credential.
+   *
+   * <p>Saving, resume fit and resume health do need an account, and each asks
+   * at the moment it is used, where the reason is self-evident.
+   */
+  readonly signedIn = signal(false);
+
+  /** Set when an anonymous visitor reaches for something that needs an account. */
+  readonly signUpPrompt = signal<string>('');
+
+  /**
+   * Ask for an account, naming what they were trying to do.
+   *
+   * <p>A bare "sign in to continue" gives no reason to. Naming the feature
+   * turns an interruption into an explanation.
+   */
+  private requireAccount(reason: string): boolean {
+    if (this.signedIn()) {
+      return true;
+    }
+    this.signUpPrompt.set(reason);
+    return false;
+  }
+
+  dismissSignUpPrompt(): void {
+    this.signUpPrompt.set('');
+  }
+
+  /** Carries the current search back, so signing up does not lose their place. */
+  signUpUrl(): string {
+    const back = encodeURIComponent(
+      `${window.location.pathname}${window.location.search}`
+    );
+    return `/login?mode=register&returnUrl=${back}`;
   }
 
   private getJobKey(job: Pick<CandidateJobSummary, 'sourceType' | 'sourceBoardToken' | 'externalJobId' | 'jobId'>): string {

@@ -23,6 +23,20 @@ interface RoleOption {
   styleUrl: './onboarding.component.css',
 })
 export class OnboardingComponent {
+
+  /**
+   * Leave onboarding without answering it.
+   *
+   * <p>Marks onboarding complete so the guard stops redirecting here on every
+   * navigation. That is the honest interpretation of the flag: it records that
+   * the user has been past this screen, not that they filled it in. The
+   * questions are all on the profile page, and matches simply stay generic
+   * until they are answered -- which is a worse product, not a broken one.
+   */
+  skipOnboarding(): void {
+    markUserOnboarded(this.auth.getCurrentUser()?.email);
+    this.router.navigateByUrl('/jobs');
+  }
   step: OnboardingStep = 1;
   saving = false;
   setupError = '';
