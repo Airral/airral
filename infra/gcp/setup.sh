@@ -127,13 +127,22 @@ say "3b/6  Artifact Registry retention"
 # ---------------------------------------------------------------------------
 # Keep only the 3 most recent image versions per service. The registry
 # otherwise grows without bound, and a POC has no reason to hold more than a
-# couple of rollback targets. The deploy workflows prune Cloud Run revisions to
+# handful of rollback targets. The deploy workflows prune Cloud Run revisions to
 # match, so a surviving revision always still has an image behind it.
+#
+# The KEEP rule carries no packageNamePrefixes on purpose. It used to name
+# airral-api and airral-website, which silently excluded airral-applicant,
+# airral-hr and airral-admin when the portals moved off Firebase -- note that
+# "airral-api" is not a prefix of "airral-applicant". Combined with a
+# delete-after-24h rule that did apply to everything, all three portals' images
+# were deleted while the services were still pointing at them: rollback was
+# impossible and the next cold start would have had nothing to pull. An
+# unfiltered KEEP cannot develop that gap when a service is added.
 gcloud artifacts repositories set-cleanup-policies airral \
   --location="$REGION" \
   --policy="$(cd "$(dirname "$0")" && pwd)/artifact-cleanup-policy.json" \
   --no-dry-run >/dev/null
-echo "cleanup policy applied: keep 3 versions of airral-api and airral-website"
+echo "cleanup policy applied: keep 5 versions of every image"
 
 # ---------------------------------------------------------------------------
 say "4/6  Secrets"

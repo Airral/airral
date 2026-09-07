@@ -1,18 +1,25 @@
 [
   {
-    "name": "keep-three-most-recent",
-    "action": { "type": "Keep" },
+    "name": "keep-recent-versions",
+    "action": {"type": "Keep"},
     "mostRecentVersions": {
-      "packageNamePrefixes": ["airral-api", "airral-website"],
-      "keepCount": 3
+      "keepCount": 5
     }
   },
   {
-    "name": "delete-everything-else",
-    "action": { "type": "Delete" },
+    "name": "delete-old-untagged",
+    "action": {"type": "Delete"},
     "condition": {
-      "tagState": "ANY",
-      "olderThan": "1d"
+      "tagState": "UNTAGGED",
+      "olderThan": "604800s"
+    }
+  },
+  {
+    "name": "delete-stale-tagged",
+    "action": {"type": "Delete"},
+    "condition": {
+      "tagState": "TAGGED",
+      "olderThan": "7776000s"
     }
   }
 ]
