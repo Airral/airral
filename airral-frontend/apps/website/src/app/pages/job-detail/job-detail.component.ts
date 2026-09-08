@@ -96,6 +96,50 @@ export class JobDetailComponent implements OnInit {
     return this.splitText(job.niceToHave || '');
   }
 
+  /**
+   * The page's own address, for the canonical link and structured data.
+   *
+   * <p>A synced posting has no internal job id -- it is addressed by its source,
+   * board and external id -- so building the URL from job.id would point every
+   * one of them at /jobs/0. A canonical that names the wrong page is worse than
+   * none: it tells a search engine that eleven thousand postings are all the
+   * same document.
+   */
+  private jobPath(job: Job): string {
+    const j = job as Job & {
+      externalSource?: string;
+      externalBoardToken?: string;
+      externalJobId?: string;
+    };
+
+    if (j.externalSource && j.externalBoardToken && j.externalJobId) {
+      return `/jobs/${encodeURIComponent(j.externalSource)}`
+        + `/${encodeURIComponent(j.externalBoardToken)}`
+        + `/${encodeURIComponent(j.externalJobId)}`;
+    }
+
+    return `/jobs/${job.id}`;
+  }
+
+  /** Whether this posting came from a company's own board rather than our ATS. */
+  private isExternal(job: Job): boolean {
+    const j = job as Job & { externalSource?: string; externalJobId?: string };
+    return Boolean(j.externalSource && j.externalJobId);
+  }
+
+  /** The identifier a search engine should use to tell this posting from any other. */
+  private jobIdentifier(job: Job): string {
+    const j = job as Job & {
+      externalSource?: string;
+      externalBoardToken?: string;
+      externalJobId?: string;
+    };
+
+    return this.isExternal(job)
+      ? `${j.externalSource}:${j.externalBoardToken}:${j.externalJobId}`
+      : String(job.id);
+  }
+
   private updateJobSeo(job: Job): void {
     const location = job.location ? ` in ${job.location}` : '';
     const department = job.department ? `${job.department} role` : 'open role';
@@ -103,7 +147,7 @@ export class JobDetailComponent implements OnInit {
     this.seo.setPage({
       title: `AIRRAL | ${job.title}${location}`,
       description: `View the ${job.title} ${department} on AIRRAL. Check role details, requirements, salary context, and apply through the applicant portal.`,
-      path: `/jobs/${job.id}`,
+      path: this.jobPath(job),
       type: 'article',
       structuredData: jobPosting ? [jobPosting] : [],
     });
@@ -131,10 +175,16 @@ export class JobDetailComponent implements OnInit {
       identifier: {
         '@type': 'PropertyValue',
         name: job.organizationName || 'AIRRAL',
-        value: String(job.id),
+        // A synced posting has no internal id, so this would be "0" on every one
+        // of them -- and identifier is how a search engine tells two postings
+        // apart. Its own external id is the stable, unique thing.
+        value: this.jobIdentifier(job),
       },
-      directApply: true,
-      url: `https://www.airral.com/jobs/${job.id}`,
+      // Only true when the application can actually be completed here. A synced
+      // posting sends the candidate to the employer's own form, and Google treats
+      // a wrong directApply as a reason to distrust the listing.
+      directApply: !this.isExternal(job),
+      url: `https://www.airral.com${this.jobPath(job)}`,
     };
 
     if (job.location) {

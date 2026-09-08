@@ -70,6 +70,44 @@ public class AuthController {
     }
 
     /**
+     * Create an account.
+     * POST /api/auth/register
+     *
+     * <p>The service behind this has existed for a long time -- applicant,
+     * new-organisation and invitation paths, all working -- but nothing was
+     * mapped to it, so the endpoint the sign-up form posts to returned 404 in
+     * production and nobody could create an account at all.
+     *
+     * <p>Which path runs is decided by the body, in AuthService.register: a
+     * companyName creates an organisation, an invitationToken joins one, and
+     * neither creates an applicant. The applicant path fixes the role and clears
+     * the platform-admin flag itself rather than reading either from the
+     * request, so this being public cannot be used to mint an administrator.
+     *
+     * <p>Throttled on the caller's address only. Rate limiting the submitted
+     * email here would let anyone lock a real user out of signing in simply by
+     * trying to register their address over and over.
+     *
+     * <p>A duplicate email answers 409 and says so, which does tell a caller
+     * whether an address has an account. That is a deliberate trade: the
+     * alternative is a vague failure that a genuine person cannot act on, and
+     * there is no transactional email set up yet to resolve it out of band. The
+     * address throttle is what keeps enumeration slow.
+     */
+    @PostMapping("/register")
+    public Mono<ResponseEntity<AuthResponse>> register(
+            @Valid @RequestBody RegisterRequest request,
+            ServerWebExchange exchange) {
+
+        String address = clientAddress(exchange);
+
+        return loginThrottle.checkAddress(address)
+                .then(loginThrottle.recordAddressAttempt(address))
+                .then(authService.register(request))
+                .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
+    }
+
+    /**
      * Sign out everywhere.
      * POST /api/auth/revoke-sessions
      *
