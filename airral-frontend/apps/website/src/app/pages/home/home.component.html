@@ -118,6 +118,38 @@
       <a class="btn" [href]="applicantPortal + '/login?mode=register'">Get started</a>
       <a class="btn btn--glass" routerLink="/for-employers">I’m hiring</a>
     </div>
+
+    <!-- For everyone who reads this far and still is not ready to make an
+         account. Without it, they leave no trace at all. -->
+    <form class="keepme rise" (ngSubmit)="submitEmail()" novalidate>
+      <label class="keepme__label" for="keepme-email">
+        Not now? Leave an email and we’ll tell you when something worth your time lands.
+      </label>
+      <div class="keepme__row">
+        <input
+          id="keepme-email"
+          class="keepme__input"
+          type="email"
+          name="email"
+          autocomplete="email"
+          placeholder="you@example.com"
+          [(ngModel)]="email"
+          [disabled]="emailState() === 'sending'"
+          aria-describedby="keepme-status"
+        />
+        <button class="btn keepme__btn" type="submit" [disabled]="emailState() === 'sending'">
+          {{ emailState() === 'sending' ? 'Sending…' : 'Keep me posted' }}
+        </button>
+      </div>
+      <p
+        class="keepme__status"
+        id="keepme-status"
+        role="status"
+        [class.is-error]="emailState() === 'error'"
+      >
+        {{ emailMessage() }}
+      </p>
+    </form>
   </section>
 </main>
 

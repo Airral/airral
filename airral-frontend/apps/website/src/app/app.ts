@@ -4,6 +4,7 @@ import { ActivatedRoute, NavigationEnd, Router, RouterModule } from '@angular/ro
 import { filter } from 'rxjs/operators';
 import { DEFAULT_SEO } from './shared/seo-pages';
 import { SeoConfig, SeoService } from './shared/seo.service';
+import { VisitorSignalService } from '@airral/shared-utils';
 
 /**
  * If the reveal animation has not engaged within this window, give up and show
@@ -26,6 +27,7 @@ export class App implements OnInit, OnDestroy {
   private failsafe?: ReturnType<typeof setTimeout>;
 
   constructor(
+    private visitorSignals: VisitorSignalService,
     private router: Router,
     private route: ActivatedRoute,
     private seo: SeoService,
@@ -33,6 +35,10 @@ export class App implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
+    // First-party, so the engineers this site is aimed at do not block it, and
+    // no cookie is set so there is nothing to consent to.
+    this.visitorSignals.trackPageViews('website');
+
     this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe((event) => {
