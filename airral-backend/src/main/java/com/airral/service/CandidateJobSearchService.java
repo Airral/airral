@@ -1547,7 +1547,7 @@ public class CandidateJobSearchService {
                 .department(firstListValue(posting.getBulletFields()))
                 .location(location)
                 .workMode(workMode)
-                .employmentType(null)
+                .employmentType(normalizeEmploymentType(posting.getTimeType()))
                 .salaryLabel("Salary not listed")
                 .applyUrl(url)
                 .jobUrl(url)
@@ -4460,6 +4460,25 @@ public class CandidateJobSearchService {
      * "Engineering", "R&amp;D Operations", "Team 360" and "Sales2024" stay. It is
      * better to keep a bad department than to discard a real one.
      */
+    /**
+     * Brings a board's employment-type wording into the same shape as the others.
+     *
+     * <p>Workday says "Full time", Greenhouse and Lever say "Full-time". Storing
+     * both means the same job type reads as two different values, and anything
+     * grouping or comparing them has to know about the difference.
+     */
+    private String normalizeEmploymentType(String timeType) {
+        if (timeType == null || timeType.isBlank()) {
+            return null;
+        }
+
+        return switch (timeType.trim().toLowerCase(Locale.US)) {
+            case "full time", "full-time", "fulltime" -> "Full-time";
+            case "part time", "part-time", "parttime" -> "Part-time";
+            default -> timeType.trim();
+        };
+    }
+
     private String sanitizeDepartment(String department) {
         if (department == null || department.isBlank()) {
             return department;
