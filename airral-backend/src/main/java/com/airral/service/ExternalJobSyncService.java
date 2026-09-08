@@ -244,7 +244,16 @@ public class ExternalJobSyncService {
                     unexplainedFailures);
         }
 
-        return externalJobPostingStore.expireOldJobs(retentionDays)
+        // After expiry, so a retired posting is not counted as a live repost, and
+        // after every source has landed, because the churn signal is only correct
+        // once the run's whole picture is in.
+        return externalJobPostingStore.recomputeJobQuality()
+                .doOnNext(rescored -> {
+                    if (rescored > 0) {
+                        log.info("Rescored {} posting(s) on listing age and repost churn", rescored);
+                    }
+                })
+                .then(externalJobPostingStore.expireOldJobs(retentionDays))
                 .flatMap(jobsExpired -> externalJobPostingStore.purgeExpiredJobs(purgeAfterDays)
                         .flatMap(jobsPurged -> externalJobPostingStore.completeSyncRun(
                                         runId,

@@ -310,7 +310,13 @@ public class ExternalJobPostingStore {
 
         appendExplicitFilters(sql, filters);
 
-        sql.append(" ORDER BY p.source_updated_at DESC NULLS LAST, p.match_score DESC NULLS LAST, p.last_seen_at DESC LIMIT :limit OFFSET :offset");
+        // Newest day first, best of that day within it. Recency alone gave quality
+        // no say at all, and the tiebreaker it replaces -- match_score -- is a
+        // title keyword check with three possible values, computed without a
+        // profile, so it was ordering the feed on almost nothing.
+        sql.append(" ORDER BY DATE_TRUNC('day', p.source_updated_at) DESC NULLS LAST,"
+                + " p.job_quality_score DESC NULLS LAST,"
+                + " p.source_updated_at DESC NULLS LAST, p.last_seen_at DESC LIMIT :limit OFFSET :offset");
 
         DatabaseClient.GenericExecuteSpec spec = databaseClient.sql(sql.toString())
                 .bind("limit", resolvedLimit)
@@ -1184,6 +1190,84 @@ public class ExternalJobPostingStore {
      * stay disappeared. The retentionDays argument is kept because callers pass
      * it and expires_at is derived from it at write time.
      */
+    /**
+     * Recomputes job_quality_score from signals only the stored corpus has.
+     *
+     * <p>The score used to be seven "is this field populated" checks, computed in
+     * the mapper from a single posting in isolation. Nothing in it was about the
+     * job. It had a live spread of about one point, it appeared in no ORDER BY,
+     * and it moved in the wrong direction as the data improved: rejecting
+     * requisition-id departments and introducing an honest UNKNOWN work mode both
+     * lowered it, because it was measuring our completeness rather than the
+     * posting's worth.
+     *
+     * <p>Two signals here need the corpus rather than the row, which is why this
+     * runs as a pass after the sync instead of in the mapper.
+     *
+     * <p>Repost churn: the same title from the same employer appearing many times
+     * over. Measured on a real corpus, one title/company pair appeared eleven
+     * times and another seven. A candidate applying to all eleven is applying to
+     * one job, or to none.
+     *
+     * <p>Listing duration, from first_seen_at -- a column present since V7 with no
+     * reader until now. A posting that has been continuously listed for months is
+     * either evergreen pipeline-building or was never real; either way it is worth
+     * less of a candidate's limited time than one posted last week. This signal is
+     * weak until the corpus has history, and worthless on a fresh database, which
+     * is worth knowing before reading anything into early numbers.
+     *
+     * <p>Only rows whose score actually changes are written. A blanket update
+     * would rewrite the whole table after every sync and undo the HOT-update work
+     * that keeps the four-hourly run off the indexes.
+     */
+    public Mono<Long> recomputeJobQuality() {
+        return databaseClient.sql("""
+                        WITH churn AS (
+                            SELECT company_id, LOWER(title) AS norm_title, COUNT(*) AS copies
+                            FROM external_job_postings
+                            WHERE is_active = true
+                            GROUP BY 1, 2
+                        ),
+                        scored AS (
+                            SELECT
+                                p.id,
+                                GREATEST(0, LEAST(100,
+                                    50
+                                    + CASE WHEN p.salary_label IS NOT NULL
+                                            AND LOWER(p.salary_label) NOT LIKE '%not listed%'
+                                           THEN 15 ELSE 0 END
+                                    + CASE WHEN p.source_updated_at >= CURRENT_TIMESTAMP - INTERVAL '14 days'
+                                           THEN 10 ELSE 0 END
+                                    + CASE WHEN COALESCE(p.apply_url, p.job_url) IS NOT NULL
+                                           THEN 5 ELSE 0 END
+                                    + CASE
+                                        WHEN p.first_seen_at < CURRENT_TIMESTAMP - INTERVAL '120 days' THEN -15
+                                        WHEN p.first_seen_at < CURRENT_TIMESTAMP - INTERVAL '60 days' THEN -5
+                                        ELSE 0
+                                      END
+                                    + CASE
+                                        WHEN c.copies >= 6 THEN -20
+                                        WHEN c.copies >= 3 THEN -10
+                                        ELSE 0
+                                      END
+                                )) AS score
+                            FROM external_job_postings p
+                            JOIN churn c
+                              ON c.company_id = p.company_id
+                             AND c.norm_title = LOWER(p.title)
+                            WHERE p.is_active = true
+                        )
+                        UPDATE external_job_postings t
+                        SET job_quality_score = s.score,
+                            updated_at = CURRENT_TIMESTAMP
+                        FROM scored s
+                        WHERE t.id = s.id
+                          AND t.job_quality_score IS DISTINCT FROM s.score
+                        """)
+                .fetch()
+                .rowsUpdated();
+    }
+
     public Mono<Long> expireOldJobs(int retentionDays) {
         return databaseClient.sql("""
                         UPDATE external_job_postings
