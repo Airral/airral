@@ -1657,6 +1657,12 @@ public class CandidateJobSearchService {
     }
 
     private CandidateJobSummaryResponse withDecisionSignals(CandidateJobSummaryResponse job) {
+        // Cleaned before anything reads them, so a requisition number cannot earn
+        // a "Team listed" quality reason or land in the skills array.
+        job.setDepartment(sanitizeDepartment(job.getDepartment()));
+        job.setLocation(normalizeLocation(job.getLocation()));
+        job.setTags(sanitizeTags(job.getTags()));
+
         // The description, when the source gave us one. This used to be a
         // literal null in all four places below, which is what made the write
         // path strictly less informed than the read path: the detail overload
@@ -1689,6 +1695,10 @@ public class CandidateJobSearchService {
     }
 
     private CandidateJobDetailResponse withDecisionSignals(CandidateJobDetailResponse detail) {
+        detail.setDepartment(sanitizeDepartment(detail.getDepartment()));
+        detail.setLocation(normalizeLocation(detail.getLocation()));
+        detail.setTags(sanitizeTags(detail.getTags()));
+
         detail.setJobQualityScore(firstNonNull(detail.getJobQualityScore(), inferJobQualityScore(
                 detail.getSalaryLabel(),
                 detail.getLocation(),
@@ -3346,6 +3356,26 @@ public class CandidateJobSearchService {
         return 3;
     }
 
+    /** A ZIP or ZIP+4, which carries no meaning for a job seeker browsing by city. */
+    private static final Pattern US_POSTAL_CODE = Pattern.compile("\\b\\d{5}(?:-\\d{4})?\\b");
+
+    /**
+     * A street line: a house number followed by a name.
+     *
+     * <p>The house number is not always plain digits. Queens addresses hyphenate
+     * ("22-11 31st St") and Wisconsin uses a grid prefix ("N95 W Shady Ln"), both
+     * of which a bare {@code \d+} misses.
+     */
+    private static final Pattern STREET_LINE =
+            Pattern.compile("^[A-Za-z]?\\d+[\\dA-Za-z-]*\\s+\\S.*");
+
+    /** A secondary unit left at the front of a segment once the street is gone. */
+    private static final Pattern SECONDARY_UNIT =
+            Pattern.compile("^(?:ste|suite|unit|apt|apartment|fl|floor|#)\\.?\\s*[\\dA-Za-z-]*\\s+", Pattern.CASE_INSENSITIVE);
+
+    /** A bare store or site number tacked onto the end. "St Peters, MO (O'Fallon) 0753". */
+    private static final Pattern TRAILING_SITE_CODE = Pattern.compile("\\s+\\d{3,5}$");
+
     /**
      * Noise stripped before a salary is read out of free text.
      *
@@ -4304,6 +4334,104 @@ public class CandidateJobSearchService {
         return salaryLabel == null
                 || salaryLabel.isBlank()
                 || salaryLabel.toLowerCase(Locale.US).contains("not listed");
+    }
+
+    /**
+     * Drops a value that is a requisition number rather than a team name.
+     *
+     * <p>Workday hands us an arbitrary list of "bullet fields" and the first one
+     * is whatever the employer put there. For a large retail board that is the
+     * requisition id, so 65 of 79 synced postings carried a department of
+     * "R0000448755" -- which then earned the posting a "Team listed" quality
+     * reason, fed the match score, and was written into the tags array twice, so
+     * the skills index was a list of req numbers.
+     *
+     * <p>Deliberately conservative: a single token, at least three digits, and
+     * more digits than letters. "R0000448755", "JR-12345" and "REQ-2024-001" go;
+     * "Engineering", "R&amp;D Operations", "Team 360" and "Sales2024" stay. It is
+     * better to keep a bad department than to discard a real one.
+     */
+    private String sanitizeDepartment(String department) {
+        if (department == null || department.isBlank()) {
+            return department;
+        }
+
+        String trimmed = department.trim();
+        if (trimmed.chars().anyMatch(Character::isWhitespace)) {
+            return trimmed;
+        }
+
+        long digits = trimmed.chars().filter(Character::isDigit).count();
+        long letters = trimmed.chars().filter(Character::isLetter).count();
+        return (digits >= 3 && digits > letters) ? null : trimmed;
+    }
+
+    /**
+     * Reduces a postal address to the part a job seeker searches by.
+     *
+     * <p>Workday reports the site address, so a posting reads "960 Lititz Pike,
+     * Lititz,PA 17543-9328". Nobody searches for a street, and with the raw
+     * string stored there is no city to filter on.
+     *
+     * <p>Returns the original untouched unless a street line or a postal code was
+     * actually found, so multi-city strings such as "New York City, NY; San
+     * Francisco, CA; Seattle, WA" and prose like "San Francisco Bay Area or Los
+     * Angeles Area" pass through exactly as the source wrote them.
+     */
+    private String normalizeLocation(String location) {
+        if (location == null || location.isBlank()) {
+            return location;
+        }
+
+        String[] parts = location.split(",");
+        List<String> kept = new ArrayList<>();
+        boolean changed = false;
+
+        for (int i = 0; i < parts.length; i++) {
+            String segment = parts[i].trim();
+
+            // Only drop a street line when a city and a region survive it. Without
+            // that guard "29 Palms, CA" -- a real place -- would be reduced to "CA",
+            // and a single-segment value would be erased entirely.
+            if (kept.isEmpty() && parts.length - i > 2 && STREET_LINE.matcher(segment).matches()) {
+                changed = true;
+                continue;
+            }
+
+            String cleaned = segment;
+            if (kept.isEmpty()) {
+                cleaned = SECONDARY_UNIT.matcher(cleaned).replaceFirst("");
+            }
+            cleaned = US_POSTAL_CODE.matcher(cleaned).replaceAll(" ");
+            cleaned = TRAILING_SITE_CODE.matcher(cleaned).replaceFirst("");
+            cleaned = cleaned.replaceAll("\\s+", " ").trim();
+
+            if (!cleaned.equals(segment)) {
+                changed = true;
+            }
+            if (!cleaned.isEmpty()) {
+                kept.add(cleaned);
+            }
+        }
+
+        if (!changed || kept.isEmpty()) {
+            return location.trim();
+        }
+
+        return String.join(", ", kept);
+    }
+
+    /** Keeps requisition numbers out of the skills array, wherever they entered it. */
+    private List<String> sanitizeTags(List<String> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return tags;
+        }
+
+        List<String> cleaned = tags.stream()
+                .filter(tag -> tag != null && !tag.isBlank())
+                .filter(tag -> sanitizeDepartment(tag) != null)
+                .toList();
+        return cleaned.isEmpty() ? List.of() : cleaned;
     }
 
     private List<String> buildTags(String title, String department, String workMode, List<String> extraTags) {

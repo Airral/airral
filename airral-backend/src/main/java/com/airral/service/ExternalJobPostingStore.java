@@ -18,6 +18,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.StringJoiner;
@@ -29,6 +30,43 @@ public class ExternalJobPostingStore {
 
     private final DatabaseClient databaseClient;
     private final CompanyLogoService companyLogoService;
+
+    /**
+     * Declared width of every VARCHAR this class writes, keyed by bind name.
+     *
+     * <p>None of these were capped. A value longer than its column throws inside
+     * the sync's {@code flatMap(..., 8)}, which cancels the rest of that board --
+     * so one over-long field silently cost every remaining posting from that
+     * employer, with no error to say the run was partial. The documented case is
+     * an Ashby compensation summary, which is vendor free text going into
+     * {@code salary_label VARCHAR(255)}, but every entry here is reachable from
+     * source data: Lever's commitment is free text, Workday's external path can
+     * be long once URL-encoded, and multi-site postings concatenate locations.
+     *
+     * <p>Truncating loses the tail of one field. Throwing loses the board. Keep
+     * this in step with the migrations; a name absent here is simply not capped.
+     */
+    private static final Map<String, Integer> TEXT_COLUMN_LIMITS = Map.ofEntries(
+            Map.entry("salaryCurrency", 10),
+            Map.entry("seniorityLabel", 20),
+            Map.entry("compensationConfidence", 30),
+            Map.entry("sourceType", 30),
+            Map.entry("workMode", 30),
+            Map.entry("applyMode", 40),
+            Map.entry("sponsorshipLanguage", 40),
+            Map.entry("employmentType", 80),
+            Map.entry("postedLabel", 80),
+            Map.entry("sourceName", 100),
+            Map.entry("sourcePayloadHash", 128),
+            Map.entry("department", 255),
+            Map.entry("externalInternalJobId", 255),
+            Map.entry("salaryLabel", 255),
+            Map.entry("sourceBoardToken", 255),
+            Map.entry("totalCompLabel", 255),
+            Map.entry("externalJobId", 500),
+            Map.entry("location", 500),
+            Map.entry("title", 500),
+            Map.entry("sourceJobKey", 900));
 
     public ExternalJobPostingStore(DatabaseClient databaseClient, CompanyLogoService companyLogoService) {
         this.databaseClient = databaseClient;
@@ -720,19 +758,21 @@ public class ExternalJobPostingStore {
                         """)
                 .bind("companyId", source.companyId())
                 .bind("jobSourceId", source.id())
-                .bind("sourceType", sourceType)
-                .bind("sourceName", firstNonBlank(source.sourceName(), job.getSourceName(), sourceType))
-                .bind("sourceBoardToken", sourceBoardToken)
-                .bind("externalJobId", externalJobId)
-                .bind("sourceJobKey", sourceJobKey)
-                .bind("title", firstNonBlank(job.getTitle(), "Untitled role"))
-                .bind("applyMode", firstNonBlank(job.getApplyMode(), "EXTERNAL_APPLY"))
+                .bind("sourceType", cappedText("sourceType", sourceType))
+                .bind("sourceName", cappedText("sourceName",
+                        firstNonBlank(source.sourceName(), job.getSourceName(), sourceType)))
+                .bind("sourceBoardToken", cappedText("sourceBoardToken", sourceBoardToken))
+                .bind("externalJobId", cappedText("externalJobId", externalJobId))
+                .bind("sourceJobKey", cappedText("sourceJobKey", sourceJobKey))
+                .bind("title", cappedText("title", firstNonBlank(job.getTitle(), "Untitled role")))
+                .bind("applyMode", cappedText("applyMode", firstNonBlank(job.getApplyMode(), "EXTERNAL_APPLY")))
                 .bind("easyApplyAvailable", Boolean.TRUE.equals(job.getEasyApplyAvailable()))
                 .bind("connectionsCount", job.getConnectionsCount() == null ? 0 : job.getConnectionsCount())
                 .bind("tags", tags.toArray(String[]::new))
                 .bind("tagsText", String.join(" ", tags))
                 .bind("qualityReasons", qualityReasonsFor(job).toArray(String[]::new))
-                .bind("sponsorshipLanguage", firstNonBlank(job.getSponsorshipLanguage(), "UNKNOWN"))
+                .bind("sponsorshipLanguage",
+                        cappedText("sponsorshipLanguage", firstNonBlank(job.getSponsorshipLanguage(), "UNKNOWN")))
                 .bind("visaReasons", visaReasonsFor(job).toArray(String[]::new))
                 .bind("sourcePayloadHash", payloadHash(source, job))
                 .bind("now", now)
@@ -1416,7 +1456,26 @@ public class ExternalJobPostingStore {
         if (value == null) {
             return spec.bindNull(key, valueType);
         }
-        return spec.bind(key, value);
+        return spec.bind(key, capped(key, value));
+    }
+
+    /**
+     * Applies this key's column width, if it has one. Placed on the bind rather
+     * than at each call site so a bind added later is capped by default -- every
+     * text bind in this class was uncapped until now, and the failure is silent.
+     */
+    private Object capped(String key, Object value) {
+        Integer limit = TEXT_COLUMN_LIMITS.get(key);
+        if (limit == null || !(value instanceof String text)) {
+            return value;
+        }
+        return truncate(text, limit);
+    }
+
+    /** For the non-nullable bind chain, which does not route through bindNullable. */
+    private String cappedText(String key, String value) {
+        Object result = capped(key, value);
+        return result == null ? null : String.valueOf(result);
     }
 
     private DatabaseClient.GenericExecuteSpec bindNullableShort(

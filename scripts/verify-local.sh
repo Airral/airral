@@ -147,7 +147,14 @@ fi
 BOOT_LOG=/tmp/verify-boot.log
 rm -f "$BOOT_LOG"
 
+# The startup sync is switched off for this run. It fetches every configured
+# source -- hundreds of boards, and full posting bodies since the sync started
+# asking for them -- which competes with the smoke checks below for the same
+# instance and makes them time out rather than fail on their merits. The sync has
+# its own coverage in the guard step and in the unit tests; what this boot is
+# here to prove is that the application starts and serves.
 DB_USER="${DB_USER:-$(whoami)}" java -jar "$JAR" --spring.profiles.active=local \
+  --airral.jobs.sync.run-on-startup=false \
   --jwt.secret="$(openssl rand -base64 48 | tr -d '\n')" >"$BOOT_LOG" 2>&1 &
 APP_PID=$!
 trap 'kill "$APP_PID" 2>/dev/null' EXIT
