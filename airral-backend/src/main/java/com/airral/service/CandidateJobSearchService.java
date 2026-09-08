@@ -66,6 +66,46 @@ public class CandidateJobSearchService {
             "(?i)(^|[\\s,(-])(Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|District\\s+of\\s+Columbia|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\\s+Hampshire|New\\s+Jersey|New\\s+Mexico|New\\s+York|North\\s+Carolina|North\\s+Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\\s+Island|South\\s+Carolina|South\\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\\s+Virginia|Wisconsin|Wyoming)([\\s,).:-]|$)"
     );
     private static final Pattern US_COUNTRY_PATTERN = Pattern.compile("(?i)(^|[^a-z0-9])u\\.?s\\.?a?([^a-z0-9]|$)");
+    /**
+     * Detects a posting refusing to sponsor, by negation proximity rather than
+     * by a list of adjacent word pairs.
+     *
+     * <p>The previous check looked for fixed bigrams -- "not sponsor", "does not
+     * sponsor". Employers do not write that way. "We do not provide visa
+     * sponsorship" puts two words between the negation and the noun, so it
+     * matched none of the refusal terms, fell through to the positive list, hit
+     * the word "sponsorship" there, and was classified as an offer. An explicit
+     * refusal was reported to the candidate as "Sponsors visa" -- the worst
+     * direction for this signal to be wrong in, and it affects exactly the
+     * people least able to absorb a wasted application.
+     *
+     * <p>Two guards keep it from over-reaching: the gap cannot contain a full
+     * stop, so a negation never reaches across a sentence boundary into an
+     * unrelated sponsorship clause, and the window is deliberately short.
+     *
+     * <p>Deliberately does NOT match "aren't able to sponsor". Employers who do
+     * sponsor commonly qualify it -- "We do sponsor visas! However, we aren't
+     * able to sponsor for every role" -- and because a refusal match suppresses
+     * the positive check, treating that as a refusal inverts the answer for an
+     * employer who genuinely sponsors. A posting that both offers and qualifies
+     * is reported as SPONSORS; the binary cannot express "sponsors, with
+     * conditions", and of the two available answers that is the accurate one.
+     *
+     * <p>Only reachable on the sync path since the posting body started being
+     * carried there. Before that it evaluated against a null description and
+     * returned UNKNOWN for every row, which is why this went unnoticed.
+     */
+    private static final Pattern SPONSORSHIP_REFUSAL = Pattern.compile(
+            // A bare "no" was too loose: "provide go/no-go input to deal sponsors"
+                    // read as a refusal, because "no-go" carries a word boundary and
+                    // "sponsors" sat inside the window. "no" now has to be attached to
+                    // the noun it negates.
+                    "(?:\\b(?:do(?:es)?\\s+not|will\\s+not|can\\s?not|cannot|won'?t|are\\s+not"
+                    + "|is\\s+not|unable\\s+to|not|without)\\b[^.]{0,30}?\\bsponsor)"
+                    + "|(?:\\bno\\s+(?:visa\\s+|employment\\s+)?sponsorship\\b)"
+                    + "|(?:\\bsponsorship\\b[^.]{0,20}?\\b(?:is\\s+not|not\\s+available|unavailable)\\b)",
+            Pattern.CASE_INSENSITIVE);
+
     private static final Pattern SALARY_RANGE_PATTERN = Pattern.compile(
             "(?i)\\$\\s?\\d[\\d,]*(?:\\.\\d+)?\\s*(?:to|-|–)\\s*\\$?\\s?\\d[\\d,]*(?:\\.\\d+)?(?:\\s*[A-Z]{3})?(?:\\s*(?:per|/)?\\s*(?:year|hour|annually))?"
     );
@@ -1053,6 +1093,11 @@ public class CandidateJobSearchService {
 
     private CandidateJobSummaryResponse toGreenhouseSummary(String boardToken, GreenhouseJobBoardResponse.GreenhouseJob job) {
         String location = locationName(job);
+        // Both now arrive on the list call. Previously content was suppressed and
+        // pay withheld, so this mapper -- the one the sync actually persists --
+        // hardcoded "Salary not listed" and had no text to derive signals from.
+        String descriptionText = stripHtml(job.getContent());
+        GreenhouseJobBoardResponse.GreenhousePayRange payRange = firstPayRange(job);
 
         return withDecisionSignals(CandidateJobSummaryResponse.builder()
                 .jobId(sourceJobId("GREENHOUSE", boardToken, String.valueOf(job.getId())))
@@ -1066,7 +1111,8 @@ public class CandidateJobSearchService {
                 .location(location)
                 .workMode(inferWorkMode(job.getTitle(), location))
                 .employmentType("Full-time")
-                .salaryLabel("Salary not listed")
+                .descriptionText(descriptionText)
+                .salaryLabel(payRange == null ? "Salary not listed" : formatSalary(payRange))
                 .applyUrl(job.getAbsoluteUrl())
                 .jobUrl(job.getAbsoluteUrl())
                 .applyMode("EXTERNAL_APPLY")
@@ -1140,6 +1186,13 @@ public class CandidateJobSearchService {
                 .location(location)
                 .workMode(workMode)
                 .employmentType(categories == null ? null : categories.getCommitment())
+                // Already deserialized by the sync's own list call and previously
+                // dropped here for nothing.
+                .descriptionText(firstNonBlank(
+                        posting.getDescriptionPlain(),
+                        posting.getOpeningPlain(),
+                        stripHtml(posting.getDescription()),
+                        stripHtml(posting.getOpening())))
                 .salaryLabel(formatLeverSalary(posting))
                 .applyUrl(posting.getApplyUrl())
                 .jobUrl(posting.getHostedUrl())
@@ -1209,6 +1262,8 @@ public class CandidateJobSearchService {
                 .location(location)
                 .workMode(workMode)
                 .employmentType(job.getEmploymentType())
+                // Same list payload the sync parses; was discarded here.
+                .descriptionText(firstNonBlank(job.getDescriptionPlain(), stripHtml(job.getDescriptionHtml())))
                 .salaryLabel(formatAshbySalary(job))
                 .applyUrl(job.getApplyUrl())
                 .jobUrl(job.getJobUrl())
@@ -1602,6 +1657,13 @@ public class CandidateJobSearchService {
     }
 
     private CandidateJobSummaryResponse withDecisionSignals(CandidateJobSummaryResponse job) {
+        // The description, when the source gave us one. This used to be a
+        // literal null in all four places below, which is what made the write
+        // path strictly less informed than the read path: the detail overload
+        // beneath this one passes the real text and derives real values, the
+        // sync passed null and derived defaults, and the sync ran last.
+        String descriptionText = job.getDescriptionText();
+
         job.setJobQualityScore(firstNonNull(job.getJobQualityScore(), inferJobQualityScore(
                 job.getSalaryLabel(),
                 job.getLocation(),
@@ -1610,7 +1672,7 @@ public class CandidateJobSearchService {
                 job.getJobUrl(),
                 job.getDepartment(),
                 job.getWorkMode(),
-                null)));
+                descriptionText)));
         job.setQualityReasons(firstNonNull(job.getQualityReasons(), buildQualityReasons(
                 job.getSalaryLabel(),
                 job.getLocation(),
@@ -1618,11 +1680,11 @@ public class CandidateJobSearchService {
                 job.getApplyUrl(),
                 job.getJobUrl(),
                 job.getDepartment(),
-                null)));
+                descriptionText)));
         job.setTotalCompLabel(firstNonBlank(job.getTotalCompLabel(), inferTotalCompLabel(job.getSalaryLabel())));
         job.setCompensationConfidence(firstNonBlank(job.getCompensationConfidence(), inferCompensationConfidence(job.getSalaryLabel())));
-        applyVisaSignals(job, null);
-        applyExperienceSignals(job, null);
+        applyVisaSignals(job, descriptionText);
+        applyExperienceSignals(job, descriptionText);
         return job;
     }
 
@@ -1823,14 +1885,8 @@ public class CandidateJobSearchService {
                 descriptionText
         );
 
-        boolean noSponsorship = containsAny(text,
-                "no sponsorship",
-                "not sponsor",
-                "will not sponsor",
-                "does not sponsor",
-                "unable to sponsor",
-                "without sponsorship",
-                "now or in the future");
+        boolean noSponsorship = SPONSORSHIP_REFUSAL.matcher(text).find()
+                || containsAny(text, "now or in the future");
         boolean sponsors = !noSponsorship && containsAny(text,
                 "visa sponsorship",
                 "sponsorship available",
@@ -1845,13 +1901,23 @@ public class CandidateJobSearchService {
                 "eligible to work",
                 "right to work",
                 "employment authorization");
+        // Phrases that describe an engagement, not any use of the words. The bare
+        // terms "contract", "staffing" and "vendor" fired on Contracts Manager,
+        // Vendor Operations and Warehouse Logistics roles -- and the flag is shown
+        // to the candidate as a caution, so a false one costs a real application.
         boolean contractRisk = containsAny(text,
-                "contract",
+                "contract role",
+                "contract position",
+                "contract-to-hire",
+                "contract to hire",
+                "w2 contract",
+                "fixed-term contract",
                 "corp-to-corp",
                 "c2c",
                 "1099",
-                "staffing",
-                "vendor",
+                "staffing agency",
+                "staffing firm",
+                "temp-to-perm",
                 "employer of record");
         boolean capExemptFit = containsAny(text,
                 "university",
@@ -1916,14 +1982,8 @@ public class CandidateJobSearchService {
     }
 
     private VisaSignal inferVisaSignalFromText(String text) {
-        boolean noSponsorship = containsAny(text,
-                "no sponsorship",
-                "not sponsor",
-                "will not sponsor",
-                "does not sponsor",
-                "unable to sponsor",
-                "without sponsorship",
-                "now or in the future");
+        boolean noSponsorship = SPONSORSHIP_REFUSAL.matcher(text).find()
+                || containsAny(text, "now or in the future");
         boolean sponsors = !noSponsorship && containsAny(text,
                 "visa sponsorship",
                 "sponsorship available",
@@ -1938,13 +1998,23 @@ public class CandidateJobSearchService {
                 "eligible to work",
                 "right to work",
                 "employment authorization");
+        // Phrases that describe an engagement, not any use of the words. The bare
+        // terms "contract", "staffing" and "vendor" fired on Contracts Manager,
+        // Vendor Operations and Warehouse Logistics roles -- and the flag is shown
+        // to the candidate as a caution, so a false one costs a real application.
         boolean contractRisk = containsAny(text,
-                "contract",
+                "contract role",
+                "contract position",
+                "contract-to-hire",
+                "contract to hire",
+                "w2 contract",
+                "fixed-term contract",
                 "corp-to-corp",
                 "c2c",
                 "1099",
-                "staffing",
-                "vendor",
+                "staffing agency",
+                "staffing firm",
+                "temp-to-perm",
                 "employer of record");
         boolean capExemptFit = containsAny(text,
                 "university",
@@ -3229,13 +3299,22 @@ public class CandidateJobSearchService {
         // Try to extract numeric salary from label like "$120,000 - $180,000" or "$120k - $180k"
         long jobMin = 0;
         long jobMax = 0;
-        java.util.regex.Matcher matcher = SALARY_EXTRACT_PATTERN.matcher(salaryLabel);
+        java.util.regex.Matcher matcher = SALARY_EXTRACT_PATTERN.matcher(
+                SALARY_NOISE.matcher(salaryLabel).replaceAll(" "));
         int found = 0;
         while (matcher.find() && found < 2) {
             long value = parseSalaryValue(matcher.group());
             if (found == 0) jobMin = value;
             jobMax = value;
             found++;
+        }
+
+        // "Up to $85,000 plus a bonus of $20,000" reads high-then-low. Comparing
+        // an unordered pair against the candidate's range takes the wrong branch.
+        if (jobMin > jobMax && jobMax > 0) {
+            long lower = jobMax;
+            jobMax = jobMin;
+            jobMin = lower;
         }
 
         if (found == 0) {
@@ -3250,12 +3329,10 @@ public class CandidateJobSearchService {
         long expectMax = userMax != null ? userMax.longValue() : Long.MAX_VALUE;
 
         // Job's max is above user's min AND job's min is below user's max = overlap
+        // The nested test here used to repeat this one verbatim, so the 5 it
+        // guarded was unreachable and the gradation it described never existed.
         if (jobMax >= expectMin && jobMin <= expectMax) {
-            // Strong match: job range overlaps user range well
-            if (jobMax >= expectMin && jobMin <= expectMax) {
-                return 7;
-            }
-            return 5;
+            return 7;
         }
 
         // Job pays less than user expects
@@ -3269,8 +3346,30 @@ public class CandidateJobSearchService {
         return 3;
     }
 
+    /**
+     * Noise stripped before a salary is read out of free text.
+     *
+     * <p>US postings mention retirement plans and bonus percentages constantly,
+     * and the old pattern treated both as money. "401k" became a $401,000
+     * salary, which overlaps almost any expectation and earned the posting a
+     * "Salary in range" chip. "20% bonus" became $20,000, which as the second
+     * number read as the top of the range and inverted it -- an $85,000 job was
+     * reported as "Salary below expectations" against a fabricated $20k ceiling.
+     */
+    private static final java.util.regex.Pattern SALARY_NOISE =
+            java.util.regex.Pattern.compile(
+                    "(?i)\\b(?:401\\s?\\(?k\\)?|403\\s?\\(?b\\)?|457\\s?\\(?b\\)?)\\b"
+                            + "|\\b\\d+(?:\\.\\d+)?\\s*%");
+
+    /**
+     * A figure only counts as pay if it is marked as money -- either a currency
+     * symbol or a thousands suffix. Previously the "$" was optional and the
+     * suffix was too, so any bare integer in the string was a candidate.
+     */
     private static final java.util.regex.Pattern SALARY_EXTRACT_PATTERN =
-            java.util.regex.Pattern.compile("\\$?([\\d,]+\\.?\\d*\\s*[kK]?)");
+            java.util.regex.Pattern.compile(
+                    "\\$\\s?\\d[\\d,]*(?:\\.\\d+)?\\s*[kK]?"
+                            + "|\\b\\d[\\d,]*(?:\\.\\d+)?\\s*[kK]\\b");
 
     private long parseSalaryValue(String raw) {
         if (raw == null || raw.isBlank()) return 0;

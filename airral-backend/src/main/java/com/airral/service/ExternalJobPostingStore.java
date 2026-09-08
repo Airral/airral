@@ -525,6 +525,7 @@ public class ExternalJobPostingStore {
                             location,
                             work_mode,
                             employment_type,
+                            description_text,
                             salary_label,
                             apply_url,
                             job_url,
@@ -570,6 +571,7 @@ public class ExternalJobPostingStore {
                             :location,
                             :workMode,
                             :employmentType,
+                            :descriptionText,
                             :salaryLabel,
                             :applyUrl,
                             :jobUrl,
@@ -600,7 +602,7 @@ public class ExternalJobPostingStore {
                             :expiresAt,
                             NULL,
                             :now,
-                            to_tsvector('english', CONCAT_WS(' ', :title, :department, :location, :employmentType, :sourceName, :tagsText))
+                            to_tsvector('english', CONCAT_WS(' ', :title, :department, :location, :employmentType, :sourceName, :tagsText, LEFT(:descriptionText, 2000)))
                         )
                         ON CONFLICT (source_type, source_board_token, external_job_id)
                         DO UPDATE SET
@@ -612,7 +614,31 @@ public class ExternalJobPostingStore {
                             location = EXCLUDED.location,
                             work_mode = EXCLUDED.work_mode,
                             employment_type = EXCLUDED.employment_type,
-                            salary_label = EXCLUDED.salary_label,
+                            -- Never lose a stored body to a run that arrived without one.
+                            description_text = COALESCE(NULLIF(EXCLUDED.description_text, ''), external_job_postings.description_text),
+
+                            -- Pay is read from structured source fields, so the guard here is the
+                            -- placeholder itself: a mapper with no pay data emits "Salary not listed",
+                            -- and that must not overwrite a range already resolved for this posting.
+                            salary_label = CASE
+                                WHEN EXCLUDED.salary_label IS NULL
+                                  OR LOWER(EXCLUDED.salary_label) LIKE '%not listed%'
+                                THEN COALESCE(external_job_postings.salary_label, EXCLUDED.salary_label)
+                                ELSE EXCLUDED.salary_label
+                            END,
+                            total_comp_label = CASE
+                                WHEN EXCLUDED.total_comp_label IS NULL
+                                  OR EXCLUDED.total_comp_label = 'Benchmark needed'
+                                THEN COALESCE(external_job_postings.total_comp_label, EXCLUDED.total_comp_label)
+                                ELSE EXCLUDED.total_comp_label
+                            END,
+                            compensation_confidence = CASE
+                                WHEN EXCLUDED.compensation_confidence IS NULL
+                                  OR EXCLUDED.compensation_confidence = 'NEEDS_BENCHMARK'
+                                THEN COALESCE(external_job_postings.compensation_confidence, EXCLUDED.compensation_confidence)
+                                ELSE EXCLUDED.compensation_confidence
+                            END,
+
                             apply_url = EXCLUDED.apply_url,
                             job_url = EXCLUDED.job_url,
                             apply_mode = EXCLUDED.apply_mode,
@@ -622,27 +648,75 @@ public class ExternalJobPostingStore {
                             match_score = EXCLUDED.match_score,
                             connections_count = EXCLUDED.connections_count,
                             tags = EXCLUDED.tags,
-                            job_quality_score = EXCLUDED.job_quality_score,
-                            quality_reasons = EXCLUDED.quality_reasons,
-                            total_comp_label = EXCLUDED.total_comp_label,
-                            compensation_confidence = EXCLUDED.compensation_confidence,
-                            sponsorship_language = EXCLUDED.sponsorship_language,
-                            visa_confidence_score = EXCLUDED.visa_confidence_score,
-                            visa_reasons = EXCLUDED.visa_reasons,
-                            requires_us_work_authorization = EXCLUDED.requires_us_work_authorization,
-                            contract_or_staffing_risk = EXCLUDED.contract_or_staffing_risk,
-                            stem_opt_risk = EXCLUDED.stem_opt_risk,
-                            h1b_transfer_fit = EXCLUDED.h1b_transfer_fit,
-                            cap_exempt_fit = EXCLUDED.cap_exempt_fit,
-                            experience_years = EXCLUDED.experience_years,
-                            seniority_label = EXCLUDED.seniority_label,
+
+                            -- Everything from here down is derived from the posting body. Take the
+                            -- incoming value only when this run actually had a body to read;
+                            -- otherwise keep what is stored, which may have been derived by a detail
+                            -- view that did. Without this the sync overwrote real, description-derived
+                            -- values with defaults every four hours, and no read path recomputed --
+                            -- so the correct value survived exactly one sync interval.
+                            job_quality_score = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.job_quality_score
+                                ELSE COALESCE(external_job_postings.job_quality_score, EXCLUDED.job_quality_score)
+                            END,
+                            quality_reasons = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.quality_reasons
+                                WHEN COALESCE(array_length(external_job_postings.quality_reasons, 1), 0) > 0
+                                    THEN external_job_postings.quality_reasons
+                                ELSE EXCLUDED.quality_reasons
+                            END,
+                            sponsorship_language = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.sponsorship_language
+                                ELSE external_job_postings.sponsorship_language
+                            END,
+                            visa_confidence_score = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.visa_confidence_score
+                                ELSE COALESCE(external_job_postings.visa_confidence_score, EXCLUDED.visa_confidence_score)
+                            END,
+                            visa_reasons = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.visa_reasons
+                                WHEN COALESCE(array_length(external_job_postings.visa_reasons, 1), 0) > 0
+                                    THEN external_job_postings.visa_reasons
+                                ELSE EXCLUDED.visa_reasons
+                            END,
+                            requires_us_work_authorization = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.requires_us_work_authorization
+                                ELSE COALESCE(external_job_postings.requires_us_work_authorization, EXCLUDED.requires_us_work_authorization)
+                            END,
+                            contract_or_staffing_risk = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.contract_or_staffing_risk
+                                ELSE COALESCE(external_job_postings.contract_or_staffing_risk, EXCLUDED.contract_or_staffing_risk)
+                            END,
+                            stem_opt_risk = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.stem_opt_risk
+                                ELSE COALESCE(external_job_postings.stem_opt_risk, EXCLUDED.stem_opt_risk)
+                            END,
+                            h1b_transfer_fit = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.h1b_transfer_fit
+                                ELSE COALESCE(external_job_postings.h1b_transfer_fit, EXCLUDED.h1b_transfer_fit)
+                            END,
+                            cap_exempt_fit = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.cap_exempt_fit
+                                ELSE COALESCE(external_job_postings.cap_exempt_fit, EXCLUDED.cap_exempt_fit)
+                            END,
+                            experience_years = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.experience_years
+                                ELSE COALESCE(external_job_postings.experience_years, EXCLUDED.experience_years)
+                            END,
+                            seniority_label = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.seniority_label
+                                ELSE COALESCE(external_job_postings.seniority_label, EXCLUDED.seniority_label)
+                            END,
+
                             source_payload_hash = EXCLUDED.source_payload_hash,
                             is_active = true,
                             last_seen_at = EXCLUDED.last_seen_at,
                             expires_at = EXCLUDED.expires_at,
                             deleted_at = NULL,
                             updated_at = EXCLUDED.updated_at,
-                            search_vector = to_tsvector('english', CONCAT_WS(' ', EXCLUDED.title, EXCLUDED.department, EXCLUDED.location, EXCLUDED.employment_type, EXCLUDED.source_name, array_to_string(EXCLUDED.tags, ' ')))
+                            -- Includes the body, so V21's enrichment survives a re-sync. The 2000
+                            -- character cap matches the migration that introduced it.
+                            search_vector = to_tsvector('english', CONCAT_WS(' ', EXCLUDED.title, EXCLUDED.department, EXCLUDED.location, EXCLUDED.employment_type, EXCLUDED.source_name, array_to_string(EXCLUDED.tags, ' '), LEFT(COALESCE(NULLIF(EXCLUDED.description_text, ''), external_job_postings.description_text), 2000)))
                         """)
                 .bind("companyId", source.companyId())
                 .bind("jobSourceId", source.id())
@@ -668,6 +742,7 @@ public class ExternalJobPostingStore {
         spec = bindNullable(spec, "location", job.getLocation(), String.class);
         spec = bindNullable(spec, "workMode", job.getWorkMode(), String.class);
         spec = bindNullable(spec, "employmentType", job.getEmploymentType(), String.class);
+        spec = bindNullable(spec, "descriptionText", job.getDescriptionText(), String.class);
         spec = bindNullable(spec, "salaryLabel", job.getSalaryLabel(), String.class);
         spec = bindNullable(spec, "applyUrl", job.getApplyUrl(), String.class);
         spec = bindNullable(spec, "jobUrl", job.getJobUrl(), String.class);
@@ -1366,7 +1441,7 @@ public class ExternalJobPostingStore {
                 job.getApplyUrl(),
                 job.getJobUrl(),
                 job.getDepartment(),
-                null);
+                job.getDescriptionText());
     }
 
     private List<String> qualityReasonsFor(CandidateJobDetailResponse detail) {
