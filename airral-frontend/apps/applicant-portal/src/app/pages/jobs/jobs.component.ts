@@ -729,6 +729,32 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * Says what an active filter is hiding, and how to see it again.
+   *
+   * <p>The work-mode and experience filters exclude postings that state neither,
+   * which is a large slice of the corpus -- most employers publish no work-mode
+   * field, and a substantial share never name a level. Excluding them is what
+   * makes the filter mean anything, but doing it silently would just move the
+   * dishonesty: the user would believe they had seen everything matching.
+   */
+  filterCaveat(): string {
+    const modeOn = this.filterWorkMode && this.filterWorkMode !== 'all';
+    const levelOn = this.filterExperience && this.filterExperience !== 'all';
+
+    if (modeOn && levelOn) {
+      return 'Postings that state no work mode or no experience level are hidden. '
+        + 'Set either back to All to include them.';
+    }
+    if (modeOn) {
+      return 'Many employers never state a work mode. Those postings are hidden while this filter is on — choose All to include them.';
+    }
+    if (levelOn) {
+      return 'Postings that do not state an experience level are hidden while this filter is on — choose Any level to include them.';
+    }
+    return '';
+  }
+
+  /**
    * The sponsorship lines only, for the panel that quotes the posting.
    *
    * <p>visaReasons also carries a contract/staffing note, which is a different

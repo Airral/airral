@@ -204,6 +204,19 @@ public class ExternalJobPostingStore {
             Integer maxAgeDays,
             String query,
             String company) {
+        return findRecommendedJobs(source, boardToken, limit, offset, maxAgeDays, query, company,
+                ExplicitJobFilters.none());
+    }
+
+    public Flux<CandidateJobSummaryResponse> findRecommendedJobs(
+            String source,
+            String boardToken,
+            Integer limit,
+            Integer offset,
+            Integer maxAgeDays,
+            String query,
+            String company,
+            ExplicitJobFilters filters) {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedOffset = normalizeOffset(offset);
         String normalizedSource = normalizeSource(source);
@@ -287,6 +300,8 @@ public class ExternalJobPostingStore {
                     """);
         }
 
+        appendExplicitFilters(sql, filters);
+
         sql.append(" ORDER BY p.source_updated_at DESC NULLS LAST, p.match_score DESC NULLS LAST, p.last_seen_at DESC LIMIT :limit OFFSET :offset");
 
         DatabaseClient.GenericExecuteSpec spec = databaseClient.sql(sql.toString())
@@ -295,6 +310,10 @@ public class ExternalJobPostingStore {
 
         if (!"ALL".equals(normalizedSource)) {
             spec = spec.bind("sourceType", normalizedSource);
+        }
+        if (filters != null && filters.hasWorkMode()
+                && !"REMOTE".equals(filters.normalizedWorkMode())) {
+            spec = spec.bind("filterWorkMode", filters.normalizedWorkMode());
         }
         if (boardToken != null && !boardToken.isBlank()) {
             spec = spec.bind("boardToken", boardToken.trim());
@@ -1625,6 +1644,77 @@ public class ExternalJobPostingStore {
             return tags.stream().filter(Objects::nonNull).map(String::valueOf).toList();
         }
         return List.of();
+    }
+
+    /**
+     * Turns the hand-set filters into predicates, so they constrain the query
+     * rather than whatever the query happened to return first.
+     *
+     * <p>Deliberately mirrors the Java versions in CandidateJobSearchService
+     * rather than replacing them: the personalized path unions several retrieval
+     * queries and still narrows in memory afterwards, so both implementations
+     * have to agree. Where one changes, change the other -- a candidate signed in
+     * and signed out must get the same answer about the same posting.
+     *
+     * <p>UNKNOWN work mode is not claimed by ONSITE or HYBRID, because it means
+     * the employer did not say; a location mentioning remote is still evidence
+     * and counts toward REMOTE. Experience uses half-open ranges so a posting
+     * lands in exactly one bucket, and falls back to the level label only when
+     * there is no year count -- a posting stating neither satisfies no bucket.
+     */
+    private void appendExplicitFilters(StringBuilder sql, ExplicitJobFilters filters) {
+        if (filters == null || !filters.any()) {
+            return;
+        }
+
+        if (filters.hasWorkMode()) {
+            if ("REMOTE".equals(filters.normalizedWorkMode())) {
+                sql.append("""
+                         AND (
+                            p.work_mode = 'REMOTE'
+                            OR (COALESCE(p.work_mode, 'UNKNOWN') = 'UNKNOWN'
+                                AND LOWER(COALESCE(p.location, '')) LIKE '%remote%')
+                         )
+                        """);
+            } else {
+                sql.append(" AND p.work_mode = :filterWorkMode");
+            }
+        }
+
+        if (filters.wantsPostedSalary()) {
+            sql.append("""
+                     AND p.salary_label IS NOT NULL
+                     AND p.salary_label <> ''
+                     AND LOWER(p.salary_label) NOT LIKE '%not listed%'
+                    """);
+        }
+
+        if (filters.wantsVisaFriendly()) {
+            sql.append(" AND COALESCE(p.sponsorship_language, 'UNKNOWN') IN ('UNKNOWN', 'SPONSORS')");
+        }
+
+        if (filters.hasExperienceLevel()) {
+            String years = switch (filters.normalizedExperienceLevel()) {
+                case "entry" -> "p.experience_years < 2";
+                case "mid" -> "p.experience_years >= 2 AND p.experience_years < 5";
+                case "senior" -> "p.experience_years >= 5 AND p.experience_years < 8";
+                case "staff" -> "p.experience_years >= 8";
+                default -> null;
+            };
+            String levels = switch (filters.normalizedExperienceLevel()) {
+                case "entry" -> "('intern', 'entry')";
+                case "mid" -> "('mid')";
+                case "senior" -> "('senior')";
+                case "staff" -> "('staff+', 'lead', 'director+')";
+                default -> null;
+            };
+
+            if (years != null) {
+                sql.append(" AND ((p.experience_years IS NOT NULL AND ").append(years).append(")")
+                   .append(" OR (p.experience_years IS NULL AND LOWER(p.seniority_label) IN ")
+                   .append(levels).append("))");
+            }
+        }
     }
 
     private int normalizeLimit(Integer limit) {

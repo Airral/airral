@@ -323,11 +323,18 @@ public class CandidateJobSearchService {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedOffset = normalizeOffset(offset);
         int resolvedMaxAgeDays = normalizeMaxAgeDays(maxAgeDays);
-        boolean hasExplicitFilters = hasExplicitFilters(workMode, salaryPosted, experienceLevel, visaFriendly);
-        int queryLimit = hasExplicitFilters
-                ? LIVE_SOURCE_LIMIT
-                : Math.min(LIVE_SOURCE_LIMIT, resolvedLimit + 1);
-        int queryOffset = hasExplicitFilters ? 0 : resolvedOffset;
+        ExplicitJobFilters filters =
+                new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly);
+
+        // The filters are predicates now, so paging is ordinary: fetch one more
+        // than the page to detect a next page and let the database do the rest.
+        // This used to pull LIVE_SOURCE_LIMIT rows from offset 0 and narrow them
+        // in memory, which meant every filter answered "among the newest few
+        // hundred" rather than "in the catalogue" -- on a corpus whose newest
+        // postings come from a source publishing no pay, "Salary listed" returned
+        // 3 of the 464 postings that actually had a salary.
+        int queryLimit = Math.min(LIVE_SOURCE_LIMIT, resolvedLimit + 1);
+        int queryOffset = resolvedOffset;
 
         if (hasCandidateEmail(candidateEmail)) {
             return getPersonalizedRecommendedJobsPage(
@@ -345,7 +352,9 @@ public class CandidateJobSearchService {
                     candidateEmail);
         }
 
-        return externalJobPostingStore.findRecommendedJobs(source, boardToken, queryLimit, queryOffset, resolvedMaxAgeDays, query, company)
+        return externalJobPostingStore
+                .findRecommendedJobs(source, boardToken, queryLimit, queryOffset,
+                        resolvedMaxAgeDays, query, company, filters)
                 .collectList()
                 .flatMap(cachedJobs -> cachedJobs.isEmpty()
                         ? getLiveFallbackJobs(source, boardToken, queryLimit, resolvedMaxAgeDays, query, company)
@@ -353,10 +362,13 @@ public class CandidateJobSearchService {
                                 .take(queryLimit)
                                 .collectList()
                         : Mono.just(cachedJobs))
+                // Still applied, for the live fallback only: those rows come
+                // straight from a source API and have never been past the SQL
+                // predicates. On database rows this is a no-op, and cheap enough
+                // to be worth keeping as the thing that makes the fallback
+                // obey the same filters as the primary path.
                 .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
-                .map(jobs -> hasExplicitFilters
-                        ? toRankedJobPage(jobs, resolvedLimit, resolvedOffset)
-                        : toJobPage(jobs, resolvedLimit, resolvedOffset))
+                .map(jobs -> toJobPage(jobs, resolvedLimit, resolvedOffset))
                 .flatMap(page -> personalizePage(candidateEmail, page));
     }
 
@@ -575,7 +587,48 @@ public class CandidateJobSearchService {
                 .concatMap(mono -> mono)
                 .flatMapIterable(batch -> batch)
                 .collectList()
-                .map(this::dedupeAndSort);
+                .map(this::dedupeAndSort)
+                .map(jobs -> enforceRetrievalConstraints(jobs, source, boardToken, company));
+    }
+
+    /**
+     * Re-applies the source, board and company constraints after the batches are
+     * merged.
+     *
+     * <p>Personalized retrieval runs several queries and unions the results. Most
+     * of them carry these constraints, but findJobsBySkills takes only skills, a
+     * freshness window and a limit -- so a signed-in candidate filtering by
+     * company got other companies merged in, and dedupeAndSort removed
+     * duplicates without removing the intruders. The same filter that worked when
+     * signed out silently became a suggestion once signed in.
+     *
+     * <p>Enforced here rather than by threading the arguments through every
+     * retrieval query, so a batch added later cannot reintroduce the leak. The
+     * predicates mirror the SQL ones: exact match on source type and board token,
+     * substring on company name.
+     */
+    private List<CandidateJobSummaryResponse> enforceRetrievalConstraints(
+            List<CandidateJobSummaryResponse> jobs, String source, String boardToken, String company) {
+        boolean constrainSource = source != null && !source.isBlank()
+                && !"all".equalsIgnoreCase(source.trim());
+        boolean constrainBoard = boardToken != null && !boardToken.isBlank();
+        boolean constrainCompany = company != null && !company.isBlank();
+
+        if (!constrainSource && !constrainBoard && !constrainCompany) {
+            return jobs;
+        }
+
+        String wantedSource = constrainSource
+                ? source.trim().replace("-", "_").toUpperCase(Locale.US) : null;
+        String wantedCompany = constrainCompany
+                ? company.trim().toLowerCase(Locale.US) : null;
+
+        return jobs.stream()
+                .filter(job -> wantedSource == null || wantedSource.equalsIgnoreCase(job.getSourceType()))
+                .filter(job -> !constrainBoard || boardToken.equalsIgnoreCase(job.getSourceBoardToken()))
+                .filter(job -> wantedCompany == null || (job.getCompanyName() != null
+                        && job.getCompanyName().toLowerCase(Locale.US).contains(wantedCompany)))
+                .toList();
     }
 
     /**
@@ -2130,13 +2183,16 @@ public class CandidateJobSearchService {
         }
 
         String jobWorkMode = job.getWorkMode();
-        if (jobWorkMode == null || jobWorkMode.isBlank()) {
-            // If job has no work mode data, check if location text contains "remote"
+        if (jobWorkMode == null || jobWorkMode.isBlank() || "UNKNOWN".equalsIgnoreCase(jobWorkMode)) {
+            // The posting did not say. That is not evidence of on-site, so an
+            // unclassified job is not claimed by the Hybrid or On-site filter --
+            // returning it there is what made "On-site" mean "everything else".
+            // A location mentioning remote is still real evidence, so it counts.
             if ("remote".equalsIgnoreCase(workMode)) {
                 String location = job.getLocation();
                 return location != null && location.toLowerCase(Locale.US).contains("remote");
             }
-            return true; // don't discard jobs missing work mode for hybrid/onsite filter
+            return false;
         }
 
         return jobWorkMode.equalsIgnoreCase(workMode);
@@ -2154,12 +2210,16 @@ public class CandidateJobSearchService {
             return true;
         }
 
+        // Half-open, so each posting lands in exactly one bucket. The ranges used
+        // to share both endpoints -- a role asking for 5 years was returned by
+        // both Mid and Senior -- which made two adjacent filters look broken
+        // against each other.
         Integer years = job.getExperienceYears();
         if (years != null) {
             return switch (experienceLevel.toLowerCase(Locale.US)) {
-                case "entry" -> years <= 2;
-                case "mid" -> years >= 2 && years <= 5;
-                case "senior" -> years >= 5 && years <= 8;
+                case "entry" -> years < 2;
+                case "mid" -> years >= 2 && years < 5;
+                case "senior" -> years >= 5 && years < 8;
                 case "staff" -> years >= 8;
                 default -> true;
             };
@@ -2167,7 +2227,11 @@ public class CandidateJobSearchService {
 
         String seniority = normalizeTerm(job.getSeniorityLabel());
         if (seniority == null || seniority.isBlank()) {
-            return true;
+            // Neither a year count nor a level. Returning true put every
+            // unclassified posting in every bucket at once, so picking a level
+            // changed almost nothing -- the filter appeared to do no work because
+            // it was doing none.
+            return false;
         }
 
         return switch (experienceLevel.toLowerCase(Locale.US)) {
@@ -4196,6 +4260,24 @@ public class CandidateJobSearchService {
                 .toList();
     }
 
+    /**
+     * Work mode read out of a title and location, for sources that publish no
+     * field for it.
+     *
+     * <p>Returns UNKNOWN rather than ONSITE when the text says neither. ONSITE
+     * used to carry both meanings -- "the employer said on-site" and "we could
+     * not tell" -- and since every source-specific formatter falls back here,
+     * that made 1331 of 1368 synced postings on-site by default. Two things
+     * followed: a genuinely remote job whose location reads "United States" was
+     * filed as on-site and hidden from the Remote filter, and the On-site filter
+     * returned everything we had failed to classify.
+     *
+     * <p>Greenhouse, the largest source, publishes no work-mode field at all, and
+     * a location of "San Francisco, CA" is not evidence of anything -- a role can
+     * be based in a city and still be hybrid or remote-friendly. UNKNOWN is the
+     * honest answer there. The formatters that do read a real field still return
+     * ONSITE from it.
+     */
     private String inferWorkMode(String title, String location) {
         String text = ((title == null ? "" : title) + " " + (location == null ? "" : location)).toLowerCase(Locale.US);
         if (text.contains("remote")) {
@@ -4204,7 +4286,7 @@ public class CandidateJobSearchService {
         if (text.contains("hybrid")) {
             return "HYBRID";
         }
-        return "ONSITE";
+        return "UNKNOWN";
     }
 
     private String formatLeverWorkMode(String workplaceType, String location) {

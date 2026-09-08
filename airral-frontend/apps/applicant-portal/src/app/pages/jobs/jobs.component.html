@@ -124,6 +124,10 @@
         </label>
       </div>
     </div>
+
+    <p class="filter-caveat" *ngIf="filterCaveat()">
+      <span class="material-icons">info_outline</span>{{ filterCaveat() }}
+    </p>
   </div>
 
   <!-- Resume Health Banner -->

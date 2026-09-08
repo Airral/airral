@@ -216,8 +216,25 @@ class CandidateJobSearchServiceTest {
                 .containsExactly("Sponsored Senior", "Unknown Senior");
     }
 
+    /**
+     * Reverses an earlier decision, deliberately.
+     *
+     * <p>This used to assert that a posting with neither a year count nor a level
+     * was kept when filtering by level. The intent was recall -- never hide a job
+     * we merely failed to classify -- but the effect was that every unclassified
+     * posting landed in every bucket at once, so choosing a level changed almost
+     * nothing and the filter appeared broken against itself.
+     *
+     * <p>The trade is real and it is not free: 42% of the synced corpus states
+     * neither, so this hides them. It is the same call made for work mode, and it
+     * is the honest one -- a control that returns everything is not a filter, and
+     * a candidate who narrows to Senior and is shown entry-level roles stops
+     * trusting the whole page. The cost is carried in the UI, which says plainly
+     * that postings not stating a level are not shown while the filter is on;
+     * "All" remains the way to see them.
+     */
     @Test
-    void keepsJobsWithUnknownExperienceWhenFilteringByLevel() {
+    void hidesJobsWithNoStatedExperienceWhenFilteringByLevel() {
         CandidateJobSummaryResponse unknownExperience = filterJob(
                 "Backend Engineer", "HYBRID", null, null, null, null);
 
@@ -231,7 +248,56 @@ class CandidateJobSearchServiceTest {
                 false
         );
 
-        assertThat(filtered).containsExactly(unknownExperience);
+        assertThat(filtered)
+                .as("a posting that states no level cannot satisfy a request for one")
+                .isEmpty();
+    }
+
+    @Test
+    void keepsJobsWithNoStatedExperienceWhenNoLevelIsRequested() {
+        // The exclusion above must be limited to an active filter -- "all" and a
+        // blank value have to leave the corpus alone.
+        CandidateJobSummaryResponse unknownExperience = filterJob(
+                "Backend Engineer", "HYBRID", null, null, null, null);
+
+        for (String level : new String[] { null, "", "all" }) {
+            List<CandidateJobSummaryResponse> filtered = ReflectionTestUtils.invokeMethod(
+                    service, "applyExplicitFilters",
+                    List.of(unknownExperience), null, false, level, false);
+            assertThat(filtered).as("level=%s", level).containsExactly(unknownExperience);
+        }
+    }
+
+    @Test
+    void experienceBucketsDoNotOverlap() {
+        // A role asking for exactly 5 years used to be returned by both Mid and
+        // Senior, which made two adjacent filters look broken against each other.
+        CandidateJobSummaryResponse fiveYears = filterJob(
+                "Backend Engineer", "REMOTE", null, null, "Senior", 5);
+
+        List<CandidateJobSummaryResponse> mid = ReflectionTestUtils.invokeMethod(
+                service, "applyExplicitFilters", List.of(fiveYears), null, false, "mid", false);
+        List<CandidateJobSummaryResponse> senior = ReflectionTestUtils.invokeMethod(
+                service, "applyExplicitFilters", List.of(fiveYears), null, false, "senior", false);
+
+        assertThat(mid).isEmpty();
+        assertThat(senior).containsExactly(fiveYears);
+    }
+
+    @Test
+    void unclassifiedWorkModeIsNotClaimedByOnsite() {
+        // ONSITE carried both "the employer said on-site" and "we could not tell",
+        // so the On-site filter returned everything we had failed to classify.
+        CandidateJobSummaryResponse unknownMode = filterJob(
+                "Backend Engineer", "UNKNOWN", null, null, "Senior", 6);
+
+        List<CandidateJobSummaryResponse> onsite = ReflectionTestUtils.invokeMethod(
+                service, "applyExplicitFilters", List.of(unknownMode), "ONSITE", false, null, false);
+        List<CandidateJobSummaryResponse> all = ReflectionTestUtils.invokeMethod(
+                service, "applyExplicitFilters", List.of(unknownMode), "all", false, null, false);
+
+        assertThat(onsite).isEmpty();
+        assertThat(all).containsExactly(unknownMode);
     }
 
     private CandidateProfile parsedResumeProfile() {
