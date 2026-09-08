@@ -133,6 +133,11 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.GET, "/api/jobs/statistics/public").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/jobs/*").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/feed").permitAll()
+                        // Both are writes by people who are not signed in, which is
+                        // the whole point: a visit and an email address from someone
+                        // who has not made an account yet. Neither reads anything.
+                        .pathMatchers(HttpMethod.POST, "/api/events").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/email-signups").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/feed/signals").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/feed/news").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/seo/**").permitAll()

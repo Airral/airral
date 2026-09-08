@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '@airral/shared-auth';
 import { CandidatePortalService } from '@airral/shared-api';
+import { VisitorSignalService } from '@airral/shared-utils';
 import { catchError, of } from 'rxjs';
 
 @Component({
@@ -18,10 +19,13 @@ export class App implements OnInit {
   constructor(
     protected readonly auth: AuthService,
     private readonly router: Router,
-    private readonly candidateApi: CandidatePortalService
+    private readonly candidateApi: CandidatePortalService,
+    private readonly visitorSignals: VisitorSignalService
   ) {}
 
   ngOnInit(): void {
+    this.visitorSignals.trackPageViews('applicant');
+
     if (this.isLoggedIn) {
       this.loadTrackerBadge();
     }

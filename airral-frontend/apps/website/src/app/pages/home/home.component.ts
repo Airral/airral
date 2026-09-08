@@ -10,10 +10,12 @@ import {
   viewChild,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
-import { PORTAL_ROUTES } from '@airral/shared-utils';
+import { PORTAL_ROUTES, VisitorSignalService } from '@airral/shared-utils';
+import { inject } from '@angular/core';
 
 interface Promise_ {
   /** Inline SVG path data, drawn on a 24x24 grid. */
@@ -33,11 +35,51 @@ const ASK = 'find me a senior backend role, remote, that pays well';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterModule, HeaderComponent, FooterComponent],
+  imports: [CommonModule, FormsModule, RouterModule, HeaderComponent, FooterComponent],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
 })
 export class HomeComponent implements AfterViewInit, OnDestroy {
+
+  /** Address typed into the "keep me posted" box at the foot of the page. */
+  email = '';
+  readonly emailState = signal<'idle' | 'sending' | 'done' | 'error'>('idle');
+  readonly emailMessage = signal('');
+
+  private readonly visitorSignals = inject(VisitorSignalService);
+
+  /**
+   * Stores an address for someone who is not ready to make an account.
+   *
+   * <p>Most people who reach the bottom of this page will not sign up today, and
+   * until now they left nothing behind at all -- there was no analytics and no
+   * capture, so a visit was indistinguishable from no visit.
+   */
+  submitEmail(): void {
+    const address = this.email.trim();
+    if (!address) {
+      this.emailState.set('error');
+      this.emailMessage.set('Enter an email address first.');
+      return;
+    }
+
+    this.emailState.set('sending');
+    this.emailMessage.set('');
+
+    this.visitorSignals.captureEmail(address, 'website_home').subscribe({
+      next: () => {
+        this.emailState.set('done');
+        // Deliberately the same whether the address was already on the list.
+        this.emailMessage.set('Thanks \u2014 we\u2019ll be in touch.');
+        this.email = '';
+        this.visitorSignals.track('email_capture', '/', 'website');
+      },
+      error: () => {
+        this.emailState.set('error');
+        this.emailMessage.set('That did not go through. Try again in a moment.');
+      },
+    });
+  }
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
   readonly applicantPortal = PORTAL_ROUTES.APPLICANT;

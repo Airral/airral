@@ -210,6 +210,80 @@
   margin-top: 38px;
 }
 
+/* The quieter option under the two buttons: for the many people who reach the
+   bottom of the page and are not going to make an account today. Deliberately
+   subordinate to the primary calls to action -- it is a fallback, not a rival. */
+.keepme {
+  margin: 46px auto 0;
+  max-width: 470px;
+  text-align: left;
+}
+
+.keepme__label {
+  display: block;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.keepme__row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.keepme__input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 13px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--g-edge);
+  background: var(--g-fill);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15px;
+}
+
+.keepme__input::placeholder {
+  color: var(--ink-2);
+  opacity: 0.7;
+}
+
+.keepme__input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: transparent;
+}
+
+.keepme__btn {
+  flex: 0 0 auto;
+}
+
+.keepme__status {
+  min-height: 20px;
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--accent-lift);
+}
+
+.keepme__status.is-error {
+  color: var(--ink-2);
+}
+
+@media (max-width: 520px) {
+  .keepme__row {
+    flex-direction: column;
+  }
+
+  .keepme__btn {
+    width: 100%;
+  }
+}
+
 @media (max-width: 900px) {
   .hero {
     padding-block: 118px 84px;
