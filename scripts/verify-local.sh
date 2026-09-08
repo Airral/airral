@@ -52,13 +52,36 @@ for f in "$ROOT"/airral-backend/src/main/resources/application*.yml; do
   fi
 done
 
+# Duplicate keys are checked explicitly because yaml.safe_load does not: it keeps
+# the last occurrence and reports success. GitHub Actions rejects the file
+# outright. An edit that inserted steps between a step and its own env block
+# passed this check and then failed CI with a startup error and no job log, which
+# is a slow way to find a problem this can catch in a second.
 WF_BAD=0
 for f in "$ROOT"/.github/workflows/*.yml; do
   [ -f "$f" ] || continue
-  python3 -c "import yaml; yaml.safe_load(open('$f'))" 2>/dev/null || {
-    bad "workflow $(basename "$f") is not valid YAML"; WF_BAD=1; }
+  python3 - "$f" <<'PYEOF' 2>/dev/null || { bad "workflow $(basename "$f") is not valid YAML"; WF_BAD=1; }
+import sys, yaml
+
+class Strict(yaml.SafeLoader):
+    pass
+
+def no_duplicates(loader, node, deep=False):
+    seen = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in seen:
+            raise yaml.constructor.ConstructorError(
+                None, None, "duplicate key %r" % (key,), key_node.start_mark)
+        seen[key] = loader.construct_object(value_node, deep=deep)
+    return seen
+
+Strict.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates)
+with open(sys.argv[1]) as handle:
+    yaml.load(handle, Strict)
+PYEOF
 done
-[ $WF_BAD -eq 0 ] && ok "all workflow YAML"
+[ $WF_BAD -eq 0 ] && ok "all workflow YAML (including duplicate keys)"
 
 # ---------------------------------------------------------------------------
 # Shell scripts. A syntax error in setup.sh or the container entrypoint only
