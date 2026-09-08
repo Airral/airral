@@ -188,11 +188,11 @@ ok "application started and is serving"
 # that silently takes the wrong arm -- which is how the pipeline came to
 # overwrite its own derived data every four hours.
 # ---------------------------------------------------------------------------
-step "Sync upsert guard"
-if "$ROOT/scripts/check-upsert-guard.sh"; then
-  ok "derived columns survive a description-less re-sync"
+step "Sync write guards"
+if "$ROOT/scripts/check-sync-writes.sh"; then
+  ok "write guards hold"
 else
-  bad "the upsert guard is not holding -- see scripts/check-upsert-guard.sh"
+  bad "the upsert guard is not holding -- see scripts/check-sync-writes.sh"
 fi
 
 # ---------------------------------------------------------------------------

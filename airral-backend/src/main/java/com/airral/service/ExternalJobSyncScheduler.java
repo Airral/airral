@@ -52,12 +52,13 @@ public class ExternalJobSyncScheduler {
         externalJobSyncService.syncActiveSources()
                 .doOnSubscribe(subscription -> log.info("Starting {} external job sync", reason))
                 .doOnSuccess(result -> log.info(
-                        "Finished {} external job sync: status={}, sources={}, seen={}, upserted={}, expired={}",
+                        "Finished {} external job sync: status={}, sources={}, seen={}, upserted={}, retired={}, expired={}",
                         reason,
                         result.status(),
                         result.sourcesCount(),
                         result.jobsSeen(),
                         result.jobsUpserted(),
+                        result.jobsRetired(),
                         result.jobsExpired()))
                 .doOnError(error -> log.warn("External job sync failed during {} run: {}", reason, error.getMessage()))
                 .doFinally(signal -> running.set(false))

@@ -285,7 +285,12 @@ public class ExternalJobPostingStore {
             sql.append(" AND p.source_board_token = :boardToken");
         }
         if (maxAgeDays != null && maxAgeDays > 0) {
-            sql.append(" AND p.source_updated_at >= :sourceCutoff");
+            // Exempts the employer's own postings. Their lifecycle is the
+            // employer's: deactivateStaleInternalJobs closes them when the
+            // underlying job stops being OPEN. Ageing them out of the feed
+            // because nobody edited the record for a while removed live roles
+            // from a paying customer's own listing.
+            sql.append(" AND (p.source_type = 'AIRRAL_INTERNAL' OR p.source_updated_at >= :sourceCutoff)");
         }
         if (company != null && !company.isBlank()) {
             sql.append(" AND LOWER(c.name) LIKE :company");
@@ -499,7 +504,12 @@ public class ExternalJobPostingStore {
                 """);
 
         if (maxAgeDays > 0) {
-            sql.append(" AND p.source_updated_at >= :sourceCutoff");
+            // Exempts the employer's own postings. Their lifecycle is the
+            // employer's: deactivateStaleInternalJobs closes them when the
+            // underlying job stops being OPEN. Ageing them out of the feed
+            // because nobody edited the record for a while removed live roles
+            // from a paying customer's own listing.
+            sql.append(" AND (p.source_type = 'AIRRAL_INTERNAL' OR p.source_updated_at >= :sourceCutoff)");
         }
 
         sql.append(" ORDER BY relevance DESC, p.source_updated_at DESC NULLS LAST LIMIT :limit");
@@ -559,8 +569,15 @@ public class ExternalJobPostingStore {
     public Mono<Long> upsertJob(ExternalJobSourceRecord source, CandidateJobSummaryResponse job, int retentionDays) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         OffsetDateTime sourceUpdatedAt = job.getSourceUpdatedAt();
-        OffsetDateTime expiresAt = (sourceUpdatedAt == null ? now : sourceUpdatedAt)
-                .plusDays(Math.max(1, retentionDays));
+        // Counted from when we last saw the posting on its board, not from when
+        // the employer published it. Publish-date sources -- Ashby,
+        // SmartRecruiters, BambooHR -- never move that date, so under the old rule
+        // a role published more than retention-days ago arrived already expired
+        // and could never recover: the same frozen date failed the same test on
+        // every future run. A still-listed job is an open job, whatever its
+        // publish date says, and "how long since we last confirmed it exists" is
+        // the question retention is actually asking.
+        OffsetDateTime expiresAt = now.plusDays(Math.max(1, retentionDays));
 
         String sourceType = normalizeSource(firstNonBlank(job.getSourceType(), source.sourceType()));
         String sourceBoardToken = firstNonBlank(job.getSourceBoardToken(), source.boardToken());
@@ -1088,8 +1105,17 @@ public class ExternalJobPostingStore {
         return spec.fetch().rowsUpdated();
     }
 
+    /**
+     * Retires postings whose retention window has run out.
+     *
+     * <p>The window is now the only thing consulted, and it is measured from the
+     * last time the posting was seen on its board. This used to also deactivate
+     * anything whose publish date was older than the window, or missing -- which
+     * is what made a still-open role from a publish-date source disappear and
+     * stay disappeared. The retentionDays argument is kept because callers pass
+     * it and expires_at is derived from it at write time.
+     */
     public Mono<Long> expireOldJobs(int retentionDays) {
-        OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusDays(Math.max(1, retentionDays));
         return databaseClient.sql("""
                         UPDATE external_job_postings
                         SET is_active = false,
@@ -1097,13 +1123,8 @@ public class ExternalJobPostingStore {
                             updated_at = CURRENT_TIMESTAMP
                         WHERE is_active = true
                           AND source_type <> 'AIRRAL_INTERNAL'
-                          AND (
-                              expires_at <= CURRENT_TIMESTAMP
-                              OR source_updated_at IS NULL
-                              OR source_updated_at < :cutoff
-                          )
+                          AND expires_at <= CURRENT_TIMESTAMP
                         """)
-                .bind("cutoff", cutoff)
                 .fetch()
                 .rowsUpdated();
     }
@@ -1305,6 +1326,43 @@ public class ExternalJobPostingStore {
                 .bind("sourceId", sourceId);
         spec = bindNullable(spec, "lastError", truncate(reason, 2000), String.class);
         return spec.fetch().rowsUpdated();
+    }
+
+    /**
+     * Retires postings this source no longer lists.
+     *
+     * <p>Nothing detected that a job had been taken down. {@code last_seen_at}
+     * had one reader and it was an ORDER BY tiebreaker, and
+     * {@code source_payload_hash} had no reader that compared it -- so a posting
+     * lived out its retention window whether or not it still existed, and the
+     * worst thing this product can do to someone is send them to apply for a job
+     * that is gone.
+     *
+     * <p>Every upsert stamps {@code last_seen_at}, so anything for this source
+     * still carrying a timestamp from before the run started was absent from what
+     * the board just returned.
+     *
+     * <p>The caller decides when this is safe to run; see the guards in
+     * ExternalJobSyncService. A board that errors, returns nothing, or returns a
+     * truncated page must not reach this, because "absent from the response" and
+     * "absent from the board" are only the same thing when the response was
+     * complete.
+     */
+    public Mono<Long> deactivateUnseenPostings(Long sourceId, OffsetDateTime seenSince) {
+        return databaseClient.sql("""
+                        UPDATE external_job_postings
+                        SET is_active = false,
+                            deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE job_source_id = :sourceId
+                          AND is_active = true
+                          AND source_type <> 'AIRRAL_INTERNAL'
+                          AND last_seen_at < :seenSince
+                        """)
+                .bind("sourceId", sourceId)
+                .bind("seenSince", seenSince)
+                .fetch()
+                .rowsUpdated();
     }
 
     public Mono<Long> deactivatePostingsForSource(Long sourceId) {

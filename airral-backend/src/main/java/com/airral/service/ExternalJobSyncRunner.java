@@ -67,11 +67,12 @@ public class ExternalJobSyncRunner implements ApplicationRunner {
         }
 
         log.info(
-                "One-shot sync finished: status={}, sources={}, seen={}, upserted={}, expired={}, purged={}",
+                "One-shot sync finished: status={}, sources={}, seen={}, upserted={}, retired={}, expired={}, purged={}",
                 result.status(),
                 result.sourcesCount(),
                 result.jobsSeen(),
                 result.jobsUpserted(),
+                result.jobsRetired(),
                 result.jobsExpired(),
                 result.jobsPurged());
 

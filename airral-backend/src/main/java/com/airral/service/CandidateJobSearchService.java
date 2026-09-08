@@ -702,12 +702,26 @@ public class CandidateJobSearchService {
         return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, query, company, true);
     }
 
+    /**
+     * What the board is listing right now, for the sync to record.
+     *
+     * <p>Deliberately unfiltered by age. A posting the board still lists is an
+     * open posting, whatever its publish date says, and dropping old ones here
+     * had two costs. Publish-date sources froze out permanently -- the same
+     * unchanging date failed the same test on every run, so a still-open role
+     * could never come back. And now that the sync retires postings it did not
+     * see, filtering here would mean age-filtering them out of the fetch and then
+     * retiring them for being absent from it.
+     *
+     * <p>Age is a reader's question, and it is still asked on the read path where
+     * the candidate controls it.
+     */
     public Flux<CandidateJobSummaryResponse> getLiveRecommendedJobsForSync(
             String source,
             String boardToken,
             Integer limit,
             Integer maxAgeDays) {
-        return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, null, null, false);
+        return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, null, null, false, false);
     }
 
     private Flux<CandidateJobSummaryResponse> getLiveRecommendedJobs(
@@ -718,6 +732,19 @@ public class CandidateJobSearchService {
             String query,
             String company,
             boolean tolerateSourceFailures) {
+        return getLiveRecommendedJobs(
+                source, boardToken, limit, maxAgeDays, query, company, tolerateSourceFailures, true);
+    }
+
+    private Flux<CandidateJobSummaryResponse> getLiveRecommendedJobs(
+            String source,
+            String boardToken,
+            Integer limit,
+            Integer maxAgeDays,
+            String query,
+            String company,
+            boolean tolerateSourceFailures,
+            boolean applyFreshnessFilter) {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedMaxAgeDays = normalizeMaxAgeDays(maxAgeDays);
         List<Flux<CandidateJobSummaryResponse>> sourceStreams =
@@ -729,7 +756,7 @@ public class CandidateJobSearchService {
 
         return Flux.fromIterable(sourceStreams)
                 .flatMap(stream -> stream, liveFallbackSourceConcurrency)
-                .filter(job -> isFresh(job, resolvedMaxAgeDays))
+                .filter(job -> !applyFreshnessFilter || isFresh(job, resolvedMaxAgeDays))
                 .filter(this::isSupportedCountryJob)
                 .filter(job -> matchesCompany(job, company))
                 .filter(job -> matchesQuery(job, query))

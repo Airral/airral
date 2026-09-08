@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Proves the sync upsert cannot destroy description-derived data.
+# Proves the sync's write-side guards hold, against a real Postgres.
 #
 # Written after an audit found the pipeline was deriving real values -- employer
 # pay ranges, sponsorship language, experience years, the enriched search vector
@@ -18,6 +18,14 @@
 #
 #   preserve : re-sync WITHOUT a body must keep the stored derived values
 #   update   : re-sync WITH a body must overwrite them
+#
+# The third check covers the disappearance sweep, which is the most destructive
+# statement in the pipeline: it retires postings a board has stopped listing. Its
+# WHERE clause is the only thing standing between "this job is gone" and "we
+# deleted a live employer listing", and again no unit test executes it.
+#
+#   sweep    : retire only what was not seen this run, never a fresh row,
+#              and never an employer's own posting
 #
 # Requires a migrated local database. Run scripts/verify-local.sh, which boots
 # the jar (and so runs Flyway) before calling this.
@@ -100,6 +108,21 @@ fresh = render(**base,
     stemOptRisk="false", h1bTransferFit="true", capExemptFit="false",
     experienceYears="9", seniorityLabel="'Staff+'")
 
+# Anchored to the method: several statements in this file begin "UPDATE
+# external_job_postings SET is_active = false", so a pattern that only looks for
+# that runs from the first one straight past the end of its own string.
+method = src.split("public Mono<Long> deactivateUnseenPostings", 1)
+if len(method) < 2:
+    sys.stderr.write("deactivateUnseenPostings not found\n")
+    sys.exit(1)
+sweep = re.search(r"(UPDATE external_job_postings.*?AND last_seen_at < :seenSince)", method[1], re.S)
+if not sweep:
+    sys.stderr.write("could not extract the sweep SQL -- did deactivateUnseenPostings change?\n")
+    sys.exit(1)
+sweep_sql = (sweep.group(1)
+             .replace(":sourceId", "(SELECT id FROM external_job_sources LIMIT 1)")
+             .replace(":seenSince", "now() - interval '1 hour'"))
+
 C = "WHERE source_board_token='__guardtest__'"
 print("BEGIN;")
 print(f"DELETE FROM external_job_postings {C};")
@@ -127,6 +150,33 @@ print(f"""SELECT 'update' AS direction,
         AND search_vector @@ to_tsquery('english','sponsor')
        THEN 'PASS' ELSE 'FAIL' END AS result
   FROM external_job_postings {C};""")
+# --- sweep -------------------------------------------------------------
+# Three rows on one source: stale (last seen before the cutoff), fresh (seen
+# after it), and an employer posting that must be exempt whatever its timestamp.
+print(f"DELETE FROM external_job_postings {C};")
+for tag, seen, stype in (("stale", "now() - interval '3 hours'", "GREENHOUSE"),
+                         ("fresh", "now() - interval '1 minute'", "GREENHOUSE"),
+                         ("internal", "now() - interval '3 hours'", "AIRRAL_INTERNAL")):
+    print(f"""
+        INSERT INTO external_job_postings (
+            company_id, job_source_id, source_type, source_name, source_board_token,
+            external_job_id, source_job_key, title, apply_mode, easy_apply_available,
+            connections_count, tags, sponsorship_language, is_active, last_seen_at,
+            expires_at, updated_at, source_updated_at)
+        VALUES (
+            (SELECT id FROM external_companies LIMIT 1),
+            (SELECT id FROM external_job_sources LIMIT 1),
+            '{stype}', 'Test', '__guardtest__', 'SWEEP-{tag}', 'SWEEP/{tag}',
+            'Sweep {tag}', 'EXTERNAL_APPLY', false, 0, ARRAY[]::text[], 'UNKNOWN',
+            true, {seen}, now() + interval '30 days', now(), now());""")
+
+print(sweep_sql + ";")
+print(f"""SELECT 'sweep' AS direction,
+  CASE WHEN (SELECT is_active FROM external_job_postings {C} AND external_job_id='SWEEP-stale') IS FALSE
+        AND (SELECT is_active FROM external_job_postings {C} AND external_job_id='SWEEP-fresh') IS TRUE
+        AND (SELECT is_active FROM external_job_postings {C} AND external_job_id='SWEEP-internal') IS TRUE
+       THEN 'PASS' ELSE 'FAIL' END AS result;""")
+
 print("ROLLBACK;")
 PY
 ) || { echo "  [FAIL] could not build the check"; exit 1; }
@@ -135,11 +185,16 @@ OUT=$(printf '%s' "$SQL" | psql -d "$DB" -tA -F'|' -v ON_ERROR_STOP=1 2>&1) || {
   echo "  [FAIL] the upsert did not execute:"; printf '%s\n' "$OUT" | sed 's/^/         /'; exit 1; }
 
 RC=0
-for d in preserve update; do
+for d in preserve update sweep; do
   line=$(printf '%s\n' "$OUT" | grep "^$d|" || true)
   case "$line" in
-    "$d|PASS") echo "  [ok]   $d — a re-sync $([ "$d" = preserve ] && echo 'without' || echo 'with') a body $([ "$d" = preserve ] && echo 'keeps' || echo 'refreshes') derived values" ;;
-    "$d|FAIL") echo "  [FAIL] $d — the ON CONFLICT guard took the wrong arm"; RC=1 ;;
+    "$d|PASS")
+      case "$d" in
+        preserve) echo "  [ok]   preserve — a re-sync without a body keeps derived values" ;;
+        update)   echo "  [ok]   update — a re-sync with a body refreshes derived values" ;;
+        sweep)    echo "  [ok]   sweep — retires only unseen rows, sparing fresh and employer postings" ;;
+      esac ;;
+    "$d|FAIL") echo "  [FAIL] $d — the guard took the wrong arm"; RC=1 ;;
     *)         echo "  [FAIL] $d — no result (got: ${line:-none})"; RC=1 ;;
   esac
 done
