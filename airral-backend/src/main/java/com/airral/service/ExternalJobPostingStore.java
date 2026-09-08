@@ -424,6 +424,14 @@ public class ExternalJobPostingStore {
             List<String> skills,
             int maxAgeDays,
             int limit) {
+        return findJobsBySkills(skills, maxAgeDays, limit, ExplicitJobFilters.none());
+    }
+
+    public Flux<CandidateJobSummaryResponse> findJobsBySkills(
+            List<String> skills,
+            int maxAgeDays,
+            int limit,
+            ExplicitJobFilters filters) {
         if (skills == null || skills.isEmpty()) {
             return Flux.empty();
         }
@@ -522,11 +530,22 @@ public class ExternalJobPostingStore {
             sql.append(" AND (p.source_type = 'AIRRAL_INTERNAL' OR p.source_updated_at >= :sourceCutoff)");
         }
 
+        appendExplicitFilters(sql, filters);
+
         sql.append(" ORDER BY p.source_updated_at DESC NULLS LAST LIMIT :limit");
 
         DatabaseClient.GenericExecuteSpec spec = databaseClient.sql(sql.toString())
                 .bind("tsQuery", tsQuery)
                 .bind("limit", resolvedLimit);
+
+        // appendExplicitFilters emits :filterWorkMode for the non-REMOTE modes, so
+        // this query has to bind it too. Without it a signed-in candidate filtering
+        // by Hybrid or On-site gets an unbound-parameter failure from the skills
+        // retrieval batch.
+        if (filters != null && filters.hasWorkMode()
+                && !"REMOTE".equals(filters.normalizedWorkMode())) {
+            spec = spec.bind("filterWorkMode", filters.normalizedWorkMode());
+        }
 
         if (maxAgeDays > 0) {
             spec = spec.bind("sourceCutoff", OffsetDateTime.now(ZoneOffset.UTC).minusDays(maxAgeDays));

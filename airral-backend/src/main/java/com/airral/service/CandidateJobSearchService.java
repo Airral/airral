@@ -432,7 +432,8 @@ public class CandidateJobSearchService {
                                 candidateEmail,
                                 context)
                         .map(jobs -> toRankedJobPage(jobs, resolvedLimit, resolvedOffset)))
-                .switchIfEmpty(loadRankingCandidates(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company)
+                .switchIfEmpty(loadRankingCandidates(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company,
+                                new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly))
                         .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
                         .map(this::dedupeAndSort)
                         .map(jobs -> toRankedJobPage(jobs, resolvedLimit, resolvedOffset)));
@@ -477,6 +478,7 @@ public class CandidateJobSearchService {
                         resolvedMaxAgeDays,
                         query,
                         company,
+                        new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly),
                         context)
                 .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
                 .map(jobs -> rankPersonalizedJobs(jobs, context))
@@ -585,9 +587,17 @@ public class CandidateJobSearchService {
             int resolvedMaxAgeDays,
             String query,
             String company,
+            ExplicitJobFilters filters,
             CandidateMatchContext context) {
+        // Every batch narrows in SQL before its window is taken. Filtering after
+        // retrieval meant the window held the newest rows rather than matching
+        // ones, so the same filter answered differently depending on whether the
+        // candidate was signed in: measured at 45 results against 396 for
+        // "Salary listed" on one corpus. The corpus-wide fix reached only the
+        // signed-out path until now.
         List<Mono<List<CandidateJobSummaryResponse>>> batches = new ArrayList<>();
-        batches.add(loadRankingCandidates(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company));
+        batches.add(loadRankingCandidates(
+                source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company, filters));
 
             // Keep expansion retrieval active even when a query is present so search remains personalized.
             retrievalQueriesFor(context, query).forEach(retrievalQuery -> batches.add(
@@ -598,7 +608,8 @@ public class CandidateJobSearchService {
                         0,
                         resolvedMaxAgeDays,
                         retrievalQuery,
-                        company)
+                        company,
+                        filters)
                     .collectList()));
 
             // Skill-based retrieval: search DB for jobs matching candidate/profile skills and query signals.
@@ -607,7 +618,8 @@ public class CandidateJobSearchService {
                 batches.add(externalJobPostingStore.findJobsBySkills(
                         skillsForRetrieval,
                         resolvedMaxAgeDays,
-                        Math.max(75, rankingLimit / 2))
+                        Math.max(75, rankingLimit / 2),
+                        filters)
                     .collectList());
         }
 
@@ -710,8 +722,10 @@ public class CandidateJobSearchService {
             int rankingLimit,
             int resolvedMaxAgeDays,
             String query,
-            String company) {
-        return externalJobPostingStore.findRecommendedJobs(source, boardToken, rankingLimit, 0, resolvedMaxAgeDays, query, company)
+            String company,
+            ExplicitJobFilters filters) {
+        return externalJobPostingStore.findRecommendedJobs(
+                        source, boardToken, rankingLimit, 0, resolvedMaxAgeDays, query, company, filters)
                 .collectList()
                 .flatMap(cachedJobs -> cachedJobs.isEmpty()
                         ? getLiveFallbackJobs(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company)
