@@ -126,21 +126,66 @@ if [ -z "$JAR" ]; then
   step "Result"; exit 1
 fi
 
+# A previous run's JVM can still hold 8080 for a few seconds after it is killed.
+# Launching into that produces a bind failure, and the smoke tests below then
+# report connection-refused on every endpoint rather than a real result.
+for _ in $(seq 1 20); do
+  lsof -nP -iTCP:8080 -sTCP:LISTEN >/dev/null 2>&1 || break
+  sleep 1
+done
+if lsof -nP -iTCP:8080 -sTCP:LISTEN >/dev/null 2>&1; then
+  bad "port 8080 is still in use -- stop whatever is listening and retry"
+  step "Result"; exit 1
+fi
+
+# Removed rather than truncated by the redirect. The wait loop below used to read
+# this path while the shell's ">" truncation was still landing, so its first grep
+# could match the PREVIOUS run's "Started AirralApplication" and break out
+# immediately -- reporting a healthy boot for a JVM that had not started, and
+# then printing "safe to push" off a run whose smoke tests all failed with 000.
+# A false pass here is far worse than a false failure.
+BOOT_LOG=/tmp/verify-boot.log
+rm -f "$BOOT_LOG"
+
 DB_USER="${DB_USER:-$(whoami)}" java -jar "$JAR" --spring.profiles.active=local \
-  --jwt.secret="$(openssl rand -base64 48 | tr -d '\n')" >/tmp/verify-boot.log 2>&1 &
+  --jwt.secret="$(openssl rand -base64 48 | tr -d '\n')" >"$BOOT_LOG" 2>&1 &
 APP_PID=$!
 trap 'kill "$APP_PID" 2>/dev/null' EXIT
 
 for _ in $(seq 1 45); do
-  grep -qE "Started AirralApplication|APPLICATION FAILED" /tmp/verify-boot.log 2>/dev/null && break
+  grep -qE "Started AirralApplication|APPLICATION FAILED" "$BOOT_LOG" 2>/dev/null && break
+  ps -p "$APP_PID" >/dev/null 2>&1 || break
   sleep 2
 done
 
-if grep -q "Started AirralApplication" /tmp/verify-boot.log; then
-  ok "application started"
-else
-  bad "application did not start -- see /tmp/verify-boot.log"
+# Three independent conditions, because the log alone has already lied once:
+# the process is alive, it claimed to start, and it actually answers.
+if ! ps -p "$APP_PID" >/dev/null 2>&1; then
+  bad "the application process exited during start-up -- see $BOOT_LOG"
   step "Result"; exit 1
+fi
+if ! grep -q "Started AirralApplication" "$BOOT_LOG"; then
+  bad "application did not start -- see $BOOT_LOG"
+  step "Result"; exit 1
+fi
+if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 http://localhost:8080/actuator/health)" != "200" ]; then
+  bad "the application started but does not answer /actuator/health"
+  step "Result"; exit 1
+fi
+ok "application started and is serving"
+
+# ---------------------------------------------------------------------------
+# The sync upsert's ON CONFLICT guard, against the schema the boot just
+# migrated. Kept separate because it is pure SQL behaviour: the JUnit suite
+# never opens a connection, so it cannot tell a working CASE expression from one
+# that silently takes the wrong arm -- which is how the pipeline came to
+# overwrite its own derived data every four hours.
+# ---------------------------------------------------------------------------
+step "Sync upsert guard"
+if "$ROOT/scripts/check-upsert-guard.sh"; then
+  ok "derived columns survive a description-less re-sync"
+else
+  bad "the upsert guard is not holding -- see scripts/check-upsert-guard.sh"
 fi
 
 # ---------------------------------------------------------------------------

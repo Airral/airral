@@ -2,6 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "api",
+      "runtimeExecutable": "./gradlew",
+      "runtimeArgs": [
+        "bootRun",
+        "--args=--spring.profiles.active=local"
+      ],
+      "port": 8080,
+      "cwd": "airral-backend"
+    },
+    {
       "name": "website",
       "runtimeExecutable": "node_modules/.bin/nx",
       "runtimeArgs": [
@@ -23,6 +33,18 @@
         "--port=4203"
       ],
       "port": 4203,
+      "cwd": "airral-frontend"
+    },
+    {
+      "name": "applicant-portal",
+      "runtimeExecutable": "node_modules/.bin/nx",
+      "runtimeArgs": [
+        "serve",
+        "applicant-portal",
+        "--host=localhost",
+        "--port=4201"
+      ],
+      "port": 4201,
       "cwd": "airral-frontend"
     }
   ]
