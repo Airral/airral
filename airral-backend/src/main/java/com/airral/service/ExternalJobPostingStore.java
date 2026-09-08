@@ -912,10 +912,18 @@ public class ExternalJobPostingStore {
                           AND p.external_job_id = :externalJobId
                           AND p.is_active = true
                           AND p.expires_at > CURRENT_TIMESTAMP
-                          AND (
-                              NULLIF(p.description_text, '') IS NOT NULL
-                              OR NULLIF(p.description_html, '') IS NOT NULL
-                          )
+                          -- Only description_html marks a real detail fetch.
+                          --
+                          -- This used to accept either column, which was correct while
+                          -- both were written together by cacheJobDetail. The sync now
+                          -- writes description_text as well, so accepting it would let
+                          -- a summary-derived body satisfy the cache and stop the
+                          -- detail endpoint ever fetching the real one. That text is
+                          -- stripHtml output, and stripHtml collapses all whitespace to
+                          -- single spaces, so the page would render the posting as one
+                          -- unbroken paragraph -- and the frontend prefers
+                          -- descriptionHtml, which the sync never writes.
+                          AND NULLIF(p.description_html, '') IS NOT NULL
                         LIMIT 1
                         """)
                 .bind("sourceType", normalizeSource(sourceType))

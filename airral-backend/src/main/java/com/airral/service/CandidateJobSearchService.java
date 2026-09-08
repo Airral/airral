@@ -114,6 +114,34 @@ public class CandidateJobSearchService {
     );
     private static final int DEFAULT_LIMIT = 50;
     private static final int DEFAULT_MAX_AGE_DAYS = 60;
+    /**
+     * Deadline for a single job-board call.
+     *
+     * <p>Was a hardcoded 8 seconds in sixteen places. That was sized for the
+     * request path, where a user is waiting, and it silently became the binding
+     * constraint on the sync when the Greenhouse list call started returning
+     * posting bodies: the largest measured board is 39MB and took 11.8s to 26.7s,
+     * so it exceeded the deadline on half its attempts.
+     *
+     * <p>The failure is quiet, which is what makes it dangerous. A timeout is not
+     * an HTTP 404, so the source is not auto-disabled; the run records an error
+     * and still reports partial success. Nothing refreshes that board's postings,
+     * and because a posting now expires relative to when it was last seen, the
+     * whole board drops out of the catalogue about two weeks later with nothing
+     * in between to suggest why.
+     *
+     * <p>A field rather than a parameter so the sync profile can raise it without
+     * lengthening how long a Cloud Run instance holds a buffer while a candidate
+     * waits. Initialised here as well as injected, because several tests build
+     * this service directly.
+     */
+    @Value("${airral.jobs.source-timeout-seconds:8}")
+    private int sourceTimeoutSeconds = 8;
+
+    private Duration sourceTimeout() {
+        return Duration.ofSeconds(Math.max(1, sourceTimeoutSeconds));
+    }
+
     private static final int LIVE_SOURCE_LIMIT = 500;
     private static final int PERSONALIZED_RANKING_WINDOW = 500;
     private static final int PERSONALIZED_RANKING_LIMIT = 2000;
@@ -724,6 +752,34 @@ public class CandidateJobSearchService {
         return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, null, null, false, false);
     }
 
+    /**
+     * What a source returned, plus how many postings it produced before any
+     * filtering.
+     *
+     * <p>The raw count is the only honest basis for deciding whether a fetch saw
+     * the whole board. The filtered count cannot answer it: a connector that
+     * returned its maximum page and had its rows thinned by the country filter is
+     * indistinguishable, by size alone, from one that returned everything the
+     * board had.
+     */
+    public record SourceFetch(List<CandidateJobSummaryResponse> jobs, int rawCount) {
+    }
+
+    /**
+     * The sync's fetch, reporting the pre-filter count alongside the results.
+     *
+     * <p>Only one connector runs for a given source and board, so the raw count
+     * is attributable to that connector and can be compared against its own
+     * ceiling.
+     */
+    public Mono<SourceFetch> fetchForSync(
+            String source, String boardToken, Integer limit, Integer maxAgeDays) {
+        java.util.concurrent.atomic.AtomicInteger raw = new java.util.concurrent.atomic.AtomicInteger();
+        return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, null, null, false, false, raw)
+                .collectList()
+                .map(jobs -> new SourceFetch(jobs, raw.get()));
+    }
+
     private Flux<CandidateJobSummaryResponse> getLiveRecommendedJobs(
             String source,
             String boardToken,
@@ -745,6 +801,20 @@ public class CandidateJobSearchService {
             String company,
             boolean tolerateSourceFailures,
             boolean applyFreshnessFilter) {
+        return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, query, company,
+                tolerateSourceFailures, applyFreshnessFilter, null);
+    }
+
+    private Flux<CandidateJobSummaryResponse> getLiveRecommendedJobs(
+            String source,
+            String boardToken,
+            Integer limit,
+            Integer maxAgeDays,
+            String query,
+            String company,
+            boolean tolerateSourceFailures,
+            boolean applyFreshnessFilter,
+            java.util.concurrent.atomic.AtomicInteger rawCounter) {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedMaxAgeDays = normalizeMaxAgeDays(maxAgeDays);
         List<Flux<CandidateJobSummaryResponse>> sourceStreams =
@@ -756,6 +826,14 @@ public class CandidateJobSearchService {
 
         return Flux.fromIterable(sourceStreams)
                 .flatMap(stream -> stream, liveFallbackSourceConcurrency)
+                // Counted here, before any filter. Downstream of the filters the
+                // number no longer says anything about what the board returned,
+                // which is the mistake that made the sweep guard unreachable.
+                .doOnNext(job -> {
+                    if (rawCounter != null) {
+                        rawCounter.incrementAndGet();
+                    }
+                })
                 .filter(job -> !applyFreshnessFilter || isFresh(job, resolvedMaxAgeDays))
                 .filter(this::isSupportedCountryJob)
                 .filter(job -> matchesCompany(job, company))
@@ -828,7 +906,7 @@ public class CandidateJobSearchService {
         }
 
         return greenhouseClient.retrieveJob(resolvedBoard, jobId)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(job -> toGreenhouseDetail(resolvedBoard, job));
     }
 
@@ -994,7 +1072,7 @@ public class CandidateJobSearchService {
     private Flux<CandidateJobSummaryResponse> greenhouseSummaries(String boardToken, int limit) {
         String resolvedBoard = resolveBoardToken(boardToken);
         return greenhouseClient.listJobs(resolvedBoard)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(response -> Flux.fromIterable(response.getJobs() == null ? List.of() : response.getJobs()))
                 .take(Math.max(limit * 2L, limit))
                 .map(job -> toGreenhouseSummary(resolvedBoard, job));
@@ -1003,7 +1081,7 @@ public class CandidateJobSearchService {
     private Flux<CandidateJobSummaryResponse> leverSummaries(String siteName, int limit) {
         String resolvedSite = siteName.trim();
         return leverClient.listJobs(resolvedSite, Math.max(limit * 2, limit))
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(postings -> Flux.fromIterable(postings == null ? List.of() : postings))
                 .map(posting -> toLeverSummary(resolvedSite, posting));
     }
@@ -1011,7 +1089,7 @@ public class CandidateJobSearchService {
     private Flux<CandidateJobSummaryResponse> ashbySummaries(String boardName, int limit) {
         String resolvedBoard = boardName.trim();
         return ashbyClient.listJobs(resolvedBoard)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(response -> Flux.fromIterable(response.getJobs() == null ? List.of() : response.getJobs()))
                 .filter(job -> job.getIsListed() == null || Boolean.TRUE.equals(job.getIsListed()))
                 .take(Math.max(limit * 2L, limit))
@@ -1028,7 +1106,7 @@ public class CandidateJobSearchService {
 
         return Flux.range(0, Math.min(pages, 5))
                 .concatMap(page -> smartRecruitersClient.listJobs(resolvedCompany, pageSize, page * pageSize, country)
-                        .timeout(Duration.ofSeconds(8))
+                        .timeout(sourceTimeout())
                         .flatMapMany(response -> Flux.fromIterable(response.getContent() == null ? List.of() : response.getContent())))
                 .filter(posting -> posting.getActive() == null || Boolean.TRUE.equals(posting.getActive()))
                 .filter(posting -> posting.getVisibility() == null || "PUBLIC".equalsIgnoreCase(posting.getVisibility()))
@@ -1039,7 +1117,7 @@ public class CandidateJobSearchService {
     private Flux<CandidateJobSummaryResponse> workableSummaries(String account, int limit) {
         String resolvedAccount = account.trim();
         return workableClient.listJobs(resolvedAccount, true)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(response -> Flux.fromIterable(response.getJobs() == null ? List.of() : response.getJobs()))
                 .take(Math.max(limit * 2L, limit))
                 .map(job -> toWorkableSummary(resolvedAccount, job));
@@ -1052,7 +1130,7 @@ public class CandidateJobSearchService {
 
         return Flux.range(0, Math.min(pages, 25))
                 .concatMap(page -> workdayClient.listJobs(source, pageSize, page * pageSize, "")
-                        .timeout(Duration.ofSeconds(8))
+                        .timeout(sourceTimeout())
                         .flatMapMany(response -> Flux.fromIterable(response.getJobPostings() == null ? List.of() : response.getJobPostings())))
                 .filter(posting -> posting.getExternalPath() != null && !posting.getExternalPath().isBlank())
                 .take(limit)
@@ -1062,7 +1140,7 @@ public class CandidateJobSearchService {
     private Flux<CandidateJobSummaryResponse> bambooHrSummaries(String companyDomain, int limit) {
         String resolvedCompany = companyDomain.trim();
         return bambooHrClient.listJobs(resolvedCompany)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(jobs -> Flux.fromIterable(jobs == null ? List.of() : jobs))
                 .filter(job -> job.getPostingUrl() != null && !job.getPostingUrl().isBlank())
                 .take(limit)
@@ -1071,7 +1149,7 @@ public class CandidateJobSearchService {
 
     private Flux<CandidateJobSummaryResponse> careerPageSummaries(String sourceType, String sourceName, String pageUrl, int limit) {
         return careerPageClient.fetchPage(pageUrl, sourceName)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(this::extractSchemaOrgJobs)
                 .flatMapMany(Flux::fromIterable)
                 .filter(job -> job.getTitle() != null && !job.getTitle().isBlank())
@@ -1086,7 +1164,7 @@ public class CandidateJobSearchService {
 
         String resolvedSite = siteName == null || siteName.isBlank() ? "" : siteName.trim();
         return leverClient.retrieveJob(resolvedSite, postingId)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(posting -> toLeverDetail(resolvedSite, posting));
     }
 
@@ -1097,7 +1175,7 @@ public class CandidateJobSearchService {
 
         String resolvedBoard = boardName == null || boardName.isBlank() ? "" : boardName.trim();
         return ashbyClient.listJobs(resolvedBoard)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(response -> Flux.fromIterable(response.getJobs() == null ? List.of() : response.getJobs()))
                 .filter(job -> externalJobId.equals(ashbyExternalJobId(job)))
                 .next()
@@ -1112,7 +1190,7 @@ public class CandidateJobSearchService {
 
         String resolvedCompany = companyIdentifier == null || companyIdentifier.isBlank() ? "" : companyIdentifier.trim();
         return smartRecruitersClient.retrieveJob(resolvedCompany, postingId)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(posting -> toSmartRecruitersDetail(resolvedCompany, posting));
     }
 
@@ -1123,7 +1201,7 @@ public class CandidateJobSearchService {
 
         String resolvedAccount = account == null || account.isBlank() ? "" : account.trim();
         return workableClient.listJobs(resolvedAccount, true)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(response -> Flux.fromIterable(response.getJobs() == null ? List.of() : response.getJobs()))
                 .filter(job -> externalJobId.equals(workableExternalJobId(job)))
                 .next()
@@ -1139,7 +1217,7 @@ public class CandidateJobSearchService {
         WorkdayJobBoardClient.WorkdaySource source = WorkdayJobBoardClient.WorkdaySource.parse(sourceToken);
         String externalPath = decodeJobId(encodedExternalPath);
         return workdayClient.retrieveJob(source, externalPath)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(detail -> toWorkdayDetail(source, externalPath, detail));
     }
 
@@ -1150,7 +1228,7 @@ public class CandidateJobSearchService {
 
         String resolvedCompany = companyDomain == null || companyDomain.isBlank() ? "" : companyDomain.trim();
         return bambooHrClient.listJobs(resolvedCompany)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(jobs -> Flux.fromIterable(jobs == null ? List.of() : jobs))
                 .filter(job -> externalJobId.equals(String.valueOf(job.getId())))
                 .next()
@@ -1162,7 +1240,7 @@ public class CandidateJobSearchService {
         String sourceName = sourceDisplayName(sourceType);
         String resolvedPageUrl = pageUrl.startsWith("http") ? pageUrl : decodeJobId(pageUrl);
         return careerPageClient.fetchPage(resolvedPageUrl, sourceName)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(this::extractSchemaOrgJobs)
                 .flatMapMany(Flux::fromIterable)
                 .filter(job -> externalJobId.equals(schemaOrgExternalJobId(job)))

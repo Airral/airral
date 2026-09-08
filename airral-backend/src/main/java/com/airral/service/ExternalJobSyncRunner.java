@@ -79,8 +79,11 @@ public class ExternalJobSyncRunner implements ApplicationRunner {
         purgeApiKeyUsage();
         purgeLoginAttempts();
 
-        // A lost lease race is a normal no-op, not a workflow failure.
-        if ("FAILED".equals(result.status())) {
+        // A lost lease race is a normal no-op, not a workflow failure. DEGRADED is:
+        // it means a source we still believe in could not be read, and the run used
+        // to report partial success and stay green while that board's postings
+        // quietly aged out of the catalogue two weeks later.
+        if ("FAILED".equals(result.status()) || "DEGRADED".equals(result.status())) {
             throw new IllegalStateException("External job sync failed: " + result.status());
         }
     }

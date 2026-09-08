@@ -7,6 +7,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -20,16 +21,17 @@ import static org.mockito.Mockito.when;
 /**
  * The guards on retiring a posting because its board stopped listing it.
  *
- * <p>This is the most destructive thing the sync can do, and it turns on an
- * inference that is only sometimes valid: a posting absent from the response is
- * absent from the board. Two situations break that inference, and in both of
- * them acting would remove live jobs from an employer's listing at scale. The
- * sweep itself is one UPDATE and the database covers it; what needs pinning is
- * the decision not to run it.
+ * <p>This is the only thing the sync does that a later run cannot always undo: a
+ * retirement nobody reverses becomes a hard delete once the purge window passes.
  *
- * <p>These assert on whether the store is asked at all, because that is the
- * safety property -- a guard that computed the right answer and still issued the
- * UPDATE would be no guard.
+ * <p>The first version of these tests passed against a guard that could not fire
+ * on most sources, which is worth saying plainly. It called the guard with a
+ * number it had chosen itself and checked the comparison, so it verified the
+ * arithmetic while the plumbing feeding that number was wrong twice over -- the
+ * count arrived already filtered, and it was compared against a ceiling several
+ * connectors never reach. These tests use the real per-connector ceilings and
+ * assert on whether the store is asked at all, because being asked is the
+ * destructive act.
  */
 class DisappearanceSweepGuardTest {
 
@@ -37,67 +39,94 @@ class DisappearanceSweepGuardTest {
 
     private final ExternalJobPostingStore store = mock(ExternalJobPostingStore.class);
 
-    private final ExternalJobSyncService service = new ExternalJobSyncService(
-            store,
-            mock(CandidateJobSearchService.class),
-            60,
-            15,
-            LIMIT_PER_SOURCE,
-            50,
-            6,
-            500,
-            "airral-test");
+    private ExternalJobSyncService service(boolean sweepEnabled) {
+        return new ExternalJobSyncService(
+                store, mock(CandidateJobSearchService.class),
+                60, 15, LIMIT_PER_SOURCE, 50, 6, 500, sweepEnabled, "airral-test");
+    }
 
-    private final ExternalJobSourceRecord source = new ExternalJobSourceRecord(
-            7L, 3L, "Acme", "acme.com", "GREENHOUSE", "acme", "Greenhouse");
+    private ExternalJobSourceRecord source(String sourceType) {
+        return new ExternalJobSourceRecord(7L, 3L, "Acme", "acme.com", sourceType, "acme", sourceType);
+    }
 
-    private long retire(int jobsSeen) {
+    /** One posting survives filtering; rawCount is what the connector produced. */
+    private long retire(ExternalJobSyncService svc, String sourceType, int rawCount) {
+        var fetch = new CandidateJobSearchService.SourceFetch(
+                List.of(com.airral.dto.response.CandidateJobSummaryResponse.builder().build()), rawCount);
         Mono<Long> result = ReflectionTestUtils.invokeMethod(
-                service, "retireUnseenPostings", source, jobsSeen,
+                svc, "retireUnseenPostings", source(sourceType), fetch,
                 OffsetDateTime.now(ZoneOffset.UTC));
         Long retired = result == null ? null : result.block();
         return retired == null ? -1 : retired;
     }
 
     @Test
-    @DisplayName("a complete fetch retires what the board no longer lists")
+    @DisplayName("the sweep is off unless someone turns it on")
+    void offByDefault() {
+        assertThat(retire(service(false), "GREENHOUSE", 10)).isZero();
+        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("a board seen whole is swept")
     void completeFetchSweeps() {
         when(store.deactivateUnseenPostings(anyLong(), any())).thenReturn(Mono.just(4L));
 
-        assertThat(retire(120)).isEqualTo(4L);
+        assertThat(retire(service(true), "GREENHOUSE", 120)).isEqualTo(4L);
         verify(store, times(1)).deactivateUnseenPostings(anyLong(), any());
     }
 
     @Test
-    @DisplayName("an empty response is never treated as an empty board")
+    @DisplayName("Lever returning its own full page is not a complete board")
+    void leverPageCapIsRespected() {
+        // The bug this whole guard exists for. Lever's client caps its page at 100,
+        // so the old comparison against the sync's limit of 500 could never fire and
+        // every Lever board was swept on a truncated response on every run.
+        assertThat(retire(service(true), "LEVER", 100)).isZero();
+        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("SmartRecruiters shares the same 100-row page cap")
+    void smartRecruitersPageCapIsRespected() {
+        assertThat(retire(service(true), "SMARTRECRUITERS", 100)).isZero();
+        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("a Greenhouse fetch at its own ceiling is not swept")
+    void greenhouseCeilingIsRespected() {
+        // greenhouseSummaries takes limit * 2, so that is the ceiling, not the limit.
+        assertThat(retire(service(true), "GREENHOUSE", LIMIT_PER_SOURCE * 2)).isZero();
+        assertThat(retire(service(true), "WORKDAY", LIMIT_PER_SOURCE)).isZero();
+        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("an unrecognised source is never swept")
+    void unknownSourceFailsClosed() {
+        // A ceiling we cannot state is a completeness claim we cannot make.
+        assertThat(retire(service(true), "SOME_NEW_CONNECTOR", 3)).isZero();
+        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("an empty response is never read as an empty board")
     void emptyResponseDoesNotSweep() {
-        // A board with no open roles and a board that answered 200 with nothing
-        // useful are indistinguishable from here. Acting on the second would
-        // retire an employer's entire listing off one bad response.
-        assertThat(retire(0)).isZero();
+        var empty = new CandidateJobSearchService.SourceFetch(List.of(), 0);
+        Mono<Long> result = ReflectionTestUtils.invokeMethod(
+                service(true), "retireUnseenPostings", source("GREENHOUSE"), empty,
+                OffsetDateTime.now(ZoneOffset.UTC));
+        assertThat(result.block()).isZero();
         verify(store, never()).deactivateUnseenPostings(anyLong(), any());
     }
 
     @Test
-    @DisplayName("a fetch that hit the page limit does not sweep")
-    void truncatedFetchDoesNotSweep() {
-        // The dangerous case, because it looks healthy. On a board with more
-        // postings than the limit, the ones we never asked for are
-        // indistinguishable from the ones taken down -- sweeping would retire real
-        // jobs every run and resurrect them on the next, churning the largest
-        // employers hardest.
-        assertThat(retire(LIMIT_PER_SOURCE)).isZero();
-        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
-    }
-
-    @Test
-    @DisplayName("one posting short of the limit is still a complete fetch")
-    void justUnderTheLimitSweeps() {
-        // The boundary matters: refusing here would exempt a board sitting exactly
-        // one posting below the cap forever.
+    @DisplayName("one posting short of a connector's ceiling is a complete board")
+    void justUnderTheCeilingSweeps() {
         when(store.deactivateUnseenPostings(anyLong(), any())).thenReturn(Mono.just(1L));
 
-        assertThat(retire(LIMIT_PER_SOURCE - 1)).isEqualTo(1L);
+        assertThat(retire(service(true), "LEVER", 99)).isEqualTo(1L);
         verify(store, times(1)).deactivateUnseenPostings(anyLong(), any());
     }
 }
