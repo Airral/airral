@@ -80,10 +80,8 @@ public class InProcessJobCatalog implements JobCatalogPort {
     }
 
     /**
-     * Mirrors the web filter, including its one concession: UNKNOWN means the
-     * posting did not say, which is not evidence of on-site and so is not
-     * claimed by ONSITE or HYBRID -- but a location mentioning remote is real
-     * evidence and counts toward REMOTE.
+     * Mirrors the web filter: UNKNOWN means the posting did not say, which is not
+     * evidence of any particular arrangement, so no filter claims it.
      *
      * <p>Kept in step with matchesWorkModeFilter in CandidateJobSearchService. An
      * agent asking for remote work and a person clicking Remote should not get
@@ -96,10 +94,10 @@ public class InProcessJobCatalog implements JobCatalogPort {
 
         String actual = job.getWorkMode();
         if (actual == null || actual.isBlank() || "UNKNOWN".equalsIgnoreCase(actual)) {
-            if ("remote".equalsIgnoreCase(workMode.trim())) {
-                String location = job.getLocation();
-                return location != null && location.toLowerCase(Locale.ROOT).contains("remote");
-            }
+            // Unclassified is not evidence of anything, so no work-mode filter
+            // claims it. There is no remote-location fallback here because
+            // inferWorkMode already promotes such a posting to REMOTE before it is
+            // ever stored -- the fallback that used to be here matched nothing.
             return false;
         }
 

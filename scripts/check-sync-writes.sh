@@ -48,7 +48,10 @@ fi
 SQL=$(python3 - "$STORE" <<'PY'
 import io, re, sys
 src = io.open(sys.argv[1], encoding='utf-8').read()
-m = re.search(r"(INSERT INTO external_job_postings \(.*?LEFT\(COALESCE\(NULLIF\(EXCLUDED\.description_text, ''\), external_job_postings\.description_text\), 2000\)\)\))", src, re.S)
+# Anchored on the end of the Java text block rather than on the last expression
+# inside it, so wrapping a column in a CASE does not silently truncate the
+# statement and leave this check testing half an UPDATE.
+m = re.search(r'(INSERT INTO external_job_postings \(.*?)\n\s*"""\)', src, re.S)
 if not m:
     sys.stderr.write("could not extract the upsert SQL -- did the statement change?\n")
     sys.exit(1)
@@ -58,7 +61,7 @@ def render(**kw):
     out = sql
     for k in sorted(kw, key=len, reverse=True):
         out = out.replace(':' + k, kw[k])
-    left = set(re.findall(r':[a-zA-Z]+', out))
+    left = set(re.findall(r'(?<!:):[a-zA-Z]+', out))
     if left:
         sys.stderr.write(f"unbound params: {left}\n")
         sys.exit(1)
@@ -77,9 +80,11 @@ base = dict(
     sourceUpdatedAt="now()", postedLabel="'Just updated'",
     matchScore="70", connectionsCount="0",
     tags="ARRAY['Engineering']", tagsText="'Engineering'",
-    sourcePayloadHash="'h1'", now="now()", expiresAt="now() + interval '15 days'")
+    now="now()", expiresAt="now() + interval '15 days'",
+    retentionInterval="'7 days'")
 
 rich = render(**base,
+    sourcePayloadHash="'hash-rich'",
     descriptionText="'Compensation is $180,000 - $230,000. Requires 7+ years. We do not provide visa sponsorship.'",
     salaryLabel="'$180k-$230k'", jobQualityScore="92",
     qualityReasons="ARRAY['Employer salary listed']", totalCompLabel="'Base listed'",
@@ -89,7 +94,8 @@ rich = render(**base,
     stemOptRisk="true", h1bTransferFit="false", capExemptFit="false",
     experienceYears="7", seniorityLabel="'Senior'")
 
-bare = render(**base, descriptionText="NULL",
+bare = render(**base,
+    sourcePayloadHash="'hash-bare'", descriptionText="NULL",
     salaryLabel="'Salary not listed'", jobQualityScore="80",
     qualityReasons="ARRAY['Needs salary benchmark']", totalCompLabel="'Benchmark needed'",
     compensationConfidence="'NEEDS_BENCHMARK'", sponsorshipLanguage="'UNKNOWN'",
@@ -99,6 +105,7 @@ bare = render(**base, descriptionText="NULL",
     experienceYears="NULL", seniorityLabel="NULL")
 
 fresh = render(**base,
+    sourcePayloadHash="'hash-fresh'",
     descriptionText="'Updated. Pay is $200,000 - $260,000. We sponsor visas. 9+ years.'",
     salaryLabel="'$200k-$260k'", jobQualityScore="95",
     qualityReasons="ARRAY['Employer salary listed']", totalCompLabel="'Base + extras listed'",

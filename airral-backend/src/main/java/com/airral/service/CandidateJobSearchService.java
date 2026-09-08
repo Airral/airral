@@ -2290,13 +2290,14 @@ public class CandidateJobSearchService {
         String jobWorkMode = job.getWorkMode();
         if (jobWorkMode == null || jobWorkMode.isBlank() || "UNKNOWN".equalsIgnoreCase(jobWorkMode)) {
             // The posting did not say. That is not evidence of on-site, so an
-            // unclassified job is not claimed by the Hybrid or On-site filter --
-            // returning it there is what made "On-site" mean "everything else".
-            // A location mentioning remote is still real evidence, so it counts.
-            if ("remote".equalsIgnoreCase(workMode)) {
-                String location = job.getLocation();
-                return location != null && location.toLowerCase(Locale.US).contains("remote");
-            }
+            // unclassified job is not claimed by any work-mode filter -- returning
+            // it for On-site is what made that option mean "everything else".
+            // No remote-location fallback for UNKNOWN. inferWorkMode already
+            // promotes any posting whose title or location mentions remote to
+            // REMOTE, so a row cannot hold UNKNOWN and a remote-looking location
+            // at once -- measured as 0 of 2,722. The fallback that used to sit
+            // here existed in three copies, matched nothing, and was unreachable
+            // in tests because the test helper never set a location.
             return false;
         }
 

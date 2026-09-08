@@ -299,8 +299,11 @@ public class ExternalJobPostingStore {
             sql.append("""
                      AND (
                         p.search_vector @@ plainto_tsquery('english', :query)
-                        OR LOWER(c.name) LIKE :queryLike
                         OR LOWER(p.title) LIKE :queryLike
+                        OR p.company_id IN (
+                            SELECT ec.id FROM external_companies ec
+                            WHERE LOWER(ec.name) LIKE :queryLike
+                        )
                      )
                     """);
         }
@@ -495,7 +498,14 @@ public class ExternalJobPostingStore {
                     p.cap_exempt_fit,
                     p.experience_years,
                     p.seniority_label,
-                    ts_rank(p.search_vector, to_tsquery('english', :tsQuery)) AS relevance
+                    -- ts_rank was here. It forced a detoast of every matching row's
+                    -- tsvector purely to order them, and the enriched vector made that
+                    -- expensive: 56 -> 2,283 shared buffers once descriptions were
+                    -- included, against 486 without it. Nothing read the value -- it
+                    -- existed only for the ORDER BY below -- and recency is a defensible
+                    -- order for a skills match whose relevance signal is a four-word tag
+                    -- vocabulary anyway.
+                    p.source_updated_at AS relevance_placeholder
                 FROM external_job_postings p
                 JOIN external_companies c ON c.id = p.company_id
                 WHERE p.is_active = true
@@ -512,7 +522,7 @@ public class ExternalJobPostingStore {
             sql.append(" AND (p.source_type = 'AIRRAL_INTERNAL' OR p.source_updated_at >= :sourceCutoff)");
         }
 
-        sql.append(" ORDER BY relevance DESC, p.source_updated_at DESC NULLS LAST LIMIT :limit");
+        sql.append(" ORDER BY p.source_updated_at DESC NULLS LAST LIMIT :limit");
 
         DatabaseClient.GenericExecuteSpec spec = databaseClient.sql(sql.toString())
                 .bind("tsQuery", tsQuery)
@@ -785,12 +795,43 @@ public class ExternalJobPostingStore {
                             source_payload_hash = EXCLUDED.source_payload_hash,
                             is_active = true,
                             last_seen_at = EXCLUDED.last_seen_at,
-                            expires_at = EXCLUDED.expires_at,
+                            -- Only extended when it is actually running short.
+                            --
+                            -- expires_at sits in idx_ejp_active_feed, so rewriting it on
+                            -- every sighting changes an indexed column and denies Postgres
+                            -- a HOT update -- every index on the table gets a new entry for
+                            -- a row whose content did not change. The sync now upserts
+                            -- everything a board lists rather than only the fresh ones, so
+                            -- that happens to the whole corpus every four hours.
+                            --
+                            -- Half a window of slack keeps the guarantee intact: a posting
+                            -- still seen is never within half a retention period of
+                            -- expiring, and one that stops being seen still ages out on
+                            -- schedule from its last extension.
+                            expires_at = CASE
+                                WHEN external_job_postings.expires_at
+                                     < CURRENT_TIMESTAMP + (:retentionInterval)::interval
+                                THEN EXCLUDED.expires_at
+                                ELSE external_job_postings.expires_at
+                            END,
                             deleted_at = NULL,
                             updated_at = EXCLUDED.updated_at,
                             -- Includes the body, so V21's enrichment survives a re-sync. The 2000
                             -- character cap matches the migration that introduced it.
-                            search_vector = to_tsvector('english', CONCAT_WS(' ', EXCLUDED.title, EXCLUDED.department, EXCLUDED.location, EXCLUDED.employment_type, EXCLUDED.source_name, array_to_string(EXCLUDED.tags, ' '), LEFT(COALESCE(NULLIF(EXCLUDED.description_text, ''), external_job_postings.description_text), 2000)))
+                            -- Rebuilt only when the posting actually changed.
+                            --
+                            -- source_payload_hash has existed since V7 with no reader that
+                            -- compared it. It has one now, and this is the write worth
+                            -- avoiding: the enriched vector runs to ~116 lexemes against
+                            -- ~17 before, and recomputing it re-indexes the row in a GIN
+                            -- index whose contents are identical to what was already there.
+                            search_vector = CASE
+                                WHEN external_job_postings.source_payload_hash
+                                     IS DISTINCT FROM EXCLUDED.source_payload_hash
+                                     OR external_job_postings.search_vector IS NULL
+                                THEN to_tsvector('english', CONCAT_WS(' ', EXCLUDED.title, EXCLUDED.department, EXCLUDED.location, EXCLUDED.employment_type, EXCLUDED.source_name, array_to_string(EXCLUDED.tags, ' '), LEFT(COALESCE(NULLIF(EXCLUDED.description_text, ''), external_job_postings.description_text), 2000)))
+                                ELSE external_job_postings.search_vector
+                            END
                         """)
                 .bind("companyId", source.companyId())
                 .bind("jobSourceId", source.id())
@@ -812,7 +853,8 @@ public class ExternalJobPostingStore {
                 .bind("visaReasons", visaReasonsFor(job).toArray(String[]::new))
                 .bind("sourcePayloadHash", payloadHash(source, job))
                 .bind("now", now)
-                .bind("expiresAt", expiresAt);
+                .bind("expiresAt", expiresAt)
+                .bind("retentionInterval", (Math.max(1, retentionDays) / 2) + " days");
 
         spec = bindNullable(spec, "department", job.getDepartment(), String.class);
         spec = bindNullable(spec, "location", job.getLocation(), String.class);
@@ -1735,13 +1777,15 @@ public class ExternalJobPostingStore {
 
         if (filters.hasWorkMode()) {
             if ("REMOTE".equals(filters.normalizedWorkMode())) {
-                sql.append("""
-                         AND (
-                            p.work_mode = 'REMOTE'
-                            OR (COALESCE(p.work_mode, 'UNKNOWN') = 'UNKNOWN'
-                                AND LOWER(COALESCE(p.location, '')) LIKE '%remote%')
-                         )
-                        """);
+                // No UNKNOWN fallback here, deliberately. inferWorkMode already
+                // returns REMOTE for any posting whose title or location mentions
+                // remote, so a row can never hold UNKNOWN and a remote-looking
+                // location at the same time -- measured as 0 of 2,722 rows. The arm
+                // that used to be here could not match, in three separate copies,
+                // and no test reached it because the test helper never set a
+                // location. If inferWorkMode ever stops reading the location, this
+                // is where the fallback belongs.
+                sql.append(" AND p.work_mode = 'REMOTE'");
             } else {
                 sql.append(" AND p.work_mode = :filterWorkMode");
             }
@@ -1822,6 +1866,11 @@ public class ExternalJobPostingStore {
         joiner.add(String.valueOf(job.getSalaryLabel()));
         joiner.add(String.valueOf(job.getApplyUrl()));
         joiner.add(String.valueOf(job.getSourceUpdatedAt()));
+        // The body counts too, now that this hash decides whether the search
+        // vector is rebuilt. Without it an employer who edited only the
+        // description -- on a board that does not move its updated date when they
+        // do -- would stay indexed against the old text indefinitely.
+        joiner.add(String.valueOf(job.getDescriptionText()));
         return hash(joiner.toString());
     }
 
