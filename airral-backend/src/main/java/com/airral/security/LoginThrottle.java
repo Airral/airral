@@ -75,6 +75,41 @@ public class LoginThrottle {
                         : Mono.empty());
     }
 
+    /**
+     * Refuse the attempt on the address bucket alone.
+     *
+     * <p>For account creation, where there is no established account yet. The
+     * two-bucket check is deliberately not used here: an attempt keyed on the
+     * submitted email would let anyone burn a real user's sign-in budget by
+     * repeatedly "registering" their address, locking them out of their own
+     * account. Only the address is counted, which is the dimension that actually
+     * limits bulk account creation.
+     */
+    public Mono<Void> checkAddress(String address) {
+        if (!enabled) {
+            return Mono.empty();
+        }
+
+        return attempts(addressKey(address))
+                .flatMap(used -> used >= maxPerAddress
+                        ? Mono.error(new TooManyLoginAttemptsException(WINDOW.toMinutes()))
+                        : Mono.empty());
+    }
+
+    /** Count one account-creation attempt against the address bucket. */
+    public Mono<Void> recordAddressAttempt(String address) {
+        if (!enabled) {
+            return Mono.empty();
+        }
+
+        return increment(addressKey(address))
+                .onErrorResume(error -> {
+                    log.error("Could not record account-creation attempt: {}", error.getMessage());
+                    return Mono.empty();
+                })
+                .then();
+    }
+
     /** Record a failure against both buckets. */
     public Mono<Void> recordFailure(String email, String address) {
         if (!enabled) {

@@ -387,6 +387,44 @@ public class ExternalJobPostingStore {
                 .all();
     }
 
+    /**
+     * Everything a sitemap needs, and nothing more.
+     *
+     * <p>Deliberately not the full summary query: a sitemap wants an address and
+     * a date for tens of thousands of rows, and pulling the whole posting for
+     * each -- descriptions included -- to print two fields would be wasteful on a
+     * shared-core instance that is also serving the site.
+     *
+     * <p>Ordered by recency so that if the corpus ever outgrows one sitemap file,
+     * the entries that get cut are the stalest.
+     */
+    public Flux<SitemapEntry> findSitemapEntries(int limit) {
+        return databaseClient.sql("""
+                        SELECT p.source_type, p.source_board_token, p.external_job_id, p.source_updated_at
+                        FROM external_job_postings p
+                        WHERE p.is_active = true
+                          AND p.expires_at > CURRENT_TIMESTAMP
+                          AND p.source_type <> 'AIRRAL_INTERNAL'
+                        ORDER BY p.source_updated_at DESC NULLS LAST
+                        LIMIT :limit
+                        """)
+                .bind("limit", Math.max(1, limit))
+                .map((row, meta) -> new SitemapEntry(
+                        row.get("source_type", String.class),
+                        row.get("source_board_token", String.class),
+                        row.get("external_job_id", String.class),
+                        row.get("source_updated_at", OffsetDateTime.class)))
+                .all();
+    }
+
+    /** One indexable posting: its address, and when the employer last touched it. */
+    public record SitemapEntry(
+            String sourceType,
+            String boardToken,
+            String externalJobId,
+            OffsetDateTime sourceUpdatedAt) {
+    }
+
     public Mono<Long> countActivePostings() {
         return databaseClient.sql("""
                         SELECT COUNT(*) AS total

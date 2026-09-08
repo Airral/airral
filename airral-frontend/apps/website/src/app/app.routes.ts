@@ -1,5 +1,9 @@
 import { Route } from '@angular/router';
-import { jobDetailResolver, openJobsResolver } from './shared/job-route.resolvers';
+import {
+  externalJobDetailResolver,
+  jobDetailResolver,
+  openJobsResolver,
+} from './shared/job-route.resolvers';
 import { PAGE_SEO } from './shared/seo-pages';
 
 export const appRoutes: Route[] = [
@@ -68,6 +72,15 @@ export const appRoutes: Route[] = [
     path: 'jobs/:id',
     data: { seo: PAGE_SEO['jobs'] },
     resolve: { job: jobDetailResolver },
+    loadComponent: () =>
+      import('./pages/job-detail/job-detail.component').then((m) => m.JobDetailComponent),
+  },
+  {
+    // A synced posting. Declared after jobs/:id so a plain numeric id still
+    // reaches the employer-posted page.
+    path: 'jobs/:source/:board/:externalId',
+    data: { seo: PAGE_SEO['jobs'] },
+    resolve: { job: externalJobDetailResolver },
     loadComponent: () =>
       import('./pages/job-detail/job-detail.component').then((m) => m.JobDetailComponent),
   },

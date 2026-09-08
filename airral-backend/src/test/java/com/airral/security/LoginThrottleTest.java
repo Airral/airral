@@ -32,6 +32,21 @@ class LoginThrottleTest {
     }
 
     @Test
+    @DisplayName("account creation is throttled on the address alone")
+    void registrationDoesNotTouchTheEmailBucket() {
+        // The two-bucket check is deliberately not used for sign-up. An attempt
+        // counted against the submitted email would let anyone lock a real user
+        // out of their own account simply by "registering" their address over and
+        // over -- the victim's sign-in budget would be spent by a stranger.
+        LoginThrottle throttle = new LoginThrottle(mock(DatabaseClient.class), false, 1, 1);
+
+        assertTrue(throttle.checkAddress("203.0.113.4").blockOptional().isEmpty(),
+                "checkAddress returns empty rather than erroring");
+        assertTrue(throttle.recordAddressAttempt("203.0.113.4").blockOptional().isEmpty(),
+                "recording an attempt never fails the request");
+    }
+
+    @Test
     @DisplayName("the retry hint is in seconds, as Retry-After requires")
     void retryAfterIsSeconds() {
         TooManyLoginAttemptsException e = new TooManyLoginAttemptsException(15);
