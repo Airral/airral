@@ -5,6 +5,8 @@ public record ExternalJobSyncResult(
         int sourcesCount,
         int jobsSeen,
         int jobsUpserted,
+        /** Postings retired because their board stopped listing them. */
+        long jobsRetired,
         long jobsExpired,
         long jobsPurged
 ) {

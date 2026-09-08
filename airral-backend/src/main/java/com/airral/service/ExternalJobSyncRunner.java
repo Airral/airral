@@ -67,19 +67,23 @@ public class ExternalJobSyncRunner implements ApplicationRunner {
         }
 
         log.info(
-                "One-shot sync finished: status={}, sources={}, seen={}, upserted={}, expired={}, purged={}",
+                "One-shot sync finished: status={}, sources={}, seen={}, upserted={}, retired={}, expired={}, purged={}",
                 result.status(),
                 result.sourcesCount(),
                 result.jobsSeen(),
                 result.jobsUpserted(),
+                result.jobsRetired(),
                 result.jobsExpired(),
                 result.jobsPurged());
 
         purgeApiKeyUsage();
         purgeLoginAttempts();
 
-        // A lost lease race is a normal no-op, not a workflow failure.
-        if ("FAILED".equals(result.status())) {
+        // A lost lease race is a normal no-op, not a workflow failure. DEGRADED is:
+        // it means a source we still believe in could not be read, and the run used
+        // to report partial success and stay green while that board's postings
+        // quietly aged out of the catalogue two weeks later.
+        if ("FAILED".equals(result.status()) || "DEGRADED".equals(result.status())) {
             throw new IllegalStateException("External job sync failed: " + result.status());
         }
     }

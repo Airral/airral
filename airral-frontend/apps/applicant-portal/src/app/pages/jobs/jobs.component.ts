@@ -703,7 +703,7 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   getVisaSignal(job: CandidateJobSummary): string {
-    const lang = (job as any).sponsorshipLanguage;
+    const lang = job.sponsorshipLanguage;
     if (!lang || lang === 'UNKNOWN') {
       return '';
     }
@@ -716,16 +716,74 @@ export class JobsComponent implements OnInit, OnDestroy {
     return '';
   }
 
-  getQualitySignal(job: CandidateJobSummary): string {
-    if (!job.jobQualityScore) {
+  /**
+   * Whether a match percentage means anything for this viewer.
+   *
+   * <p>The score is computed for everyone, including signed-out visitors who
+   * have no profile to match against -- so the detail panel was labelling a
+   * title-keyword guess as a "profile match" to people who had not given us a
+   * profile. A number with nothing behind it is worse than no number.
+   */
+  showMatchScore(job: CandidateJobSummary | null): boolean {
+    return Boolean(job?.matchScore && this.signedIn());
+  }
+
+  /**
+   * Says what an active filter is hiding, and how to see it again.
+   *
+   * <p>The work-mode and experience filters exclude postings that state neither,
+   * which is a large slice of the corpus -- most employers publish no work-mode
+   * field, and a substantial share never name a level. Excluding them is what
+   * makes the filter mean anything, but doing it silently would just move the
+   * dishonesty: the user would believe they had seen everything matching.
+   */
+  filterCaveat(): string {
+    const modeOn = this.filterWorkMode && this.filterWorkMode !== 'all';
+    const levelOn = this.filterExperience && this.filterExperience !== 'all';
+
+    if (modeOn && levelOn) {
+      return 'Postings that state no work mode or no experience level are hidden. '
+        + 'Set either back to All to include them.';
+    }
+    if (modeOn) {
+      return 'Many employers never state a work mode. Those postings are hidden while this filter is on — choose All to include them.';
+    }
+    if (levelOn) {
+      return 'Postings that do not state an experience level are hidden while this filter is on — choose Any level to include them.';
+    }
+    return '';
+  }
+
+  /**
+   * The sponsorship lines only, for the panel that quotes the posting.
+   *
+   * <p>visaReasons also carries a contract/staffing note, which is a different
+   * concern and is driven by a bare substring test on the word "contract" -- it
+   * fires on Contracts Manager and Vendor Operations roles. It has its own home
+   * in the caution list, so it is kept out of a panel headed "what this posting
+   * says about sponsorship", where it would read as an immigration finding and
+   * carry more authority than it has earned.
+   */
+  getSponsorshipNotes(job: CandidateJobSummary | null): string[] {
+    return (job?.visaReasons ?? []).filter((reason) => !/contract|staffing/i.test(reason));
+  }
+
+  /**
+   * Where the pay figure came from.
+   *
+   * <p>Worth saying out loud because it is now sometimes true: the sync used to
+   * stamp every posting "Salary not listed" regardless of what the employer
+   * published, so there was no provenance to report. Now that the employer's own
+   * range is read from the source, "employer posted" distinguishes a figure the
+   * company stands behind from one we could not find -- which is the difference
+   * a candidate actually cares about.
+   */
+  getPayProvenance(job: CandidateJobSummary | null): string {
+    if (!job || !this.hasPostedSalary(job)) {
       return '';
     }
 
-    if (job.jobQualityScore >= 90) {
-      return 'High quality';
-    }
-
-    return `${job.jobQualityScore} quality`;
+    return job.compensationConfidence === 'POSTED_BASE' ? 'Employer posted' : '';
   }
 
   getDecisionLabel(job: CandidateJobSummary | null): string {
@@ -784,7 +842,10 @@ export class JobsComponent implements OnInit, OnDestroy {
     if (!this.hasPostedSalary(job)) {
       reasons.push('Salary is not listed');
     }
-    if (matchScore > 0 && matchScore < 72) {
+    // Only a real profile can produce a weak one. Signed out there is nothing to
+    // match against, so this told visitors their profile was letting them down
+    // before they had given us a profile at all.
+    if (this.showMatchScore(job) && matchScore < 72) {
       reasons.push('Profile match is weaker than your best options');
     }
     if (postedDaysAgo !== null && postedDaysAgo > 30) {
@@ -889,17 +950,24 @@ export class JobsComponent implements OnInit, OnDestroy {
       return 'review';
     }
 
+    // The score only carries a verdict when it was computed against a profile.
+    // Signed out it is a title-keyword guess that lands around 64, which tripped
+    // the skip threshold below -- so a posting with employer-posted pay, stated
+    // sponsorship, a fresh date and no caution flags was stamped "Check risk"
+    // while the panel beside it read "No major caution flags". With no profile
+    // the tier is decided by the cautions alone, which are statements of fact.
+    const hasProfileMatch = this.showMatchScore(job);
     const score = job.matchScore ?? 0;
     const cautions = this.getCautionReasons(job).length;
     const qualityScore = job.jobQualityScore ?? 0;
 
-    if (score >= 82 && cautions <= 1) {
+    if (hasProfileMatch && score >= 82 && cautions <= 1) {
       return 'apply';
     }
-    if (score >= 78 && qualityScore >= 90 && cautions <= 2) {
+    if (hasProfileMatch && score >= 78 && qualityScore >= 90 && cautions <= 2) {
       return 'apply';
     }
-    if ((score > 0 && score < 68) || cautions >= 4) {
+    if ((hasProfileMatch && score > 0 && score < 68) || cautions >= 4) {
       return 'skip';
     }
     return 'review';

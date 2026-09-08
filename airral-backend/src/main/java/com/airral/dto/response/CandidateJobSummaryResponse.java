@@ -1,5 +1,6 @@
 package com.airral.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Builder;
 import lombok.Data;
 
@@ -55,4 +56,21 @@ public class CandidateJobSummaryResponse {
     private String seniorityLabel;
     /** Minimum years of experience extracted from title or description (null if unknown) */
     private Integer experienceYears;
+
+    /**
+     * The posting body, when the source hands it over on the list call.
+     *
+     * <p>Carried so the sync can derive the same signals as a detail view. Every
+     * text-derived column -- salary, sponsorship, experience, the search vector --
+     * was previously computed against a null description on the write path, because
+     * this field did not exist and the summary overload of withDecisionSignals had
+     * nothing to pass. The result was a default written over a real value on every
+     * run.
+     *
+     * <p>Not serialized. This is a derivation input, not part of the list contract:
+     * a list page of 100 rows would otherwise carry roughly a megabyte of prose the
+     * client never renders. Read paths leave it null and use the stored columns.
+     */
+    @JsonIgnore
+    private String descriptionText;
 }

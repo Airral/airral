@@ -136,10 +136,26 @@ airral:
         timeout-ms: ${AIRRAL_FEED_GDELT_TIMEOUT_MS:5000}
   jobs:
     country: ${AIRRAL_JOBS_COUNTRY:US}
-    # Soft-expire: postings a source has not refreshed in this many days drop out of
-    # search (is_active = false). Keeps the feed to genuinely fresh roles.
+    # Soft-expire: postings drop out of search (is_active = false) this many days
+    # after the sync last SAW them on their board -- not this many days after the
+    # employer published them, which is what it used to mean and what froze out
+    # publish-date sources permanently. With the sync now retiring postings a board
+    # has stopped listing, this is the fallback for a board that becomes
+    # unreachable, and for postings beyond a truncated fetch.
     retention-days: ${AIRRAL_JOBS_RETENTION_DAYS:15}
-    max-age-days: ${AIRRAL_JOBS_MAX_AGE_DAYS:15}
+    # Ceiling on the candidate's own "date posted" filter, and its default.
+    #
+    # Raised from 15 because at 15 two of the options in the UI were untrue:
+    # normalizeMaxAgeDays clamps the request down to this value, so "Past 30 days"
+    # quietly behaved as 15, and so did "Any time". It was also hiding live roles
+    # -- an ATS posting is routinely open far longer than a fortnight, and the
+    # local profile already carried a note saying exactly that.
+    #
+    # Safe to widen now that a posting's presence is confirmed against its board on
+    # every run: a role that has actually been taken down is retired within one
+    # sync rather than waiting out this window, so the window no longer has to
+    # double as the staleness guard.
+    max-age-days: ${AIRRAL_JOBS_MAX_AGE_DAYS:60}
     # Hard purge: rows inactive for this many days are physically deleted, reclaiming
     # disk. Rows a candidate saved or ran a fit against are kept regardless, because
     # candidate_saved_jobs.source_job_key has no foreign key and the applicant tracker

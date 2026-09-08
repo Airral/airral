@@ -9,6 +9,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -27,6 +29,14 @@ public class ExternalJobSyncService {
     private final int leaseMinutes;
     private final int sourceConcurrency;
     private final int maxSourcesPerRun;
+    /**
+     * Off by default. Retiring a posting is the only thing this sync does that a
+     * later run cannot simply correct on its own -- a retirement that is never
+     * reversed hardens into a hard delete after the purge window -- and the guard
+     * that decides when it is safe was wrong once already. It stays off until a
+     * run has been watched with the retired counts in the log.
+     */
+    private final boolean sweepEnabled;
     private final String syncOwnerId;
 
     public ExternalJobSyncService(
@@ -38,6 +48,7 @@ public class ExternalJobSyncService {
             @Value("${airral.jobs.sync.lease-minutes:50}") int leaseMinutes,
             @Value("${airral.jobs.sync.source-concurrency:6}") int sourceConcurrency,
             @Value("${airral.jobs.sync.max-sources-per-run:500}") int maxSourcesPerRun,
+            @Value("${airral.jobs.sync.sweep-enabled:false}") boolean sweepEnabled,
             @Value("${spring.application.name:airral-backend}") String applicationName) {
         this.externalJobPostingStore = externalJobPostingStore;
         this.candidateJobSearchService = candidateJobSearchService;
@@ -47,6 +58,7 @@ public class ExternalJobSyncService {
         this.leaseMinutes = Math.max(5, leaseMinutes);
         this.sourceConcurrency = Math.max(1, Math.min(sourceConcurrency, 20));
         this.maxSourcesPerRun = Math.max(1, maxSourcesPerRun);
+        this.sweepEnabled = sweepEnabled;
         this.syncOwnerId = applicationName + "-" + UUID.randomUUID();
     }
 
@@ -58,7 +70,7 @@ public class ExternalJobSyncService {
                 .flatMap(leaseAcquired -> {
                     if (!leaseAcquired) {
                         log.info("Skipping external job sync because another instance owns the sync lease");
-                        return Mono.just(new ExternalJobSyncResult("SKIPPED_LOCKED", 0, 0, 0, 0, 0));
+                        return Mono.just(new ExternalJobSyncResult("SKIPPED_LOCKED", 0, 0, 0, 0, 0, 0));
                     }
 
                     return runWithLease()
@@ -92,15 +104,21 @@ public class ExternalJobSyncService {
     }
 
     private Mono<SourceSyncResult> syncSource(ExternalJobSourceRecord source) {
-        return candidateJobSearchService.getLiveRecommendedJobsForSync(
+        // Taken before the fetch, so every posting this run touches ends up with a
+        // last_seen_at after it and anything left behind is provably absent from
+        // what the board just returned.
+        OffsetDateTime runStartedAt = OffsetDateTime.now(ZoneOffset.UTC);
+
+        return candidateJobSearchService.fetchForSync(
                         source.sourceType(),
                         source.boardToken(),
                         limitPerSource,
                         retentionDays)
-                .collectList()
-                .flatMap(jobs -> upsertJobs(source, jobs)
-                        .flatMap(jobsUpserted -> externalJobPostingStore.markSourceSuccess(source.id())
-                                .thenReturn(new SourceSyncResult(source, jobs.size(), jobsUpserted, null))))
+                .flatMap(fetch -> upsertJobs(source, fetch.jobs())
+                        .flatMap(jobsUpserted -> retireUnseenPostings(source, fetch, runStartedAt)
+                                .flatMap(jobsRetired -> externalJobPostingStore.markSourceSuccess(source.id())
+                                        .thenReturn(new SourceSyncResult(
+                                                source, fetch.jobs().size(), jobsUpserted, jobsRetired, null, false)))))
                 .onErrorResume(error -> {
                     String message = error.getMessage();
                     log.warn("External job sync failed for {} {}: {}", source.sourceType(), source.boardToken(), message);
@@ -110,12 +128,87 @@ public class ExternalJobSyncService {
                         log.info("Auto-disabling source {} {} because board returned 404", source.sourceType(), source.boardToken());
                         return externalJobPostingStore.disableSource(source.id(), message)
                                 .then(externalJobPostingStore.deactivatePostingsForSource(source.id()))
-                                .thenReturn(new SourceSyncResult(source, 0, 0, message));
+                                .thenReturn(new SourceSyncResult(source, 0, 0, 0L, message, true));
                     }
 
                     return externalJobPostingStore.markSourceError(source.id(), message)
-                            .thenReturn(new SourceSyncResult(source, 0, 0, message));
+                            .thenReturn(new SourceSyncResult(source, 0, 0, 0L, message, false));
                 });
+    }
+
+    /**
+     * Retires postings the board no longer lists -- but only when this run can
+     * prove it saw the whole board.
+     *
+     * <p>The first version of this compared the FILTERED result count against the
+     * sync's own limit, and that was wrong in a way that disabled the guard
+     * entirely on most sources. Two separate mistakes. The count was taken after
+     * the country and dedupe filters, so a connector that returned a full page and
+     * had rows thinned looked like one that had returned everything; and the
+     * ceiling it compared against was the sync's limit of 500, which several
+     * connectors never approach -- Lever caps its own page at 100, so the guard
+     * could not fire for any Lever board, ever. The unit test pinned the arithmetic
+     * rather than the plumbing and passed throughout.
+     *
+     * <p>It now compares the count BEFORE filtering against the ceiling that
+     * particular connector can actually return, and fails closed: a source type
+     * with no ceiling declared here is never swept, because an unknown ceiling
+     * means an unprovable claim.
+     */
+    private Mono<Long> retireUnseenPostings(
+            ExternalJobSourceRecord source,
+            CandidateJobSearchService.SourceFetch fetch,
+            OffsetDateTime runStartedAt) {
+        if (!sweepEnabled) {
+            return Mono.just(0L);
+        }
+        if (fetch.jobs().isEmpty()) {
+            // A board with nothing open and a board that answered with nothing
+            // useful look identical from here. Acting on the second would retire an
+            // employer's whole listing off one bad response.
+            return Mono.just(0L);
+        }
+
+        int ceiling = rawFetchCeiling(source.sourceType());
+        if (ceiling <= 0 || fetch.rawCount() >= ceiling) {
+            log.debug("Not sweeping {} {}: raw fetch {} against ceiling {} -- cannot prove the board was seen whole",
+                    source.sourceType(), source.boardToken(), fetch.rawCount(), ceiling);
+            return Mono.just(0L);
+        }
+
+        return externalJobPostingStore.deactivateUnseenPostings(source.id(), runStartedAt)
+                .doOnNext(retired -> {
+                    if (retired > 0) {
+                        log.info("Retired {} posting(s) no longer listed by {} {} (saw {} of at most {})",
+                                retired, source.sourceType(), source.boardToken(),
+                                fetch.rawCount(), ceiling);
+                    }
+                });
+    }
+
+    /**
+     * The most postings one fetch of this source can return, before filtering.
+     *
+     * <p>Returning fewer than this is the only evidence we have that a board was
+     * exhausted rather than truncated. Zero means "not known", which disables the
+     * sweep for that source -- deliberately, because guessing here retires live
+     * jobs. Keep in step with the connectors: the value must match what the client
+     * and its surrounding take() actually allow through.
+     */
+    private int rawFetchCeiling(String sourceType) {
+        if (sourceType == null) {
+            return 0;
+        }
+        return switch (sourceType.trim().toUpperCase(java.util.Locale.US)) {
+            // greenhouseSummaries takes max(limit * 2, limit) from a response that
+            // carries the whole board.
+            case "GREENHOUSE" -> limitPerSource * 2;
+            // These clients cap their own page at 100 regardless of what is asked.
+            case "LEVER", "SMARTRECRUITERS" -> Math.min(limitPerSource, 100);
+            // Paginate until exhausted or the limit, so the limit is the ceiling.
+            case "WORKDAY", "ASHBY", "WORKABLE", "BAMBOOHR" -> limitPerSource;
+            default -> 0;
+        };
     }
 
     private Mono<Integer> upsertJobs(ExternalJobSourceRecord source, List<CandidateJobSummaryResponse> jobs) {
@@ -130,13 +223,37 @@ public class ExternalJobSyncService {
             List<SourceSyncResult> sourceResults) {
         int jobsSeen = sourceResults.stream().mapToInt(SourceSyncResult::jobsSeen).sum();
         int jobsUpserted = sourceResults.stream().mapToInt(SourceSyncResult::jobsUpserted).sum();
+        long jobsRetired = sourceResults.stream().mapToLong(SourceSyncResult::jobsRetired).sum();
         String errorMessage = sourceResults.stream()
                 .filter(SourceSyncResult::failed)
                 .map(SourceSyncResult::summary)
                 .collect(Collectors.joining("; "));
-        String status = errorMessage.isBlank() ? "SUCCESS" : "PARTIAL_SUCCESS";
+        // A board that 404s is gone and auto-disabling it is the correct outcome, so
+        // it must not colour the run red forever. Anything else -- a timeout above
+        // all -- is a board we still believe in that we failed to read, and it has to
+        // be loud: nothing refreshes those postings, and they age out of the
+        // catalogue about two weeks later with nothing in between to explain it.
+        long unexplainedFailures = sourceResults.stream()
+                .filter(SourceSyncResult::failed)
+                .filter(result -> !result.autoDisabled())
+                .count();
+        String status = errorMessage.isBlank() ? "SUCCESS"
+                : (unexplainedFailures > 0 ? "DEGRADED" : "PARTIAL_SUCCESS");
+        if (unexplainedFailures > 0) {
+            log.error("{} source(s) failed for a reason other than a dead board; their postings will not refresh",
+                    unexplainedFailures);
+        }
 
-        return externalJobPostingStore.expireOldJobs(retentionDays)
+        // After expiry, so a retired posting is not counted as a live repost, and
+        // after every source has landed, because the churn signal is only correct
+        // once the run's whole picture is in.
+        return externalJobPostingStore.recomputeJobQuality()
+                .doOnNext(rescored -> {
+                    if (rescored > 0) {
+                        log.info("Rescored {} posting(s) on listing age and repost churn", rescored);
+                    }
+                })
+                .then(externalJobPostingStore.expireOldJobs(retentionDays))
                 .flatMap(jobsExpired -> externalJobPostingStore.purgeExpiredJobs(purgeAfterDays)
                         .flatMap(jobsPurged -> externalJobPostingStore.completeSyncRun(
                                         runId,
@@ -147,7 +264,8 @@ public class ExternalJobSyncService {
                                         jobsExpired,
                                         errorMessage.isBlank() ? null : errorMessage)
                                 .thenReturn(new ExternalJobSyncResult(
-                                        status, sources.size(), jobsSeen, jobsUpserted, jobsExpired, jobsPurged))));
+                                        status, sources.size(), jobsSeen, jobsUpserted,
+                                        jobsRetired, jobsExpired, jobsPurged))));
     }
 
     private Mono<Long> releaseLease() {
@@ -162,7 +280,9 @@ public class ExternalJobSyncService {
             ExternalJobSourceRecord source,
             int jobsSeen,
             int jobsUpserted,
-            String errorMessage
+            long jobsRetired,
+            String errorMessage,
+            boolean autoDisabled
     ) {
         boolean failed() {
             return errorMessage != null && !errorMessage.isBlank();

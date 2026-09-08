@@ -100,7 +100,11 @@ jobs:
           export DB_PASSWORD JWT_ENCRYPTION_SECRET
           # JwtTokenProvider validates the secret at startup even though a batch
           # run issues no tokens, so it has to be present.
-          java -jar build/libs/*.jar 2>&1 | tee /tmp/sync.log
+          # Matches the Dockerfile's setting rather than the JVM default of 25%.
+          # The sync buffers whole board responses -- the largest measured is 39MB
+          # before gzip -- six sources at a time, and nothing here had ever stated
+          # a heap budget, so it was quietly running on a quarter of the runner.
+          java -XX:MaxRAMPercentage=75.0 -jar build/libs/*.jar 2>&1 | tee /tmp/sync.log
 
       - name: Summary
         if: always() && steps.db.outputs.skip != 'true'

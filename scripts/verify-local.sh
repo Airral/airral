@@ -52,13 +52,36 @@ for f in "$ROOT"/airral-backend/src/main/resources/application*.yml; do
   fi
 done
 
+# Duplicate keys are checked explicitly because yaml.safe_load does not: it keeps
+# the last occurrence and reports success. GitHub Actions rejects the file
+# outright. An edit that inserted steps between a step and its own env block
+# passed this check and then failed CI with a startup error and no job log, which
+# is a slow way to find a problem this can catch in a second.
 WF_BAD=0
 for f in "$ROOT"/.github/workflows/*.yml; do
   [ -f "$f" ] || continue
-  python3 -c "import yaml; yaml.safe_load(open('$f'))" 2>/dev/null || {
-    bad "workflow $(basename "$f") is not valid YAML"; WF_BAD=1; }
+  python3 - "$f" <<'PYEOF' 2>/dev/null || { bad "workflow $(basename "$f") is not valid YAML"; WF_BAD=1; }
+import sys, yaml
+
+class Strict(yaml.SafeLoader):
+    pass
+
+def no_duplicates(loader, node, deep=False):
+    seen = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in seen:
+            raise yaml.constructor.ConstructorError(
+                None, None, "duplicate key %r" % (key,), key_node.start_mark)
+        seen[key] = loader.construct_object(value_node, deep=deep)
+    return seen
+
+Strict.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates)
+with open(sys.argv[1]) as handle:
+    yaml.load(handle, Strict)
+PYEOF
 done
-[ $WF_BAD -eq 0 ] && ok "all workflow YAML"
+[ $WF_BAD -eq 0 ] && ok "all workflow YAML (including duplicate keys)"
 
 # ---------------------------------------------------------------------------
 # Shell scripts. A syntax error in setup.sh or the container entrypoint only
@@ -126,21 +149,73 @@ if [ -z "$JAR" ]; then
   step "Result"; exit 1
 fi
 
+# A previous run's JVM can still hold 8080 for a few seconds after it is killed.
+# Launching into that produces a bind failure, and the smoke tests below then
+# report connection-refused on every endpoint rather than a real result.
+for _ in $(seq 1 20); do
+  lsof -nP -iTCP:8080 -sTCP:LISTEN >/dev/null 2>&1 || break
+  sleep 1
+done
+if lsof -nP -iTCP:8080 -sTCP:LISTEN >/dev/null 2>&1; then
+  bad "port 8080 is still in use -- stop whatever is listening and retry"
+  step "Result"; exit 1
+fi
+
+# Removed rather than truncated by the redirect. The wait loop below used to read
+# this path while the shell's ">" truncation was still landing, so its first grep
+# could match the PREVIOUS run's "Started AirralApplication" and break out
+# immediately -- reporting a healthy boot for a JVM that had not started, and
+# then printing "safe to push" off a run whose smoke tests all failed with 000.
+# A false pass here is far worse than a false failure.
+BOOT_LOG=/tmp/verify-boot.log
+rm -f "$BOOT_LOG"
+
+# The startup sync is switched off for this run. It fetches every configured
+# source -- hundreds of boards, and full posting bodies since the sync started
+# asking for them -- which competes with the smoke checks below for the same
+# instance and makes them time out rather than fail on their merits. The sync has
+# its own coverage in the guard step and in the unit tests; what this boot is
+# here to prove is that the application starts and serves.
 DB_USER="${DB_USER:-$(whoami)}" java -jar "$JAR" --spring.profiles.active=local \
-  --jwt.secret="$(openssl rand -base64 48 | tr -d '\n')" >/tmp/verify-boot.log 2>&1 &
+  --airral.jobs.sync.run-on-startup=false \
+  --jwt.secret="$(openssl rand -base64 48 | tr -d '\n')" >"$BOOT_LOG" 2>&1 &
 APP_PID=$!
 trap 'kill "$APP_PID" 2>/dev/null' EXIT
 
 for _ in $(seq 1 45); do
-  grep -qE "Started AirralApplication|APPLICATION FAILED" /tmp/verify-boot.log 2>/dev/null && break
+  grep -qE "Started AirralApplication|APPLICATION FAILED" "$BOOT_LOG" 2>/dev/null && break
+  ps -p "$APP_PID" >/dev/null 2>&1 || break
   sleep 2
 done
 
-if grep -q "Started AirralApplication" /tmp/verify-boot.log; then
-  ok "application started"
-else
-  bad "application did not start -- see /tmp/verify-boot.log"
+# Three independent conditions, because the log alone has already lied once:
+# the process is alive, it claimed to start, and it actually answers.
+if ! ps -p "$APP_PID" >/dev/null 2>&1; then
+  bad "the application process exited during start-up -- see $BOOT_LOG"
   step "Result"; exit 1
+fi
+if ! grep -q "Started AirralApplication" "$BOOT_LOG"; then
+  bad "application did not start -- see $BOOT_LOG"
+  step "Result"; exit 1
+fi
+if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 http://localhost:8080/actuator/health)" != "200" ]; then
+  bad "the application started but does not answer /actuator/health"
+  step "Result"; exit 1
+fi
+ok "application started and is serving"
+
+# ---------------------------------------------------------------------------
+# The sync upsert's ON CONFLICT guard, against the schema the boot just
+# migrated. Kept separate because it is pure SQL behaviour: the JUnit suite
+# never opens a connection, so it cannot tell a working CASE expression from one
+# that silently takes the wrong arm -- which is how the pipeline came to
+# overwrite its own derived data every four hours.
+# ---------------------------------------------------------------------------
+step "Sync write guards"
+if "$ROOT/scripts/check-sync-writes.sh"; then
+  ok "write guards hold"
+else
+  bad "the upsert guard is not holding -- see scripts/check-sync-writes.sh"
 fi
 
 # ---------------------------------------------------------------------------

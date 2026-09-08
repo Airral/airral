@@ -5,11 +5,13 @@ on:
     branches: [ main, develop ]
     paths:
       - 'airral-backend/**'
+      - 'scripts/check-sync-writes.sh'
       - '.github/workflows/backend-*.yml'
   pull_request:
     branches: [ main, develop ]
     paths:
       - 'airral-backend/**'
+      - 'scripts/check-sync-writes.sh'
 
 defaults:
   run:
@@ -66,6 +68,38 @@ jobs:
           SPRING_FLYWAY_USER: test_user
           SPRING_FLYWAY_PASSWORD: test_password
           JWT_SECRET: test-jwt-secret-key-for-ci-minimum-256-bits-long
+
+      # The unit suite never opens a connection, so it cannot tell a working
+      # CASE expression from one silently taking the wrong arm -- and this
+      # pipeline is mostly SQL. Two of its worst defects lived exactly there: an
+      # ON CONFLICT clause that overwrote its own derived data every four hours,
+      # and a sweep whose WHERE clause decides between "this job is gone" and
+      # "we deleted a live employer listing".
+      #
+      # Applied with psql rather than by booting the application: all 27
+      # migrations are plain SQL, they carry their own seed data, and this keeps
+      # the step to a couple of seconds without a Spring context.
+      - name: Apply migrations to the test database
+        working-directory: airral-backend/src/main/resources/db/migration
+        env:
+          PGHOST: localhost
+          PGUSER: test_user
+          PGPASSWORD: test_password
+          PGDATABASE: airral_test_db
+        run: |
+          set -euo pipefail
+          for f in $(ls V*.sql | sort -V); do
+            psql -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - name: Sync write guards against a real Postgres
+        working-directory: .
+        env:
+          PGHOST: localhost
+          PGUSER: test_user
+          PGPASSWORD: test_password
+          AIRRAL_DB: airral_test_db
+        run: ./scripts/check-sync-writes.sh
 
       - name: Generate test report
         if: always() && hashFiles('airral-backend/build/test-results/test/*.xml') != ''

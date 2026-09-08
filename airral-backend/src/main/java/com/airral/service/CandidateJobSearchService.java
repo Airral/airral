@@ -66,6 +66,46 @@ public class CandidateJobSearchService {
             "(?i)(^|[\\s,(-])(Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|District\\s+of\\s+Columbia|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\\s+Hampshire|New\\s+Jersey|New\\s+Mexico|New\\s+York|North\\s+Carolina|North\\s+Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\\s+Island|South\\s+Carolina|South\\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\\s+Virginia|Wisconsin|Wyoming)([\\s,).:-]|$)"
     );
     private static final Pattern US_COUNTRY_PATTERN = Pattern.compile("(?i)(^|[^a-z0-9])u\\.?s\\.?a?([^a-z0-9]|$)");
+    /**
+     * Detects a posting refusing to sponsor, by negation proximity rather than
+     * by a list of adjacent word pairs.
+     *
+     * <p>The previous check looked for fixed bigrams -- "not sponsor", "does not
+     * sponsor". Employers do not write that way. "We do not provide visa
+     * sponsorship" puts two words between the negation and the noun, so it
+     * matched none of the refusal terms, fell through to the positive list, hit
+     * the word "sponsorship" there, and was classified as an offer. An explicit
+     * refusal was reported to the candidate as "Sponsors visa" -- the worst
+     * direction for this signal to be wrong in, and it affects exactly the
+     * people least able to absorb a wasted application.
+     *
+     * <p>Two guards keep it from over-reaching: the gap cannot contain a full
+     * stop, so a negation never reaches across a sentence boundary into an
+     * unrelated sponsorship clause, and the window is deliberately short.
+     *
+     * <p>Deliberately does NOT match "aren't able to sponsor". Employers who do
+     * sponsor commonly qualify it -- "We do sponsor visas! However, we aren't
+     * able to sponsor for every role" -- and because a refusal match suppresses
+     * the positive check, treating that as a refusal inverts the answer for an
+     * employer who genuinely sponsors. A posting that both offers and qualifies
+     * is reported as SPONSORS; the binary cannot express "sponsors, with
+     * conditions", and of the two available answers that is the accurate one.
+     *
+     * <p>Only reachable on the sync path since the posting body started being
+     * carried there. Before that it evaluated against a null description and
+     * returned UNKNOWN for every row, which is why this went unnoticed.
+     */
+    private static final Pattern SPONSORSHIP_REFUSAL = Pattern.compile(
+            // A bare "no" was too loose: "provide go/no-go input to deal sponsors"
+                    // read as a refusal, because "no-go" carries a word boundary and
+                    // "sponsors" sat inside the window. "no" now has to be attached to
+                    // the noun it negates.
+                    "(?:\\b(?:do(?:es)?\\s+not|will\\s+not|can\\s?not|cannot|won'?t|are\\s+not"
+                    + "|is\\s+not|unable\\s+to|not|without)\\b[^.]{0,30}?\\bsponsor)"
+                    + "|(?:\\bno\\s+(?:visa\\s+|employment\\s+)?sponsorship\\b)"
+                    + "|(?:\\bsponsorship\\b[^.]{0,20}?\\b(?:is\\s+not|not\\s+available|unavailable)\\b)",
+            Pattern.CASE_INSENSITIVE);
+
     private static final Pattern SALARY_RANGE_PATTERN = Pattern.compile(
             "(?i)\\$\\s?\\d[\\d,]*(?:\\.\\d+)?\\s*(?:to|-|–)\\s*\\$?\\s?\\d[\\d,]*(?:\\.\\d+)?(?:\\s*[A-Z]{3})?(?:\\s*(?:per|/)?\\s*(?:year|hour|annually))?"
     );
@@ -74,6 +114,34 @@ public class CandidateJobSearchService {
     );
     private static final int DEFAULT_LIMIT = 50;
     private static final int DEFAULT_MAX_AGE_DAYS = 60;
+    /**
+     * Deadline for a single job-board call.
+     *
+     * <p>Was a hardcoded 8 seconds in sixteen places. That was sized for the
+     * request path, where a user is waiting, and it silently became the binding
+     * constraint on the sync when the Greenhouse list call started returning
+     * posting bodies: the largest measured board is 39MB and took 11.8s to 26.7s,
+     * so it exceeded the deadline on half its attempts.
+     *
+     * <p>The failure is quiet, which is what makes it dangerous. A timeout is not
+     * an HTTP 404, so the source is not auto-disabled; the run records an error
+     * and still reports partial success. Nothing refreshes that board's postings,
+     * and because a posting now expires relative to when it was last seen, the
+     * whole board drops out of the catalogue about two weeks later with nothing
+     * in between to suggest why.
+     *
+     * <p>A field rather than a parameter so the sync profile can raise it without
+     * lengthening how long a Cloud Run instance holds a buffer while a candidate
+     * waits. Initialised here as well as injected, because several tests build
+     * this service directly.
+     */
+    @Value("${airral.jobs.source-timeout-seconds:8}")
+    private int sourceTimeoutSeconds = 8;
+
+    private Duration sourceTimeout() {
+        return Duration.ofSeconds(Math.max(1, sourceTimeoutSeconds));
+    }
+
     private static final int LIVE_SOURCE_LIMIT = 500;
     private static final int PERSONALIZED_RANKING_WINDOW = 500;
     private static final int PERSONALIZED_RANKING_LIMIT = 2000;
@@ -283,11 +351,18 @@ public class CandidateJobSearchService {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedOffset = normalizeOffset(offset);
         int resolvedMaxAgeDays = normalizeMaxAgeDays(maxAgeDays);
-        boolean hasExplicitFilters = hasExplicitFilters(workMode, salaryPosted, experienceLevel, visaFriendly);
-        int queryLimit = hasExplicitFilters
-                ? LIVE_SOURCE_LIMIT
-                : Math.min(LIVE_SOURCE_LIMIT, resolvedLimit + 1);
-        int queryOffset = hasExplicitFilters ? 0 : resolvedOffset;
+        ExplicitJobFilters filters =
+                new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly);
+
+        // The filters are predicates now, so paging is ordinary: fetch one more
+        // than the page to detect a next page and let the database do the rest.
+        // This used to pull LIVE_SOURCE_LIMIT rows from offset 0 and narrow them
+        // in memory, which meant every filter answered "among the newest few
+        // hundred" rather than "in the catalogue" -- on a corpus whose newest
+        // postings come from a source publishing no pay, "Salary listed" returned
+        // 3 of the 464 postings that actually had a salary.
+        int queryLimit = Math.min(LIVE_SOURCE_LIMIT, resolvedLimit + 1);
+        int queryOffset = resolvedOffset;
 
         if (hasCandidateEmail(candidateEmail)) {
             return getPersonalizedRecommendedJobsPage(
@@ -305,7 +380,9 @@ public class CandidateJobSearchService {
                     candidateEmail);
         }
 
-        return externalJobPostingStore.findRecommendedJobs(source, boardToken, queryLimit, queryOffset, resolvedMaxAgeDays, query, company)
+        return externalJobPostingStore
+                .findRecommendedJobs(source, boardToken, queryLimit, queryOffset,
+                        resolvedMaxAgeDays, query, company, filters)
                 .collectList()
                 .flatMap(cachedJobs -> cachedJobs.isEmpty()
                         ? getLiveFallbackJobs(source, boardToken, queryLimit, resolvedMaxAgeDays, query, company)
@@ -313,10 +390,13 @@ public class CandidateJobSearchService {
                                 .take(queryLimit)
                                 .collectList()
                         : Mono.just(cachedJobs))
+                // Still applied, for the live fallback only: those rows come
+                // straight from a source API and have never been past the SQL
+                // predicates. On database rows this is a no-op, and cheap enough
+                // to be worth keeping as the thing that makes the fallback
+                // obey the same filters as the primary path.
                 .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
-                .map(jobs -> hasExplicitFilters
-                        ? toRankedJobPage(jobs, resolvedLimit, resolvedOffset)
-                        : toJobPage(jobs, resolvedLimit, resolvedOffset))
+                .map(jobs -> toJobPage(jobs, resolvedLimit, resolvedOffset))
                 .flatMap(page -> personalizePage(candidateEmail, page));
     }
 
@@ -352,7 +432,8 @@ public class CandidateJobSearchService {
                                 candidateEmail,
                                 context)
                         .map(jobs -> toRankedJobPage(jobs, resolvedLimit, resolvedOffset)))
-                .switchIfEmpty(loadRankingCandidates(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company)
+                .switchIfEmpty(loadRankingCandidates(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company,
+                                new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly))
                         .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
                         .map(this::dedupeAndSort)
                         .map(jobs -> toRankedJobPage(jobs, resolvedLimit, resolvedOffset)));
@@ -397,6 +478,7 @@ public class CandidateJobSearchService {
                         resolvedMaxAgeDays,
                         query,
                         company,
+                        new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly),
                         context)
                 .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
                 .map(jobs -> rankPersonalizedJobs(jobs, context))
@@ -505,9 +587,17 @@ public class CandidateJobSearchService {
             int resolvedMaxAgeDays,
             String query,
             String company,
+            ExplicitJobFilters filters,
             CandidateMatchContext context) {
+        // Every batch narrows in SQL before its window is taken. Filtering after
+        // retrieval meant the window held the newest rows rather than matching
+        // ones, so the same filter answered differently depending on whether the
+        // candidate was signed in: measured at 45 results against 396 for
+        // "Salary listed" on one corpus. The corpus-wide fix reached only the
+        // signed-out path until now.
         List<Mono<List<CandidateJobSummaryResponse>>> batches = new ArrayList<>();
-        batches.add(loadRankingCandidates(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company));
+        batches.add(loadRankingCandidates(
+                source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company, filters));
 
             // Keep expansion retrieval active even when a query is present so search remains personalized.
             retrievalQueriesFor(context, query).forEach(retrievalQuery -> batches.add(
@@ -518,7 +608,8 @@ public class CandidateJobSearchService {
                         0,
                         resolvedMaxAgeDays,
                         retrievalQuery,
-                        company)
+                        company,
+                        filters)
                     .collectList()));
 
             // Skill-based retrieval: search DB for jobs matching candidate/profile skills and query signals.
@@ -527,7 +618,8 @@ public class CandidateJobSearchService {
                 batches.add(externalJobPostingStore.findJobsBySkills(
                         skillsForRetrieval,
                         resolvedMaxAgeDays,
-                        Math.max(75, rankingLimit / 2))
+                        Math.max(75, rankingLimit / 2),
+                        filters)
                     .collectList());
         }
 
@@ -535,7 +627,48 @@ public class CandidateJobSearchService {
                 .concatMap(mono -> mono)
                 .flatMapIterable(batch -> batch)
                 .collectList()
-                .map(this::dedupeAndSort);
+                .map(this::dedupeAndSort)
+                .map(jobs -> enforceRetrievalConstraints(jobs, source, boardToken, company));
+    }
+
+    /**
+     * Re-applies the source, board and company constraints after the batches are
+     * merged.
+     *
+     * <p>Personalized retrieval runs several queries and unions the results. Most
+     * of them carry these constraints, but findJobsBySkills takes only skills, a
+     * freshness window and a limit -- so a signed-in candidate filtering by
+     * company got other companies merged in, and dedupeAndSort removed
+     * duplicates without removing the intruders. The same filter that worked when
+     * signed out silently became a suggestion once signed in.
+     *
+     * <p>Enforced here rather than by threading the arguments through every
+     * retrieval query, so a batch added later cannot reintroduce the leak. The
+     * predicates mirror the SQL ones: exact match on source type and board token,
+     * substring on company name.
+     */
+    private List<CandidateJobSummaryResponse> enforceRetrievalConstraints(
+            List<CandidateJobSummaryResponse> jobs, String source, String boardToken, String company) {
+        boolean constrainSource = source != null && !source.isBlank()
+                && !"all".equalsIgnoreCase(source.trim());
+        boolean constrainBoard = boardToken != null && !boardToken.isBlank();
+        boolean constrainCompany = company != null && !company.isBlank();
+
+        if (!constrainSource && !constrainBoard && !constrainCompany) {
+            return jobs;
+        }
+
+        String wantedSource = constrainSource
+                ? source.trim().replace("-", "_").toUpperCase(Locale.US) : null;
+        String wantedCompany = constrainCompany
+                ? company.trim().toLowerCase(Locale.US) : null;
+
+        return jobs.stream()
+                .filter(job -> wantedSource == null || wantedSource.equalsIgnoreCase(job.getSourceType()))
+                .filter(job -> !constrainBoard || boardToken.equalsIgnoreCase(job.getSourceBoardToken()))
+                .filter(job -> wantedCompany == null || (job.getCompanyName() != null
+                        && job.getCompanyName().toLowerCase(Locale.US).contains(wantedCompany)))
+                .toList();
     }
 
     /**
@@ -589,8 +722,10 @@ public class CandidateJobSearchService {
             int rankingLimit,
             int resolvedMaxAgeDays,
             String query,
-            String company) {
-        return externalJobPostingStore.findRecommendedJobs(source, boardToken, rankingLimit, 0, resolvedMaxAgeDays, query, company)
+            String company,
+            ExplicitJobFilters filters) {
+        return externalJobPostingStore.findRecommendedJobs(
+                        source, boardToken, rankingLimit, 0, resolvedMaxAgeDays, query, company, filters)
                 .collectList()
                 .flatMap(cachedJobs -> cachedJobs.isEmpty()
                         ? getLiveFallbackJobs(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company)
@@ -609,12 +744,54 @@ public class CandidateJobSearchService {
         return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, query, company, true);
     }
 
+    /**
+     * What the board is listing right now, for the sync to record.
+     *
+     * <p>Deliberately unfiltered by age. A posting the board still lists is an
+     * open posting, whatever its publish date says, and dropping old ones here
+     * had two costs. Publish-date sources froze out permanently -- the same
+     * unchanging date failed the same test on every run, so a still-open role
+     * could never come back. And now that the sync retires postings it did not
+     * see, filtering here would mean age-filtering them out of the fetch and then
+     * retiring them for being absent from it.
+     *
+     * <p>Age is a reader's question, and it is still asked on the read path where
+     * the candidate controls it.
+     */
     public Flux<CandidateJobSummaryResponse> getLiveRecommendedJobsForSync(
             String source,
             String boardToken,
             Integer limit,
             Integer maxAgeDays) {
-        return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, null, null, false);
+        return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, null, null, false, false);
+    }
+
+    /**
+     * What a source returned, plus how many postings it produced before any
+     * filtering.
+     *
+     * <p>The raw count is the only honest basis for deciding whether a fetch saw
+     * the whole board. The filtered count cannot answer it: a connector that
+     * returned its maximum page and had its rows thinned by the country filter is
+     * indistinguishable, by size alone, from one that returned everything the
+     * board had.
+     */
+    public record SourceFetch(List<CandidateJobSummaryResponse> jobs, int rawCount) {
+    }
+
+    /**
+     * The sync's fetch, reporting the pre-filter count alongside the results.
+     *
+     * <p>Only one connector runs for a given source and board, so the raw count
+     * is attributable to that connector and can be compared against its own
+     * ceiling.
+     */
+    public Mono<SourceFetch> fetchForSync(
+            String source, String boardToken, Integer limit, Integer maxAgeDays) {
+        java.util.concurrent.atomic.AtomicInteger raw = new java.util.concurrent.atomic.AtomicInteger();
+        return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, null, null, false, false, raw)
+                .collectList()
+                .map(jobs -> new SourceFetch(jobs, raw.get()));
     }
 
     private Flux<CandidateJobSummaryResponse> getLiveRecommendedJobs(
@@ -625,6 +802,33 @@ public class CandidateJobSearchService {
             String query,
             String company,
             boolean tolerateSourceFailures) {
+        return getLiveRecommendedJobs(
+                source, boardToken, limit, maxAgeDays, query, company, tolerateSourceFailures, true);
+    }
+
+    private Flux<CandidateJobSummaryResponse> getLiveRecommendedJobs(
+            String source,
+            String boardToken,
+            Integer limit,
+            Integer maxAgeDays,
+            String query,
+            String company,
+            boolean tolerateSourceFailures,
+            boolean applyFreshnessFilter) {
+        return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, query, company,
+                tolerateSourceFailures, applyFreshnessFilter, null);
+    }
+
+    private Flux<CandidateJobSummaryResponse> getLiveRecommendedJobs(
+            String source,
+            String boardToken,
+            Integer limit,
+            Integer maxAgeDays,
+            String query,
+            String company,
+            boolean tolerateSourceFailures,
+            boolean applyFreshnessFilter,
+            java.util.concurrent.atomic.AtomicInteger rawCounter) {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedMaxAgeDays = normalizeMaxAgeDays(maxAgeDays);
         List<Flux<CandidateJobSummaryResponse>> sourceStreams =
@@ -636,7 +840,15 @@ public class CandidateJobSearchService {
 
         return Flux.fromIterable(sourceStreams)
                 .flatMap(stream -> stream, liveFallbackSourceConcurrency)
-                .filter(job -> isFresh(job, resolvedMaxAgeDays))
+                // Counted here, before any filter. Downstream of the filters the
+                // number no longer says anything about what the board returned,
+                // which is the mistake that made the sweep guard unreachable.
+                .doOnNext(job -> {
+                    if (rawCounter != null) {
+                        rawCounter.incrementAndGet();
+                    }
+                })
+                .filter(job -> !applyFreshnessFilter || isFresh(job, resolvedMaxAgeDays))
                 .filter(this::isSupportedCountryJob)
                 .filter(job -> matchesCompany(job, company))
                 .filter(job -> matchesQuery(job, query))
@@ -708,7 +920,7 @@ public class CandidateJobSearchService {
         }
 
         return greenhouseClient.retrieveJob(resolvedBoard, jobId)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(job -> toGreenhouseDetail(resolvedBoard, job));
     }
 
@@ -874,7 +1086,7 @@ public class CandidateJobSearchService {
     private Flux<CandidateJobSummaryResponse> greenhouseSummaries(String boardToken, int limit) {
         String resolvedBoard = resolveBoardToken(boardToken);
         return greenhouseClient.listJobs(resolvedBoard)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(response -> Flux.fromIterable(response.getJobs() == null ? List.of() : response.getJobs()))
                 .take(Math.max(limit * 2L, limit))
                 .map(job -> toGreenhouseSummary(resolvedBoard, job));
@@ -883,7 +1095,7 @@ public class CandidateJobSearchService {
     private Flux<CandidateJobSummaryResponse> leverSummaries(String siteName, int limit) {
         String resolvedSite = siteName.trim();
         return leverClient.listJobs(resolvedSite, Math.max(limit * 2, limit))
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(postings -> Flux.fromIterable(postings == null ? List.of() : postings))
                 .map(posting -> toLeverSummary(resolvedSite, posting));
     }
@@ -891,7 +1103,7 @@ public class CandidateJobSearchService {
     private Flux<CandidateJobSummaryResponse> ashbySummaries(String boardName, int limit) {
         String resolvedBoard = boardName.trim();
         return ashbyClient.listJobs(resolvedBoard)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(response -> Flux.fromIterable(response.getJobs() == null ? List.of() : response.getJobs()))
                 .filter(job -> job.getIsListed() == null || Boolean.TRUE.equals(job.getIsListed()))
                 .take(Math.max(limit * 2L, limit))
@@ -908,7 +1120,7 @@ public class CandidateJobSearchService {
 
         return Flux.range(0, Math.min(pages, 5))
                 .concatMap(page -> smartRecruitersClient.listJobs(resolvedCompany, pageSize, page * pageSize, country)
-                        .timeout(Duration.ofSeconds(8))
+                        .timeout(sourceTimeout())
                         .flatMapMany(response -> Flux.fromIterable(response.getContent() == null ? List.of() : response.getContent())))
                 .filter(posting -> posting.getActive() == null || Boolean.TRUE.equals(posting.getActive()))
                 .filter(posting -> posting.getVisibility() == null || "PUBLIC".equalsIgnoreCase(posting.getVisibility()))
@@ -919,7 +1131,7 @@ public class CandidateJobSearchService {
     private Flux<CandidateJobSummaryResponse> workableSummaries(String account, int limit) {
         String resolvedAccount = account.trim();
         return workableClient.listJobs(resolvedAccount, true)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(response -> Flux.fromIterable(response.getJobs() == null ? List.of() : response.getJobs()))
                 .take(Math.max(limit * 2L, limit))
                 .map(job -> toWorkableSummary(resolvedAccount, job));
@@ -932,7 +1144,7 @@ public class CandidateJobSearchService {
 
         return Flux.range(0, Math.min(pages, 25))
                 .concatMap(page -> workdayClient.listJobs(source, pageSize, page * pageSize, "")
-                        .timeout(Duration.ofSeconds(8))
+                        .timeout(sourceTimeout())
                         .flatMapMany(response -> Flux.fromIterable(response.getJobPostings() == null ? List.of() : response.getJobPostings())))
                 .filter(posting -> posting.getExternalPath() != null && !posting.getExternalPath().isBlank())
                 .take(limit)
@@ -942,7 +1154,7 @@ public class CandidateJobSearchService {
     private Flux<CandidateJobSummaryResponse> bambooHrSummaries(String companyDomain, int limit) {
         String resolvedCompany = companyDomain.trim();
         return bambooHrClient.listJobs(resolvedCompany)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(jobs -> Flux.fromIterable(jobs == null ? List.of() : jobs))
                 .filter(job -> job.getPostingUrl() != null && !job.getPostingUrl().isBlank())
                 .take(limit)
@@ -951,7 +1163,7 @@ public class CandidateJobSearchService {
 
     private Flux<CandidateJobSummaryResponse> careerPageSummaries(String sourceType, String sourceName, String pageUrl, int limit) {
         return careerPageClient.fetchPage(pageUrl, sourceName)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(this::extractSchemaOrgJobs)
                 .flatMapMany(Flux::fromIterable)
                 .filter(job -> job.getTitle() != null && !job.getTitle().isBlank())
@@ -966,7 +1178,7 @@ public class CandidateJobSearchService {
 
         String resolvedSite = siteName == null || siteName.isBlank() ? "" : siteName.trim();
         return leverClient.retrieveJob(resolvedSite, postingId)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(posting -> toLeverDetail(resolvedSite, posting));
     }
 
@@ -977,7 +1189,7 @@ public class CandidateJobSearchService {
 
         String resolvedBoard = boardName == null || boardName.isBlank() ? "" : boardName.trim();
         return ashbyClient.listJobs(resolvedBoard)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(response -> Flux.fromIterable(response.getJobs() == null ? List.of() : response.getJobs()))
                 .filter(job -> externalJobId.equals(ashbyExternalJobId(job)))
                 .next()
@@ -992,7 +1204,7 @@ public class CandidateJobSearchService {
 
         String resolvedCompany = companyIdentifier == null || companyIdentifier.isBlank() ? "" : companyIdentifier.trim();
         return smartRecruitersClient.retrieveJob(resolvedCompany, postingId)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(posting -> toSmartRecruitersDetail(resolvedCompany, posting));
     }
 
@@ -1003,7 +1215,7 @@ public class CandidateJobSearchService {
 
         String resolvedAccount = account == null || account.isBlank() ? "" : account.trim();
         return workableClient.listJobs(resolvedAccount, true)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(response -> Flux.fromIterable(response.getJobs() == null ? List.of() : response.getJobs()))
                 .filter(job -> externalJobId.equals(workableExternalJobId(job)))
                 .next()
@@ -1019,7 +1231,7 @@ public class CandidateJobSearchService {
         WorkdayJobBoardClient.WorkdaySource source = WorkdayJobBoardClient.WorkdaySource.parse(sourceToken);
         String externalPath = decodeJobId(encodedExternalPath);
         return workdayClient.retrieveJob(source, externalPath)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(detail -> toWorkdayDetail(source, externalPath, detail));
     }
 
@@ -1030,7 +1242,7 @@ public class CandidateJobSearchService {
 
         String resolvedCompany = companyDomain == null || companyDomain.isBlank() ? "" : companyDomain.trim();
         return bambooHrClient.listJobs(resolvedCompany)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .flatMapMany(jobs -> Flux.fromIterable(jobs == null ? List.of() : jobs))
                 .filter(job -> externalJobId.equals(String.valueOf(job.getId())))
                 .next()
@@ -1042,7 +1254,7 @@ public class CandidateJobSearchService {
         String sourceName = sourceDisplayName(sourceType);
         String resolvedPageUrl = pageUrl.startsWith("http") ? pageUrl : decodeJobId(pageUrl);
         return careerPageClient.fetchPage(resolvedPageUrl, sourceName)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(sourceTimeout())
                 .map(this::extractSchemaOrgJobs)
                 .flatMapMany(Flux::fromIterable)
                 .filter(job -> externalJobId.equals(schemaOrgExternalJobId(job)))
@@ -1053,6 +1265,11 @@ public class CandidateJobSearchService {
 
     private CandidateJobSummaryResponse toGreenhouseSummary(String boardToken, GreenhouseJobBoardResponse.GreenhouseJob job) {
         String location = locationName(job);
+        // Both now arrive on the list call. Previously content was suppressed and
+        // pay withheld, so this mapper -- the one the sync actually persists --
+        // hardcoded "Salary not listed" and had no text to derive signals from.
+        String descriptionText = stripHtml(job.getContent());
+        GreenhouseJobBoardResponse.GreenhousePayRange payRange = firstPayRange(job);
 
         return withDecisionSignals(CandidateJobSummaryResponse.builder()
                 .jobId(sourceJobId("GREENHOUSE", boardToken, String.valueOf(job.getId())))
@@ -1066,7 +1283,8 @@ public class CandidateJobSearchService {
                 .location(location)
                 .workMode(inferWorkMode(job.getTitle(), location))
                 .employmentType("Full-time")
-                .salaryLabel("Salary not listed")
+                .descriptionText(descriptionText)
+                .salaryLabel(payRange == null ? "Salary not listed" : formatSalary(payRange))
                 .applyUrl(job.getAbsoluteUrl())
                 .jobUrl(job.getAbsoluteUrl())
                 .applyMode("EXTERNAL_APPLY")
@@ -1140,6 +1358,13 @@ public class CandidateJobSearchService {
                 .location(location)
                 .workMode(workMode)
                 .employmentType(categories == null ? null : categories.getCommitment())
+                // Already deserialized by the sync's own list call and previously
+                // dropped here for nothing.
+                .descriptionText(firstNonBlank(
+                        posting.getDescriptionPlain(),
+                        posting.getOpeningPlain(),
+                        stripHtml(posting.getDescription()),
+                        stripHtml(posting.getOpening())))
                 .salaryLabel(formatLeverSalary(posting))
                 .applyUrl(posting.getApplyUrl())
                 .jobUrl(posting.getHostedUrl())
@@ -1209,6 +1434,8 @@ public class CandidateJobSearchService {
                 .location(location)
                 .workMode(workMode)
                 .employmentType(job.getEmploymentType())
+                // Same list payload the sync parses; was discarded here.
+                .descriptionText(firstNonBlank(job.getDescriptionPlain(), stripHtml(job.getDescriptionHtml())))
                 .salaryLabel(formatAshbySalary(job))
                 .applyUrl(job.getApplyUrl())
                 .jobUrl(job.getJobUrl())
@@ -1412,7 +1639,7 @@ public class CandidateJobSearchService {
                 .department(firstListValue(posting.getBulletFields()))
                 .location(location)
                 .workMode(workMode)
-                .employmentType(null)
+                .employmentType(normalizeEmploymentType(posting.getTimeType()))
                 .salaryLabel("Salary not listed")
                 .applyUrl(url)
                 .jobUrl(url)
@@ -1602,6 +1829,19 @@ public class CandidateJobSearchService {
     }
 
     private CandidateJobSummaryResponse withDecisionSignals(CandidateJobSummaryResponse job) {
+        // Cleaned before anything reads them, so a requisition number cannot earn
+        // a "Team listed" quality reason or land in the skills array.
+        job.setDepartment(sanitizeDepartment(job.getDepartment()));
+        job.setLocation(normalizeLocation(job.getLocation()));
+        job.setTags(sanitizeTags(job.getTags()));
+
+        // The description, when the source gave us one. This used to be a
+        // literal null in all four places below, which is what made the write
+        // path strictly less informed than the read path: the detail overload
+        // beneath this one passes the real text and derives real values, the
+        // sync passed null and derived defaults, and the sync ran last.
+        String descriptionText = job.getDescriptionText();
+
         job.setJobQualityScore(firstNonNull(job.getJobQualityScore(), inferJobQualityScore(
                 job.getSalaryLabel(),
                 job.getLocation(),
@@ -1610,7 +1850,7 @@ public class CandidateJobSearchService {
                 job.getJobUrl(),
                 job.getDepartment(),
                 job.getWorkMode(),
-                null)));
+                descriptionText)));
         job.setQualityReasons(firstNonNull(job.getQualityReasons(), buildQualityReasons(
                 job.getSalaryLabel(),
                 job.getLocation(),
@@ -1618,15 +1858,19 @@ public class CandidateJobSearchService {
                 job.getApplyUrl(),
                 job.getJobUrl(),
                 job.getDepartment(),
-                null)));
+                descriptionText)));
         job.setTotalCompLabel(firstNonBlank(job.getTotalCompLabel(), inferTotalCompLabel(job.getSalaryLabel())));
         job.setCompensationConfidence(firstNonBlank(job.getCompensationConfidence(), inferCompensationConfidence(job.getSalaryLabel())));
-        applyVisaSignals(job, null);
-        applyExperienceSignals(job, null);
+        applyVisaSignals(job, descriptionText);
+        applyExperienceSignals(job, descriptionText);
         return job;
     }
 
     private CandidateJobDetailResponse withDecisionSignals(CandidateJobDetailResponse detail) {
+        detail.setDepartment(sanitizeDepartment(detail.getDepartment()));
+        detail.setLocation(normalizeLocation(detail.getLocation()));
+        detail.setTags(sanitizeTags(detail.getTags()));
+
         detail.setJobQualityScore(firstNonNull(detail.getJobQualityScore(), inferJobQualityScore(
                 detail.getSalaryLabel(),
                 detail.getLocation(),
@@ -1823,14 +2067,8 @@ public class CandidateJobSearchService {
                 descriptionText
         );
 
-        boolean noSponsorship = containsAny(text,
-                "no sponsorship",
-                "not sponsor",
-                "will not sponsor",
-                "does not sponsor",
-                "unable to sponsor",
-                "without sponsorship",
-                "now or in the future");
+        boolean noSponsorship = SPONSORSHIP_REFUSAL.matcher(text).find()
+                || containsAny(text, "now or in the future");
         boolean sponsors = !noSponsorship && containsAny(text,
                 "visa sponsorship",
                 "sponsorship available",
@@ -1845,13 +2083,23 @@ public class CandidateJobSearchService {
                 "eligible to work",
                 "right to work",
                 "employment authorization");
+        // Phrases that describe an engagement, not any use of the words. The bare
+        // terms "contract", "staffing" and "vendor" fired on Contracts Manager,
+        // Vendor Operations and Warehouse Logistics roles -- and the flag is shown
+        // to the candidate as a caution, so a false one costs a real application.
         boolean contractRisk = containsAny(text,
-                "contract",
+                "contract role",
+                "contract position",
+                "contract-to-hire",
+                "contract to hire",
+                "w2 contract",
+                "fixed-term contract",
                 "corp-to-corp",
                 "c2c",
                 "1099",
-                "staffing",
-                "vendor",
+                "staffing agency",
+                "staffing firm",
+                "temp-to-perm",
                 "employer of record");
         boolean capExemptFit = containsAny(text,
                 "university",
@@ -1916,14 +2164,8 @@ public class CandidateJobSearchService {
     }
 
     private VisaSignal inferVisaSignalFromText(String text) {
-        boolean noSponsorship = containsAny(text,
-                "no sponsorship",
-                "not sponsor",
-                "will not sponsor",
-                "does not sponsor",
-                "unable to sponsor",
-                "without sponsorship",
-                "now or in the future");
+        boolean noSponsorship = SPONSORSHIP_REFUSAL.matcher(text).find()
+                || containsAny(text, "now or in the future");
         boolean sponsors = !noSponsorship && containsAny(text,
                 "visa sponsorship",
                 "sponsorship available",
@@ -1938,13 +2180,23 @@ public class CandidateJobSearchService {
                 "eligible to work",
                 "right to work",
                 "employment authorization");
+        // Phrases that describe an engagement, not any use of the words. The bare
+        // terms "contract", "staffing" and "vendor" fired on Contracts Manager,
+        // Vendor Operations and Warehouse Logistics roles -- and the flag is shown
+        // to the candidate as a caution, so a false one costs a real application.
         boolean contractRisk = containsAny(text,
-                "contract",
+                "contract role",
+                "contract position",
+                "contract-to-hire",
+                "contract to hire",
+                "w2 contract",
+                "fixed-term contract",
                 "corp-to-corp",
                 "c2c",
                 "1099",
-                "staffing",
-                "vendor",
+                "staffing agency",
+                "staffing firm",
+                "temp-to-perm",
                 "employer of record");
         boolean capExemptFit = containsAny(text,
                 "university",
@@ -2050,13 +2302,17 @@ public class CandidateJobSearchService {
         }
 
         String jobWorkMode = job.getWorkMode();
-        if (jobWorkMode == null || jobWorkMode.isBlank()) {
-            // If job has no work mode data, check if location text contains "remote"
-            if ("remote".equalsIgnoreCase(workMode)) {
-                String location = job.getLocation();
-                return location != null && location.toLowerCase(Locale.US).contains("remote");
-            }
-            return true; // don't discard jobs missing work mode for hybrid/onsite filter
+        if (jobWorkMode == null || jobWorkMode.isBlank() || "UNKNOWN".equalsIgnoreCase(jobWorkMode)) {
+            // The posting did not say. That is not evidence of on-site, so an
+            // unclassified job is not claimed by any work-mode filter -- returning
+            // it for On-site is what made that option mean "everything else".
+            // No remote-location fallback for UNKNOWN. inferWorkMode already
+            // promotes any posting whose title or location mentions remote to
+            // REMOTE, so a row cannot hold UNKNOWN and a remote-looking location
+            // at once -- measured as 0 of 2,722. The fallback that used to sit
+            // here existed in three copies, matched nothing, and was unreachable
+            // in tests because the test helper never set a location.
+            return false;
         }
 
         return jobWorkMode.equalsIgnoreCase(workMode);
@@ -2074,12 +2330,16 @@ public class CandidateJobSearchService {
             return true;
         }
 
+        // Half-open, so each posting lands in exactly one bucket. The ranges used
+        // to share both endpoints -- a role asking for 5 years was returned by
+        // both Mid and Senior -- which made two adjacent filters look broken
+        // against each other.
         Integer years = job.getExperienceYears();
         if (years != null) {
             return switch (experienceLevel.toLowerCase(Locale.US)) {
-                case "entry" -> years <= 2;
-                case "mid" -> years >= 2 && years <= 5;
-                case "senior" -> years >= 5 && years <= 8;
+                case "entry" -> years < 2;
+                case "mid" -> years >= 2 && years < 5;
+                case "senior" -> years >= 5 && years < 8;
                 case "staff" -> years >= 8;
                 default -> true;
             };
@@ -2087,7 +2347,11 @@ public class CandidateJobSearchService {
 
         String seniority = normalizeTerm(job.getSeniorityLabel());
         if (seniority == null || seniority.isBlank()) {
-            return true;
+            // Neither a year count nor a level. Returning true put every
+            // unclassified posting in every bucket at once, so picking a level
+            // changed almost nothing -- the filter appeared to do no work because
+            // it was doing none.
+            return false;
         }
 
         return switch (experienceLevel.toLowerCase(Locale.US)) {
@@ -3229,13 +3493,22 @@ public class CandidateJobSearchService {
         // Try to extract numeric salary from label like "$120,000 - $180,000" or "$120k - $180k"
         long jobMin = 0;
         long jobMax = 0;
-        java.util.regex.Matcher matcher = SALARY_EXTRACT_PATTERN.matcher(salaryLabel);
+        java.util.regex.Matcher matcher = SALARY_EXTRACT_PATTERN.matcher(
+                SALARY_NOISE.matcher(salaryLabel).replaceAll(" "));
         int found = 0;
         while (matcher.find() && found < 2) {
             long value = parseSalaryValue(matcher.group());
             if (found == 0) jobMin = value;
             jobMax = value;
             found++;
+        }
+
+        // "Up to $85,000 plus a bonus of $20,000" reads high-then-low. Comparing
+        // an unordered pair against the candidate's range takes the wrong branch.
+        if (jobMin > jobMax && jobMax > 0) {
+            long lower = jobMax;
+            jobMax = jobMin;
+            jobMin = lower;
         }
 
         if (found == 0) {
@@ -3250,12 +3523,10 @@ public class CandidateJobSearchService {
         long expectMax = userMax != null ? userMax.longValue() : Long.MAX_VALUE;
 
         // Job's max is above user's min AND job's min is below user's max = overlap
+        // The nested test here used to repeat this one verbatim, so the 5 it
+        // guarded was unreachable and the gradation it described never existed.
         if (jobMax >= expectMin && jobMin <= expectMax) {
-            // Strong match: job range overlaps user range well
-            if (jobMax >= expectMin && jobMin <= expectMax) {
-                return 7;
-            }
-            return 5;
+            return 7;
         }
 
         // Job pays less than user expects
@@ -3269,8 +3540,50 @@ public class CandidateJobSearchService {
         return 3;
     }
 
+    /** A ZIP or ZIP+4, which carries no meaning for a job seeker browsing by city. */
+    private static final Pattern US_POSTAL_CODE = Pattern.compile("\\b\\d{5}(?:-\\d{4})?\\b");
+
+    /**
+     * A street line: a house number followed by a name.
+     *
+     * <p>The house number is not always plain digits. Queens addresses hyphenate
+     * ("22-11 31st St") and Wisconsin uses a grid prefix ("N95 W Shady Ln"), both
+     * of which a bare {@code \d+} misses.
+     */
+    private static final Pattern STREET_LINE =
+            Pattern.compile("^[A-Za-z]?\\d+[\\dA-Za-z-]*\\s+\\S.*");
+
+    /** A secondary unit left at the front of a segment once the street is gone. */
+    private static final Pattern SECONDARY_UNIT =
+            Pattern.compile("^(?:ste|suite|unit|apt|apartment|fl|floor|#)\\.?\\s*[\\dA-Za-z-]*\\s+", Pattern.CASE_INSENSITIVE);
+
+    /** A bare store or site number tacked onto the end. "St Peters, MO (O'Fallon) 0753". */
+    private static final Pattern TRAILING_SITE_CODE = Pattern.compile("\\s+\\d{3,5}$");
+
+    /**
+     * Noise stripped before a salary is read out of free text.
+     *
+     * <p>US postings mention retirement plans and bonus percentages constantly,
+     * and the old pattern treated both as money. "401k" became a $401,000
+     * salary, which overlaps almost any expectation and earned the posting a
+     * "Salary in range" chip. "20% bonus" became $20,000, which as the second
+     * number read as the top of the range and inverted it -- an $85,000 job was
+     * reported as "Salary below expectations" against a fabricated $20k ceiling.
+     */
+    private static final java.util.regex.Pattern SALARY_NOISE =
+            java.util.regex.Pattern.compile(
+                    "(?i)\\b(?:401\\s?\\(?k\\)?|403\\s?\\(?b\\)?|457\\s?\\(?b\\)?)\\b"
+                            + "|\\b\\d+(?:\\.\\d+)?\\s*%");
+
+    /**
+     * A figure only counts as pay if it is marked as money -- either a currency
+     * symbol or a thousands suffix. Previously the "$" was optional and the
+     * suffix was too, so any bare integer in the string was a candidate.
+     */
     private static final java.util.regex.Pattern SALARY_EXTRACT_PATTERN =
-            java.util.regex.Pattern.compile("\\$?([\\d,]+\\.?\\d*\\s*[kK]?)");
+            java.util.regex.Pattern.compile(
+                    "\\$\\s?\\d[\\d,]*(?:\\.\\d+)?\\s*[kK]?"
+                            + "|\\b\\d[\\d,]*(?:\\.\\d+)?\\s*[kK]\\b");
 
     private long parseSalaryValue(String raw) {
         if (raw == null || raw.isBlank()) return 0;
@@ -4067,6 +4380,24 @@ public class CandidateJobSearchService {
                 .toList();
     }
 
+    /**
+     * Work mode read out of a title and location, for sources that publish no
+     * field for it.
+     *
+     * <p>Returns UNKNOWN rather than ONSITE when the text says neither. ONSITE
+     * used to carry both meanings -- "the employer said on-site" and "we could
+     * not tell" -- and since every source-specific formatter falls back here,
+     * that made 1331 of 1368 synced postings on-site by default. Two things
+     * followed: a genuinely remote job whose location reads "United States" was
+     * filed as on-site and hidden from the Remote filter, and the On-site filter
+     * returned everything we had failed to classify.
+     *
+     * <p>Greenhouse, the largest source, publishes no work-mode field at all, and
+     * a location of "San Francisco, CA" is not evidence of anything -- a role can
+     * be based in a city and still be hybrid or remote-friendly. UNKNOWN is the
+     * honest answer there. The formatters that do read a real field still return
+     * ONSITE from it.
+     */
     private String inferWorkMode(String title, String location) {
         String text = ((title == null ? "" : title) + " " + (location == null ? "" : location)).toLowerCase(Locale.US);
         if (text.contains("remote")) {
@@ -4075,7 +4406,7 @@ public class CandidateJobSearchService {
         if (text.contains("hybrid")) {
             return "HYBRID";
         }
-        return "ONSITE";
+        return "UNKNOWN";
     }
 
     private String formatLeverWorkMode(String workplaceType, String location) {
@@ -4205,6 +4536,123 @@ public class CandidateJobSearchService {
         return salaryLabel == null
                 || salaryLabel.isBlank()
                 || salaryLabel.toLowerCase(Locale.US).contains("not listed");
+    }
+
+    /**
+     * Drops a value that is a requisition number rather than a team name.
+     *
+     * <p>Workday hands us an arbitrary list of "bullet fields" and the first one
+     * is whatever the employer put there. For a large retail board that is the
+     * requisition id, so 65 of 79 synced postings carried a department of
+     * "R0000448755" -- which then earned the posting a "Team listed" quality
+     * reason, fed the match score, and was written into the tags array twice, so
+     * the skills index was a list of req numbers.
+     *
+     * <p>Deliberately conservative: a single token, at least three digits, and
+     * more digits than letters. "R0000448755", "JR-12345" and "REQ-2024-001" go;
+     * "Engineering", "R&amp;D Operations", "Team 360" and "Sales2024" stay. It is
+     * better to keep a bad department than to discard a real one.
+     */
+    /**
+     * Brings a board's employment-type wording into the same shape as the others.
+     *
+     * <p>Workday says "Full time", Greenhouse and Lever say "Full-time". Storing
+     * both means the same job type reads as two different values, and anything
+     * grouping or comparing them has to know about the difference.
+     */
+    private String normalizeEmploymentType(String timeType) {
+        if (timeType == null || timeType.isBlank()) {
+            return null;
+        }
+
+        return switch (timeType.trim().toLowerCase(Locale.US)) {
+            case "full time", "full-time", "fulltime" -> "Full-time";
+            case "part time", "part-time", "parttime" -> "Part-time";
+            default -> timeType.trim();
+        };
+    }
+
+    private String sanitizeDepartment(String department) {
+        if (department == null || department.isBlank()) {
+            return department;
+        }
+
+        String trimmed = department.trim();
+        if (trimmed.chars().anyMatch(Character::isWhitespace)) {
+            return trimmed;
+        }
+
+        long digits = trimmed.chars().filter(Character::isDigit).count();
+        long letters = trimmed.chars().filter(Character::isLetter).count();
+        return (digits >= 3 && digits > letters) ? null : trimmed;
+    }
+
+    /**
+     * Reduces a postal address to the part a job seeker searches by.
+     *
+     * <p>Workday reports the site address, so a posting reads "960 Lititz Pike,
+     * Lititz,PA 17543-9328". Nobody searches for a street, and with the raw
+     * string stored there is no city to filter on.
+     *
+     * <p>Returns the original untouched unless a street line or a postal code was
+     * actually found, so multi-city strings such as "New York City, NY; San
+     * Francisco, CA; Seattle, WA" and prose like "San Francisco Bay Area or Los
+     * Angeles Area" pass through exactly as the source wrote them.
+     */
+    private String normalizeLocation(String location) {
+        if (location == null || location.isBlank()) {
+            return location;
+        }
+
+        String[] parts = location.split(",");
+        List<String> kept = new ArrayList<>();
+        boolean changed = false;
+
+        for (int i = 0; i < parts.length; i++) {
+            String segment = parts[i].trim();
+
+            // Only drop a street line when a city and a region survive it. Without
+            // that guard "29 Palms, CA" -- a real place -- would be reduced to "CA",
+            // and a single-segment value would be erased entirely.
+            if (kept.isEmpty() && parts.length - i > 2 && STREET_LINE.matcher(segment).matches()) {
+                changed = true;
+                continue;
+            }
+
+            String cleaned = segment;
+            if (kept.isEmpty()) {
+                cleaned = SECONDARY_UNIT.matcher(cleaned).replaceFirst("");
+            }
+            cleaned = US_POSTAL_CODE.matcher(cleaned).replaceAll(" ");
+            cleaned = TRAILING_SITE_CODE.matcher(cleaned).replaceFirst("");
+            cleaned = cleaned.replaceAll("\\s+", " ").trim();
+
+            if (!cleaned.equals(segment)) {
+                changed = true;
+            }
+            if (!cleaned.isEmpty()) {
+                kept.add(cleaned);
+            }
+        }
+
+        if (!changed || kept.isEmpty()) {
+            return location.trim();
+        }
+
+        return String.join(", ", kept);
+    }
+
+    /** Keeps requisition numbers out of the skills array, wherever they entered it. */
+    private List<String> sanitizeTags(List<String> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return tags;
+        }
+
+        List<String> cleaned = tags.stream()
+                .filter(tag -> tag != null && !tag.isBlank())
+                .filter(tag -> sanitizeDepartment(tag) != null)
+                .toList();
+        return cleaned.isEmpty() ? List.of() : cleaned;
     }
 
     private List<String> buildTags(String title, String department, String workMode, List<String> extraTags) {

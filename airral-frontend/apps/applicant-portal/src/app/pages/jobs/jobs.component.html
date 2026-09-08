@@ -124,6 +124,10 @@
         </label>
       </div>
     </div>
+
+    <p class="filter-caveat" *ngIf="filterCaveat()">
+      <span class="material-icons">info_outline</span>{{ filterCaveat() }}
+    </p>
   </div>
 
   <!-- Resume Health Banner -->
@@ -221,11 +225,11 @@
               {{ getExperienceLabel(job) }}
             </span>
           </div>
-          <div class="job-card-signals" *ngIf="job.matchScore || job.easyApplyAvailable || getQualitySignal(job) || getSourceSignal(job) || getVisaSignal(job)">
-            <span class="signal match" *ngIf="job.matchScore">{{ job.matchScore }}% match</span>
+          <div class="job-card-signals" *ngIf="showMatchScore(job) || job.easyApplyAvailable || getPayProvenance(job) || getSourceSignal(job) || getVisaSignal(job)">
+            <span class="signal match" *ngIf="showMatchScore(job)">{{ job.matchScore }}% match</span>
+            <span class="signal pay-posted" *ngIf="getPayProvenance(job)">{{ getPayProvenance(job) }}</span>
             <span class="signal visa-yes" *ngIf="getVisaSignal(job) === 'Sponsors visa'">Sponsors visa</span>
             <span class="signal visa-no" *ngIf="getVisaSignal(job) === 'No sponsorship'">No sponsorship</span>
-            <span class="signal quality" *ngIf="getQualitySignal(job)">{{ getQualitySignal(job) }}</span>
             <span class="signal source" *ngIf="getSourceSignal(job)">{{ getSourceSignal(job) }}</span>
             <span class="signal easy" *ngIf="job.easyApplyAvailable">Easy apply</span>
           </div>
@@ -302,6 +306,9 @@
             <span class="detail-chip salary" [class.missing]="!hasPostedSalary(selectedJob)">
               <span class="material-icons">payments</span>{{ getSalaryLabel(selectedJob) }}
             </span>
+            <span class="detail-chip pay-posted" *ngIf="getPayProvenance(selectedJob)">
+              <span class="material-icons">verified</span>{{ getPayProvenance(selectedJob) }}
+            </span>
             <span class="detail-chip visa-sponsors" *ngIf="getVisaSignal(selectedJob) === 'Sponsors visa'">
               <span class="material-icons">verified</span>Sponsors visa
             </span>
@@ -310,10 +317,9 @@
             </span>
           </div>
 
-          <div class="detail-signal-row" *ngIf="selectedJob.matchScore || fitResult || selectedJob.jobQualityScore || getSourceSignal(selectedJob)">
-            <span class="detail-signal match" *ngIf="selectedJob.matchScore">{{ selectedJob.matchScore }}% profile match</span>
+          <div class="detail-signal-row" *ngIf="showMatchScore(selectedJob) || fitResult || getSourceSignal(selectedJob)">
+            <span class="detail-signal match" *ngIf="showMatchScore(selectedJob)">{{ selectedJob.matchScore }}% profile match</span>
             <span class="detail-signal fit" *ngIf="fitResult">{{ fitResult.fitScore }}% resume fit</span>
-            <span class="detail-signal" *ngIf="selectedJob.jobQualityScore">{{ selectedJob.jobQualityScore }} quality score</span>
             <span class="detail-signal" *ngIf="getSourceSignal(selectedJob)">{{ getSourceSignal(selectedJob) }}</span>
             <span class="detail-signal decision" [ngClass]="getDecisionClass(selectedJob)">{{ getDecisionLabel(selectedJob) }}</span>
           </div>
@@ -438,6 +444,14 @@
             </p>
           </ng-template>
         </ng-template>
+
+        <div class="detail-visa" *ngIf="getSponsorshipNotes(selectedJob).length">
+          <h3>What this posting says about sponsorship</h3>
+          <ul>
+            <li *ngFor="let reason of getSponsorshipNotes(selectedJob)">{{ reason }}</li>
+          </ul>
+          <p class="detail-visa-note">Read from the posting text, not a prediction about your case.</p>
+        </div>
 
         <div class="detail-quality" *ngIf="selectedJob.qualityReasons?.length">
           <h3>Job quality signals</h3>

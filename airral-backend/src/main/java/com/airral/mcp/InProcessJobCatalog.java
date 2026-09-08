@@ -65,6 +65,12 @@ public class InProcessJobCatalog implements JobCatalogPort {
         return candidateJobSearchService.getExternalJobDetail(sourceType, boardToken, externalJobId);
     }
 
+    /**
+     * A posting with no location cannot satisfy a request for one, so it is
+     * excluded. The web filters take the opposite view for their own fields and
+     * keep unclassified rows, which meant the same thin data hid different jobs
+     * depending on which door the caller came in.
+     */
     private boolean matchesLocation(CandidateJobSummaryResponse job, String location) {
         if (!notBlank(location)) {
             return true;
@@ -73,12 +79,29 @@ public class InProcessJobCatalog implements JobCatalogPort {
         return actual != null && actual.toLowerCase(Locale.ROOT).contains(location.toLowerCase(Locale.ROOT));
     }
 
+    /**
+     * Mirrors the web filter: UNKNOWN means the posting did not say, which is not
+     * evidence of any particular arrangement, so no filter claims it.
+     *
+     * <p>Kept in step with matchesWorkModeFilter in CandidateJobSearchService. An
+     * agent asking for remote work and a person clicking Remote should not get
+     * different answers about the same posting.
+     */
     private boolean matchesWorkMode(CandidateJobSummaryResponse job, String workMode) {
         if (!notBlank(workMode)) {
             return true;
         }
+
         String actual = job.getWorkMode();
-        return actual != null && actual.equalsIgnoreCase(workMode.trim());
+        if (actual == null || actual.isBlank() || "UNKNOWN".equalsIgnoreCase(actual)) {
+            // Unclassified is not evidence of anything, so no work-mode filter
+            // claims it. There is no remote-location fallback here because
+            // inferWorkMode already promotes such a posting to REMOTE before it is
+            // ever stored -- the fallback that used to be here matched nothing.
+            return false;
+        }
+
+        return actual.equalsIgnoreCase(workMode.trim());
     }
 
     private static boolean notBlank(String value) {

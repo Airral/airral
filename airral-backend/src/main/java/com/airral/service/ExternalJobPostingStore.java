@@ -18,6 +18,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.StringJoiner;
@@ -29,6 +30,43 @@ public class ExternalJobPostingStore {
 
     private final DatabaseClient databaseClient;
     private final CompanyLogoService companyLogoService;
+
+    /**
+     * Declared width of every VARCHAR this class writes, keyed by bind name.
+     *
+     * <p>None of these were capped. A value longer than its column throws inside
+     * the sync's {@code flatMap(..., 8)}, which cancels the rest of that board --
+     * so one over-long field silently cost every remaining posting from that
+     * employer, with no error to say the run was partial. The documented case is
+     * an Ashby compensation summary, which is vendor free text going into
+     * {@code salary_label VARCHAR(255)}, but every entry here is reachable from
+     * source data: Lever's commitment is free text, Workday's external path can
+     * be long once URL-encoded, and multi-site postings concatenate locations.
+     *
+     * <p>Truncating loses the tail of one field. Throwing loses the board. Keep
+     * this in step with the migrations; a name absent here is simply not capped.
+     */
+    private static final Map<String, Integer> TEXT_COLUMN_LIMITS = Map.ofEntries(
+            Map.entry("salaryCurrency", 10),
+            Map.entry("seniorityLabel", 20),
+            Map.entry("compensationConfidence", 30),
+            Map.entry("sourceType", 30),
+            Map.entry("workMode", 30),
+            Map.entry("applyMode", 40),
+            Map.entry("sponsorshipLanguage", 40),
+            Map.entry("employmentType", 80),
+            Map.entry("postedLabel", 80),
+            Map.entry("sourceName", 100),
+            Map.entry("sourcePayloadHash", 128),
+            Map.entry("department", 255),
+            Map.entry("externalInternalJobId", 255),
+            Map.entry("salaryLabel", 255),
+            Map.entry("sourceBoardToken", 255),
+            Map.entry("totalCompLabel", 255),
+            Map.entry("externalJobId", 500),
+            Map.entry("location", 500),
+            Map.entry("title", 500),
+            Map.entry("sourceJobKey", 900));
 
     public ExternalJobPostingStore(DatabaseClient databaseClient, CompanyLogoService companyLogoService) {
         this.databaseClient = databaseClient;
@@ -166,6 +204,19 @@ public class ExternalJobPostingStore {
             Integer maxAgeDays,
             String query,
             String company) {
+        return findRecommendedJobs(source, boardToken, limit, offset, maxAgeDays, query, company,
+                ExplicitJobFilters.none());
+    }
+
+    public Flux<CandidateJobSummaryResponse> findRecommendedJobs(
+            String source,
+            String boardToken,
+            Integer limit,
+            Integer offset,
+            Integer maxAgeDays,
+            String query,
+            String company,
+            ExplicitJobFilters filters) {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedOffset = normalizeOffset(offset);
         String normalizedSource = normalizeSource(source);
@@ -234,7 +285,12 @@ public class ExternalJobPostingStore {
             sql.append(" AND p.source_board_token = :boardToken");
         }
         if (maxAgeDays != null && maxAgeDays > 0) {
-            sql.append(" AND p.source_updated_at >= :sourceCutoff");
+            // Exempts the employer's own postings. Their lifecycle is the
+            // employer's: deactivateStaleInternalJobs closes them when the
+            // underlying job stops being OPEN. Ageing them out of the feed
+            // because nobody edited the record for a while removed live roles
+            // from a paying customer's own listing.
+            sql.append(" AND (p.source_type = 'AIRRAL_INTERNAL' OR p.source_updated_at >= :sourceCutoff)");
         }
         if (company != null && !company.isBlank()) {
             sql.append(" AND LOWER(c.name) LIKE :company");
@@ -243,13 +299,24 @@ public class ExternalJobPostingStore {
             sql.append("""
                      AND (
                         p.search_vector @@ plainto_tsquery('english', :query)
-                        OR LOWER(c.name) LIKE :queryLike
                         OR LOWER(p.title) LIKE :queryLike
+                        OR p.company_id IN (
+                            SELECT ec.id FROM external_companies ec
+                            WHERE LOWER(ec.name) LIKE :queryLike
+                        )
                      )
                     """);
         }
 
-        sql.append(" ORDER BY p.source_updated_at DESC NULLS LAST, p.match_score DESC NULLS LAST, p.last_seen_at DESC LIMIT :limit OFFSET :offset");
+        appendExplicitFilters(sql, filters);
+
+        // Newest day first, best of that day within it. Recency alone gave quality
+        // no say at all, and the tiebreaker it replaces -- match_score -- is a
+        // title keyword check with three possible values, computed without a
+        // profile, so it was ordering the feed on almost nothing.
+        sql.append(" ORDER BY DATE_TRUNC('day', p.source_updated_at) DESC NULLS LAST,"
+                + " p.job_quality_score DESC NULLS LAST,"
+                + " p.source_updated_at DESC NULLS LAST, p.last_seen_at DESC LIMIT :limit OFFSET :offset");
 
         DatabaseClient.GenericExecuteSpec spec = databaseClient.sql(sql.toString())
                 .bind("limit", resolvedLimit)
@@ -257,6 +324,10 @@ public class ExternalJobPostingStore {
 
         if (!"ALL".equals(normalizedSource)) {
             spec = spec.bind("sourceType", normalizedSource);
+        }
+        if (filters != null && filters.hasWorkMode()
+                && !"REMOTE".equals(filters.normalizedWorkMode())) {
+            spec = spec.bind("filterWorkMode", filters.normalizedWorkMode());
         }
         if (boardToken != null && !boardToken.isBlank()) {
             spec = spec.bind("boardToken", boardToken.trim());
@@ -359,6 +430,14 @@ public class ExternalJobPostingStore {
             List<String> skills,
             int maxAgeDays,
             int limit) {
+        return findJobsBySkills(skills, maxAgeDays, limit, ExplicitJobFilters.none());
+    }
+
+    public Flux<CandidateJobSummaryResponse> findJobsBySkills(
+            List<String> skills,
+            int maxAgeDays,
+            int limit,
+            ExplicitJobFilters filters) {
         if (skills == null || skills.isEmpty()) {
             return Flux.empty();
         }
@@ -433,7 +512,14 @@ public class ExternalJobPostingStore {
                     p.cap_exempt_fit,
                     p.experience_years,
                     p.seniority_label,
-                    ts_rank(p.search_vector, to_tsquery('english', :tsQuery)) AS relevance
+                    -- ts_rank was here. It forced a detoast of every matching row's
+                    -- tsvector purely to order them, and the enriched vector made that
+                    -- expensive: 56 -> 2,283 shared buffers once descriptions were
+                    -- included, against 486 without it. Nothing read the value -- it
+                    -- existed only for the ORDER BY below -- and recency is a defensible
+                    -- order for a skills match whose relevance signal is a four-word tag
+                    -- vocabulary anyway.
+                    p.source_updated_at AS relevance_placeholder
                 FROM external_job_postings p
                 JOIN external_companies c ON c.id = p.company_id
                 WHERE p.is_active = true
@@ -442,14 +528,30 @@ public class ExternalJobPostingStore {
                 """);
 
         if (maxAgeDays > 0) {
-            sql.append(" AND p.source_updated_at >= :sourceCutoff");
+            // Exempts the employer's own postings. Their lifecycle is the
+            // employer's: deactivateStaleInternalJobs closes them when the
+            // underlying job stops being OPEN. Ageing them out of the feed
+            // because nobody edited the record for a while removed live roles
+            // from a paying customer's own listing.
+            sql.append(" AND (p.source_type = 'AIRRAL_INTERNAL' OR p.source_updated_at >= :sourceCutoff)");
         }
 
-        sql.append(" ORDER BY relevance DESC, p.source_updated_at DESC NULLS LAST LIMIT :limit");
+        appendExplicitFilters(sql, filters);
+
+        sql.append(" ORDER BY p.source_updated_at DESC NULLS LAST LIMIT :limit");
 
         DatabaseClient.GenericExecuteSpec spec = databaseClient.sql(sql.toString())
                 .bind("tsQuery", tsQuery)
                 .bind("limit", resolvedLimit);
+
+        // appendExplicitFilters emits :filterWorkMode for the non-REMOTE modes, so
+        // this query has to bind it too. Without it a signed-in candidate filtering
+        // by Hybrid or On-site gets an unbound-parameter failure from the skills
+        // retrieval batch.
+        if (filters != null && filters.hasWorkMode()
+                && !"REMOTE".equals(filters.normalizedWorkMode())) {
+            spec = spec.bind("filterWorkMode", filters.normalizedWorkMode());
+        }
 
         if (maxAgeDays > 0) {
             spec = spec.bind("sourceCutoff", OffsetDateTime.now(ZoneOffset.UTC).minusDays(maxAgeDays));
@@ -502,8 +604,15 @@ public class ExternalJobPostingStore {
     public Mono<Long> upsertJob(ExternalJobSourceRecord source, CandidateJobSummaryResponse job, int retentionDays) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         OffsetDateTime sourceUpdatedAt = job.getSourceUpdatedAt();
-        OffsetDateTime expiresAt = (sourceUpdatedAt == null ? now : sourceUpdatedAt)
-                .plusDays(Math.max(1, retentionDays));
+        // Counted from when we last saw the posting on its board, not from when
+        // the employer published it. Publish-date sources -- Ashby,
+        // SmartRecruiters, BambooHR -- never move that date, so under the old rule
+        // a role published more than retention-days ago arrived already expired
+        // and could never recover: the same frozen date failed the same test on
+        // every future run. A still-listed job is an open job, whatever its
+        // publish date says, and "how long since we last confirmed it exists" is
+        // the question retention is actually asking.
+        OffsetDateTime expiresAt = now.plusDays(Math.max(1, retentionDays));
 
         String sourceType = normalizeSource(firstNonBlank(job.getSourceType(), source.sourceType()));
         String sourceBoardToken = firstNonBlank(job.getSourceBoardToken(), source.boardToken());
@@ -525,6 +634,7 @@ public class ExternalJobPostingStore {
                             location,
                             work_mode,
                             employment_type,
+                            description_text,
                             salary_label,
                             apply_url,
                             job_url,
@@ -570,6 +680,7 @@ public class ExternalJobPostingStore {
                             :location,
                             :workMode,
                             :employmentType,
+                            :descriptionText,
                             :salaryLabel,
                             :applyUrl,
                             :jobUrl,
@@ -600,7 +711,7 @@ public class ExternalJobPostingStore {
                             :expiresAt,
                             NULL,
                             :now,
-                            to_tsvector('english', CONCAT_WS(' ', :title, :department, :location, :employmentType, :sourceName, :tagsText))
+                            to_tsvector('english', CONCAT_WS(' ', :title, :department, :location, :employmentType, :sourceName, :tagsText, LEFT(:descriptionText, 2000)))
                         )
                         ON CONFLICT (source_type, source_board_token, external_job_id)
                         DO UPDATE SET
@@ -612,7 +723,31 @@ public class ExternalJobPostingStore {
                             location = EXCLUDED.location,
                             work_mode = EXCLUDED.work_mode,
                             employment_type = EXCLUDED.employment_type,
-                            salary_label = EXCLUDED.salary_label,
+                            -- Never lose a stored body to a run that arrived without one.
+                            description_text = COALESCE(NULLIF(EXCLUDED.description_text, ''), external_job_postings.description_text),
+
+                            -- Pay is read from structured source fields, so the guard here is the
+                            -- placeholder itself: a mapper with no pay data emits "Salary not listed",
+                            -- and that must not overwrite a range already resolved for this posting.
+                            salary_label = CASE
+                                WHEN EXCLUDED.salary_label IS NULL
+                                  OR LOWER(EXCLUDED.salary_label) LIKE '%not listed%'
+                                THEN COALESCE(external_job_postings.salary_label, EXCLUDED.salary_label)
+                                ELSE EXCLUDED.salary_label
+                            END,
+                            total_comp_label = CASE
+                                WHEN EXCLUDED.total_comp_label IS NULL
+                                  OR EXCLUDED.total_comp_label = 'Benchmark needed'
+                                THEN COALESCE(external_job_postings.total_comp_label, EXCLUDED.total_comp_label)
+                                ELSE EXCLUDED.total_comp_label
+                            END,
+                            compensation_confidence = CASE
+                                WHEN EXCLUDED.compensation_confidence IS NULL
+                                  OR EXCLUDED.compensation_confidence = 'NEEDS_BENCHMARK'
+                                THEN COALESCE(external_job_postings.compensation_confidence, EXCLUDED.compensation_confidence)
+                                ELSE EXCLUDED.compensation_confidence
+                            END,
+
                             apply_url = EXCLUDED.apply_url,
                             job_url = EXCLUDED.job_url,
                             apply_mode = EXCLUDED.apply_mode,
@@ -622,52 +757,135 @@ public class ExternalJobPostingStore {
                             match_score = EXCLUDED.match_score,
                             connections_count = EXCLUDED.connections_count,
                             tags = EXCLUDED.tags,
-                            job_quality_score = EXCLUDED.job_quality_score,
-                            quality_reasons = EXCLUDED.quality_reasons,
-                            total_comp_label = EXCLUDED.total_comp_label,
-                            compensation_confidence = EXCLUDED.compensation_confidence,
-                            sponsorship_language = EXCLUDED.sponsorship_language,
-                            visa_confidence_score = EXCLUDED.visa_confidence_score,
-                            visa_reasons = EXCLUDED.visa_reasons,
-                            requires_us_work_authorization = EXCLUDED.requires_us_work_authorization,
-                            contract_or_staffing_risk = EXCLUDED.contract_or_staffing_risk,
-                            stem_opt_risk = EXCLUDED.stem_opt_risk,
-                            h1b_transfer_fit = EXCLUDED.h1b_transfer_fit,
-                            cap_exempt_fit = EXCLUDED.cap_exempt_fit,
-                            experience_years = EXCLUDED.experience_years,
-                            seniority_label = EXCLUDED.seniority_label,
+
+                            -- Everything from here down is derived from the posting body. Take the
+                            -- incoming value only when this run actually had a body to read;
+                            -- otherwise keep what is stored, which may have been derived by a detail
+                            -- view that did. Without this the sync overwrote real, description-derived
+                            -- values with defaults every four hours, and no read path recomputed --
+                            -- so the correct value survived exactly one sync interval.
+                            job_quality_score = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.job_quality_score
+                                ELSE COALESCE(external_job_postings.job_quality_score, EXCLUDED.job_quality_score)
+                            END,
+                            quality_reasons = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.quality_reasons
+                                WHEN COALESCE(array_length(external_job_postings.quality_reasons, 1), 0) > 0
+                                    THEN external_job_postings.quality_reasons
+                                ELSE EXCLUDED.quality_reasons
+                            END,
+                            sponsorship_language = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.sponsorship_language
+                                ELSE external_job_postings.sponsorship_language
+                            END,
+                            visa_confidence_score = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.visa_confidence_score
+                                ELSE COALESCE(external_job_postings.visa_confidence_score, EXCLUDED.visa_confidence_score)
+                            END,
+                            visa_reasons = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.visa_reasons
+                                WHEN COALESCE(array_length(external_job_postings.visa_reasons, 1), 0) > 0
+                                    THEN external_job_postings.visa_reasons
+                                ELSE EXCLUDED.visa_reasons
+                            END,
+                            requires_us_work_authorization = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.requires_us_work_authorization
+                                ELSE COALESCE(external_job_postings.requires_us_work_authorization, EXCLUDED.requires_us_work_authorization)
+                            END,
+                            contract_or_staffing_risk = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.contract_or_staffing_risk
+                                ELSE COALESCE(external_job_postings.contract_or_staffing_risk, EXCLUDED.contract_or_staffing_risk)
+                            END,
+                            stem_opt_risk = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.stem_opt_risk
+                                ELSE COALESCE(external_job_postings.stem_opt_risk, EXCLUDED.stem_opt_risk)
+                            END,
+                            h1b_transfer_fit = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.h1b_transfer_fit
+                                ELSE COALESCE(external_job_postings.h1b_transfer_fit, EXCLUDED.h1b_transfer_fit)
+                            END,
+                            cap_exempt_fit = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.cap_exempt_fit
+                                ELSE COALESCE(external_job_postings.cap_exempt_fit, EXCLUDED.cap_exempt_fit)
+                            END,
+                            experience_years = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.experience_years
+                                ELSE COALESCE(external_job_postings.experience_years, EXCLUDED.experience_years)
+                            END,
+                            seniority_label = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.seniority_label
+                                ELSE COALESCE(external_job_postings.seniority_label, EXCLUDED.seniority_label)
+                            END,
+
                             source_payload_hash = EXCLUDED.source_payload_hash,
                             is_active = true,
                             last_seen_at = EXCLUDED.last_seen_at,
-                            expires_at = EXCLUDED.expires_at,
+                            -- Only extended when it is actually running short.
+                            --
+                            -- expires_at sits in idx_ejp_active_feed, so rewriting it on
+                            -- every sighting changes an indexed column and denies Postgres
+                            -- a HOT update -- every index on the table gets a new entry for
+                            -- a row whose content did not change. The sync now upserts
+                            -- everything a board lists rather than only the fresh ones, so
+                            -- that happens to the whole corpus every four hours.
+                            --
+                            -- Half a window of slack keeps the guarantee intact: a posting
+                            -- still seen is never within half a retention period of
+                            -- expiring, and one that stops being seen still ages out on
+                            -- schedule from its last extension.
+                            expires_at = CASE
+                                WHEN external_job_postings.expires_at
+                                     < CURRENT_TIMESTAMP + (:retentionInterval)::interval
+                                THEN EXCLUDED.expires_at
+                                ELSE external_job_postings.expires_at
+                            END,
                             deleted_at = NULL,
                             updated_at = EXCLUDED.updated_at,
-                            search_vector = to_tsvector('english', CONCAT_WS(' ', EXCLUDED.title, EXCLUDED.department, EXCLUDED.location, EXCLUDED.employment_type, EXCLUDED.source_name, array_to_string(EXCLUDED.tags, ' ')))
+                            -- Includes the body, so V21's enrichment survives a re-sync. The 2000
+                            -- character cap matches the migration that introduced it.
+                            -- Rebuilt only when the posting actually changed.
+                            --
+                            -- source_payload_hash has existed since V7 with no reader that
+                            -- compared it. It has one now, and this is the write worth
+                            -- avoiding: the enriched vector runs to ~116 lexemes against
+                            -- ~17 before, and recomputing it re-indexes the row in a GIN
+                            -- index whose contents are identical to what was already there.
+                            search_vector = CASE
+                                WHEN external_job_postings.source_payload_hash
+                                     IS DISTINCT FROM EXCLUDED.source_payload_hash
+                                     OR external_job_postings.search_vector IS NULL
+                                THEN to_tsvector('english', CONCAT_WS(' ', EXCLUDED.title, EXCLUDED.department, EXCLUDED.location, EXCLUDED.employment_type, EXCLUDED.source_name, array_to_string(EXCLUDED.tags, ' '), LEFT(COALESCE(NULLIF(EXCLUDED.description_text, ''), external_job_postings.description_text), 2000)))
+                                ELSE external_job_postings.search_vector
+                            END
                         """)
                 .bind("companyId", source.companyId())
                 .bind("jobSourceId", source.id())
-                .bind("sourceType", sourceType)
-                .bind("sourceName", firstNonBlank(source.sourceName(), job.getSourceName(), sourceType))
-                .bind("sourceBoardToken", sourceBoardToken)
-                .bind("externalJobId", externalJobId)
-                .bind("sourceJobKey", sourceJobKey)
-                .bind("title", firstNonBlank(job.getTitle(), "Untitled role"))
-                .bind("applyMode", firstNonBlank(job.getApplyMode(), "EXTERNAL_APPLY"))
+                .bind("sourceType", cappedText("sourceType", sourceType))
+                .bind("sourceName", cappedText("sourceName",
+                        firstNonBlank(source.sourceName(), job.getSourceName(), sourceType)))
+                .bind("sourceBoardToken", cappedText("sourceBoardToken", sourceBoardToken))
+                .bind("externalJobId", cappedText("externalJobId", externalJobId))
+                .bind("sourceJobKey", cappedText("sourceJobKey", sourceJobKey))
+                .bind("title", cappedText("title", firstNonBlank(job.getTitle(), "Untitled role")))
+                .bind("applyMode", cappedText("applyMode", firstNonBlank(job.getApplyMode(), "EXTERNAL_APPLY")))
                 .bind("easyApplyAvailable", Boolean.TRUE.equals(job.getEasyApplyAvailable()))
                 .bind("connectionsCount", job.getConnectionsCount() == null ? 0 : job.getConnectionsCount())
                 .bind("tags", tags.toArray(String[]::new))
                 .bind("tagsText", String.join(" ", tags))
                 .bind("qualityReasons", qualityReasonsFor(job).toArray(String[]::new))
-                .bind("sponsorshipLanguage", firstNonBlank(job.getSponsorshipLanguage(), "UNKNOWN"))
+                .bind("sponsorshipLanguage",
+                        cappedText("sponsorshipLanguage", firstNonBlank(job.getSponsorshipLanguage(), "UNKNOWN")))
                 .bind("visaReasons", visaReasonsFor(job).toArray(String[]::new))
                 .bind("sourcePayloadHash", payloadHash(source, job))
                 .bind("now", now)
-                .bind("expiresAt", expiresAt);
+                .bind("expiresAt", expiresAt)
+                .bind("retentionInterval", (Math.max(1, retentionDays) / 2) + " days");
 
         spec = bindNullable(spec, "department", job.getDepartment(), String.class);
         spec = bindNullable(spec, "location", job.getLocation(), String.class);
         spec = bindNullable(spec, "workMode", job.getWorkMode(), String.class);
         spec = bindNullable(spec, "employmentType", job.getEmploymentType(), String.class);
+        spec = bindNullable(spec, "descriptionText", job.getDescriptionText(), String.class);
         spec = bindNullable(spec, "salaryLabel", job.getSalaryLabel(), String.class);
         spec = bindNullable(spec, "applyUrl", job.getApplyUrl(), String.class);
         spec = bindNullable(spec, "jobUrl", job.getJobUrl(), String.class);
@@ -761,10 +979,18 @@ public class ExternalJobPostingStore {
                           AND p.external_job_id = :externalJobId
                           AND p.is_active = true
                           AND p.expires_at > CURRENT_TIMESTAMP
-                          AND (
-                              NULLIF(p.description_text, '') IS NOT NULL
-                              OR NULLIF(p.description_html, '') IS NOT NULL
-                          )
+                          -- Only description_html marks a real detail fetch.
+                          --
+                          -- This used to accept either column, which was correct while
+                          -- both were written together by cacheJobDetail. The sync now
+                          -- writes description_text as well, so accepting it would let
+                          -- a summary-derived body satisfy the cache and stop the
+                          -- detail endpoint ever fetching the real one. That text is
+                          -- stripHtml output, and stripHtml collapses all whitespace to
+                          -- single spaces, so the page would render the posting as one
+                          -- unbroken paragraph -- and the frontend prefers
+                          -- descriptionHtml, which the sync never writes.
+                          AND NULLIF(p.description_html, '') IS NOT NULL
                         LIMIT 1
                         """)
                 .bind("sourceType", normalizeSource(sourceType))
@@ -954,8 +1180,95 @@ public class ExternalJobPostingStore {
         return spec.fetch().rowsUpdated();
     }
 
+    /**
+     * Retires postings whose retention window has run out.
+     *
+     * <p>The window is now the only thing consulted, and it is measured from the
+     * last time the posting was seen on its board. This used to also deactivate
+     * anything whose publish date was older than the window, or missing -- which
+     * is what made a still-open role from a publish-date source disappear and
+     * stay disappeared. The retentionDays argument is kept because callers pass
+     * it and expires_at is derived from it at write time.
+     */
+    /**
+     * Recomputes job_quality_score from signals only the stored corpus has.
+     *
+     * <p>The score used to be seven "is this field populated" checks, computed in
+     * the mapper from a single posting in isolation. Nothing in it was about the
+     * job. It had a live spread of about one point, it appeared in no ORDER BY,
+     * and it moved in the wrong direction as the data improved: rejecting
+     * requisition-id departments and introducing an honest UNKNOWN work mode both
+     * lowered it, because it was measuring our completeness rather than the
+     * posting's worth.
+     *
+     * <p>Two signals here need the corpus rather than the row, which is why this
+     * runs as a pass after the sync instead of in the mapper.
+     *
+     * <p>Repost churn: the same title from the same employer appearing many times
+     * over. Measured on a real corpus, one title/company pair appeared eleven
+     * times and another seven. A candidate applying to all eleven is applying to
+     * one job, or to none.
+     *
+     * <p>Listing duration, from first_seen_at -- a column present since V7 with no
+     * reader until now. A posting that has been continuously listed for months is
+     * either evergreen pipeline-building or was never real; either way it is worth
+     * less of a candidate's limited time than one posted last week. This signal is
+     * weak until the corpus has history, and worthless on a fresh database, which
+     * is worth knowing before reading anything into early numbers.
+     *
+     * <p>Only rows whose score actually changes are written. A blanket update
+     * would rewrite the whole table after every sync and undo the HOT-update work
+     * that keeps the four-hourly run off the indexes.
+     */
+    public Mono<Long> recomputeJobQuality() {
+        return databaseClient.sql("""
+                        WITH churn AS (
+                            SELECT company_id, LOWER(title) AS norm_title, COUNT(*) AS copies
+                            FROM external_job_postings
+                            WHERE is_active = true
+                            GROUP BY 1, 2
+                        ),
+                        scored AS (
+                            SELECT
+                                p.id,
+                                GREATEST(0, LEAST(100,
+                                    50
+                                    + CASE WHEN p.salary_label IS NOT NULL
+                                            AND LOWER(p.salary_label) NOT LIKE '%not listed%'
+                                           THEN 15 ELSE 0 END
+                                    + CASE WHEN p.source_updated_at >= CURRENT_TIMESTAMP - INTERVAL '14 days'
+                                           THEN 10 ELSE 0 END
+                                    + CASE WHEN COALESCE(p.apply_url, p.job_url) IS NOT NULL
+                                           THEN 5 ELSE 0 END
+                                    + CASE
+                                        WHEN p.first_seen_at < CURRENT_TIMESTAMP - INTERVAL '120 days' THEN -15
+                                        WHEN p.first_seen_at < CURRENT_TIMESTAMP - INTERVAL '60 days' THEN -5
+                                        ELSE 0
+                                      END
+                                    + CASE
+                                        WHEN c.copies >= 6 THEN -20
+                                        WHEN c.copies >= 3 THEN -10
+                                        ELSE 0
+                                      END
+                                )) AS score
+                            FROM external_job_postings p
+                            JOIN churn c
+                              ON c.company_id = p.company_id
+                             AND c.norm_title = LOWER(p.title)
+                            WHERE p.is_active = true
+                        )
+                        UPDATE external_job_postings t
+                        SET job_quality_score = s.score,
+                            updated_at = CURRENT_TIMESTAMP
+                        FROM scored s
+                        WHERE t.id = s.id
+                          AND t.job_quality_score IS DISTINCT FROM s.score
+                        """)
+                .fetch()
+                .rowsUpdated();
+    }
+
     public Mono<Long> expireOldJobs(int retentionDays) {
-        OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusDays(Math.max(1, retentionDays));
         return databaseClient.sql("""
                         UPDATE external_job_postings
                         SET is_active = false,
@@ -963,13 +1276,8 @@ public class ExternalJobPostingStore {
                             updated_at = CURRENT_TIMESTAMP
                         WHERE is_active = true
                           AND source_type <> 'AIRRAL_INTERNAL'
-                          AND (
-                              expires_at <= CURRENT_TIMESTAMP
-                              OR source_updated_at IS NULL
-                              OR source_updated_at < :cutoff
-                          )
+                          AND expires_at <= CURRENT_TIMESTAMP
                         """)
-                .bind("cutoff", cutoff)
                 .fetch()
                 .rowsUpdated();
     }
@@ -1173,6 +1481,43 @@ public class ExternalJobPostingStore {
         return spec.fetch().rowsUpdated();
     }
 
+    /**
+     * Retires postings this source no longer lists.
+     *
+     * <p>Nothing detected that a job had been taken down. {@code last_seen_at}
+     * had one reader and it was an ORDER BY tiebreaker, and
+     * {@code source_payload_hash} had no reader that compared it -- so a posting
+     * lived out its retention window whether or not it still existed, and the
+     * worst thing this product can do to someone is send them to apply for a job
+     * that is gone.
+     *
+     * <p>Every upsert stamps {@code last_seen_at}, so anything for this source
+     * still carrying a timestamp from before the run started was absent from what
+     * the board just returned.
+     *
+     * <p>The caller decides when this is safe to run; see the guards in
+     * ExternalJobSyncService. A board that errors, returns nothing, or returns a
+     * truncated page must not reach this, because "absent from the response" and
+     * "absent from the board" are only the same thing when the response was
+     * complete.
+     */
+    public Mono<Long> deactivateUnseenPostings(Long sourceId, OffsetDateTime seenSince) {
+        return databaseClient.sql("""
+                        UPDATE external_job_postings
+                        SET is_active = false,
+                            deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE job_source_id = :sourceId
+                          AND is_active = true
+                          AND source_type <> 'AIRRAL_INTERNAL'
+                          AND last_seen_at < :seenSince
+                        """)
+                .bind("sourceId", sourceId)
+                .bind("seenSince", seenSince)
+                .fetch()
+                .rowsUpdated();
+    }
+
     public Mono<Long> deactivatePostingsForSource(Long sourceId) {
         return databaseClient.sql("""
                         UPDATE external_job_postings
@@ -1341,7 +1686,26 @@ public class ExternalJobPostingStore {
         if (value == null) {
             return spec.bindNull(key, valueType);
         }
-        return spec.bind(key, value);
+        return spec.bind(key, capped(key, value));
+    }
+
+    /**
+     * Applies this key's column width, if it has one. Placed on the bind rather
+     * than at each call site so a bind added later is capped by default -- every
+     * text bind in this class was uncapped until now, and the failure is silent.
+     */
+    private Object capped(String key, Object value) {
+        Integer limit = TEXT_COLUMN_LIMITS.get(key);
+        if (limit == null || !(value instanceof String text)) {
+            return value;
+        }
+        return truncate(text, limit);
+    }
+
+    /** For the non-nullable bind chain, which does not route through bindNullable. */
+    private String cappedText(String key, String value) {
+        Object result = capped(key, value);
+        return result == null ? null : String.valueOf(result);
     }
 
     private DatabaseClient.GenericExecuteSpec bindNullableShort(
@@ -1366,7 +1730,7 @@ public class ExternalJobPostingStore {
                 job.getApplyUrl(),
                 job.getJobUrl(),
                 job.getDepartment(),
-                null);
+                job.getDescriptionText());
     }
 
     private List<String> qualityReasonsFor(CandidateJobDetailResponse detail) {
@@ -1493,6 +1857,79 @@ public class ExternalJobPostingStore {
         return List.of();
     }
 
+    /**
+     * Turns the hand-set filters into predicates, so they constrain the query
+     * rather than whatever the query happened to return first.
+     *
+     * <p>Deliberately mirrors the Java versions in CandidateJobSearchService
+     * rather than replacing them: the personalized path unions several retrieval
+     * queries and still narrows in memory afterwards, so both implementations
+     * have to agree. Where one changes, change the other -- a candidate signed in
+     * and signed out must get the same answer about the same posting.
+     *
+     * <p>UNKNOWN work mode is not claimed by ONSITE or HYBRID, because it means
+     * the employer did not say; a location mentioning remote is still evidence
+     * and counts toward REMOTE. Experience uses half-open ranges so a posting
+     * lands in exactly one bucket, and falls back to the level label only when
+     * there is no year count -- a posting stating neither satisfies no bucket.
+     */
+    private void appendExplicitFilters(StringBuilder sql, ExplicitJobFilters filters) {
+        if (filters == null || !filters.any()) {
+            return;
+        }
+
+        if (filters.hasWorkMode()) {
+            if ("REMOTE".equals(filters.normalizedWorkMode())) {
+                // No UNKNOWN fallback here, deliberately. inferWorkMode already
+                // returns REMOTE for any posting whose title or location mentions
+                // remote, so a row can never hold UNKNOWN and a remote-looking
+                // location at the same time -- measured as 0 of 2,722 rows. The arm
+                // that used to be here could not match, in three separate copies,
+                // and no test reached it because the test helper never set a
+                // location. If inferWorkMode ever stops reading the location, this
+                // is where the fallback belongs.
+                sql.append(" AND p.work_mode = 'REMOTE'");
+            } else {
+                sql.append(" AND p.work_mode = :filterWorkMode");
+            }
+        }
+
+        if (filters.wantsPostedSalary()) {
+            sql.append("""
+                     AND p.salary_label IS NOT NULL
+                     AND p.salary_label <> ''
+                     AND LOWER(p.salary_label) NOT LIKE '%not listed%'
+                    """);
+        }
+
+        if (filters.wantsVisaFriendly()) {
+            sql.append(" AND COALESCE(p.sponsorship_language, 'UNKNOWN') IN ('UNKNOWN', 'SPONSORS')");
+        }
+
+        if (filters.hasExperienceLevel()) {
+            String years = switch (filters.normalizedExperienceLevel()) {
+                case "entry" -> "p.experience_years < 2";
+                case "mid" -> "p.experience_years >= 2 AND p.experience_years < 5";
+                case "senior" -> "p.experience_years >= 5 AND p.experience_years < 8";
+                case "staff" -> "p.experience_years >= 8";
+                default -> null;
+            };
+            String levels = switch (filters.normalizedExperienceLevel()) {
+                case "entry" -> "('intern', 'entry')";
+                case "mid" -> "('mid')";
+                case "senior" -> "('senior')";
+                case "staff" -> "('staff+', 'lead', 'director+')";
+                default -> null;
+            };
+
+            if (years != null) {
+                sql.append(" AND ((p.experience_years IS NOT NULL AND ").append(years).append(")")
+                   .append(" OR (p.experience_years IS NULL AND LOWER(p.seniority_label) IN ")
+                   .append(levels).append("))");
+            }
+        }
+    }
+
     private int normalizeLimit(Integer limit) {
         if (limit == null) {
             return 50;
@@ -1532,6 +1969,11 @@ public class ExternalJobPostingStore {
         joiner.add(String.valueOf(job.getSalaryLabel()));
         joiner.add(String.valueOf(job.getApplyUrl()));
         joiner.add(String.valueOf(job.getSourceUpdatedAt()));
+        // The body counts too, now that this hash decides whether the search
+        // vector is rebuilt. Without it an employer who edited only the
+        // description -- on a board that does not move its updated date when they
+        // do -- would stay indexed against the old text indefinitely.
+        joiner.add(String.valueOf(job.getDescriptionText()));
         return hash(joiner.toString());
     }
 

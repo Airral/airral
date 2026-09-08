@@ -13,6 +13,11 @@ spring:
 
 airral:
   jobs:
+    # The batch run has no user waiting on it, and the Greenhouse list call now
+    # returns posting bodies -- the largest measured board is 39MB. The request
+    # path keeps the shorter default so a Cloud Run instance never holds a large
+    # buffer for a candidate.
+    source-timeout-seconds: 45
     sync:
       # ExternalJobSyncRunner drives the sync; the in-process scheduler must stay off
       # so the run is not triggered twice in the same process.

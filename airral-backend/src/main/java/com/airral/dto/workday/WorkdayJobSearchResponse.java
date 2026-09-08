@@ -19,6 +19,16 @@ public class WorkdayJobSearchResponse {
         private String locationsText;
         private String postedOn;
         private String remoteType;
+
+        /**
+         * "Full time" / "Part time", as the board reports it.
+         *
+         * <p>Returned on the list call and previously not declared here, so it was
+         * discarded during deserialization -- which is why employment_type was
+         * null on every Workday posting, and Workday is the bulk of the
+         * catalogue. Costs nothing to keep: no extra request, no parsing.
+         */
+        private String timeType;
         private List<String> bulletFields;
     }
 }
