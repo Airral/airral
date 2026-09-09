@@ -198,25 +198,55 @@ public class ExternalJobSyncService {
             return Mono.just(0L);
         }
 
-        if (sweepDryRun) {
-            return externalJobPostingStore.countUnseenPostings(source.id(), runStartedAt)
-                    .flatMap(wouldRetire -> {
-                        if (wouldRetire == 0) {
-                            return Mono.just(0L);
-                        }
+        // Second guard, and the one a real dry run earned. The ceiling test asks
+        // whether the connector could have been truncated; this asks whether the
+        // numbers make sense afterwards. Target's Workday board came back with 499
+        // rows against a declared ceiling of 500 -- one short, so the ceiling test
+        // passed it -- and the sweep would then have retired 597 postings, more
+        // than the run had just seen. Target plainly has more than 499 jobs; the
+        // paginator had stopped early and the ceiling could not tell.
+        //
+        // Across the same run, every board that was genuinely seen whole wanted to
+        // retire between 10% and 36% of what it saw. Half is therefore far outside
+        // ordinary churn, and a board that really did shed half its listings in one
+        // cycle is exactly the case that should stop and be looked at rather than
+        // be actioned automatically. Fails closed, and says so.
+        return externalJobPostingStore.countUnseenPostings(source.id(), runStartedAt)
+                .flatMap(wouldRetire -> {
+                    if (wouldRetire == 0) {
+                        return Mono.just(0L);
+                    }
 
-                        return externalJobPostingStore
-                                .sampleUnseenPostings(source.id(), runStartedAt, SWEEP_SAMPLE_SIZE)
-                                .collectList()
-                                .doOnNext(sample -> {
-                                    log.warn("SWEEP DRY RUN: would retire {} posting(s) from {} {} "
-                                                    + "(saw {} of at most {}). Nothing was written.",
-                                            wouldRetire, source.sourceType(), source.boardToken(),
-                                            fetch.rawCount(), ceiling);
-                                    sample.forEach(row -> log.warn("SWEEP DRY RUN:   {}", row));
-                                })
-                                .thenReturn(0L);
-                    });
+                    if (wouldRetire * 2 >= fetch.rawCount()) {
+                        log.warn("Not sweeping {} {}: would retire {} of the {} seen. A board does not "
+                                        + "usually shed half its listings at once, so this reads as a "
+                                        + "partial fetch rather than a disappearance.",
+                                source.sourceType(), source.boardToken(), wouldRetire, fetch.rawCount());
+                        return Mono.just(0L);
+                    }
+
+                    return finishSweep(source, fetch, runStartedAt, ceiling, wouldRetire);
+                });
+    }
+
+    private Mono<Long> finishSweep(
+            ExternalJobSourceRecord source,
+            CandidateJobSearchService.SourceFetch fetch,
+            OffsetDateTime runStartedAt,
+            int ceiling,
+            long wouldRetire) {
+        if (sweepDryRun) {
+            return externalJobPostingStore
+                    .sampleUnseenPostings(source.id(), runStartedAt, SWEEP_SAMPLE_SIZE)
+                    .collectList()
+                    .doOnNext(sample -> {
+                        log.warn("SWEEP DRY RUN: would retire {} posting(s) from {} {} "
+                                        + "(saw {} of at most {}). Nothing was written.",
+                                wouldRetire, source.sourceType(), source.boardToken(),
+                                fetch.rawCount(), ceiling);
+                        sample.forEach(row -> log.warn("SWEEP DRY RUN:   {}", row));
+                    })
+                    .thenReturn(0L);
         }
 
         return externalJobPostingStore.deactivateUnseenPostings(source.id(), runStartedAt)

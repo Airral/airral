@@ -76,6 +76,7 @@ class DisappearanceSweepGuardTest {
     @Test
     @DisplayName("a board seen whole is swept")
     void completeFetchSweeps() {
+        when(store.countUnseenPostings(anyLong(), any())).thenReturn(Mono.just(4L));
         when(store.deactivateUnseenPostings(anyLong(), any())).thenReturn(Mono.just(4L));
 
         assertThat(retire(service(true), "GREENHOUSE", 120)).isEqualTo(4L);
@@ -130,11 +131,13 @@ class DisappearanceSweepGuardTest {
     @Test
     @DisplayName("one posting short of a connector's ceiling is a complete board")
     void justUnderTheCeilingSweeps() {
+        when(store.countUnseenPostings(anyLong(), any())).thenReturn(Mono.just(1L));
         when(store.deactivateUnseenPostings(anyLong(), any())).thenReturn(Mono.just(1L));
 
         assertThat(retire(service(true), "LEVER", 99)).isEqualTo(1L);
         verify(store, times(1)).deactivateUnseenPostings(anyLong(), any());
     }
+
     @Test
     @DisplayName("a dry run reports what it would retire and writes nothing")
     void dryRunWritesNothing() {
@@ -168,6 +171,42 @@ class DisappearanceSweepGuardTest {
                 .thenReturn(reactor.core.publisher.Flux.empty());
 
         assertThat(retire(service(true, true), "GREENHOUSE", 50)).isZero();
+        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("a board is never swept down by half, however whole it looked")
+    void refusesToRetireHalfOfWhatItSaw() {
+        // The real case, from the first dry run against production. Target's Workday
+        // board returned 499 rows against a declared ceiling of 500, so the ceiling
+        // test passed it by one row -- and the sweep then wanted to retire 597
+        // postings, more than the run had just seen. Target has far more than 499
+        // jobs; the paginator had stopped early and the ceiling could not tell.
+        when(store.countUnseenPostings(anyLong(), any())).thenReturn(Mono.just(597L));
+
+        assertThat(retire(service(true), "WORKDAY", 499)).isZero();
+        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("ordinary churn is still swept")
+    void ordinaryChurnStillSweeps() {
+        // Every board genuinely seen whole in that same run wanted between 10% and
+        // 36% of what it saw. This is the top of that range.
+        when(store.countUnseenPostings(anyLong(), any())).thenReturn(Mono.just(37L));
+        when(store.deactivateUnseenPostings(anyLong(), any())).thenReturn(Mono.just(37L));
+
+        assertThat(retire(service(true), "GREENHOUSE", 104)).isEqualTo(37L);
+        verify(store, times(1)).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("the half rule is applied to the dry run too, so a report cannot promise a sweep that would refuse")
+    void dryRunHonoursTheHalfRule() {
+        when(store.countUnseenPostings(anyLong(), any())).thenReturn(Mono.just(597L));
+
+        assertThat(retire(service(true, true), "WORKDAY", 499)).isZero();
+        verify(store, never()).sampleUnseenPostings(anyLong(), any(), anyInt());
         verify(store, never()).deactivateUnseenPostings(anyLong(), any());
     }
 
