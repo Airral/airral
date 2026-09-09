@@ -45,6 +45,12 @@ export const appRoutes: Route[] = [
     // Saving, resume fit and resume health still need an account. Those are
     // prompted at the point they are used, where the ask has an obvious reason.
     path: 'jobs',
+    // Public, but still onboarding-checked. onboardingGuard returns true when
+    // there is no session, so this stays open to visitors; what it adds is the
+    // signed-in case. A first-time user who lands here rather than on '/' used to
+    // miss the onboarding redirect entirely, because this route sits outside the
+    // guarded block and nothing else revisits the question.
+    canActivate: [onboardingGuard],
     loadComponent: () =>
       import('./pages/jobs/jobs.component').then((m) => m.JobsComponent),
   },

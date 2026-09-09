@@ -146,6 +146,8 @@ class GoogleAccountLinkingTest {
                 .assertNext(response -> {
                     assertThat(response.getUserId()).isEqualTo(21L);
                     assertThat(response.getMessage()).isEqualTo("Google sign-in successful");
+                    // A returning user must not be sent through onboarding again.
+                    assertThat(response.getAccountCreated()).isFalse();
                 })
                 .verifyComplete();
 
@@ -257,4 +259,30 @@ class GoogleAccountLinkingTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
     }
+    @Test
+    @DisplayName("a first Google sign-in reports that it created the account")
+    void firstGoogleSignInReportsAccountCreated() {
+        // The bug this pins: the client decided whether to show onboarding from
+        // which tab of the sign-in form was open, and "Continue with Google" is
+        // one button for both a new user and a returning one, so it never set
+        // that flag. A first-time Google user was routed like a sign-in and never
+        // saw onboarding. Only the server knows which of the two just happened,
+        // so it has to say.
+        when(userRepository.findByGoogleSubject(GOOGLE_SUB)).thenReturn(Mono.empty());
+        when(userRepository.findByEmail(VICTIM_EMAIL)).thenReturn(Mono.empty());
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(call -> {
+                    User saved = call.getArgument(0);
+                    saved.setId(99L);
+                    return Mono.just(saved);
+                });
+
+        StepVerifier.create(authService.loginWithGoogle(new GoogleAuthRequest(CREDENTIAL)))
+                .assertNext(response -> {
+                    assertThat(response.getMessage()).isEqualTo("Google account created");
+                    assertThat(response.getAccountCreated()).isTrue();
+                })
+                .verifyComplete();
+    }
+
 }
