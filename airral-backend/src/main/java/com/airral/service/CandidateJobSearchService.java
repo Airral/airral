@@ -47,6 +47,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -143,9 +144,113 @@ public class CandidateJobSearchService {
                     + "(?:your\\s+|their\\s+|the\\s+|a\\s+)?right\\s+to\\s+work\\b)",
             Pattern.CASE_INSENSITIVE);
 
+    /**
+     * A pay range written out in a job description.
+     *
+     * <p>The amounts and the currency are captured now, because the sources that
+     * need this pattern publish no structured pay and the label they show has to
+     * be built from the numbers rather than echoed as raw text.
+     *
+     * <p>The currency group is deliberately case-sensitive inside a case-insensitive
+     * pattern. Under {@code (?i)} a bare {@code [A-Z]{3}} matched any three letters,
+     * so "$21.00 to $23.93 per hour" handed back "per" as the currency code. The
+     * trailing {@code \b} keeps it off the first three letters of a shouted word
+     * ("$120,000 - $150,000 ANNUALLY").
+     *
+     * <p>The interval no longer lives in this pattern. It used to accept a trailing
+     * "per year|hour|annually", which covered three of the fourteen ways a posting
+     * writes a unit and left the rest unread. One vocabulary handles it now:
+     * SALARY_INTERVAL_AFTER or SALARY_INTERVAL_BEFORE, either side of the figure.
+     *
+     * <p>An amount ends on a digit. {@code \d[\d,]*} was greedy enough to take the
+     * comma after it, so "$120,000 - $150,000, plus an annual bonus" ended the match
+     * past the comma and put "annual" in the same clause as the pay -- the exact
+     * cross-clause read the window rules exist to stop.
+     */
     private static final Pattern SALARY_RANGE_PATTERN = Pattern.compile(
-            "(?i)\\$\\s?\\d[\\d,]*(?:\\.\\d+)?\\s*(?:to|-|–)\\s*\\$?\\s?\\d[\\d,]*(?:\\.\\d+)?(?:\\s*[A-Z]{3})?(?:\\s*(?:per|/)?\\s*(?:year|hour|annually))?"
+            "(?i)\\$\\s?(?<min>\\d(?:[\\d,]*\\d)?(?:\\.\\d+)?)\\s*(?:to|-|–)\\s*\\$?\\s?"
+                    + "(?<max>\\d(?:[\\d,]*\\d)?(?:\\.\\d+)?)"
+                    + "(?:\\s*(?<currency>(?-i:[A-Z]{3}))\\b)?"
     );
+
+    /**
+     * A pay interval as prose states it, on either side of the amount.
+     *
+     * <p>Boards name their interval in a field; prose says "per hour", "an hour",
+     * "hourly", "/hr". Different spellings, same meaning -- so this pattern only
+     * finds the phrase, and normalizeSalaryPeriod decides what it means, exactly
+     * as it does for Greenhouse, Lever and Ashby.
+     */
+    private static final String SALARY_UNIT_WORD = "hour|year|annum|month|week|day";
+    private static final String SALARY_UNIT_ADVERB = "hourly|annually|annual|yearly|monthly|weekly|daily";
+
+    /**
+     * A unit stated AFTER the amount, in the only forms that can mean the amount.
+     *
+     * <p>Deliberately narrower than the vocabulary read before the amount, because
+     * after it an adverb almost always belongs to a different noun. Measured on
+     * real descriptions: "plus a monthly car allowance", "with weekly pay and full
+     * benefits", "with a daily meal stipend" and "and an annual bonus" all sat
+     * inside the pay clause and each handed its unit to the wage, publishing
+     * "$120000-$150000/mo" for an annual salary. A bare adverb is therefore taken
+     * only when it ENDS the clause ("paid hourly."), where it has no other noun
+     * left to modify, and bare "annual" is not read here at all -- nobody writes
+     * "$150,000 annual", and everybody writes "annual bonus".
+     *
+     * <p>The cost is real and accepted: "$150,000 annually based on location"
+     * loses its interval. A miss shows a bare figure, which is honest; a wrong
+     * unit is not.
+     */
+    private static final Pattern SALARY_INTERVAL_AFTER = Pattern.compile(
+            "(?i)/\\s*(?:hr|hour)\\b"
+                    + "|\\b(?:per|an|a)\\s+(?:" + SALARY_UNIT_WORD + ")\\b"
+                    + "|\\b(?:hourly|annually|yearly|monthly|weekly|daily)\\s*$"
+    );
+
+    /**
+     * A unit stated BEFORE the amount, where the adjective form is the correct one.
+     *
+     * <p>"The hourly rate for this role is ..." and "Annual base salary range: ..."
+     * are how a board writes it. The adjective is only accepted when a pay noun
+     * follows it, which is what separates those from "Paid weekly with base pay of
+     * $21.00 to $23.93" -- there "weekly" modifies how often it is paid, not the
+     * unit the figure is quoted in, and an hourly wage paid weekly would be
+     * published as a weekly one.
+     */
+    private static final Pattern SALARY_INTERVAL_BEFORE = Pattern.compile(
+            "(?i)/\\s*(?:hr|hour)\\b"
+                    + "|\\b(?:per|an|a)\\s+(?:" + SALARY_UNIT_WORD + ")\\b"
+                    + "|\\b(?:" + SALARY_UNIT_ADVERB + ")\\s+(?:base\\s+|gross\\s+|target\\s+|total\\s+)*"
+                    + "(?:rate|salary|wage|wages|pay|compensation|comp|range|earnings)\\b"
+    );
+
+    /**
+     * Ends the clause a pay figure sits in, in either direction.
+     *
+     * <p>A comma counts. "$21.00 to $23.93, plus an annual bonus" is an hourly
+     * wage next to an annual something-else, and reading across the comma is how
+     * it would be published as $23.93 a year. A colon does not count, because
+     * "Annual base salary range: $120,000" is the commonest way a board writes
+     * the interval down and the colon is what introduces the figure.
+     */
+    private static final Pattern SALARY_CLAUSE_BREAK = Pattern.compile("[.,;!?\\n\\r]");
+
+    /**
+     * How far either side of the amount a stated interval is still read as its own.
+     *
+     * <p>A description carries other numbers with units of their own -- a 401(k)
+     * match, "10% annual bonus", an equity grant, a signing bonus. 40 characters
+     * reaches the lead-ins boards actually write -- "The annual pay range for
+     * this role is ..." puts 34 characters between the unit word and the figure,
+     * "The expected hourly pay range for this position is ..." 38 -- and stops
+     * short of the next sentence.
+     *
+     * <p>It is a bound, not a promise. "The annual base salary range for this
+     * role is ..." measures 42 and so reads as no stated interval at all.
+     * Widening the window to reach it reaches equally far into the neighbouring
+     * prose, and a bare figure is the honest failure where a borrowed unit is not.
+     */
+    private static final int SALARY_INTERVAL_WINDOW = 40;
     private static final Pattern JSON_LD_SCRIPT_PATTERN = Pattern.compile(
             "(?is)<script[^>]+type=[\"']application/ld\\+json[\"'][^>]*>(.*?)</script>"
     );
@@ -1629,7 +1734,8 @@ public class CandidateJobSearchService {
         CandidateJobSummaryResponse summary = toSmartRecruitersSummary(companyIdentifier, posting);
         String descriptionHtml = smartRecruitersDescriptionHtml(posting);
         String descriptionText = stripHtml(descriptionHtml);
-        String salaryLabel = firstNonBlank(extractSalaryLabel(descriptionText), summary.getSalaryLabel());
+        ProseSalary salary = extractProseSalary(descriptionText);
+        String salaryLabel = firstNonBlank(salary == null ? null : salary.label(), summary.getSalaryLabel());
 
         return withDecisionSignals(CandidateJobDetailResponse.builder()
                 .jobId(summary.getJobId())
@@ -1648,6 +1754,7 @@ public class CandidateJobSearchService {
                 .descriptionText(descriptionText)
                 .descriptionExcerpt(excerpt(descriptionText))
                 .salaryLabel(salaryLabel)
+                .salaryPeriod(salary == null ? null : salary.period())
                 .applyUrl(summary.getApplyUrl())
                 .jobUrl(summary.getJobUrl())
                 .applyMode(summary.getApplyMode())
@@ -1667,7 +1774,8 @@ public class CandidateJobSearchService {
         String applyUrl = firstNonBlank(job.getApplicationUrl(), job.getUrl(), job.getShortlink());
         String jobUrl = firstNonBlank(job.getUrl(), job.getShortlink(), applyUrl);
         OffsetDateTime sourceDate = parseOffsetDate(firstNonBlank(job.getPublishedOn(), job.getCreatedAt()));
-        String salaryLabel = firstNonBlank(extractSalaryLabel(descriptionText), "Salary not listed");
+        ProseSalary salary = extractProseSalary(descriptionText);
+        String salaryLabel = firstNonBlank(salary == null ? null : salary.label(), "Salary not listed");
 
         return withDecisionSignals(CandidateJobSummaryResponse.builder()
                 .jobId(sourceJobId("WORKABLE", account, workableExternalJobId(job)))
@@ -1682,6 +1790,7 @@ public class CandidateJobSearchService {
                 .workMode(workMode)
                 .employmentType(job.getEmploymentType())
                 .salaryLabel(salaryLabel)
+                .salaryPeriod(salary == null ? null : salary.period())
                 .applyUrl(applyUrl)
                 .jobUrl(jobUrl)
                 .applyMode("EXTERNAL_APPLY")
@@ -1715,6 +1824,7 @@ public class CandidateJobSearchService {
                 .descriptionText(descriptionText)
                 .descriptionExcerpt(excerpt(descriptionText))
                 .salaryLabel(summary.getSalaryLabel())
+                .salaryPeriod(summary.getSalaryPeriod())
                 .applyUrl(summary.getApplyUrl())
                 .jobUrl(summary.getJobUrl())
                 .applyMode(summary.getApplyMode())
@@ -1777,7 +1887,8 @@ public class CandidateJobSearchService {
         OffsetDateTime sourceDate = firstNonNull(parseOffsetDate(info.getStartDate()), parseRelativePostedLabel(info.getPostedOn()));
         String externalJobId = workdayExternalJobId(externalPath);
         String url = firstNonBlank(info.getExternalUrl(), source.publicUrl(externalPath));
-        String salaryLabel = firstNonBlank(extractSalaryLabel(descriptionText), "Salary not listed");
+        ProseSalary salary = extractProseSalary(descriptionText);
+        String salaryLabel = firstNonBlank(salary == null ? null : salary.label(), "Salary not listed");
 
         return withDecisionSignals(CandidateJobDetailResponse.builder()
                 .jobId(sourceJobId("WORKDAY", source.sourceKey(), externalJobId))
@@ -1795,6 +1906,7 @@ public class CandidateJobSearchService {
                 .descriptionText(descriptionText)
                 .descriptionExcerpt(excerpt(descriptionText))
                 .salaryLabel(salaryLabel)
+                .salaryPeriod(salary == null ? null : salary.period())
                 .applyUrl(url)
                 .jobUrl(url)
                 .applyMode("EXTERNAL_APPLY")
@@ -1878,6 +1990,7 @@ public class CandidateJobSearchService {
         String workMode = inferWorkMode(job.getTitle(), location);
         OffsetDateTime sourceDate = parseOffsetDate(schemaValue(job.getDatePosted()));
         String url = firstNonBlank(job.getUrl(), pageUrl);
+        ProseSalary salary = extractProseSalary(descriptionText);
 
         return withDecisionSignals(CandidateJobSummaryResponse.builder()
                 .jobId(sourceJobId(sourceType, pageToken, externalJobId))
@@ -1890,7 +2003,8 @@ public class CandidateJobSearchService {
                 .location(location)
                 .workMode(workMode)
                 .employmentType(employmentType)
-                .salaryLabel(firstNonBlank(extractSalaryLabel(descriptionText), "Salary not listed"))
+                .salaryLabel(firstNonBlank(salary == null ? null : salary.label(), "Salary not listed"))
+                .salaryPeriod(salary == null ? null : salary.period())
                 .applyUrl(url)
                 .jobUrl(url)
                 .applyMode("EXTERNAL_APPLY")
@@ -1922,6 +2036,7 @@ public class CandidateJobSearchService {
                 .descriptionText(descriptionText)
                 .descriptionExcerpt(excerpt(descriptionText))
                 .salaryLabel(summary.getSalaryLabel())
+                .salaryPeriod(summary.getSalaryPeriod())
                 .applyUrl(summary.getApplyUrl())
                 .jobUrl(summary.getJobUrl())
                 .applyMode(summary.getApplyMode())
@@ -4357,12 +4472,176 @@ public class CandidateJobSearchService {
         }
     }
 
-    private String extractSalaryLabel(String descriptionText) {
+    /**
+     * Pay read out of a description, in the same two fields a board gives us.
+     *
+     * <p>{@code period} is null when the prose named no interval, and stays null.
+     */
+    private record ProseSalary(String label, String period) {}
+
+    /**
+     * Pay stated in prose, for the sources that state it nowhere else.
+     *
+     * <p>Workday, SmartRecruiters, Workable, career pages and the schema.org path
+     * publish no pay fields, so the only figure available is the one written into
+     * the description. That is roughly a third of the catalogue, Workday alone
+     * about 28%, and every one of those rows used to render its number with no
+     * unit at all: Target's "Full Time Hourly Warehouse Operations Openings" read
+     * "$21.00 to $23.93", which a reader takes for a year's pay.
+     *
+     * <p>The interval is looked for nearest-first -- the clause after the amount,
+     * then the clause before it -- and handed to statedSalaryPeriod, so the same
+     * vocabulary and the same "is that a believable annual figure" check govern
+     * prose and structured boards alike. The label is then built by the same
+     * formatMoneyRange the boards use, so an hourly prose figure reads "/hr"
+     * exactly as an hourly Greenhouse one does.
+     *
+     * <p>Returns null when the text names no figure, and a null period when it
+     * names a figure with no interval. It never infers the interval from the size
+     * of the number: that guess is what published "$0k-$0k" and sent Google a job
+     * paying $50 a year.
+     */
+    private ProseSalary extractProseSalary(String descriptionText) {
         if (descriptionText == null || descriptionText.isBlank()) {
             return null;
         }
+
         var matcher = SALARY_RANGE_PATTERN.matcher(descriptionText);
-        return matcher.find() ? matcher.group().replaceAll("\\s+", " ").trim() : null;
+        if (!matcher.find()) {
+            return null;
+        }
+
+        BigDecimal min = proseAmount(matcher.group("min"));
+        BigDecimal max = proseAmount(matcher.group("max"));
+        if (min == null && max == null) {
+            return null;
+        }
+
+        String currency = proseCurrency(matcher.group("currency"));
+        String rawInterval = nearbyInterval(descriptionText, matcher.start(), matcher.end());
+
+        return new ProseSalary(
+                formatMoneyRange(min, max, currency, rawInterval),
+                statedSalaryPeriod(rawInterval, min, max));
+    }
+
+    /**
+     * The interval phrase that belongs to the amount spanning start to end, or null.
+     *
+     * <p>Proximity is what makes this safe. A description mentions a 401(k) match,
+     * a bonus percentage, an equity grant, a signing bonus, and several of those
+     * carry a unit word. Two bounds keep them out: the phrase must sit in the same
+     * clause as the amount (see SALARY_CLAUSE_BREAK and SALARY_INTERVAL_WINDOW),
+     * and no other number may stand between the phrase and the amount -- "10%
+     * annual bonus" cannot lend its "annual" across the "10%".
+     *
+     * <p>The clause after the amount is preferred because that is where a unit is
+     * usually written ("$21.00 to $23.93 per hour"); the clause before it covers
+     * "the hourly rate for this role is ...". When neither states one, that is the
+     * answer: no interval.
+     */
+    private String nearbyInterval(String text, int start, int end) {
+        String after = intervalAfter(clauseAfter(text, end));
+        return after != null ? after : intervalBefore(clauseBefore(text, start));
+    }
+
+    /**
+     * The text following the amount, cut at the window and at the clause end.
+     *
+     * <p>Reports whether the clause genuinely ended, because the "adverb at the
+     * end of the clause" rule depends on it. A window that ran out mid-sentence
+     * can leave the string finishing on an adverb that has a noun after it in the
+     * real text ("... with weekly" cut before "pay and full benefits"), and
+     * treating that as clause-final would let back in exactly the borrowed unit
+     * the split patterns exist to stop.
+     */
+    private record Clause(String text, boolean complete) { }
+
+    private Clause clauseAfter(String text, int from) {
+        int limit = Math.min(text.length(), from + SALARY_INTERVAL_WINDOW);
+        String window = text.substring(from, limit);
+        var breakAt = SALARY_CLAUSE_BREAK.matcher(window);
+        if (breakAt.find()) {
+            return new Clause(window.substring(0, breakAt.start()), true);
+        }
+
+        return new Clause(window, limit == text.length());
+    }
+
+    /** The text preceding the amount, cut at the window and at the clause start. */
+    private String clauseBefore(String text, int to) {
+        String window = text.substring(Math.max(0, to - SALARY_INTERVAL_WINDOW), to);
+        var breakAt = SALARY_CLAUSE_BREAK.matcher(window);
+        int lastBreak = -1;
+        while (breakAt.find()) {
+            lastBreak = breakAt.end();
+        }
+        return lastBreak < 0 ? window : window.substring(lastBreak);
+    }
+
+    /** First phrase in the following clause, unless another number precedes it. */
+    private String intervalAfter(Clause clause) {
+        var matcher = SALARY_INTERVAL_AFTER.matcher(clause.text());
+        if (!matcher.find()) {
+            return null;
+        }
+
+        // The clause-final adverb arm is the only one anchored to the end, so it
+        // is the only one a truncated window can fake.
+        if (!clause.complete() && matcher.end() == clause.text().length()) {
+            return null;
+        }
+
+        return containsDigit(clause.text().substring(0, matcher.start())) ? null : matcher.group();
+    }
+
+    /** Last phrase in the preceding clause, unless another number follows it. */
+    private String intervalBefore(String clause) {
+        var matcher = SALARY_INTERVAL_BEFORE.matcher(clause);
+        String phrase = null;
+        int phraseEnd = 0;
+        while (matcher.find()) {
+            phrase = matcher.group();
+            phraseEnd = matcher.end();
+        }
+
+        return phrase != null && !containsDigit(clause.substring(phraseEnd)) ? phrase : null;
+    }
+
+    private boolean containsDigit(String value) {
+        return value.chars().anyMatch(Character::isDigit);
+    }
+
+    private BigDecimal proseAmount(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        try {
+            return new BigDecimal(value.replace(",", "").trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * A three-letter token beside the amount, kept only if it names a currency.
+     *
+     * <p>"$50,000 to $60,000 DOE" ends in three capitals that are not money, and
+     * publishing "DOE $50k-$60k" invents a currency. The JDK's own table is the
+     * arbiter; anything it does not know is dropped and formatMoneyRange applies
+     * its usual default.
+     */
+    private String proseCurrency(String token) {
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+
+        try {
+            return Currency.getInstance(token.toUpperCase(Locale.ROOT)).getCurrencyCode();
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private String label(SmartRecruitersPostingResponse.Label label) {

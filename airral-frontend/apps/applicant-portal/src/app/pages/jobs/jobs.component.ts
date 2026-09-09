@@ -18,6 +18,11 @@ interface JobDescriptionView {
   quickRead: string;
   sections: JobDescriptionSection[];
   originalText: string;
+  /**
+   * The whole posting as cleaned markup, for the [innerHTML] full view. Empty
+   * only when the posting carried neither HTML nor text.
+   */
+  fullPostingHtml: string;
   hasContent: boolean;
 }
 
@@ -1066,11 +1071,21 @@ export class JobsComponent implements OnInit, OnDestroy {
       quickRead: this.trimToSentences(quickRead || originalText, 2),
       sections,
       originalText,
+      // Built from the raw source, not from `parsed`: extractHtmlSections
+      // mutates its own parsed document (it lifts nested lists out of the
+      // wrappers they came in), so that tree is no longer the posting.
+      //
+      // descriptionExcerpt is deliberately not in this chain, unlike in the
+      // summary above. It is already a cut-down snippet, and rendering it under
+      // a heading that promises the complete posting would be the same lie this
+      // change exists to remove.
+      fullPostingHtml: this.sanitizePostingHtml(html)
+        || this.textToParagraphHtml(job.descriptionText || ''),
       hasContent: true,
     };
   }
 
-  private parseHtmlDescription(html: string): JobDescriptionView {
+  private parseHtmlDescription(html: string): Omit<JobDescriptionView, 'fullPostingHtml'> {
     if (typeof DOMParser === 'undefined') {
       const originalText = this.cleanText(this.stripHtml(html));
       return {
@@ -1084,7 +1099,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     const documentRef = new DOMParser().parseFromString(html, 'text/html');
     documentRef.querySelectorAll('script, style, noscript').forEach((node) => node.remove());
     const body = documentRef.body;
-    const originalText = this.cleanText(body.textContent || '');
+    const originalText = this.blockAwareText(body);
     const firstParagraph = Array.from(body.querySelectorAll('p'))
       .map((node) => this.cleanText(node.textContent || ''))
       .find((text) => text.length > 40) || '';
@@ -1117,7 +1132,13 @@ export class JobsComponent implements OnInit, OnDestroy {
 
     for (const heading of headings) {
       const rawTitle = this.cleanText(heading.textContent || '');
-      const title = this.mapSectionTitle(rawTitle);
+      // mapSectionTitle only knows four buckets, and everything else used to hit
+      // "continue" -- "About the team", "Our stack", "Interview process",
+      // "Location and travel" and "Equal opportunity" all vanished from the
+      // summary with nothing on screen to say a section had been removed. Fall
+      // back to the employer's own heading so the summary keeps the posting's
+      // real shape; only a heading with no text at all is skipped now.
+      const title = this.mapSectionTitle(rawTitle) || rawTitle;
       if (!title) {
         continue;
       }
@@ -1130,7 +1151,24 @@ export class JobsComponent implements OnInit, OnDestroy {
         if (next.matches('ul, ol')) {
           items.push(...Array.from(next.querySelectorAll('li')).map((item) => this.cleanText(item.textContent || '')).filter(Boolean));
         } else {
-          const text = this.cleanText(next.textContent || '');
+          // A list wrapped in a div used to fall through here and be flattened
+          // into the body, which is how a benefits list arrived as one run-on
+          // line. Worse, a flattened list carries no full stops, so the
+          // two-sentence trim below could find no boundary to cut on and let
+          // the whole thing through -- the wall of text on the job page.
+          // Pull nested lists out as items first, then take what is left.
+          const element = next as HTMLElement;
+          const nestedLists = Array.from(element.querySelectorAll('ul, ol'));
+          if (nestedLists.length) {
+            nestedLists.forEach((list) => {
+              items.push(...Array.from(list.querySelectorAll('li'))
+                .map((item) => this.cleanText(item.textContent || ''))
+                .filter(Boolean));
+              list.remove();
+            });
+          }
+
+          const text = this.blockAwareText(element);
           if (text && text.length > 20) {
             bodyParts.push(text);
           }
@@ -1138,6 +1176,10 @@ export class JobsComponent implements OnInit, OnDestroy {
         next = next.nextElementSibling;
       }
 
+      // The 2-sentence and 8-bullet limits stay, but they are no longer a loss:
+      // this list is the skim, and the verbatim posting is rendered directly
+      // below it. The section cap is gone, because dropping a whole section
+      // hides that the posting even has one -- which is the bug being fixed.
       const dedupedItems = this.unique(items).slice(0, 8);
       const body = this.trimToSentences(bodyParts.join(' '), 2);
       if (body || dedupedItems.length) {
@@ -1149,7 +1191,7 @@ export class JobsComponent implements OnInit, OnDestroy {
       }
     }
 
-    return this.mergeSections(sections).slice(0, 4);
+    return this.mergeSections(sections);
   }
 
   private extractPaySection(root: HTMLElement): JobDescriptionSection | null {
@@ -1278,6 +1320,154 @@ export class JobsComponent implements OnInit, OnDestroy {
     return decoded;
   }
 
+  /**
+   * Flattens parsed HTML to text WITH the block boundaries intact.
+   *
+   * <p>This read body.textContent, which concatenates text nodes and inserts
+   * nothing between them, so a benefits list rendered as one run-on string:
+   * "plus company holidaysMedical, dental, and vision coveragePaid parental
+   * leave". Every posting whose body is a list -- most of them -- displayed
+   * that way in the original-posting view.
+   *
+   * <p>innerText is the usual answer and does not work here: a DOMParser
+   * document is never rendered, so it returns the same fused string. The break
+   * has to be inserted explicitly, which is what this does.
+   */
+  private blockAwareText(root: HTMLElement): string {
+    const BLOCK = new Set([
+      'ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'BR', 'DD', 'DIV', 'DL', 'DT',
+      'FIELDSET', 'FIGCAPTION', 'FIGURE', 'FOOTER', 'FORM', 'H1', 'H2', 'H3', 'H4',
+      'H5', 'H6', 'HEADER', 'HR', 'LI', 'MAIN', 'NAV', 'OL', 'P', 'PRE', 'SECTION',
+      'TABLE', 'TD', 'TH', 'TR', 'UL',
+    ]);
+
+    const parts: string[] = [];
+    const visit = (node: Node): void => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        parts.push(node.nodeValue || '');
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return;
+      }
+
+      const element = node as HTMLElement;
+      const isBlock = BLOCK.has(element.tagName);
+      if (isBlock) {
+        parts.push('\n');
+      }
+      element.childNodes.forEach(visit);
+      if (isBlock) {
+        parts.push('\n');
+      }
+    };
+
+    root.childNodes.forEach(visit);
+
+    return this.cleanText(parts.join(''));
+  }
+
+  /**
+   * Cleans an employer's own markup so the full posting can be bound with
+   * [innerHTML].
+   *
+   * <p>This is not the security boundary. The [innerHTML] binding runs Angular's
+   * sanitiser, which drops script, event handlers and dangerous URLs on its own,
+   * and nothing here bypasses it -- no DomSanitizer, no trusted-HTML escape
+   * hatch. What this adds is the layout boundary. Job boards hand back markup
+   * written for their page, not ours: fixed pixel widths, absolute positioning,
+   * a white foreground on an assumed white card, and class and id values that
+   * collide with this stylesheet. Angular keeps all of that, and it is the usual
+   * way pasted employer HTML wrecks a panel, so style, class and id come off
+   * every element.
+   *
+   * <p>The element removals overlap with Angular's own list deliberately: the
+   * markup should already be inert before it reaches the binding, so the two
+   * are not relying on each other.
+   */
+  private sanitizePostingHtml(html: string): string {
+    if (!html.trim() || typeof DOMParser === 'undefined') {
+      return '';
+    }
+
+    const body = new DOMParser().parseFromString(html, 'text/html').body;
+    body.querySelectorAll('script, style, noscript, iframe, object, embed, form, input')
+      .forEach((node) => node.remove());
+
+    // style, class and id are the obvious carriers, but they are not the only
+    // ones: Angular's attribute allowlist keeps the legacy presentational
+    // attributes, so bgcolor, color, face and background all reach the page
+    // untouched and do exactly the damage this strip exists to prevent. An
+    // employer's <font color="#ffffff">, written for their own dark header, is
+    // invisible on this white card, and background loads a third-party image in
+    // behind the text. Angular will not drop these, so they are dropped here.
+    const DROPPED_ATTRIBUTES = new Set([
+      'style', 'class', 'id', 'bgcolor', 'color', 'face', 'background',
+    ]);
+
+    body.querySelectorAll('*').forEach((node) => {
+      for (const attribute of Array.from(node.attributes)) {
+        const name = attribute.name.toLowerCase();
+        if (DROPPED_ATTRIBUTES.has(name) || name.startsWith('on')) {
+          node.removeAttribute(attribute.name);
+        }
+      }
+    });
+
+    // area is in here with a, not just a: an <area> inside a <map> is a real
+    // link, and Angular keeps map, area, href and usemap, so an image-map
+    // hotspot would otherwise be the one link in the posting that navigates in
+    // this tab with no rel and no scheme check.
+    body.querySelectorAll('a[href], area[href]').forEach((anchor) => {
+      const href = (anchor.getAttribute('href') || '').trim();
+      // Anything that is not plain navigation loses its href rather than being
+      // left for Angular, which rewrites javascript: to a visible
+      // "unsafe:javascript:" link the reader may still try to click. A relative
+      // href is dropped for the same reason: it would resolve against AIRRAL
+      // instead of the board it was written for. Without href the label stays
+      // as text, which is the honest result.
+      if (!/^(https?:\/\/|mailto:)/i.test(href)) {
+        anchor.removeAttribute('href');
+        return;
+      }
+      anchor.setAttribute('target', '_blank');
+      anchor.setAttribute('rel', 'noopener noreferrer');
+    });
+
+    // These two scroll sideways in their own box so a wide employer table cannot
+    // widen the detail column. A scroll container has to be reachable by
+    // keyboard, and content inside [innerHTML] cannot be given a tabindex from
+    // the template, so it is set here.
+    body.querySelectorAll('table, pre').forEach((node) => node.setAttribute('tabindex', '0'));
+
+    return this.cleanText(body.textContent || '') ? body.innerHTML : '';
+  }
+
+  /**
+   * Renders a text-only posting as paragraphs for the full view.
+   *
+   * <p>Escaped rather than parsed: descriptionText is third-party too, and a
+   * posting that happens to contain angle brackets must arrive at [innerHTML] as
+   * the characters the employer typed, not as markup.
+   */
+  private textToParagraphHtml(text: string): string {
+    return this.decodeHtmlEntities(text)
+      .replace(/\u00a0/g, ' ')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => `<p>${this.escapeHtml(line)}</p>`)
+      .join('');
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   private stripHtml(value: string): string {
     return value.replace(/<[^>]*>/g, ' ');
   }
@@ -1328,6 +1518,7 @@ export class JobsComponent implements OnInit, OnDestroy {
       quickRead: '',
       sections: [],
       originalText: '',
+      fullPostingHtml: '',
       hasContent: false,
     };
   }

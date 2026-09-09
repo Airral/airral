@@ -896,8 +896,12 @@
   display: grid;
   gap: 8px;
   margin: 4px -2px 0;
-  padding: 10px 2px 2px;
-  background: linear-gradient(180deg, rgba(243, 244, 246, 0), #f3f4f6 28%);
+  /* The fade has to finish in the padding, above the first line of text. It
+     used to run to 28%, which put "50 jobs loaded" inside the transparent part
+     of its own backdrop, so cards scrolling underneath showed straight through
+     the count and the two sets of words sat on top of each other. */
+  padding: 18px 2px 2px;
+  background: linear-gradient(180deg, rgba(243, 244, 246, 0), #f3f4f6 16px);
 }
 
 .jobs-count {
@@ -1562,6 +1566,206 @@
   color: #6b7280;
   font-size: 13px;
   line-height: 1.5;
+}
+
+/* ── Full posting ─────────────────────────────────── */
+/* Everything under .posting-body-content arrives through [innerHTML], which
+   Angular's emulated encapsulation never stamps, so component rules cannot
+   reach it without ::ng-deep. The alternative -- ViewEncapsulation.None -- would
+   publish all ~2300 lines of this stylesheet to every other page in the app,
+   including bare `p`, `ul` and `h2` rules. So each rule below is anchored to
+   .posting-body-content and pierces only from there. */
+.posting-body {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.posting-body > h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.posting-body-note {
+  margin: 4px 0 16px;
+  color: #6b7280;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.posting-body-content {
+  /* Matches .description-section above, so the summary and the posting read as
+     one column rather than two pasted-together documents. */
+  color: #374151;
+  font-size: 14.5px;
+  line-height: 1.65;
+  /* The panel is a fixed-width grid track and the text is somebody else's: one
+     unbroken tracking URL in an employer's footer is enough to push the whole
+     detail column past its track without this. */
+  overflow-wrap: anywhere;
+}
+
+.posting-body-content ::ng-deep h1,
+.posting-body-content ::ng-deep h2,
+.posting-body-content ::ng-deep h3,
+.posting-body-content ::ng-deep h4,
+.posting-body-content ::ng-deep h5,
+.posting-body-content ::ng-deep h6 {
+  margin: 22px 0 8px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.posting-body-content ::ng-deep h1 {
+  font-size: 16px;
+}
+
+.posting-body-content ::ng-deep p {
+  margin: 0 0 12px;
+}
+
+.posting-body-content ::ng-deep ul,
+.posting-body-content ::ng-deep ol {
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+
+.posting-body-content ::ng-deep ul ul,
+.posting-body-content ::ng-deep ul ol,
+.posting-body-content ::ng-deep ol ul,
+.posting-body-content ::ng-deep ol ol {
+  margin: 6px 0 0;
+}
+
+.posting-body-content ::ng-deep li {
+  margin-bottom: 6px;
+}
+
+.posting-body-content ::ng-deep li:last-child {
+  margin-bottom: 0;
+}
+
+.posting-body-content ::ng-deep strong,
+.posting-body-content ::ng-deep b {
+  color: #111827;
+  font-weight: 800;
+}
+
+.posting-body-content ::ng-deep em,
+.posting-body-content ::ng-deep i {
+  font-style: italic;
+}
+
+.posting-body-content ::ng-deep a {
+  color: #007C6D;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.posting-body-content ::ng-deep a:hover {
+  color: #00695c;
+}
+
+/* video and picture are here for the same reason as img: Angular's element
+   allowlist keeps them, and width/height survive as presentational hints, so a
+   posting carrying <video width="3000"> would put a horizontal scrollbar on the
+   whole detail panel. Clamped, they scale like any other embedded media. */
+.posting-body-content ::ng-deep img,
+.posting-body-content ::ng-deep video,
+.posting-body-content ::ng-deep picture {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.posting-body-content ::ng-deep hr {
+  margin: 18px 0;
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+.posting-body-content ::ng-deep blockquote {
+  margin: 0 0 14px;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid #d1d5db;
+  color: #4b5563;
+}
+
+.posting-body-content ::ng-deep code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #f5f7f9;
+  font-size: 13px;
+}
+
+.posting-body-content ::ng-deep pre {
+  margin: 0 0 14px;
+  padding: 12px;
+  max-width: 100%;
+  border-radius: 6px;
+  background: #f5f7f9;
+  font-size: 13px;
+  line-height: 1.5;
+  /* Preformatted text must not be rewrapped, so this box scrolls sideways on
+     its own instead of inheriting the break-anywhere rule above. */
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+.posting-body-content ::ng-deep pre code {
+  padding: 0;
+  background: none;
+}
+
+.posting-body-content ::ng-deep table {
+  /* display:block is what makes the table its own scroll container. As a real
+     table it participates in the panel's width and a wide employer pay grid
+     drags the whole detail column past its track. */
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 0 14px;
+  border-collapse: collapse;
+  overflow-x: auto;
+  font-size: 13.5px;
+}
+
+.posting-body-content ::ng-deep th,
+.posting-body-content ::ng-deep td {
+  padding: 7px 10px;
+  border: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: top;
+}
+
+.posting-body-content ::ng-deep th {
+  background: #f9fafb;
+  color: #111827;
+  font-weight: 800;
+}
+
+/* sanitizePostingHtml gives pre and table tabindex="0" so a scroll container is
+   keyboard reachable; without a focus ring that tab stop is invisible. */
+.posting-body-content ::ng-deep a:focus-visible,
+.posting-body-content ::ng-deep pre:focus-visible,
+.posting-body-content ::ng-deep table:focus-visible {
+  outline: 2px solid #007C6D;
+  outline-offset: 2px;
+}
+
+.posting-body-content ::ng-deep > *:first-child {
+  margin-top: 0;
+}
+
+.posting-body-content ::ng-deep > *:last-child {
+  margin-bottom: 0;
 }
 
 /* ── Quality signals ──────────────────────────────── */
