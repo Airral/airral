@@ -37,7 +37,24 @@ public class ExternalJobSyncService {
      * run has been watched with the retired counts in the log.
      */
     private final boolean sweepEnabled;
+
+    /**
+     * Reports what the sweep would retire instead of retiring it.
+     *
+     * <p>Defaults to true, so turning sweep-enabled on gets you a report and not
+     * a retirement. Retiring is the only irreversible thing this pipeline does --
+     * an unreversed retirement hardens into a hard delete once the purge window
+     * passes -- and the guard that decides when it is safe was wrong once already:
+     * it compared a post-filter count against a ceiling several connectors never
+     * reach, so it could not fire for any Lever board, ever. Both flags have to be
+     * set deliberately before a row is retired, and the dry run is how you find
+     * out what the second one will do.
+     */
+    private final boolean sweepDryRun;
     private final String syncOwnerId;
+
+    /** How many would-be retirements a dry run names, per source. */
+    private static final int SWEEP_SAMPLE_SIZE = 5;
 
     /** Per-run ceiling on the catch-up pass, so it cannot dominate a sync. */
     private static final int PROSE_PAY_BACKFILL_LIMIT = 4000;
@@ -52,6 +69,7 @@ public class ExternalJobSyncService {
             @Value("${airral.jobs.sync.source-concurrency:6}") int sourceConcurrency,
             @Value("${airral.jobs.sync.max-sources-per-run:500}") int maxSourcesPerRun,
             @Value("${airral.jobs.sync.sweep-enabled:false}") boolean sweepEnabled,
+            @Value("${airral.jobs.sync.sweep-dry-run:true}") boolean sweepDryRun,
             @Value("${spring.application.name:airral-backend}") String applicationName) {
         this.externalJobPostingStore = externalJobPostingStore;
         this.candidateJobSearchService = candidateJobSearchService;
@@ -62,6 +80,7 @@ public class ExternalJobSyncService {
         this.sourceConcurrency = Math.max(1, Math.min(sourceConcurrency, 20));
         this.maxSourcesPerRun = Math.max(1, maxSourcesPerRun);
         this.sweepEnabled = sweepEnabled;
+        this.sweepDryRun = sweepDryRun;
         this.syncOwnerId = applicationName + "-" + UUID.randomUUID();
     }
 
@@ -177,6 +196,27 @@ public class ExternalJobSyncService {
             log.debug("Not sweeping {} {}: raw fetch {} against ceiling {} -- cannot prove the board was seen whole",
                     source.sourceType(), source.boardToken(), fetch.rawCount(), ceiling);
             return Mono.just(0L);
+        }
+
+        if (sweepDryRun) {
+            return externalJobPostingStore.countUnseenPostings(source.id(), runStartedAt)
+                    .flatMap(wouldRetire -> {
+                        if (wouldRetire == 0) {
+                            return Mono.just(0L);
+                        }
+
+                        return externalJobPostingStore
+                                .sampleUnseenPostings(source.id(), runStartedAt, SWEEP_SAMPLE_SIZE)
+                                .collectList()
+                                .doOnNext(sample -> {
+                                    log.warn("SWEEP DRY RUN: would retire {} posting(s) from {} {} "
+                                                    + "(saw {} of at most {}). Nothing was written.",
+                                            wouldRetire, source.sourceType(), source.boardToken(),
+                                            fetch.rawCount(), ceiling);
+                                    sample.forEach(row -> log.warn("SWEEP DRY RUN:   {}", row));
+                                })
+                                .thenReturn(0L);
+                    });
         }
 
         return externalJobPostingStore.deactivateUnseenPostings(source.id(), runStartedAt)

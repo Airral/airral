@@ -1641,21 +1641,72 @@ public class ExternalJobPostingStore {
      * "absent from the board" are only the same thing when the response was
      * complete.
      */
+    /**
+     * Which rows the sweep acts on.
+     *
+     * <p>Shared by the retirement and by the count that reports it, so a dry run
+     * cannot describe a different set of rows from the one that would actually be
+     * retired. Retiring is the only irreversible thing the pipeline does -- an
+     * unreversed retirement hardens into a hard delete once the purge window
+     * passes -- so a report that drifted from the statement would be worse than
+     * no report at all.
+     */
+    private static final String UNSEEN_POSTINGS_PREDICATE = """
+            WHERE job_source_id = :sourceId
+              AND is_active = true
+              AND source_type <> 'AIRRAL_INTERNAL'
+              AND last_seen_at < :seenSince
+            """;
+
     public Mono<Long> deactivateUnseenPostings(Long sourceId, OffsetDateTime seenSince) {
         return databaseClient.sql("""
                         UPDATE external_job_postings
                         SET is_active = false,
                             deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
                             updated_at = CURRENT_TIMESTAMP
-                        WHERE job_source_id = :sourceId
-                          AND is_active = true
-                          AND source_type <> 'AIRRAL_INTERNAL'
-                          AND last_seen_at < :seenSince
-                        """)
+                        """ + UNSEEN_POSTINGS_PREDICATE)
                 .bind("sourceId", sourceId)
                 .bind("seenSince", seenSince)
                 .fetch()
                 .rowsUpdated();
+    }
+
+    /** How many rows {@link #deactivateUnseenPostings} would retire, writing nothing. */
+    public Mono<Long> countUnseenPostings(Long sourceId, OffsetDateTime seenSince) {
+        return databaseClient.sql("SELECT COUNT(*) AS total FROM external_job_postings "
+                        + UNSEEN_POSTINGS_PREDICATE)
+                .bind("sourceId", sourceId)
+                .bind("seenSince", seenSince)
+                .map((row, metadata) -> {
+                    Long total = row.get("total", Long.class);
+                    return total == null ? 0L : total;
+                })
+                .one()
+                .defaultIfEmpty(0L);
+    }
+
+    /**
+     * A sample of the rows the sweep would retire, for a dry run to show.
+     *
+     * <p>A count alone does not tell you whether the guard is about to do
+     * something sensible. Titles and their last-seen dates do.
+     */
+    public Flux<String> sampleUnseenPostings(Long sourceId, OffsetDateTime seenSince, int limit) {
+        return databaseClient.sql("""
+                        SELECT title, last_seen_at, job_url
+                        FROM external_job_postings
+                        """ + UNSEEN_POSTINGS_PREDICATE + """
+                        ORDER BY last_seen_at
+                        LIMIT :limit
+                        """)
+                .bind("sourceId", sourceId)
+                .bind("seenSince", seenSince)
+                .bind("limit", Math.max(1, limit))
+                .map((row, metadata) -> String.format("%s (last seen %s) %s",
+                        row.get("title", String.class),
+                        row.get("last_seen_at", OffsetDateTime.class),
+                        row.get("job_url", String.class)))
+                .all();
     }
 
     public Mono<Long> deactivatePostingsForSource(Long sourceId) {
