@@ -519,7 +519,12 @@
 /* ── Split layout ─────────────────────────────────── */
 .jobs-split {
   display: grid;
-  grid-template-columns: minmax(0, 420px) 1fr;
+  /* The list used to be capped at a flat 420px however wide the screen got, so
+     on a 1920 monitor it stayed cramped beside a 1500px detail pane and long
+     titles were the first thing to be cut. The floor is that same 420px, so no
+     width in use today gets narrower: 1280 and 1600 are unchanged, 1920 gains
+     about 80px and 2560 reaches the 560px ceiling. */
+  grid-template-columns: minmax(0, clamp(420px, 26vw, 560px)) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   min-width: 0;
@@ -529,6 +534,12 @@
 
 /* ── Job list panel ───────────────────────────────── */
 .jobs-list-panel {
+  /* border-box because these panels are height:100% AND padded, and the split
+     that holds them clips. Content-box added the padding on top of the height,
+     so the panel stood 64px taller than the box clipping it and the bottom of
+     its own scroll range was cut off -- measured as "cannot scroll all the way
+     down". Same fault as .app-main in the shell. */
+  box-sizing: border-box;
   min-height: 0;
   min-width: 0;
   height: 100%;
@@ -640,6 +651,7 @@
   font: inherit;
   transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 5px;
   min-width: 0;
   max-width: 100%;
@@ -664,6 +676,17 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  /* A flex item's automatic minimum size is its content, so a long company name
+     and a timestamp together held this row at 547px inside a 399px card. The
+     card's own grid track then resolved to that width and overflow:hidden cut
+     the difference off at the edge of the list, which reads as the list
+     disappearing underneath the description. min-width:0 lets the row shrink so
+     the text wraps or ellipsises inside the column instead. */
+  min-width: 0;
+}
+
+.job-card-header > * {
+  min-width: 0;
 }
 
 .job-card-company-logo,
@@ -988,6 +1011,7 @@
 
 /* ── Job detail panel ─────────────────────────────── */
 .job-detail-panel {
+  box-sizing: border-box;
   min-height: 0;
   height: 100%;
   overflow-y: auto;
