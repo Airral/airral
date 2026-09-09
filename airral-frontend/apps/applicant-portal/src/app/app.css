@@ -200,6 +200,13 @@
 
 /* ── Main content area ────────────────────────────── */
 .app-main {
+  /* border-box so the nav's padding is INSIDE the 100vh rather than added to it.
+     Without it the document stood 56px taller than the viewport, and the jobs
+     page -- whose panels are height:100% with their own overflow -- became a
+     scroll trap: a wheel gesture over the description moved the whole page down
+     by that 56px first, shifting the layout, before the panel scrolled at all.
+     It read as "the description will not scroll". */
+  box-sizing: border-box;
   min-height: 100vh;
   background: #f9fafb;
 }

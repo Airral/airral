@@ -426,6 +426,19 @@
             </div>
           </section>
 
+          <!-- The posting in full, under its own landmark and heading so it can
+               be reached directly instead of by scrolling past the summary. The
+               markup is the employer's, cleaned by sanitizePostingHtml and then
+               by Angular's own sanitiser on the way through [innerHTML]. -->
+          <section class="posting-body" *ngIf="descriptionView.fullPostingHtml"
+                   aria-labelledby="full-posting-heading">
+            <h2 id="full-posting-heading">Full posting</h2>
+            <p class="posting-body-note">
+              Exactly what the employer published, complete. Everything above is a shortened read of it.
+            </p>
+            <div class="posting-body-content" [innerHTML]="descriptionView.fullPostingHtml"></div>
+          </section>
+
           <p class="detail-note" *ngIf="detailError">
             Showing saved job details. The full source description is taking longer than expected.
           </p>
