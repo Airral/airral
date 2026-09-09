@@ -1,4 +1,14 @@
-<nav class="app-nav" *ngIf="isLoggedIn">
+<!--
+  The nav renders signed out as well as signed in.
+
+  /jobs is public on purpose, and every job URL in the sitemap lands on it, so
+  most first visits arrive with no session. This whole bar used to be behind
+  *ngIf="isLoggedIn", which left those visitors on a page with no brand, no
+  navigation and -- because the jobs page carries no sign-in of its own -- no
+  way to reach an account at all. The gated destinations stay hidden; what a
+  signed-out visitor gains is the way in.
+-->
+<nav class="app-nav">
   <div class="nav-left">
     <a routerLink="/jobs" class="nav-brand">
       <span class="brand-mark">AR</span>
@@ -9,31 +19,39 @@
         <span class="material-icons">work_outline</span>
         <span class="nav-label">Jobs</span>
       </a>
-      <a routerLink="/resume" routerLinkActive="active" class="nav-link">
-        <span class="material-icons">description</span>
-        <span class="nav-label">Resume</span>
-      </a>
-      <a routerLink="/tracker" routerLinkActive="active" class="nav-link">
-        <span class="material-icons">assignment</span>
-        <span class="nav-label">Tracker</span>
-        <span class="nav-badge" *ngIf="trackerBadge > 0">{{ trackerBadge }}</span>
-      </a>
-      <a routerLink="/profile" routerLinkActive="active" class="nav-link">
-        <span class="material-icons">person_outline</span>
-        <span class="nav-label">Profile</span>
-      </a>
+      <ng-container *ngIf="isLoggedIn">
+        <a routerLink="/resume" routerLinkActive="active" class="nav-link">
+          <span class="material-icons">description</span>
+          <span class="nav-label">Resume</span>
+        </a>
+        <a routerLink="/tracker" routerLinkActive="active" class="nav-link">
+          <span class="material-icons">assignment</span>
+          <span class="nav-label">Tracker</span>
+          <span class="nav-badge" *ngIf="trackerBadge > 0">{{ trackerBadge }}</span>
+        </a>
+        <a routerLink="/profile" routerLinkActive="active" class="nav-link">
+          <span class="material-icons">person_outline</span>
+          <span class="nav-label">Profile</span>
+        </a>
+      </ng-container>
     </div>
   </div>
   <div class="nav-right">
-    <a class="nav-avatar" routerLink="/profile" title="Open profile" aria-label="Open profile">
-      {{ userInitials }}
-    </a>
-    <button class="nav-sign-out" type="button" (click)="logout()" title="Sign out" aria-label="Sign out">
-      <span class="material-icons">logout</span>
-    </button>
+    <ng-container *ngIf="isLoggedIn; else signedOutActions">
+      <a class="nav-avatar" routerLink="/profile" title="Open profile" aria-label="Open profile">
+        {{ userInitials }}
+      </a>
+      <button class="nav-sign-out" type="button" (click)="logout()" title="Sign out" aria-label="Sign out">
+        <span class="material-icons">logout</span>
+      </button>
+    </ng-container>
+    <ng-template #signedOutActions>
+      <a class="nav-signin" routerLink="/login">Sign in</a>
+      <a class="nav-signup" routerLink="/login" [queryParams]="{ mode: 'register' }">Create account</a>
+    </ng-template>
   </div>
 </nav>
 
-<main class="app-main" [class.with-nav]="isLoggedIn">
+<main class="app-main with-nav">
   <router-outlet></router-outlet>
 </main>

@@ -123,12 +123,26 @@
 }
 
 .job__blurb,
-.job__meta {
+.job__meta,
+.job__pay {
   margin: 0;
+}
+
+.job__pay {
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .job__cta {
   margin-top: 6px;
+}
+
+/* ── paging ── */
+
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: 28px;
 }
 
 /* ── loading, errors and empty states ── */

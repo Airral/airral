@@ -49,16 +49,57 @@ public class BootstrapAdminInitializer {
             return;
         }
 
+        // email_verified is the whole security of this grant.
+        //
+        // Without it the match was lower(email) = lower(:email) and nothing else,
+        // against a /register endpoint that is public and writes emailVerified
+        // false for anyone who asks. Whoever registered this address first got
+        // ADMIN and is_platform_admin on the next boot, and because the match is
+        // case-insensitive with no LIMIT it did not even have to be the address
+        // as written: registering Admin@Airral.com against a bootstrap of
+        // admin@airral.com promoted that row too, and every other case variant
+        // in the table alongside it.
+        //
+        // Nothing in this codebase can set email_verified except completing a
+        // Google sign-in, whose address claim Google itself has verified -- there
+        // is no verification mail, because SMTP does not work from Cloud Run
+        // here. So the operational consequence is deliberate and worth stating:
+        // the intended admin must sign in once with Google before this grant will
+        // take. The branch below says so out loud rather than logging the same
+        // "no such account" line whether the row is missing or merely unverified,
+        // which is the difference between "I typed the wrong address" and "sign
+        // in once and redeploy".
         databaseClient.sql("""
                         UPDATE users
                         SET role = 'ADMIN',
                             is_platform_admin = true
                         WHERE lower(email) = lower(:email)
+                          AND email_verified IS TRUE
                           AND (role <> 'ADMIN' OR is_platform_admin IS NOT TRUE)
                         """)
                 .bind("email", bootstrapEmail)
                 .fetch()
                 .rowsUpdated()
+                .flatMap(updated -> updated != null && updated > 0
+                        ? reactor.core.publisher.Mono.just(updated)
+                        : databaseClient.sql("""
+                                        SELECT COUNT(*) AS total
+                                        FROM users
+                                        WHERE lower(email) = lower(:email)
+                                          AND email_verified IS NOT TRUE
+                                        """)
+                                .bind("email", bootstrapEmail)
+                                .map((row, metadata) -> row.get("total", Long.class))
+                                .one()
+                                .doOnNext(unverified -> {
+                                    if (unverified != null && unverified > 0) {
+                                        log.warn("Bootstrap admin {} not granted: {} matching account(s) exist "
+                                                        + "but none has a verified address. Sign in once with "
+                                                        + "Google using that address, then redeploy.",
+                                                bootstrapEmail, unverified);
+                                    }
+                                })
+                                .thenReturn(0L))
                 .subscribe(
                         updated -> {
                             if (updated != null && updated > 0) {
@@ -67,7 +108,7 @@ public class BootstrapAdminInitializer {
                                 // not something you have to query for.
                                 log.warn("Bootstrap admin granted to {}", bootstrapEmail);
                             } else {
-                                log.info("Bootstrap admin {} already an admin, or no such account",
+                                log.info("Bootstrap admin {} already an admin, or no such verified account",
                                         bootstrapEmail);
                             }
                         },

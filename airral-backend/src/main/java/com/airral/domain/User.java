@@ -22,6 +22,18 @@ public class User {
 
     private String email;
     private String passwordHash;
+
+    /**
+     * Google's "sub" for the linked Google account, or null when this account
+     * has never been linked to one.
+     *
+     * <p>The link has to be a stored fact rather than an address comparison.
+     * Anyone can register any address here and nothing verifies it, so matching
+     * a Google credential on its email alone would sign the real owner of the
+     * address into whichever row had claimed it first.
+     */
+    private String googleSubject;
+
     private String firstName;
     private String lastName;
     private String phone;

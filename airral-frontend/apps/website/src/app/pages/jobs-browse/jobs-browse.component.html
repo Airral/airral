@@ -56,11 +56,11 @@
       </button>
     </div>
 
-    <p class="notice glass" *ngIf="loading">Loading roles…</p>
+    <p class="notice glass" *ngIf="loading" aria-live="polite">Loading roles…</p>
 
     <p class="notice glass" *ngIf="error">{{ error }}</p>
 
-    <div class="jobs" *ngIf="!loading && !error">
+    <div class="jobs" *ngIf="!loading && !error && filteredJobs.length">
       <article class="card glass job" *ngFor="let job of filteredJobs">
         <div class="job__top">
           <h3 class="h3">{{ job.title }}</h3>
@@ -72,36 +72,53 @@
         </p>
 
         <p class="fine job__meta">
+          {{ job.organizationName || 'Confidential employer' }} ·
           {{ job.location || 'Location flexible' }} ·
           {{ job.employmentType || job.department || 'Open role' }}
         </p>
 
+        <p class="fine job__pay" *ngIf="payLabel(job) as pay">{{ pay }}</p>
+
         <div class="cta-row job__cta">
-          <a class="btn btn--glass btn--sm" [routerLink]="['/jobs', job.id]">Read the role</a>
-          <a class="btn btn--sm" [href]="applicantRegisterUrl + '&jobId=' + job.id">Apply</a>
+          <a class="btn btn--glass btn--sm" [routerLink]="detailLink(job)">Read the role</a>
+
+          <!-- Employer-posted: the application is completed here. -->
+          <a class="btn btn--sm" *ngIf="job.id" [href]="applicantRegisterUrl + '&jobId=' + job.id">
+            Apply
+          </a>
+
+          <!-- Synced: the application is completed on the employer's own form. -->
+          <a
+            class="btn btn--sm"
+            *ngIf="externalApply(job) as applyUrl"
+            [href]="applyUrl"
+            target="_blank"
+            rel="nofollow noopener"
+          >
+            Apply on their site
+          </a>
         </div>
       </article>
     </div>
 
-    <!-- filters matched nothing -->
-    <div
-      class="notice glass"
-      *ngIf="!loading && !error && filteredJobs.length === 0 && jobs.length > 0"
-    >
+    <div class="more" *ngIf="!loading && !error && hasMore">
+      <button type="button" class="btn btn--glass" (click)="loadMore()" [disabled]="loadingMore">
+        {{ loadingMore ? 'Loading…' : 'Show more roles' }}
+      </button>
+    </div>
+
+    <!-- the search or the filter matched nothing -->
+    <div class="notice glass" *ngIf="noMatches">
       <p class="body-2">Nothing matches that yet.</p>
       <div class="cta-row notice__cta">
-        <button
-          type="button"
-          class="btn btn--glass btn--sm"
-          (click)="activeDepartment = 'All'; searchQuery = ''; applyFilters()"
-        >
+        <button type="button" class="btn btn--glass btn--sm" (click)="clearFilters()">
           Clear filters
         </button>
       </div>
     </div>
 
     <!-- nothing posted at all -->
-    <div class="notice glass" *ngIf="!loading && !error && jobs.length === 0">
+    <div class="notice glass" *ngIf="noRoles">
       <h3 class="h3">No roles are open right now</h3>
       <p class="body-2 notice__body">
         Create an account and Airral will keep watching for you, so you hear about a role

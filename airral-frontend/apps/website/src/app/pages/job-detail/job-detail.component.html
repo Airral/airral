@@ -17,8 +17,19 @@
 
     <div class="pane glass job__gone" *ngIf="!loading && error">
       <h1 class="h2">{{ error }}</h1>
-      <p class="lede job__gone-lede">
+      <p class="lede job__gone-lede" *ngIf="!unavailable">
         It may have been filled or taken down. The roles still open are on the jobs page.
+      </p>
+      <!--
+        Deliberately says nothing about why. toFailure routes a 429, any 5xx and
+        a connection that never landed here as well as a timeout, so "did not
+        come back in time" was wrong for most of what reaches this branch. The
+        page carries no noindex now, so this sentence is what a crawler indexes
+        for the URL during an outage.
+      -->
+      <p class="lede job__gone-lede" *ngIf="unavailable">
+        We could not reach this listing just now. Reload in a moment, or look through
+        the roles that are open.
       </p>
       <div class="cta-row job__gone-cta">
         <a class="btn" routerLink="/jobs">Browse open roles</a>
@@ -74,10 +85,40 @@
             </ul>
 
             <div class="job__panel-cta">
-              <a class="btn btn--sm" [href]="applicantRegisterUrl + '&jobId=' + job.id">
-                Create an account to apply
-              </a>
-              <a class="btn btn--glass btn--sm" [href]="applicantLoginUrl + '?jobId=' + job.id">
+              <ng-container *ngIf="externalApply(job) as applyUrl; else applyHere">
+                <!-- Synced: the application is completed on the employer's own form. -->
+                <a
+                  class="btn btn--sm"
+                  [href]="applyUrl"
+                  target="_blank"
+                  rel="nofollow noopener"
+                >
+                  Apply on their site
+                </a>
+
+                <!--
+                  All three things this panel just promised (saving the role, a
+                  résumé check, asking questions) need an account, and the
+                  register CTA was suppressed on exactly the synced postings,
+                  which are the eleven thousand pages the sitemap points at. So
+                  those pages sold an account and then offered no way to open
+                  one: only "Sign in" was left, which is no use to a visitor
+                  arriving from search without one. Secondary styling keeps the
+                  employer's own form the single primary action.
+                -->
+                <a class="btn btn--glass btn--sm" [href]="registerUrl(job)">
+                  Create an account to track it
+                </a>
+              </ng-container>
+
+              <!-- Employer-posted, and any synced row whose board gave us no link. -->
+              <ng-template #applyHere>
+                <a class="btn btn--sm" [href]="registerUrl(job)">
+                  Create an account to apply
+                </a>
+              </ng-template>
+
+              <a class="btn btn--glass btn--sm" [href]="saveJobUrl(job)">
                 Sign in to save it
               </a>
             </div>

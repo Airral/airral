@@ -108,6 +108,44 @@ public class AuthController {
     }
 
     /**
+     * Sign in with Google.
+     * POST /api/auth/google
+     *
+     * <p>Left behind by the /register fix above: that mapping came back and
+     * this one did not, so the same failure was still live. SecurityConfig has
+     * allow-listed POST /api/auth/google all along and
+     * AuthService.loginWithGoogle was complete, but with nothing mapped to the
+     * path the "Continue with Google" button on both apply.airral.com and
+     * app.airral.com posted to a route that answered 404 "No static resource
+     * api/auth/google." -- while /api/auth/login answered 400 at the same
+     * instant, which is what ruled out the app being down.
+     *
+     * <p>Throttled on the caller's address only, like /register and for the
+     * same reason: a Google address that has no account yet gets one created
+     * here, so this is an account-creation path. There is no email to key the
+     * second bucket on in any case -- the request carries a signed credential
+     * and nothing else, and the address inside it is not known until Google's
+     * signature has been checked.
+     *
+     * <p>200 rather than /register's 201, because one route serves both an
+     * existing account signing in and a new one being created and which of the
+     * two happened is not decided until the credential is verified inside the
+     * service. AuthResponse.message carries the distinction.
+     */
+    @PostMapping("/google")
+    public Mono<ResponseEntity<AuthResponse>> loginWithGoogle(
+            @Valid @RequestBody GoogleAuthRequest request,
+            ServerWebExchange exchange) {
+
+        String address = clientAddress(exchange);
+
+        return loginThrottle.checkAddress(address)
+                .then(loginThrottle.recordAddressAttempt(address))
+                .then(authService.loginWithGoogle(request))
+                .map(ResponseEntity::ok);
+    }
+
+    /**
      * Sign out everywhere.
      * POST /api/auth/revoke-sessions
      *

@@ -93,6 +93,11 @@ export interface CandidateJobDetail extends CandidateJobSummary {
   salaryMin?: number;
   salaryMax?: number;
   salaryCurrency?: string;
+  /**
+   * Interval salaryMin/salaryMax are quoted in: YEAR, HOUR, MONTH, WEEK, DAY,
+   * ONE_TIME. Absent when the source never stated one.
+   */
+  salaryPeriod?: string;
   sourcePayloadHash?: string;
 }
 

@@ -141,7 +141,13 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.GET, "/api/feed/signals").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/feed/news").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/seo/**").permitAll()
-                        
+                        // Crawlers fetch this from the host root before they will
+                        // read the sitemap above, and it hit
+                        // anyExchange().authenticated() and came back 401 -- so the
+                        // sitemap was public and still never crawled. The rest of
+                        // the story is on SeoController.getRobotsTxt.
+                        .pathMatchers(HttpMethod.GET, "/robots.txt").permitAll()
+
                         // Key management is admin-only, and reached with a
                         // session token rather than an API key: issuing
                         // credentials from a credential would let a leaked

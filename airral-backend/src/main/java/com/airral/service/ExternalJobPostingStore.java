@@ -48,6 +48,7 @@ public class ExternalJobPostingStore {
      */
     private static final Map<String, Integer> TEXT_COLUMN_LIMITS = Map.ofEntries(
             Map.entry("salaryCurrency", 10),
+            Map.entry("salaryPeriod", 12),
             Map.entry("seniorityLabel", 20),
             Map.entry("compensationConfidence", 30),
             Map.entry("sourceType", 30),
@@ -251,14 +252,14 @@ public class ExternalJobPostingStore {
                     COALESCE(
                         p.total_comp_label,
                         CASE
-                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'Benchmark needed'
+                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'Benchmark needed'
                             ELSE 'Base listed'
                         END
                     ) AS total_comp_label,
                     COALESCE(
                         p.compensation_confidence,
                         CASE
-                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'NEEDS_BENCHMARK'
+                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'NEEDS_BENCHMARK'
                             ELSE 'POSTED_BASE'
                         END
                     ) AS compensation_confidence,
@@ -529,14 +530,14 @@ public class ExternalJobPostingStore {
                     COALESCE(
                         p.total_comp_label,
                         CASE
-                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'Benchmark needed'
+                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'Benchmark needed'
                             ELSE 'Base listed'
                         END
                     ) AS total_comp_label,
                     COALESCE(
                         p.compensation_confidence,
                         CASE
-                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'NEEDS_BENCHMARK'
+                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'NEEDS_BENCHMARK'
                             ELSE 'POSTED_BASE'
                         END
                     ) AS compensation_confidence,
@@ -674,6 +675,7 @@ public class ExternalJobPostingStore {
                             employment_type,
                             description_text,
                             salary_label,
+                            salary_period,
                             apply_url,
                             job_url,
                             apply_mode,
@@ -720,6 +722,7 @@ public class ExternalJobPostingStore {
                             :employmentType,
                             :descriptionText,
                             :salaryLabel,
+                            :salaryPeriod,
                             :applyUrl,
                             :jobUrl,
                             :applyMode,
@@ -772,6 +775,17 @@ public class ExternalJobPostingStore {
                                   OR LOWER(EXCLUDED.salary_label) LIKE '%not listed%'
                                 THEN COALESCE(external_job_postings.salary_label, EXCLUDED.salary_label)
                                 ELSE EXCLUDED.salary_label
+                            END,
+                            -- Tied to the label's guard above on purpose. If the stored
+                            -- label survives, the stored period must survive with it;
+                            -- taking one from this run and the other from a previous one
+                            -- would pair "$40/hr" with a null interval, or worse an
+                            -- interval from a different figure entirely.
+                            salary_period = CASE
+                                WHEN EXCLUDED.salary_label IS NULL
+                                  OR LOWER(EXCLUDED.salary_label) LIKE '%not listed%'
+                                THEN external_job_postings.salary_period
+                                ELSE EXCLUDED.salary_period
                             END,
                             total_comp_label = CASE
                                 WHEN EXCLUDED.total_comp_label IS NULL
@@ -925,6 +939,7 @@ public class ExternalJobPostingStore {
         spec = bindNullable(spec, "employmentType", job.getEmploymentType(), String.class);
         spec = bindNullable(spec, "descriptionText", job.getDescriptionText(), String.class);
         spec = bindNullable(spec, "salaryLabel", job.getSalaryLabel(), String.class);
+        spec = bindNullable(spec, "salaryPeriod", job.getSalaryPeriod(), String.class);
         spec = bindNullable(spec, "applyUrl", job.getApplyUrl(), String.class);
         spec = bindNullable(spec, "jobUrl", job.getJobUrl(), String.class);
         spec = bindNullable(spec, "sourceUpdatedAt", sourceUpdatedAt, OffsetDateTime.class);
@@ -946,6 +961,28 @@ public class ExternalJobPostingStore {
     }
 
     public Mono<CandidateJobDetailResponse> findCachedJobDetail(String sourceType, String boardToken, String externalJobId) {
+        return findStoredJobDetail(sourceType, boardToken, externalJobId, true);
+    }
+
+    /**
+     * The same posting, accepted without a cached body.
+     *
+     * <p>For the degraded read path only. When the job board will not answer,
+     * the row we already hold -- title, company, location, pay, apply link and
+     * every decision signal -- is far more use to the candidate than an error
+     * page, and it is available whether or not anyone has ever opened this job
+     * before.
+     *
+     * <p>Keyed on the same three columns as existsActiveJob rather than on
+     * source_job_key, so a posting the exists check just confirmed can never
+     * come back missing here.
+     */
+    public Mono<CandidateJobDetailResponse> findStoredJobDetail(String sourceType, String boardToken, String externalJobId) {
+        return findStoredJobDetail(sourceType, boardToken, externalJobId, false);
+    }
+
+    private Mono<CandidateJobDetailResponse> findStoredJobDetail(
+            String sourceType, String boardToken, String externalJobId, boolean requireCachedBody) {
         if (sourceType == null || sourceType.isBlank()
                 || boardToken == null || boardToken.isBlank()
                 || externalJobId == null || externalJobId.isBlank()) {
@@ -974,6 +1011,7 @@ public class ExternalJobPostingStore {
                             p.salary_min,
                             p.salary_max,
                             p.salary_currency,
+                            p.salary_period,
                             p.salary_label,
                             p.apply_url,
                             p.job_url,
@@ -989,14 +1027,14 @@ public class ExternalJobPostingStore {
                             COALESCE(
                                 p.total_comp_label,
                                 CASE
-                                    WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'Benchmark needed'
+                                    WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'Benchmark needed'
                                     ELSE 'Base listed'
                                 END
                             ) AS total_comp_label,
                             COALESCE(
                                 p.compensation_confidence,
                                 CASE
-                                    WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'NEEDS_BENCHMARK'
+                                    WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'NEEDS_BENCHMARK'
                                     ELSE 'POSTED_BASE'
                                 END
                             ) AS compensation_confidence,
@@ -1017,20 +1055,21 @@ public class ExternalJobPostingStore {
                           AND p.external_job_id = :externalJobId
                           AND p.is_active = true
                           AND p.expires_at > CURRENT_TIMESTAMP
-                          -- Only description_html marks a real detail fetch.
-                          --
-                          -- This used to accept either column, which was correct while
-                          -- both were written together by cacheJobDetail. The sync now
-                          -- writes description_text as well, so accepting it would let
-                          -- a summary-derived body satisfy the cache and stop the
-                          -- detail endpoint ever fetching the real one. That text is
-                          -- stripHtml output, and stripHtml collapses all whitespace to
-                          -- single spaces, so the page would render the posting as one
-                          -- unbroken paragraph -- and the frontend prefers
-                          -- descriptionHtml, which the sync never writes.
-                          AND NULLIF(p.description_html, '') IS NOT NULL
-                        LIMIT 1
-                        """)
+                        """
+                        // Only description_html marks a real detail fetch, so only the
+                        // cache-first read demands it.
+                        //
+                        // This used to accept either column, which was correct while
+                        // both were written together by cacheJobDetail. The sync now
+                        // writes description_text as well, so accepting it would let
+                        // a summary-derived body satisfy the cache and stop the
+                        // detail endpoint ever fetching the real one. That text is
+                        // stripHtml output, and stripHtml collapses all whitespace to
+                        // single spaces, so the page would render the posting as one
+                        // unbroken paragraph -- and the frontend prefers
+                        // descriptionHtml, which the sync never writes.
+                        + (requireCachedBody ? " AND NULLIF(p.description_html, '') IS NOT NULL" : "")
+                        + " LIMIT 1")
                 .bind("sourceType", normalizeSource(sourceType))
                 .bind("boardToken", boardToken.trim())
                 .bind("externalJobId", externalJobId.trim())
@@ -1057,6 +1096,7 @@ public class ExternalJobPostingStore {
                         .salaryMin(row.get("salary_min", BigDecimal.class))
                         .salaryMax(row.get("salary_max", BigDecimal.class))
                         .salaryCurrency(row.get("salary_currency", String.class))
+                        .salaryPeriod(row.get("salary_period", String.class))
                         .salaryLabel(row.get("salary_label", String.class))
                         .applyUrl(row.get("apply_url", String.class))
                         .jobUrl(row.get("job_url", String.class))
@@ -1165,6 +1205,7 @@ public class ExternalJobPostingStore {
                             salary_min = :salaryMin,
                             salary_max = :salaryMax,
                             salary_currency = :salaryCurrency,
+                            salary_period = :salaryPeriod,
                             salary_label = :salaryLabel,
                             source_payload_hash = :sourcePayloadHash,
                             job_quality_score = :jobQualityScore,
@@ -1201,6 +1242,7 @@ public class ExternalJobPostingStore {
         spec = bindNullable(spec, "salaryMin", detail.getSalaryMin(), BigDecimal.class);
         spec = bindNullable(spec, "salaryMax", detail.getSalaryMax(), BigDecimal.class);
         spec = bindNullable(spec, "salaryCurrency", detail.getSalaryCurrency(), String.class);
+        spec = bindNullable(spec, "salaryPeriod", detail.getSalaryPeriod(), String.class);
         spec = bindNullable(spec, "salaryLabel", detail.getSalaryLabel(), String.class);
         spec = bindNullable(spec, "sourcePayloadHash", detail.getSourcePayloadHash(), String.class);
         spec = bindNullable(spec, "jobQualityScore", firstNonNull(detail.getJobQualityScore(), detail.getMatchScore()), Integer.class);
@@ -1882,7 +1924,29 @@ public class ExternalJobPostingStore {
     private boolean isSalaryMissing(String salaryLabel) {
         return salaryLabel == null
                 || salaryLabel.isBlank()
-                || salaryLabel.toLowerCase(Locale.US).contains("not listed");
+                || salaryLabel.toLowerCase(Locale.US).contains("not listed")
+                || isZeroAmount(salaryLabel);
+    }
+
+    /**
+     * True when a label carries digits and every one of them is zero.
+     *
+     * <p>"USD $0k-$0k" is not an employer stating that a job pays nothing, it is
+     * us having mangled the figure -- and stamping POSTED_BASE on it puts an
+     * "Employer posted" chip under a zero. Labels with no digits at all
+     * ("Competitive") are a different problem and are left alone here.
+     */
+    private boolean isZeroAmount(String salaryLabel) {
+        boolean sawDigit = false;
+        for (int i = 0; i < salaryLabel.length(); i++) {
+            char c = salaryLabel.charAt(i);
+            if (c >= '1' && c <= '9') {
+                return false;
+            }
+            sawDigit |= c == '0';
+        }
+
+        return sawDigit;
     }
 
     private List<String> tagsFrom(Object rawValue) {
@@ -1937,6 +2001,9 @@ public class ExternalJobPostingStore {
                      AND p.salary_label IS NOT NULL
                      AND p.salary_label <> ''
                      AND LOWER(p.salary_label) NOT LIKE '%not listed%'
+                     -- A mangled "$0k-$0k" is not a posted salary. Asking for
+                     -- postings that state their pay must not return zeros.
+                     AND NOT (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]')
                     """);
         }
 

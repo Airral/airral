@@ -655,7 +655,11 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   getSalaryLabel(job: CandidateJobSummary): string {
-    return job.salaryLabel || 'Salary not listed';
+    const label = job.salaryLabel?.trim();
+    // Dropping the chip was not enough on its own: the card still printed the
+    // label beside it, so a rounding failure stayed on screen as "USD $0k-$0k"
+    // and read as an employer saying the job pays nothing.
+    return !label || this.isZeroSalary(label) ? 'Salary not listed' : label;
   }
 
   hasPostedSalary(job: CandidateJobSummary): boolean {
@@ -665,7 +669,17 @@ export class JobsComponent implements OnInit, OnDestroy {
       && !salary.includes('not listed')
       && !salary.includes('benchmark needed')
       && salary !== 'n/a'
+      && !this.isZeroSalary(salary)
     );
+  }
+
+  /**
+   * A label whose only digits are zeros is a formatting failure, not an
+   * employer saying the job pays nothing. Treating it as posted pay is what
+   * put an "Employer posted" chip under "USD $0k-$0k".
+   */
+  private isZeroSalary(salary: string): boolean {
+    return /[0-9]/.test(salary) && !/[1-9]/.test(salary);
   }
 
   getExperienceLabel(job: CandidateJobSummary): string {

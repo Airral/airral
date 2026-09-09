@@ -14,6 +14,11 @@
       "options": {
         "outputPath": "dist/apps/website",
         "browser": "apps/website/src/main.ts",
+        "server": "apps/website/src/main.server.ts",
+        "ssr": {
+          "entry": "apps/website/src/server.ts"
+        },
+        "outputMode": "server",
         "tsConfig": "apps/website/tsconfig.app.json",
         "assets": [
           {
@@ -28,6 +33,7 @@
           "allowedHosts": [
             "airral.com",
             "*.airral.com",
+            "*.run.app",
             "localhost",
             "127.0.0.1"
           ]

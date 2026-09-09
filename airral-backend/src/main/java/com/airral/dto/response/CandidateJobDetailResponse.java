@@ -32,6 +32,14 @@ public class CandidateJobDetailResponse {
     private BigDecimal salaryMin;
     private BigDecimal salaryMax;
     private String salaryCurrency;
+
+    /**
+     * The interval salaryMin/salaryMax are quoted in -- YEAR, HOUR, MONTH, WEEK,
+     * DAY, ONE_TIME -- or null when the source never said. Without it the bare
+     * numbers are unreadable: an hourly $50 and an annual $50,000 are the same
+     * column, and consumers that assumed YEAR published a $50/year job.
+     */
+    private String salaryPeriod;
     private String salaryLabel;
 
     private String applyUrl;
