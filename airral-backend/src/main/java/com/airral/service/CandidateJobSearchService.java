@@ -1321,6 +1321,7 @@ public class CandidateJobSearchService {
                 .salaryMin(payRange == null ? null : centsToUnits(payRange.getMinCents()))
                 .salaryMax(payRange == null ? null : centsToUnits(payRange.getMaxCents()))
                 .salaryCurrency(payRange == null ? null : payRange.getCurrencyType())
+                .salaryPeriod(payRange == null ? null : greenhouseSalaryPeriod(payRange))
                 .salaryLabel(payRange == null ? "Salary not listed" : formatSalary(payRange))
                 .applyUrl(job.getAbsoluteUrl())
                 .jobUrl(job.getAbsoluteUrl())
@@ -1404,6 +1405,12 @@ public class CandidateJobSearchService {
                 .salaryMin(posting.getSalaryRange() == null ? null : posting.getSalaryRange().getMin())
                 .salaryMax(posting.getSalaryRange() == null ? null : posting.getSalaryRange().getMax())
                 .salaryCurrency(posting.getSalaryRange() == null ? null : posting.getSalaryRange().getCurrency())
+                .salaryPeriod(posting.getSalaryRange() == null
+                        ? null
+                        : statedSalaryPeriod(
+                                posting.getSalaryRange().getInterval(),
+                                posting.getSalaryRange().getMin(),
+                                posting.getSalaryRange().getMax()))
                 .salaryLabel(summary.getSalaryLabel())
                 .applyUrl(summary.getApplyUrl())
                 .jobUrl(summary.getJobUrl())
@@ -1472,6 +1479,12 @@ public class CandidateJobSearchService {
                 .salaryMin(salaryComponent == null ? null : salaryComponent.getMinValue())
                 .salaryMax(salaryComponent == null ? null : salaryComponent.getMaxValue())
                 .salaryCurrency(salaryComponent == null ? null : salaryComponent.getCurrencyCode())
+                .salaryPeriod(salaryComponent == null
+                        ? null
+                        : statedSalaryPeriod(
+                                salaryComponent.getInterval(),
+                                salaryComponent.getMinValue(),
+                                salaryComponent.getMaxValue()))
                 .salaryLabel(summary.getSalaryLabel())
                 .applyUrl(summary.getApplyUrl())
                 .jobUrl(summary.getJobUrl())
@@ -4733,28 +4746,158 @@ public class CandidateJobSearchService {
         return cents.divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
-    private String formatSalary(GreenhouseJobBoardResponse.GreenhousePayRange payRange) {
-        BigDecimal min = centsToUnits(payRange.getMinCents());
-        BigDecimal max = centsToUnits(payRange.getMaxCents());
-        String currency = payRange.getCurrencyType() == null ? "USD" : payRange.getCurrencyType();
+    /**
+     * The pay interval as the source stated it, or null when it did not state one.
+     *
+     * <p>Each board names the interval in its own vocabulary and we accept all
+     * three: Greenhouse puts it in the range title ("Hourly Rate:"), Lever in
+     * {@code interval} ("per-year-salary"), Ashby in {@code interval} ("1 HOUR").
+     *
+     * <p>An unrecognised or absent interval returns null and stays null. It is
+     * tempting to fall back to YEAR, because the overwhelming majority of rows
+     * are annual -- but that fallback is precisely the bug this method exists to
+     * fix. Treating an hourly $50 as an annual $50 published "$0k-$0k" under an
+     * "Employer posted" chip, and sent {@code minValue: 50, unitText: "YEAR"} to
+     * Google. An amount with no stated unit is rendered as a bare amount.
+     */
+    private String normalizeSalaryPeriod(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
 
+        String value = raw.toLowerCase(Locale.ROOT);
+
+        // Ashby sends NONE on components that carry no rate (equity percentage,
+        // for one). It means "no interval", not "an interval we failed to parse".
+        if (value.contains("none")) {
+            return null;
+        }
+        if (value.contains("hour") || value.contains("hourly") || value.contains("/hr")) {
+            return "HOUR";
+        }
+        if (value.contains("year") || value.contains("annual") || value.contains("annum")) {
+            return "YEAR";
+        }
+        if (value.contains("month")) {
+            return "MONTH";
+        }
+        if (value.contains("week")) {
+            return "WEEK";
+        }
+        if (value.contains("day") || value.contains("daily")) {
+            return "DAY";
+        }
+        if (value.contains("one-time") || value.contains("one time")) {
+            return "ONE_TIME";
+        }
+
+        return null;
+    }
+
+    /** The suffix a rendered amount carries so its unit is visible to a reader. */
+    private String salaryPeriodSuffix(String period) {
+        if (period == null) {
+            return "";
+        }
+
+        return switch (period) {
+            case "HOUR" -> "/hr";
+            case "MONTH" -> "/mo";
+            case "WEEK" -> "/wk";
+            case "DAY" -> "/day";
+            default -> "";
+        };
+    }
+
+    /** Below this, a figure the source called annual is not a believable annual salary. */
+    private static final BigDecimal PLAUSIBLE_ANNUAL_FLOOR = BigDecimal.valueOf(1000);
+
+    /**
+     * Currencies whose amounts are conventionally written with a dollar sign.
+     *
+     * <p>The label already carries the ISO code, and the symbol used to be an
+     * unconditional "$" -- so a euro range read "EUR $36k". Sixty of the 215
+     * published ranges on one board are not US dollars, across nine currencies.
+     */
+    private static final Set<String> DOLLAR_CURRENCIES =
+            Set.of("USD", "CAD", "AUD", "NZD", "SGD", "HKD");
+
+    /**
+     * The interval the source stated, unless its own numbers contradict it.
+     *
+     * <p>A board can be internally inconsistent: one Coinbase posting titles its
+     * range "Annual base salary range (excluding bonus)" and then gives 3915
+     * cents -- an annual salary of $39.15. Believing the title there republishes
+     * the employer's data-entry slip as fact, and sends it to Google as a job
+     * paying $39 a year. When the amount cannot be an annual salary we drop back
+     * to no stated interval, which renders the bare figure and publishes no
+     * structured pay.
+     */
+    private String trustedSalaryPeriod(String period, BigDecimal min, BigDecimal max) {
+        if (!"YEAR".equals(period)) {
+            return period;
+        }
+
+        BigDecimal probe = min != null ? min : max;
+        if (probe != null && probe.abs().compareTo(PLAUSIBLE_ANNUAL_FLOOR) < 0) {
+            return null;
+        }
+
+        return period;
+    }
+
+    /** The source's stated interval, normalized and sanity-checked against the amounts. */
+    private String statedSalaryPeriod(String rawInterval, BigDecimal min, BigDecimal max) {
+        return trustedSalaryPeriod(normalizeSalaryPeriod(rawInterval), min, max);
+    }
+
+    /**
+     * Renders a pay range in the unit it was published in.
+     *
+     * <p>Annual figures keep the familiar "$150k" shorthand. Everything else --
+     * hourly, monthly, weekly, or an amount whose unit the source never stated --
+     * is rendered at full precision, because rounding those to thousands is what
+     * produced "$0k".
+     */
+    private String formatMoneyRange(BigDecimal min, BigDecimal max, String rawCurrency, String rawInterval) {
         if (min == null && max == null) {
             return "Salary not listed";
         }
-        if (min != null && max != null) {
-            return currency + " " + compactMoney(min) + "-" + compactMoney(max);
+
+        String currency = rawCurrency == null || rawCurrency.isBlank() ? "USD" : rawCurrency;
+        String period = statedSalaryPeriod(rawInterval, min, max);
+        String suffix = salaryPeriodSuffix(period);
+
+        if (min != null && max != null && min.compareTo(max) != 0) {
+            return currency + " " + money(min, period, currency) + "-" + money(max, period, currency) + suffix;
         }
-        return currency + " " + compactMoney(min == null ? max : min);
+
+        return currency + " " + money(min == null ? max : min, period, currency) + suffix;
+    }
+
+    private String formatSalary(GreenhouseJobBoardResponse.GreenhousePayRange payRange) {
+        return formatMoneyRange(
+                centsToUnits(payRange.getMinCents()),
+                centsToUnits(payRange.getMaxCents()),
+                payRange.getCurrencyType(),
+                payRange.getTitle());
+    }
+
+    private String greenhouseSalaryPeriod(GreenhouseJobBoardResponse.GreenhousePayRange payRange) {
+        return statedSalaryPeriod(
+                payRange.getTitle(),
+                centsToUnits(payRange.getMinCents()),
+                centsToUnits(payRange.getMaxCents()));
     }
 
     private String formatLeverSalary(LeverPostingResponse posting) {
         LeverPostingResponse.LeverSalaryRange salary = posting.getSalaryRange();
         if (salary != null && (salary.getMin() != null || salary.getMax() != null)) {
-            String currency = salary.getCurrency() == null ? "USD" : salary.getCurrency();
-            if (salary.getMin() != null && salary.getMax() != null) {
-                return currency + " " + compactMoney(salary.getMin()) + "-" + compactMoney(salary.getMax());
-            }
-            return currency + " " + compactMoney(salary.getMin() == null ? salary.getMax() : salary.getMin());
+            return formatMoneyRange(
+                    salary.getMin(),
+                    salary.getMax(),
+                    salary.getCurrency(),
+                    salary.getInterval());
         }
 
         return firstNonBlank(posting.getSalaryDescriptionPlain(), "Salary not listed");
@@ -4782,13 +4925,27 @@ public class CandidateJobSearchService {
                 .orElse(null);
     }
 
-    private String compactMoney(BigDecimal value) {
+    /**
+     * Renders one amount.
+     *
+     * <p>"$150k" shorthand applies only to annual figures of at least $1,000.
+     * Anything smaller keeps its digits: the old unconditional divide-by-1000
+     * turned every hourly rate into "$0k", and a job that reads as paying zero
+     * is worse than one that lists no pay at all.
+     */
+    private String money(BigDecimal value, String period, String currency) {
         if (value == null) {
             return "";
         }
 
-        BigDecimal thousands = value.divide(BigDecimal.valueOf(1000), 0, RoundingMode.HALF_UP);
-        return "$" + thousands + "k";
+        String symbol = DOLLAR_CURRENCIES.contains(currency.toUpperCase(Locale.ROOT)) ? "$" : "";
+
+        boolean annual = period == null || "YEAR".equals(period);
+        if (annual && value.abs().compareTo(BigDecimal.valueOf(1000)) >= 0) {
+            return symbol + value.divide(BigDecimal.valueOf(1000), 0, RoundingMode.HALF_UP) + "k";
+        }
+
+        return symbol + value.stripTrailingZeros().toPlainString();
     }
 
     private OffsetDateTime epochMillisToOffsetDateTime(Long epochMillis) {

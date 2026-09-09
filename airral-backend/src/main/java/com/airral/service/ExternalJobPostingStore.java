@@ -48,6 +48,7 @@ public class ExternalJobPostingStore {
      */
     private static final Map<String, Integer> TEXT_COLUMN_LIMITS = Map.ofEntries(
             Map.entry("salaryCurrency", 10),
+            Map.entry("salaryPeriod", 12),
             Map.entry("seniorityLabel", 20),
             Map.entry("compensationConfidence", 30),
             Map.entry("sourceType", 30),
@@ -251,14 +252,14 @@ public class ExternalJobPostingStore {
                     COALESCE(
                         p.total_comp_label,
                         CASE
-                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'Benchmark needed'
+                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'Benchmark needed'
                             ELSE 'Base listed'
                         END
                     ) AS total_comp_label,
                     COALESCE(
                         p.compensation_confidence,
                         CASE
-                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'NEEDS_BENCHMARK'
+                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'NEEDS_BENCHMARK'
                             ELSE 'POSTED_BASE'
                         END
                     ) AS compensation_confidence,
@@ -529,14 +530,14 @@ public class ExternalJobPostingStore {
                     COALESCE(
                         p.total_comp_label,
                         CASE
-                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'Benchmark needed'
+                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'Benchmark needed'
                             ELSE 'Base listed'
                         END
                     ) AS total_comp_label,
                     COALESCE(
                         p.compensation_confidence,
                         CASE
-                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'NEEDS_BENCHMARK'
+                            WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'NEEDS_BENCHMARK'
                             ELSE 'POSTED_BASE'
                         END
                     ) AS compensation_confidence,
@@ -974,6 +975,7 @@ public class ExternalJobPostingStore {
                             p.salary_min,
                             p.salary_max,
                             p.salary_currency,
+                            p.salary_period,
                             p.salary_label,
                             p.apply_url,
                             p.job_url,
@@ -989,14 +991,14 @@ public class ExternalJobPostingStore {
                             COALESCE(
                                 p.total_comp_label,
                                 CASE
-                                    WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'Benchmark needed'
+                                    WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'Benchmark needed'
                                     ELSE 'Base listed'
                                 END
                             ) AS total_comp_label,
                             COALESCE(
                                 p.compensation_confidence,
                                 CASE
-                                    WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' THEN 'NEEDS_BENCHMARK'
+                                    WHEN p.salary_label IS NULL OR LOWER(p.salary_label) LIKE '%not listed%' OR (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]') THEN 'NEEDS_BENCHMARK'
                                     ELSE 'POSTED_BASE'
                                 END
                             ) AS compensation_confidence,
@@ -1057,6 +1059,7 @@ public class ExternalJobPostingStore {
                         .salaryMin(row.get("salary_min", BigDecimal.class))
                         .salaryMax(row.get("salary_max", BigDecimal.class))
                         .salaryCurrency(row.get("salary_currency", String.class))
+                        .salaryPeriod(row.get("salary_period", String.class))
                         .salaryLabel(row.get("salary_label", String.class))
                         .applyUrl(row.get("apply_url", String.class))
                         .jobUrl(row.get("job_url", String.class))
@@ -1165,6 +1168,7 @@ public class ExternalJobPostingStore {
                             salary_min = :salaryMin,
                             salary_max = :salaryMax,
                             salary_currency = :salaryCurrency,
+                            salary_period = :salaryPeriod,
                             salary_label = :salaryLabel,
                             source_payload_hash = :sourcePayloadHash,
                             job_quality_score = :jobQualityScore,
@@ -1201,6 +1205,7 @@ public class ExternalJobPostingStore {
         spec = bindNullable(spec, "salaryMin", detail.getSalaryMin(), BigDecimal.class);
         spec = bindNullable(spec, "salaryMax", detail.getSalaryMax(), BigDecimal.class);
         spec = bindNullable(spec, "salaryCurrency", detail.getSalaryCurrency(), String.class);
+        spec = bindNullable(spec, "salaryPeriod", detail.getSalaryPeriod(), String.class);
         spec = bindNullable(spec, "salaryLabel", detail.getSalaryLabel(), String.class);
         spec = bindNullable(spec, "sourcePayloadHash", detail.getSourcePayloadHash(), String.class);
         spec = bindNullable(spec, "jobQualityScore", firstNonNull(detail.getJobQualityScore(), detail.getMatchScore()), Integer.class);
@@ -1882,7 +1887,29 @@ public class ExternalJobPostingStore {
     private boolean isSalaryMissing(String salaryLabel) {
         return salaryLabel == null
                 || salaryLabel.isBlank()
-                || salaryLabel.toLowerCase(Locale.US).contains("not listed");
+                || salaryLabel.toLowerCase(Locale.US).contains("not listed")
+                || isZeroAmount(salaryLabel);
+    }
+
+    /**
+     * True when a label carries digits and every one of them is zero.
+     *
+     * <p>"USD $0k-$0k" is not an employer stating that a job pays nothing, it is
+     * us having mangled the figure -- and stamping POSTED_BASE on it puts an
+     * "Employer posted" chip under a zero. Labels with no digits at all
+     * ("Competitive") are a different problem and are left alone here.
+     */
+    private boolean isZeroAmount(String salaryLabel) {
+        boolean sawDigit = false;
+        for (int i = 0; i < salaryLabel.length(); i++) {
+            char c = salaryLabel.charAt(i);
+            if (c >= '1' && c <= '9') {
+                return false;
+            }
+            sawDigit |= c == '0';
+        }
+
+        return sawDigit;
     }
 
     private List<String> tagsFrom(Object rawValue) {
@@ -1937,6 +1964,9 @@ public class ExternalJobPostingStore {
                      AND p.salary_label IS NOT NULL
                      AND p.salary_label <> ''
                      AND LOWER(p.salary_label) NOT LIKE '%not listed%'
+                     -- A mangled "$0k-$0k" is not a posted salary. Asking for
+                     -- postings that state their pay must not return zeros.
+                     AND NOT (p.salary_label ~ '[0-9]' AND p.salary_label !~ '[1-9]')
                     """);
         }
 

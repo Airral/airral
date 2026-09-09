@@ -13,6 +13,8 @@ export interface Job {
   employmentType?: string;         // "Full-time", "Part-time", "Contract", "Internship"
   salaryMin?: number;              // Minimum salary
   salaryMax?: number;              // Maximum salary
+  salaryCurrency?: string;         // ISO code the figures are quoted in
+  salaryPeriod?: string;           // YEAR | HOUR | MONTH | WEEK | DAY | ONE_TIME; absent if the source never said
   requirements?: string;           // Required qualifications
   niceToHave?: string;             // Nice-to-have skills
   status: string | JobStatus;

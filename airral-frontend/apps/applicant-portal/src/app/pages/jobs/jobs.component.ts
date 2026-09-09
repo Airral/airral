@@ -665,6 +665,10 @@ export class JobsComponent implements OnInit, OnDestroy {
       && !salary.includes('not listed')
       && !salary.includes('benchmark needed')
       && salary !== 'n/a'
+      // A label whose only digits are zeros is a formatting failure, not an
+      // employer saying the job pays nothing. Treating it as posted pay is what
+      // put an "Employer posted" chip under "USD $0k-$0k".
+      && !(/[0-9]/.test(salary) && !/[1-9]/.test(salary))
     );
   }
 

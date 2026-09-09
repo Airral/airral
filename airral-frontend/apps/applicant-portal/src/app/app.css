@@ -158,6 +158,46 @@
   font-size: 18px;
 }
 
+/* Signed-out entry points. The jobs page has no sign-in of its own, so these
+   are the only route to an account for a visitor arriving from search. */
+.nav-signin,
+.nav-signup {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+
+.nav-signin {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+}
+
+.nav-signin:hover {
+  background: #fff4dc;
+  border-color: #f1d394;
+  color: #111827;
+}
+
+.nav-signup {
+  border: 1px solid #007C6D;
+  background: #007C6D;
+  color: #ffffff;
+  box-shadow: inset 0 -3px 0 rgba(173, 107, 5, 0.5);
+}
+
+.nav-signup:hover {
+  background: #005f54;
+  border-color: #005f54;
+}
+
 /* ── Main content area ────────────────────────────── */
 .app-main {
   min-height: 100vh;
@@ -196,6 +236,13 @@
     width: 30px;
     height: 30px;
     font-size: 11px;
+  }
+
+  .nav-signin,
+  .nav-signup {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
   }
 
   .nav-sign-out {

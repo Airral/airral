@@ -85,6 +85,8 @@ function toJob(detail: CandidateJobDetail): Job {
     employmentType: detail.employmentType,
     salaryMin: detail.salaryMin,
     salaryMax: detail.salaryMax,
+    salaryCurrency: detail.salaryCurrency,
+    salaryPeriod: detail.salaryPeriod,
     status: 'OPEN',
     createdAt: detail.sourceUpdatedAt || '',
     updatedAt: detail.sourceUpdatedAt || '',

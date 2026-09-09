@@ -9,6 +9,19 @@ import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { SeoService } from '../../shared/seo.service';
 import { catchError, firstValueFrom, of, timeout } from 'rxjs';
 
+/**
+ * schema.org unitText for each interval we persist. Anything not listed here --
+ * including a posting whose board never stated an interval -- gets no baseSalary
+ * rather than a guessed one.
+ */
+const SCHEMA_SALARY_UNITS: Record<string, string> = {
+  YEAR: 'YEAR',
+  MONTH: 'MONTH',
+  WEEK: 'WEEK',
+  DAY: 'DAY',
+  HOUR: 'HOUR',
+};
+
 @Component({
   selector: 'app-job-detail',
   standalone: true,
@@ -206,15 +219,21 @@ export class JobDetailComponent implements OnInit {
       };
     }
 
-    if (job.salaryMin && job.salaryMax) {
+    // Only publish pay when the board told us the interval it was quoted in.
+    // This block used to hardcode unitText 'YEAR', so an hourly intern rate went
+    // to Google as a $50-a-year job. An amount whose unit we do not know is not
+    // worth a rich result; omitting baseSalary loses a snippet, stating the
+    // wrong one misinforms every reader who sees it.
+    const salaryUnit = SCHEMA_SALARY_UNITS[job.salaryPeriod ?? ''];
+    if (job.salaryMin && job.salaryMax && salaryUnit) {
       schema['baseSalary'] = {
         '@type': 'MonetaryAmount',
-        currency: 'USD',
+        currency: job.salaryCurrency || 'USD',
         value: {
           '@type': 'QuantitativeValue',
           minValue: job.salaryMin,
           maxValue: job.salaryMax,
-          unitText: 'YEAR',
+          unitText: salaryUnit,
         },
       };
     }
