@@ -213,7 +213,7 @@ public class AuthService {
 
         return userRepository.save(user)
                 .flatMap(this::ensureApplicantProfile)
-                .flatMap(savedUser -> buildAuthResponse(savedUser, "Google account created"));
+                .flatMap(savedUser -> buildAuthResponse(savedUser, "Google account created", true));
     }
 
     private Mono<User> ensureApplicantProfile(User user) {
@@ -299,7 +299,7 @@ public class AuthService {
 
         return userRepository.save(user)
                 .flatMap(savedUser -> createApplicantProfile(savedUser).thenReturn(savedUser))
-                .flatMap(savedUser -> buildAuthResponse(savedUser, "Registration successful"));
+                .flatMap(savedUser -> buildAuthResponse(savedUser, "Registration successful", true));
     }
 
     private Mono<CandidateProfile> createApplicantProfile(User user) {
@@ -374,7 +374,7 @@ public class AuthService {
                                         .build();
 
                                 return userRepository.save(user)
-                                        .flatMap(savedUser -> buildAuthResponse(savedUser, "Organization and account created successfully"));
+                                        .flatMap(savedUser -> buildAuthResponse(savedUser, "Organization and account created successfully", true));
                             });
                 });
     }
@@ -436,6 +436,10 @@ public class AuthService {
      * Build JWT auth response
      */
     private Mono<AuthResponse> buildAuthResponse(User user, String message) {
+        return buildAuthResponse(user, message, false);
+    }
+
+    private Mono<AuthResponse> buildAuthResponse(User user, String message, boolean accountCreated) {
         if (user.getOrganizationId() == null) {
             String token = jwtTokenProvider.generateToken(
                 user.getId(),
@@ -463,6 +467,7 @@ public class AuthService {
                 .isPlatformAdmin(user.isPlatformAdmin())
                 .emailVerified(user.isEmailVerified())
                 .message(message)
+                .accountCreated(accountCreated)
                 .build());
         }
 
@@ -495,6 +500,7 @@ public class AuthService {
                             .isPlatformAdmin(user.isPlatformAdmin())
                             .emailVerified(user.isEmailVerified())
                             .message(message)
+                            .accountCreated(accountCreated)
                             .build();
                 });
     }

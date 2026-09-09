@@ -206,7 +206,12 @@ export class ApplicantLoginComponent {
       router: this.router,
       authService: this.authService,
       returnUrl: this.route.snapshot.queryParamMap.get('returnUrl'),
-      sameOriginDefault: this.isRegisterMode ? '/onboarding' : undefined,
+      // Ask what happened, not which tab was open. "Continue with Google" is one
+      // button for a new user and a returning one, and it never touches
+      // isRegisterMode -- so a first-time Google user was routed like a sign-in
+      // and never saw onboarding. accountCreated comes from the server, which is
+      // the only party that knows which of the two it just did.
+      sameOriginDefault: (response.accountCreated || this.isRegisterMode) ? '/onboarding' : undefined,
     });
   }
 }

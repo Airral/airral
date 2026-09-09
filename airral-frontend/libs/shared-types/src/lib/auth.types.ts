@@ -49,6 +49,12 @@ export interface AuthResponse {
   isPlatformAdmin?: boolean;
   emailVerified?: boolean;
   message: string;
+  /**
+   * True when this call created the account rather than signing in to one.
+   * Only the server knows which happened for "Continue with Google", where one
+   * button serves a new user and a returning one.
+   */
+  accountCreated?: boolean;
 }
 
 export interface LoginRequest {
