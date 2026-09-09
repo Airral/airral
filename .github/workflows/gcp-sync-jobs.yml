@@ -16,6 +16,12 @@ name: GCP · Sync External Jobs
 
 on:
   workflow_dispatch:
+    inputs:
+      sweep_report:
+        description: 'Report what the disappearance sweep would retire. Writes nothing.'
+        required: false
+        default: false
+        type: boolean
   schedule:
     # Every 4 hours. GitHub's scheduler is best-effort and can drift by 10-30
     # minutes under load, which is fine for a 4-hourly refresh. Scheduled
@@ -88,6 +94,12 @@ jobs:
         if: steps.db.outputs.skip != 'true'
         env:
           SPRING_PROFILES_ACTIVE: gcp,sync
+          # Turns the sweep on in REPORT mode only. There is deliberately no input
+          # here for airral.jobs.sync.sweep-dry-run, which defaults to true, so this
+          # workflow cannot retire a posting however it is dispatched -- a live
+          # sweep has to be a considered change to configuration, not a checkbox on
+          # a manual run. Retiring is the only irreversible thing the sync does.
+          AIRRAL_JOBS_SYNC_SWEEP_ENABLED: ${{ inputs.sweep_report || 'false' }}
           CLOUD_SQL_INSTANCE: ${{ vars.CLOUD_SQL_INSTANCE }}
           DB_NAME: ${{ vars.DB_NAME }}
           DB_USER: ${{ vars.DB_USER }}
@@ -113,6 +125,6 @@ jobs:
             echo "### External job sync"
             echo ""
             echo '```'
-            grep -E 'One-shot sync finished|sync failed|Auto-disabling' /tmp/sync.log | tail -20 || echo "no summary line found"
+            grep -E 'One-shot sync finished|sync failed|Auto-disabling|SWEEP DRY RUN' /tmp/sync.log | tail -20 || echo "no summary line found"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
