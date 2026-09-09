@@ -1300,6 +1300,66 @@ public class ExternalJobPostingStore {
      * would rewrite the whole table after every sync and undo the HOT-update work
      * that keeps the four-hourly run off the indexes.
      */
+    /**
+     * A stored posting whose pay was read out of prose before the interval was.
+     */
+    public record ProsePayRow(Long id, String descriptionText, String salaryLabel) { }
+
+    /**
+     * Rows holding a pay figure with no interval, and a body to read one from.
+     *
+     * <p>The boards that state pay only in prose -- Workday, SmartRecruiters,
+     * Workable, career pages -- have their label written by the detail cache, not
+     * by the sync, and the detail endpoint answers from that cache. So a row
+     * whose label was extracted before the interval logic existed would keep the
+     * unit-less figure for good: the sync writes "Salary not listed" for these
+     * sources and the upsert guard rightly preserves the stored label instead,
+     * and nothing else recomputes it. This finds exactly those rows so the sync
+     * can put the interval back on them.
+     *
+     * <p>Bounded per run on purpose. This is a catch-up pass over rows that
+     * already have their body stored, not a hot path, and Cloud SQL here is a
+     * db-f1-micro.
+     */
+    public Flux<ProsePayRow> findRowsMissingSalaryPeriod(int limit) {
+        return databaseClient.sql("""
+                        SELECT id, description_text, salary_label
+                        FROM external_job_postings
+                        WHERE is_active = true
+                          AND salary_period IS NULL
+                          AND description_text IS NOT NULL
+                          AND description_text <> ''
+                          AND salary_label IS NOT NULL
+                          AND LOWER(salary_label) NOT LIKE '%not listed%'
+                        ORDER BY id
+                        LIMIT :limit
+                        """)
+                .bind("limit", Math.max(1, limit))
+                .map((row, metadata) -> new ProsePayRow(
+                        row.get("id", Long.class),
+                        row.get("description_text", String.class),
+                        row.get("salary_label", String.class)))
+                .all();
+    }
+
+    /** Writes a recomputed label and its interval back onto one posting. */
+    public Mono<Long> updateProsePay(Long id, String salaryLabel, String salaryPeriod) {
+        DatabaseClient.GenericExecuteSpec spec = databaseClient.sql("""
+                        UPDATE external_job_postings
+                        SET salary_label = :salaryLabel,
+                            salary_period = :salaryPeriod,
+                            updated_at = :now
+                        WHERE id = :id
+                        """)
+                .bind("id", id)
+                .bind("now", OffsetDateTime.now(ZoneOffset.UTC));
+
+        spec = bindNullable(spec, "salaryLabel", capped("salaryLabel", salaryLabel), String.class);
+        spec = bindNullable(spec, "salaryPeriod", capped("salaryPeriod", salaryPeriod), String.class);
+
+        return spec.fetch().rowsUpdated();
+    }
+
     public Mono<Long> recomputeJobQuality() {
         return databaseClient.sql("""
                         WITH churn AS (

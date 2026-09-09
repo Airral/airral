@@ -4480,6 +4480,20 @@ public class CandidateJobSearchService {
     private record ProseSalary(String label, String period) {}
 
     /**
+     * The pay a description states, for callers outside the mappers.
+     *
+     * <p>Exists for the sync's catch-up pass over rows whose label was extracted
+     * before the interval logic did. Returns null when the text states no pay at
+     * all, and a null period when it states pay but no interval -- the same two
+     * distinctions the mappers rely on, so a caller cannot accidentally turn "no
+     * interval stated" into an assumed one.
+     */
+    public String[] prosePayFrom(String descriptionText) {
+        ProseSalary salary = extractProseSalary(descriptionText);
+        return salary == null ? null : new String[] { salary.label(), salary.period() };
+    }
+
+    /**
      * Pay stated in prose, for the sources that state it nowhere else.
      *
      * <p>Workday, SmartRecruiters, Workable, career pages and the schema.org path

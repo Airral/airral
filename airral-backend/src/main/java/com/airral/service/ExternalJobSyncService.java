@@ -39,6 +39,9 @@ public class ExternalJobSyncService {
     private final boolean sweepEnabled;
     private final String syncOwnerId;
 
+    /** Per-run ceiling on the catch-up pass, so it cannot dominate a sync. */
+    private static final int PROSE_PAY_BACKFILL_LIMIT = 4000;
+
     public ExternalJobSyncService(
             ExternalJobPostingStore externalJobPostingStore,
             CandidateJobSearchService candidateJobSearchService,
@@ -253,6 +256,7 @@ public class ExternalJobSyncService {
                         log.info("Rescored {} posting(s) on listing age and repost churn", rescored);
                     }
                 })
+                .then(backfillProsePayIntervals())
                 .then(externalJobPostingStore.expireOldJobs(retentionDays))
                 .flatMap(jobsExpired -> externalJobPostingStore.purgeExpiredJobs(purgeAfterDays)
                         .flatMap(jobsPurged -> externalJobPostingStore.completeSyncRun(
@@ -292,4 +296,39 @@ public class ExternalJobSyncService {
             return source.companyName() + " " + source.sourceType() + " " + source.boardToken() + ": " + errorMessage;
         }
     }
+    /**
+     * Puts the pay interval back on rows whose label predates the interval logic.
+     *
+     * <p>Workday, SmartRecruiters, Workable and the career pages state pay only in
+     * their description, so their label is written by the detail cache rather than
+     * by the sync -- and the detail endpoint answers from that cache. A row read
+     * before the interval was understood therefore keeps a unit-less figure for
+     * good: nothing recomputes it, and the sync writes "Salary not listed" for
+     * these sources, which the upsert guard rightly refuses to overwrite the
+     * stored label with. Without this pass an hourly warehouse wage goes on
+     * reading like an annual salary on every card in the list.
+     *
+     * <p>Only rows that gain something are written. A row whose text states no
+     * interval keeps its bare figure and is left alone rather than rewritten every
+     * run, which also keeps this from churning HOT updates across the table.
+     */
+    private Mono<Long> backfillProsePayIntervals() {
+        return externalJobPostingStore.findRowsMissingSalaryPeriod(PROSE_PAY_BACKFILL_LIMIT)
+                .flatMap(row -> {
+                    String[] pay = candidateJobSearchService.prosePayFrom(row.descriptionText());
+                    if (pay == null || pay[1] == null) {
+                        return Mono.just(0L);
+                    }
+
+                    return externalJobPostingStore.updateProsePay(row.id(), pay[0], pay[1]);
+                }, 4)
+                .reduce(0L, Long::sum)
+                .doOnNext(updated -> {
+                    if (updated > 0) {
+                        log.info("Recovered the pay interval on {} posting(s) read before it was understood",
+                                updated);
+                    }
+                });
+    }
+
 }
