@@ -15,6 +15,17 @@ public interface UserRepository extends R2dbcRepository<User, Long> {
 
     Mono<Boolean> existsByEmail(String email);
 
+    /**
+     * Finds the account already linked to a Google identity.
+     *
+     * <p>Tried before findByEmail on the Google sign-in path, and the order is
+     * the point: an address is something two people can each claim -- one by
+     * registering it here, one by owning it at Google -- while the sub can only
+     * be asserted by Google. So the sub, when we hold one, decides which row a
+     * credential is allowed to open.
+     */
+    Mono<User> findByGoogleSubject(String googleSubject);
+
     @Query("SELECT * FROM users WHERE email = :email AND organization_id = :organizationId")
     Mono<User> findByEmailAndOrganizationId(String email, Long organizationId);
 

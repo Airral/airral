@@ -2,6 +2,7 @@ package com.airral.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -77,6 +78,31 @@ public class GlobalExceptionHandler {
         return Mono.just(ResponseEntity.status(ex.getStatusCode())
                 .headers(ex.getHeaders())
                 .body(errorResponse));
+    }
+
+    /**
+     * A refused authorization is the caller's fault, not the server's.
+     *
+     * <p>The accessDeniedHandler wired up in SecurityConfig only ever sees
+     * denials raised in the filter chain. A @PreAuthorize denial is thrown
+     * inside the handler method, long past that point, so the catch-all below
+     * claimed it -- AccessDeniedException is a RuntimeException -- and every
+     * legitimate role refusal was answered and recorded as a 500. On airral-api
+     * that is the bulk of the 5xx rate, which is enough to bury a real fault.
+     *
+     * <p>The message is fixed rather than lifted off the exception. Spring's
+     * text names the expression that denied the call, and handing that to
+     * whoever is probing describes the authorization rules to them.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public Mono<ResponseEntity<Map<String, Object>>> handleAccessDeniedException(AccessDeniedException ex) {
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("timestamp", LocalDateTime.now());
+        errorResponse.put("status", HttpStatus.FORBIDDEN.value());
+        errorResponse.put("error", "Forbidden");
+        errorResponse.put("message", "You do not have permission to perform this action");
+
+        return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse));
     }
 
     @ExceptionHandler(RuntimeException.class)

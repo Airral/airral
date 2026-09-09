@@ -90,6 +90,44 @@ jobs:
           # ID can be claimed by anyone, and these are allowed with
           # allowCredentials(true), so a stale entry is a standing offer of a
           # credentialed cross-origin channel to whoever registers the name.
+          #
+          # max-instances is bounded by Cloud SQL, not by Cloud Run. db-f1-micro
+          # has a hard 25-connection ceiling; each instance holds its own R2DBC
+          # pool (application-gcp.yml: max-size 5); the four-hourly sync job runs
+          # the same gcp profile from Actions and opens a pool of its own; and
+          # Postgres holds 3 connections back for superusers. The budget:
+          #
+          #   3 x 5 instances  +  5 sync  +  3 reserved  =  23 of 25
+          #
+          # leaving 2 for the JDBC connection Flyway opens on every instance
+          # start. 3 is therefore the ceiling, not a chosen value: 4 instances
+          # would be 28 and would exhaust the database whenever a spike met a
+          # sync run, which fails harder than the throttling it would replace.
+          # Shrinking the pool to max-size 3 is what unlocks a real raise --
+          # 5 x 3 + 3 sync + 3 reserved = 21 -- and must land before any
+          # raise here does.
+          #
+          # min-instances 1 spares the first caller of the day the JVM and Cloud
+          # SQL connector cold start they were paying in full. The idle instance
+          # bills continuously at roughly $7/month, which is the same order as
+          # the database it fronts: gcp-cloudsql-power.yml already halves that
+          # bill by stopping Cloud SQL 20:00-08:00 ET, and the warm instance goes
+          # on costing through the window where there is nothing it can serve.
+          #
+          # The sharper cost is a recycle inside that window. The replacement
+          # does not sit out the probe waiting for 08:00 -- FlywayConfig caps its
+          # connect retries at about 92 seconds on purpose, so the context aborts
+          # well inside the 300s probe budget, the container exits, Cloud Run
+          # starts another, and that repeats until the database is back, billed
+          # at the startup CPU rate rather than the idle one.
+          #
+          # gcp-cloudsql-power.yml now drops the floor back to 0 before it
+          # stops the database and restores it to 1 after the database is
+          # RUNNABLE, so the floor tracks the power window instead of fighting
+          # it. The value set here is therefore the daytime floor; overnight the
+          # power job owns it, and a deploy that lands inside the off-window will
+          # be corrected at the next transition rather than holding a warm
+          # instance against a stopped database.
           gcloud run deploy airral-api \
             --image "$IMAGE:${{ inputs.version }}" \
             --region "${{ vars.GCP_REGION }}" \
@@ -98,7 +136,7 @@ jobs:
             --port 8080 \
             --cpu 1 \
             --memory 1Gi \
-            --min-instances 0 \
+            --min-instances 1 \
             --max-instances 3 \
             --timeout 300 \
             --startup-probe httpGet.path=/actuator/health,initialDelaySeconds=10,periodSeconds=10,failureThreshold=30 \

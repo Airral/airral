@@ -72,7 +72,14 @@ export class SeoService {
     const script = this.document.createElement('script');
     script.type = 'application/ld+json';
     script.setAttribute('data-airral-json-ld', 'true');
-    script.textContent = JSON.stringify(nodes);
+    // A script element is raw text in HTML, so nothing inside it gets escaped
+    // on the way out. Assigning textContent is safe in a browser and stops
+    // being safe the moment the server renders the same page to a string: a
+    // posting whose title contains "</script" -- and these come from other
+    // companies' job boards, not from us -- would close the tag early and spill
+    // the rest of the JSON into the page. The escape is the same character to
+    // a JSON parser and inert to an HTML one.
+    script.textContent = JSON.stringify(nodes).replace(/</g, '\\u003c');
     this.document.head.appendChild(script);
   }
 

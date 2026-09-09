@@ -11,8 +11,16 @@ name: GCP · Cloud SQL Power
 # One expression stays correct across DST, and no single run is load-bearing --
 # GitHub's scheduler is best-effort and often hours late.
 #
-# Note: while the database is stopped the API returns errors. The website and
-# the three portals are static and stay up regardless.
+# Note: while the database is stopped the API returns errors -- 500 from
+# GlobalExceptionHandler's catch-all, because an R2DBC failure is a
+# RuntimeException. The three portals are static and stay up regardless.
+#
+# The website no longer is. It server-renders every job page, and each render
+# is a live API call, so through this window a crawler is served a real page
+# for a real posting built from a failed fetch. That page must not carry
+# noindex: job-route.resolvers.ts only treats 400/404/410 as "this posting is
+# gone" for exactly that reason, and anything else -- including this window's
+# 500s -- renders as temporarily unavailable with the robots tag left alone.
 
 on:
   workflow_dispatch:
@@ -106,10 +114,23 @@ jobs:
         if: steps.decide.outputs.action != 'skip'
         env:
           INSTANCE: airral-db
+          REGION: ${{ vars.GCP_REGION }}
         run: |
           set -euo pipefail
           state() {
             gcloud sql instances describe "$INSTANCE" --format='value(state)'
+          }
+
+          # Never fatal. The power transition is the job here; if the service is
+          # missing or the API has not been deployed yet, saying so and carrying
+          # on beats failing a run whose real work already succeeded.
+          pin_min_instances() {
+            local want="$1"
+            echo "pinning airral-api min-instances to $want"
+            if ! gcloud run services update airral-api \
+                   --region "$REGION" --min-instances="$want" --quiet; then
+              echo "::warning::Could not set min-instances=$want on airral-api."
+            fi
           }
 
           BEFORE=$(state)
@@ -131,11 +152,24 @@ jobs:
                 echo "start operation: $OP"
                 gcloud sql operations wait "$OP" --timeout=900 || true
               fi
+              # Only now is it safe to keep an instance warm. The API deploy asks
+              # for min-instances 1 so the first caller of the day does not pay a
+              # JVM plus Cloud SQL connector start, but a warm instance is a
+              # liability while the database is off: Flyway runs at startup, so a
+              # replacement container retries for about 92 seconds, aborts, and
+              # Cloud Run starts another -- a crash loop for the whole twelve-hour
+              # window, against a service that is deliberately unavailable anyway.
+              # Pinning it here, on the transition, is what makes both settings
+              # safe to hold at once.
+              pin_min_instances 1
               ;;
             stop)
               if [ "$BEFORE" = "STOPPED" ]; then
                 echo "already stopped, nothing to do"
               else
+                # Scale to zero BEFORE the database goes away, so no instance is
+                # left holding a connection to an instance that is about to stop.
+                pin_min_instances 0
                 gcloud sql instances patch "$INSTANCE" --activation-policy=NEVER --quiet
               fi
               ;;

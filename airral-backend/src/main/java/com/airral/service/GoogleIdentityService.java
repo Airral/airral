@@ -9,10 +9,12 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.Signature;
+import java.security.SignatureException;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.RSAPublicKeySpec;
 import java.time.Instant;
@@ -56,14 +58,49 @@ public class GoogleIdentityService {
                 .flatMap(parts -> loadJwks().flatMap(jwks -> verifyWithJwks(parts, jwks)));
     }
 
-    private TokenParts parseTokenParts(String credential) throws Exception {
+    /**
+     * Splits a credential into the three parts a signature check needs.
+     *
+     * <p>Every failure in here is a 400, because every one of them is something
+     * the caller sent. That was not true while the decode and the parse ran
+     * uncaught, and it started to matter the moment POST /api/auth/google got a
+     * mapping and became a reachable public route:
+     *
+     * <ul>
+     *   <li>"aaaa.aaaa.aaaa" decodes cleanly and is not JSON, so Jackson threw
+     *       JsonParseException. That is an IOException, not a RuntimeException,
+     *       so it went straight past GlobalExceptionHandler's RuntimeException
+     *       handler to the Exception catch-all and answered 500 -- carrying the
+     *       parser's dump of the offending bytes out with it.
+     *   <li>The literal JSON {@code null} ("bnVsbA") parses to a null Map, and
+     *       header.get("alg") on it threw NullPointerException. Also a 500.
+     * </ul>
+     *
+     * <p>Both are trivially reachable by anything posting junk at the endpoint,
+     * and both minted 5xx on a route where the caller was simply wrong.
+     */
+    private TokenParts parseTokenParts(String credential) {
         String[] segments = credential.split("\\.");
         if (segments.length != 3) {
             throw new BadRequestException("Invalid Google credential");
         }
 
-        Map<String, Object> header = objectMapper.readValue(decodeBase64Url(segments[0]), JSON_OBJECT);
-        Map<String, Object> payload = objectMapper.readValue(decodeBase64Url(segments[1]), JSON_OBJECT);
+        Map<String, Object> header;
+        Map<String, Object> payload;
+        byte[] signature;
+        try {
+            header = objectMapper.readValue(decodeBase64Url(segments[0]), JSON_OBJECT);
+            payload = objectMapper.readValue(decodeBase64Url(segments[1]), JSON_OBJECT);
+            signature = decodeBase64Url(segments[2]);
+        } catch (IllegalArgumentException | IOException ex) {
+            // Deliberately not echoing the parser's message: it quotes the input
+            // back, and the input is somebody's attempt at a credential.
+            throw new BadRequestException("Invalid Google credential");
+        }
+
+        if (header == null || payload == null) {
+            throw new BadRequestException("Invalid Google credential");
+        }
 
         String algorithm = asString(header.get("alg"));
         String keyId = asString(header.get("kid"));
@@ -71,7 +108,7 @@ public class GoogleIdentityService {
             throw new BadRequestException("Invalid Google credential header");
         }
 
-        return new TokenParts(segments[0] + "." + segments[1], decodeBase64Url(segments[2]), keyId, payload);
+        return new TokenParts(segments[0] + "." + segments[1], signature, keyId, payload);
     }
 
     private Mono<List<Map<String, Object>>> loadJwks() {
@@ -104,7 +141,7 @@ public class GoogleIdentityService {
                     .orElseThrow(() -> new BadRequestException("Google signing key was not found"));
 
             RSAPublicKey publicKey = buildRsaPublicKey(jwk);
-            if (!verifySignature(parts.signingInput(), parts.signature(), publicKey)) {
+            if (!verifiedSignature(parts, publicKey)) {
                 throw new BadRequestException("Invalid Google credential signature");
             }
 
@@ -125,11 +162,24 @@ public class GoogleIdentityService {
         return (RSAPublicKey) keyFactory.generatePublic(new RSAPublicKeySpec(modulus, exponent));
     }
 
-    private boolean verifySignature(String signingInput, byte[] signatureBytes, RSAPublicKey publicKey) throws Exception {
+    /**
+     * Whether the caller's signature checks out against Google's key.
+     *
+     * <p>Signature.verify answers false for a wrong signature but <em>throws</em>
+     * for a malformed one -- wrong length, wrong encoding -- and
+     * SignatureException is checked, so it escaped Mono.fromCallable as itself
+     * and answered 500 rather than 400. A signature that cannot be checked is a
+     * credential that is not accepted, which is the same answer either way.
+     */
+    private boolean verifiedSignature(TokenParts parts, RSAPublicKey publicKey) throws Exception {
         Signature verifier = Signature.getInstance("SHA256withRSA");
         verifier.initVerify(publicKey);
-        verifier.update(signingInput.getBytes(StandardCharsets.UTF_8));
-        return verifier.verify(signatureBytes);
+        verifier.update(parts.signingInput().getBytes(StandardCharsets.UTF_8));
+        try {
+            return verifier.verify(parts.signature());
+        } catch (SignatureException ex) {
+            return false;
+        }
     }
 
     private GoogleProfile buildVerifiedProfile(Map<String, Object> payload) {

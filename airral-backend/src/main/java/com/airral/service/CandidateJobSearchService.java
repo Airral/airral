@@ -13,6 +13,7 @@ import com.airral.dto.smartrecruiters.SmartRecruitersPostingResponse;
 import com.airral.dto.workable.WorkableJobBoardResponse;
 import com.airral.dto.workday.WorkdayJobDetailResponse;
 import com.airral.dto.workday.WorkdayJobSearchResponse;
+import com.airral.exception.ApiException;
 import com.airral.exception.BadRequestException;
 import com.airral.repository.CandidateProfileRepository;
 import com.airral.repository.UserRepository;
@@ -22,7 +23,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -104,6 +107,40 @@ public class CandidateJobSearchService {
                     + "|is\\s+not|unable\\s+to|not|without)\\b[^.]{0,30}?\\bsponsor)"
                     + "|(?:\\bno\\s+(?:visa\\s+|employment\\s+)?sponsorship\\b)"
                     + "|(?:\\bsponsorship\\b[^.]{0,20}?\\b(?:is\\s+not|not\\s+available|unavailable)\\b)",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * A posting stating the candidate must already hold the right to work.
+     *
+     * <p>Split out of the phrase list because the bare substring "right to work"
+     * matched ordinary offer boilerplate. "All offers are contingent on the
+     * candidate's ability to secure the right to work in the United States" says
+     * nothing about sponsorship -- securing the right to work is precisely what
+     * sponsorship achieves -- yet it scored the posting AUTHORIZATION_REQUIRED,
+     * which costs 16 points and tells a candidate who needs sponsorship that the
+     * role's "authorization language needs review". Samsara alone accounted for a
+     * large share of those.
+     *
+     * <p>Narrowed rather than dropped: "you must have the right to work in the
+     * US" is a genuine requirement, and for some employers it is the only way
+     * they state it. The separation is the verb. Possession -- have, hold,
+     * possess, require -- has to sit next to the phrase, with nothing but an
+     * article and an adjective in between; acquisition -- secure, obtain, gain --
+     * is outside the alternation, so the boilerplate above no longer reaches it.
+     *
+     * <p>"in" is required after the phrase for the same reason a bare "no" was
+     * rejected in {@link #SPONSORSHIP_REFUSAL}: without it, remote-work copy
+     * ("you have the right to work from anywhere") reads as an authorization
+     * demand. It also keeps out "right-to-work state", which is labour law, not
+     * immigration.
+     */
+    private static final Pattern RIGHT_TO_WORK_REQUIREMENT = Pattern.compile(
+            "(?:\\b(?:have|has|had|having|hold|holds|possess|possesses|require|requires|required)\\s+"
+                    + "(?:the\\s+|a\\s+|an\\s+|your\\s+|their\\s+)?"
+                    + "(?:legal\\s+|valid\\s+|unrestricted\\s+|existing\\s+|current\\s+|permanent\\s+)?"
+                    + "right\\s+to\\s+work\\s+in\\b)"
+                    + "|(?:\\b(?:proof|evidence|documentation|verification)\\s+of\\s+"
+                    + "(?:your\\s+|their\\s+|the\\s+|a\\s+)?right\\s+to\\s+work\\b)",
             Pattern.CASE_INSENSITIVE);
 
     private static final Pattern SALARY_RANGE_PATTERN = Pattern.compile(
@@ -361,7 +398,15 @@ public class CandidateJobSearchService {
         // hundred" rather than "in the catalogue" -- on a corpus whose newest
         // postings come from a source publishing no pay, "Salary listed" returned
         // 3 of the 464 postings that actually had a salary.
-        int queryLimit = Math.min(LIVE_SOURCE_LIMIT, resolvedLimit + 1);
+        //
+        // The +1 is the has-more probe and it must not be clamped to the page-size
+        // cap. It was, and at limit=500 -- the largest page normalizeLimit allows --
+        // the probe and the page were the same 500 rows, so toJobPage compared
+        // 500 > 500 and answered hasMore=false. A bulk consumer following hasMore
+        // was told the catalogue ended after the first 500 of ~15,330 postings. The
+        // applicant portal pages at 50 and never saw it. The store caps this query
+        // at 2,000 rows of its own accord, so asking for one extra costs nothing.
+        int queryLimit = resolvedLimit + 1;
         int queryOffset = resolvedOffset;
 
         if (hasCandidateEmail(candidateEmail)) {
@@ -885,7 +930,16 @@ public class CandidateJobSearchService {
                                                 log.warn("Unable to cache job detail {}:{}:{}: {}", normalizedSource, boardToken, externalJobId, error.getMessage());
                                                 return Mono.just(0L);
                                             })
-                                            .thenReturn(detail));
+                                            .thenReturn(detail))
+                                    // ApiException is a deliberate answer -- an
+                                    // unsupported source, a missing id, a job the
+                                    // board no longer lists -- and already carries
+                                    // its own status. Everything else is the board
+                                    // being slow or broken, which is not the
+                                    // candidate's problem to read about.
+                                    .onErrorResume(error -> !(error instanceof ApiException),
+                                            error -> degradedJobDetail(
+                                                    normalizedSource, boardToken, externalJobId, error));
                         }));
     }
 
@@ -896,6 +950,37 @@ public class CandidateJobSearchService {
             String candidateEmail) {
         return getExternalJobDetail(sourceType, boardToken, externalJobId)
                 .flatMap(detail -> personalizeDetail(candidateEmail, detail));
+    }
+
+    /**
+     * What we already hold about a posting, for when its board will not answer.
+     *
+     * <p>The live detail fetch runs under a source deadline and had no fallback
+     * configured, so a slow board surfaced Reactor's own timeout text -- naming
+     * the operator and complaining that no fallback was configured -- to the
+     * candidate as a 500. Only the first visit paid it: that request populated
+     * the detail cache and every later one was served from the database, so the
+     * fault read as intermittent rather than as the cold-cache failure it is.
+     *
+     * <p>The stored row has everything the page renders except the body, so
+     * serving it degrades the page instead of failing it. Deliberately not
+     * cached back: cacheJobDetail exists to record a real detail fetch, and
+     * writing a bodyless row would satisfy findCachedJobDetail and stop the real
+     * fetch ever being attempted again.
+     *
+     * <p>503 rather than 500 when even that is missing. The posting was
+     * confirmed active a moment earlier, so the caller is being told to retry,
+     * not that the job is gone.
+     */
+    private Mono<CandidateJobDetailResponse> degradedJobDetail(
+            String normalizedSource, String boardToken, String externalJobId, Throwable error) {
+        log.warn("Serving the stored posting for {}:{}:{} because the live detail fetch failed: {}",
+                normalizedSource, boardToken, externalJobId, error.toString());
+
+        return externalJobPostingStore.findStoredJobDetail(normalizedSource, boardToken, externalJobId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "This job's details are temporarily unavailable. Please try again shortly.")));
     }
 
     private Mono<CandidateJobDetailResponse> loadExternalJobDetail(String normalizedSource, String boardToken, String externalJobId) {
@@ -1285,6 +1370,7 @@ public class CandidateJobSearchService {
                 .employmentType("Full-time")
                 .descriptionText(descriptionText)
                 .salaryLabel(payRange == null ? "Salary not listed" : formatSalary(payRange))
+                .salaryPeriod(payRange == null ? null : greenhouseSalaryPeriod(payRange))
                 .applyUrl(job.getAbsoluteUrl())
                 .jobUrl(job.getAbsoluteUrl())
                 .applyMode("EXTERNAL_APPLY")
@@ -1367,6 +1453,12 @@ public class CandidateJobSearchService {
                         stripHtml(posting.getDescription()),
                         stripHtml(posting.getOpening())))
                 .salaryLabel(formatLeverSalary(posting))
+                .salaryPeriod(posting.getSalaryRange() == null
+                        ? null
+                        : statedSalaryPeriod(
+                                posting.getSalaryRange().getInterval(),
+                                posting.getSalaryRange().getMin(),
+                                posting.getSalaryRange().getMax()))
                 .applyUrl(posting.getApplyUrl())
                 .jobUrl(posting.getHostedUrl())
                 .applyMode("EXTERNAL_APPLY")
@@ -1444,6 +1536,7 @@ public class CandidateJobSearchService {
                 // Same list payload the sync parses; was discarded here.
                 .descriptionText(firstNonBlank(job.getDescriptionPlain(), stripHtml(job.getDescriptionHtml())))
                 .salaryLabel(formatAshbySalary(job))
+                .salaryPeriod(ashbySalaryPeriod(job))
                 .applyUrl(job.getApplyUrl())
                 .jobUrl(job.getJobUrl())
                 .applyMode("EXTERNAL_APPLY")
@@ -2079,88 +2172,7 @@ public class CandidateJobSearchService {
                 job.getTags() == null ? null : String.join(" ", job.getTags()),
                 descriptionText
         );
-
-        boolean noSponsorship = SPONSORSHIP_REFUSAL.matcher(text).find()
-                || containsAny(text, "now or in the future");
-        boolean sponsors = !noSponsorship && containsAny(text,
-                "visa sponsorship",
-                "sponsorship available",
-                "will sponsor",
-                "h-1b sponsorship",
-                "h1b sponsorship",
-                "employment visa",
-                "immigration sponsorship");
-        boolean requiresAuthorization = containsAny(text,
-                "authorized to work",
-                "work authorization",
-                "eligible to work",
-                "right to work",
-                "employment authorization");
-        // Phrases that describe an engagement, not any use of the words. The bare
-        // terms "contract", "staffing" and "vendor" fired on Contracts Manager,
-        // Vendor Operations and Warehouse Logistics roles -- and the flag is shown
-        // to the candidate as a caution, so a false one costs a real application.
-        boolean contractRisk = containsAny(text,
-                "contract role",
-                "contract position",
-                "contract-to-hire",
-                "contract to hire",
-                "w2 contract",
-                "fixed-term contract",
-                "corp-to-corp",
-                "c2c",
-                "1099",
-                "staffing agency",
-                "staffing firm",
-                "temp-to-perm",
-                "employer of record");
-        boolean capExemptFit = containsAny(text,
-                "university",
-                "college",
-                "nonprofit research",
-                "research organization",
-                "teaching hospital",
-                "academic medical");
-
-        String sponsorshipLanguage;
-        int confidence;
-        List<String> reasons = new ArrayList<>();
-        if (sponsors) {
-            sponsorshipLanguage = "SPONSORS";
-            confidence = 88;
-            reasons.add("Posting mentions sponsorship");
-        } else if (noSponsorship) {
-            sponsorshipLanguage = "NO_SPONSORSHIP";
-            confidence = 8;
-            reasons.add("Posting says sponsorship is not available");
-        } else if (requiresAuthorization) {
-            sponsorshipLanguage = "AUTHORIZATION_REQUIRED";
-            confidence = 45;
-            reasons.add("Posting requires work authorization");
-        } else {
-            sponsorshipLanguage = "UNKNOWN";
-            confidence = 55;
-            reasons.add("Sponsorship not stated");
-        }
-
-        if (contractRisk) {
-            confidence = Math.max(0, confidence - 15);
-            reasons.add("Contract/staffing language needs review");
-        }
-        if (capExemptFit) {
-            confidence = Math.min(98, confidence + 8);
-            reasons.add("Possible cap-exempt employer signal");
-        }
-
-        return new VisaSignal(
-                sponsorshipLanguage,
-                Math.max(0, Math.min(98, confidence)),
-                reasons.stream().distinct().limit(4).toList(),
-                requiresAuthorization || noSponsorship,
-                contractRisk,
-                noSponsorship || contractRisk,
-                sponsors && !contractRisk,
-                capExemptFit);
+        return inferVisaSignalFromText(text);
     }
 
     private VisaSignal inferVisaSignal(CandidateJobDetailResponse detail, String descriptionText) {
@@ -2191,8 +2203,8 @@ public class CandidateJobSearchService {
                 "authorized to work",
                 "work authorization",
                 "eligible to work",
-                "right to work",
-                "employment authorization");
+                "employment authorization")
+                || RIGHT_TO_WORK_REQUIREMENT.matcher(text).find();
         // Phrases that describe an engagement, not any use of the words. The bare
         // terms "contract", "staffing" and "vendor" fired on Contracts Manager,
         // Vendor Operations and Warehouse Logistics roles -- and the flag is shown
@@ -2939,6 +2951,7 @@ public class CandidateJobSearchService {
                 .workMode(detail.getWorkMode())
                 .employmentType(detail.getEmploymentType())
                 .salaryLabel(detail.getSalaryLabel())
+                .salaryPeriod(detail.getSalaryPeriod())
                 .applyUrl(detail.getApplyUrl())
                 .jobUrl(detail.getJobUrl())
                 .applyMode(detail.getApplyMode())
@@ -4772,7 +4785,7 @@ public class CandidateJobSearchService {
         if (value.contains("none")) {
             return null;
         }
-        if (value.contains("hour") || value.contains("hourly") || value.contains("/hr")) {
+        if (value.contains("hour") || value.contains("/hr")) {
             return "HOUR";
         }
         if (value.contains("year") || value.contains("annual") || value.contains("annum")) {
@@ -4846,7 +4859,6 @@ public class CandidateJobSearchService {
         return period;
     }
 
-    /** The source's stated interval, normalized and sanity-checked against the amounts. */
     private String statedSalaryPeriod(String rawInterval, BigDecimal min, BigDecimal max) {
         return trustedSalaryPeriod(normalizeSalaryPeriod(rawInterval), min, max);
     }
@@ -4881,6 +4893,13 @@ public class CandidateJobSearchService {
                 centsToUnits(payRange.getMaxCents()),
                 payRange.getCurrencyType(),
                 payRange.getTitle());
+    }
+
+    private String ashbySalaryPeriod(AshbyJobBoardResponse.AshbyJob job) {
+        AshbyJobBoardResponse.AshbyCompensationComponent component = ashbySalaryComponent(job);
+        return component == null
+                ? null
+                : statedSalaryPeriod(component.getInterval(), component.getMinValue(), component.getMaxValue());
     }
 
     private String greenhouseSalaryPeriod(GreenhouseJobBoardResponse.GreenhousePayRange payRange) {

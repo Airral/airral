@@ -4,14 +4,18 @@ name: GCP · Deploy Frontend to Cloud Run
 # already pushed; it never builds, so what ships is what was tested and rollback
 # is deploying an older tag still in the registry.
 #
-# All four apps are the same shape -- static Angular behind nginx, scaling to
-# zero -- so they share one workflow. The only per-app differences are the
-# service name, the image name and which custom domain is mapped to it.
+# The three portals are the same shape -- static Angular behind nginx, scaling
+# to zero. The website is now server-rendered on Node, because none of its
+# ~16,000 job URLs was indexable while it was static: each one returned the
+# homepage shell and so declared itself a duplicate of the homepage. It differs
+# only in how much memory and concurrency it is given; everything else about
+# deploying it is unchanged, so they still share one workflow.
 #
-# All four run as containers rather than static uploads because the entrypoint
-# writes runtime-config.js at start-up from environment variables. A static host
-# has to bake that file into the bundle, which makes repointing a portal at a
-# different API or sibling portal cost a full rebuild; here it is an env change.
+# All four run as containers rather than static uploads because runtime-config.js
+# is produced from environment variables at run time -- by the nginx entrypoint
+# for the portals, by the SSR server for the website. A static host has to bake
+# that file into the bundle, which makes repointing a portal at a different API
+# or sibling portal cost a full rebuild; here it is an env change.
 #
 # Manual only, by design. Nothing here triggers on push.
 
@@ -84,16 +88,26 @@ jobs:
         id: names
         run: |
           set -euo pipefail
+          # MEMORY and CONCURRENCY differ only for the website, which renders on
+          # Node instead of serving files from nginx. 256Mi is ample for nginx
+          # and is not for Node: the runtime and the loaded server bundle sit
+          # close to that before a single page is rendered, and exceeding the
+          # limit on Cloud Run kills the container rather than slowing it. 40 in
+          # flight rather than the default 80 because each one is a real render
+          # on one vCPU, and a crawler working through 16,000 job URLs is
+          # exactly the traffic shape that would find the ceiling.
           case '${{ matrix.app }}' in
-            website)   SERVICE=airral-website   IMAGE=airral-website   DOMAIN=airral.com ;;
-            applicant) SERVICE=airral-applicant IMAGE=airral-applicant DOMAIN=apply.airral.com ;;
-            hr)        SERVICE=airral-hr        IMAGE=airral-hr        DOMAIN=app.airral.com ;;
-            admin)     SERVICE=airral-admin     IMAGE=airral-admin     DOMAIN=admin.airral.com ;;
+            website)   SERVICE=airral-website   IMAGE=airral-website   DOMAIN=airral.com       MEMORY=512Mi CONCURRENCY=40 ;;
+            applicant) SERVICE=airral-applicant IMAGE=airral-applicant DOMAIN=apply.airral.com MEMORY=256Mi CONCURRENCY=80 ;;
+            hr)        SERVICE=airral-hr        IMAGE=airral-hr        DOMAIN=app.airral.com   MEMORY=256Mi CONCURRENCY=80 ;;
+            admin)     SERVICE=airral-admin     IMAGE=airral-admin     DOMAIN=admin.airral.com MEMORY=256Mi CONCURRENCY=80 ;;
             *) echo "::error::unknown app '${{ matrix.app }}'"; exit 1 ;;
           esac
           echo "service=$SERVICE" >> "$GITHUB_OUTPUT"
           echo "image=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/airral/$IMAGE" >> "$GITHUB_OUTPUT"
           echo "domain=$DOMAIN" >> "$GITHUB_OUTPUT"
+          echo "memory=$MEMORY" >> "$GITHUB_OUTPUT"
+          echo "concurrency=$CONCURRENCY" >> "$GITHUB_OUTPUT"
 
       - name: Verify the image exists
         run: |
@@ -106,15 +120,16 @@ jobs:
       - name: Deploy to Cloud Run
         run: |
           set -euo pipefail
-          # Static nginx serving content-hashed assets: 256Mi is ample, and
-          # scaling to zero means an idle portal costs nothing.
+          # Sizing is resolved per app above. Scaling to zero either way, so an
+          # idle service still costs nothing.
           gcloud run deploy "${{ steps.names.outputs.service }}" \
             --image "${{ steps.names.outputs.image }}:${{ inputs.version }}" \
             --region "${{ vars.GCP_REGION }}" \
             --allow-unauthenticated \
             --port 8080 \
             --cpu 1 \
-            --memory 256Mi \
+            --memory "${{ steps.names.outputs.memory }}" \
+            --concurrency "${{ steps.names.outputs.concurrency }}" \
             --min-instances 0 \
             --max-instances 5 \
             --set-env-vars "^@^AIRRAL_API_BASE_URL=${{ inputs.api_base_url }}@AIRRAL_WEBSITE_URL=${{ vars.URL_WEBSITE }}@AIRRAL_APPLICANT_URL=${{ vars.URL_APPLICANT }}@AIRRAL_HR_URL=${{ vars.URL_HR }}@AIRRAL_ADMIN_URL=${{ vars.URL_ADMIN }}@GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}@AIRRAL_RELEASE_VERSION=${{ inputs.version }}"
@@ -132,8 +147,9 @@ jobs:
             if [ "$CODE" = "200" ]; then
               echo "index.html served"
 
-              # The entrypoint must have written the API URL in, or every page
-              # would silently call the wrong backend.
+              # Whichever produced this file -- the nginx entrypoint, or the SSR
+              # server reading the same variables -- it must carry the API URL,
+              # or every page silently calls the wrong backend.
               RC=$(curl -s "$URL/runtime-config.js")
               echo "$RC"
               if ! printf '%s' "$RC" | grep -qF "${{ inputs.api_base_url }}"; then
@@ -151,11 +167,77 @@ jobs:
                 fi
               done
 
-              # SPA fallback: an unknown path must return the shell, not a 404,
-              # or a refresh on any deep link breaks.
-              DEEP=$(curl -s -o /dev/null -w '%{http_code}' "$URL/__spa_probe__" || true)
-              [ "$DEEP" = "200" ] || { echo "::error::SPA fallback broken (probe returned $DEEP)"; exit 1; }
-              echo "SPA fallback OK"
+              # Deep links: an unknown path must land on a page, not a 404, or a
+              # refresh on any of them breaks. Following redirects because the
+              # website answers on the server now, where the router's catch-all
+              # is a real 302 to "/" rather than the shell handed over in place;
+              # nginx still answers 200 directly for the other three.
+              DEEP=$(curl -sL -o /dev/null -w '%{http_code}' "$URL/__spa_probe__" || true)
+              [ "$DEEP" = "200" ] || { echo "::error::Deep-link fallback broken (probe returned $DEEP)"; exit 1; }
+              echo "deep-link fallback OK"
+
+              # The website's 14 marketing routes are prerendered, so their
+              # cross-portal CTAs are frozen at image-build time and no runtime
+              # variable can correct them. A builder without AIRRAL_ENV=production
+              # baked http://localhost:4201/login into every "Sign in" and "Get
+              # started" link, and localhost:4202 into the pricing plans; the
+              # runtime-config.js checks above cannot see it, because the baked
+              # HTML never reads that file. The served page is the only place it
+              # shows, and deploying a tag built before that fix would ship it.
+              if [ '${{ matrix.app }}' = 'website' ]; then
+                if curl -s "$URL/" | grep -q 'localhost:420'; then
+                  echo "::error::Prerendered pages carry localhost portal links. Rebuild the website image from a tree whose Dockerfile sets AIRRAL_ENV=production in the builder stage."
+                  exit 1
+                fi
+                echo "prerendered portal links OK"
+              fi
+
+              # The whole reason the website renders on the server: while it did
+              # not, all ~16,000 job URLs returned the homepage shell -- homepage
+              # title, canonical pointing at "/", no JobPosting -- so every one
+              # of them declared itself a duplicate and Google indexed one page.
+              # Assert it against a real posting rather than trusting the build.
+              if [ '${{ matrix.app }}' = 'website' ]; then
+                JOB_URL=$(curl -s --max-time 20 "${{ inputs.api_base_url }}/seo/jobs-sitemap.xml" \
+                  | grep -o '<loc>[^<]*/jobs/[^<]*</loc>' | head -1 | sed -e 's#<loc>##' -e 's#</loc>##' || true)
+                if [ -z "$JOB_URL" ]; then
+                  # A sitemap we could not read says nothing about this deploy,
+                  # so it must not fail it. Everything above already passed.
+                  echo "::warning::No job URL in the sitemap; skipped the server-rendering check."
+                else
+                  JOB_PATH="/${JOB_URL#*//*/}"
+                  # 45s because the render waits on the API, whose own route
+                  # resolver gives a cold Spring Boot 20s before it gives up.
+                  HTML=$(curl -s --max-time 45 "$URL$JOB_PATH" || true)
+                  if [ -z "$HTML" ]; then
+                    echo "::warning::$JOB_PATH returned nothing in time; skipped the server-rendering check."
+                  elif printf '%s' "$HTML" | grep -qF 'Job Temporarily Unavailable'; then
+                    # This used to be tolerated as a cold API, on the reasoning
+                    # that a wrong API base URL would land on the other page
+                    # instead. That is no longer true: the resolver now treats
+                    # anything that is not a 400/404/410 as unavailable, exactly
+                    # so an API outage stops emitting noindex, and a connection
+                    # that never lands is one of those. So this branch now covers
+                    # the misconfiguration it used to be able to rule out.
+                    #
+                    # The API answered this workflow's own sitemap request
+                    # seconds ago, from the same base URL the service was just
+                    # given, so it is not cold: the render could not reach an API
+                    # that is demonstrably up, and every job page would be
+                    # unindexable.
+                    echo "::error::$JOB_PATH rendered \"temporarily unavailable\" although the API served a sitemap moments ago -- the SSR server cannot reach it. Check AIRRAL_API_BASE_URL on the service."
+                    exit 1
+                  elif ! printf '%s' "$HTML" | grep -qF 'JobPosting'; then
+                    echo "::error::$JOB_PATH rendered without JobPosting JSON-LD -- job pages are not indexable."
+                    exit 1
+                  elif printf '%s' "$HTML" | grep -qF 'rel="canonical" href="https://www.airral.com/"'; then
+                    echo "::error::$JOB_PATH still canonicalises to the homepage -- every job page is a duplicate."
+                    exit 1
+                  else
+                    echo "server-rendered JobPosting and per-job canonical OK for $JOB_PATH"
+                  fi
+                fi
+              fi
               exit 0
             fi
             echo "  attempt $i: HTTP $CODE"

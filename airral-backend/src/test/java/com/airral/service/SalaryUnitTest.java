@@ -63,6 +63,14 @@ class SalaryUnitTest {
         return ReflectionTestUtils.invokeMethod(service, "formatSalary", range);
     }
 
+    private String period(String raw) {
+        return ReflectionTestUtils.invokeMethod(service, "normalizeSalaryPeriod", raw);
+    }
+
+    private String trusted(String rawInterval, BigDecimal min, BigDecimal max) {
+        return ReflectionTestUtils.invokeMethod(service, "statedSalaryPeriod", rawInterval, min, max);
+    }
+
     private String leverLabel(String interval, BigDecimal min, BigDecimal max) {
         LeverPostingResponse.LeverSalaryRange range = new LeverPostingResponse.LeverSalaryRange();
         range.setInterval(interval);
@@ -137,10 +145,6 @@ class SalaryUnitTest {
         assertThat(period("per-fortnight-doubloons")).isNull();
     }
 
-    private String period(String raw) {
-        return ReflectionTestUtils.invokeMethod(service, "normalizeSalaryPeriod", raw);
-    }
-
     @Test
     @DisplayName("a non-dollar currency does not get a dollar sign")
     void nonDollarCurrenciesDropTheSymbol() {
@@ -177,10 +181,6 @@ class SalaryUnitTest {
     void plausibleAnnualFigureIsBelieved() {
         assertThat(trusted("Annual base salary range (excluding bonus):",
                 BigDecimal.valueOf(150000), BigDecimal.valueOf(180000))).isEqualTo("YEAR");
-    }
-
-    private String trusted(String rawInterval, BigDecimal min, BigDecimal max) {
-        return ReflectionTestUtils.invokeMethod(service, "statedSalaryPeriod", rawInterval, min, max);
     }
 
     @Test

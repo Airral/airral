@@ -1,27 +1,39 @@
 package com.airral.controller;
 
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 
+import com.airral.dto.response.VisitorAnalyticsResponse;
 import com.airral.service.VisitorSignalService;
 
 import reactor.core.publisher.Mono;
 
 /**
- * The two public writes that make the product legible: a visit happened, and
- * somebody left an address.
+ * The two public writes that make the product legible -- a visit happened, and
+ * somebody left an address -- and the admin-only reads that make them worth
+ * having.
  *
  * <p>Same-origin on purpose. A third-party analytics tag would be blocked by a
  * large share of this audience -- the postings are mostly engineering roles --
  * and the resulting numbers would be confidently wrong rather than absent.
+ *
+ * <p>The reads sit under /api/admin so that SecurityConfig's existing
+ * {@code /api/admin/**} rule covers them without a new allow-list entry. They
+ * are in this class rather than a separate admin controller because they are the
+ * other half of these two writes, and a reader who wants to know what is counted
+ * should not have to find a second file.
  */
 @RestController
 @RequestMapping("/api")
@@ -82,6 +94,46 @@ public class VisitorSignalController {
                         ResponseEntity.badRequest().body(Map.of(
                                 "status", "invalid",
                                 "message", "That does not look like an email address."))));
+    }
+
+    /**
+     * How many came, when, and from where.
+     *
+     * <p>The feature shipped write-only: two POSTs, no GET, so "did anyone come"
+     * was answerable only by opening Cloud Console and typing SQL.
+     *
+     * <p>ADMIN, not public. The writes are deliberately open because they are
+     * made by people who are not signed in; this is aggregate business data
+     * about the whole product and has no such excuse. The path already falls
+     * under SecurityConfig's {@code /api/admin/**} rule -- the annotation is not
+     * redundant with it, it is what keeps this shut if that matcher list is ever
+     * reordered or narrowed.
+     */
+    @GetMapping("/admin/analytics/visitors")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public Mono<ResponseEntity<VisitorAnalyticsResponse>> summary(
+            @RequestParam(value = "days", defaultValue = "30") int days) {
+
+        return visitorSignalService.summarize(days)
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * The captured addresses.
+     *
+     * <p>Its own endpoint rather than a field on the summary: a count of signups
+     * is a dashboard number, and the addresses are somebody's personal data, so
+     * reading them should be something a person chose to do rather than
+     * something that arrives with the totals.
+     */
+    @GetMapping("/admin/analytics/email-signups")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public Mono<ResponseEntity<List<VisitorSignalService.EmailSignup>>> emailSignups(
+            @RequestParam(value = "limit", defaultValue = "500") int limit) {
+
+        return visitorSignalService.listEmailSignups(limit)
+                .collectList()
+                .map(ResponseEntity::ok);
     }
 
     private String firstNonBlank(String preferred, String fallback) {

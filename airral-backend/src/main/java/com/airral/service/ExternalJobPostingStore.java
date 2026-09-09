@@ -675,6 +675,7 @@ public class ExternalJobPostingStore {
                             employment_type,
                             description_text,
                             salary_label,
+                            salary_period,
                             apply_url,
                             job_url,
                             apply_mode,
@@ -721,6 +722,7 @@ public class ExternalJobPostingStore {
                             :employmentType,
                             :descriptionText,
                             :salaryLabel,
+                            :salaryPeriod,
                             :applyUrl,
                             :jobUrl,
                             :applyMode,
@@ -773,6 +775,17 @@ public class ExternalJobPostingStore {
                                   OR LOWER(EXCLUDED.salary_label) LIKE '%not listed%'
                                 THEN COALESCE(external_job_postings.salary_label, EXCLUDED.salary_label)
                                 ELSE EXCLUDED.salary_label
+                            END,
+                            -- Tied to the label's guard above on purpose. If the stored
+                            -- label survives, the stored period must survive with it;
+                            -- taking one from this run and the other from a previous one
+                            -- would pair "$40/hr" with a null interval, or worse an
+                            -- interval from a different figure entirely.
+                            salary_period = CASE
+                                WHEN EXCLUDED.salary_label IS NULL
+                                  OR LOWER(EXCLUDED.salary_label) LIKE '%not listed%'
+                                THEN external_job_postings.salary_period
+                                ELSE EXCLUDED.salary_period
                             END,
                             total_comp_label = CASE
                                 WHEN EXCLUDED.total_comp_label IS NULL
@@ -926,6 +939,7 @@ public class ExternalJobPostingStore {
         spec = bindNullable(spec, "employmentType", job.getEmploymentType(), String.class);
         spec = bindNullable(spec, "descriptionText", job.getDescriptionText(), String.class);
         spec = bindNullable(spec, "salaryLabel", job.getSalaryLabel(), String.class);
+        spec = bindNullable(spec, "salaryPeriod", job.getSalaryPeriod(), String.class);
         spec = bindNullable(spec, "applyUrl", job.getApplyUrl(), String.class);
         spec = bindNullable(spec, "jobUrl", job.getJobUrl(), String.class);
         spec = bindNullable(spec, "sourceUpdatedAt", sourceUpdatedAt, OffsetDateTime.class);
@@ -947,6 +961,28 @@ public class ExternalJobPostingStore {
     }
 
     public Mono<CandidateJobDetailResponse> findCachedJobDetail(String sourceType, String boardToken, String externalJobId) {
+        return findStoredJobDetail(sourceType, boardToken, externalJobId, true);
+    }
+
+    /**
+     * The same posting, accepted without a cached body.
+     *
+     * <p>For the degraded read path only. When the job board will not answer,
+     * the row we already hold -- title, company, location, pay, apply link and
+     * every decision signal -- is far more use to the candidate than an error
+     * page, and it is available whether or not anyone has ever opened this job
+     * before.
+     *
+     * <p>Keyed on the same three columns as existsActiveJob rather than on
+     * source_job_key, so a posting the exists check just confirmed can never
+     * come back missing here.
+     */
+    public Mono<CandidateJobDetailResponse> findStoredJobDetail(String sourceType, String boardToken, String externalJobId) {
+        return findStoredJobDetail(sourceType, boardToken, externalJobId, false);
+    }
+
+    private Mono<CandidateJobDetailResponse> findStoredJobDetail(
+            String sourceType, String boardToken, String externalJobId, boolean requireCachedBody) {
         if (sourceType == null || sourceType.isBlank()
                 || boardToken == null || boardToken.isBlank()
                 || externalJobId == null || externalJobId.isBlank()) {
@@ -1019,20 +1055,21 @@ public class ExternalJobPostingStore {
                           AND p.external_job_id = :externalJobId
                           AND p.is_active = true
                           AND p.expires_at > CURRENT_TIMESTAMP
-                          -- Only description_html marks a real detail fetch.
-                          --
-                          -- This used to accept either column, which was correct while
-                          -- both were written together by cacheJobDetail. The sync now
-                          -- writes description_text as well, so accepting it would let
-                          -- a summary-derived body satisfy the cache and stop the
-                          -- detail endpoint ever fetching the real one. That text is
-                          -- stripHtml output, and stripHtml collapses all whitespace to
-                          -- single spaces, so the page would render the posting as one
-                          -- unbroken paragraph -- and the frontend prefers
-                          -- descriptionHtml, which the sync never writes.
-                          AND NULLIF(p.description_html, '') IS NOT NULL
-                        LIMIT 1
-                        """)
+                        """
+                        // Only description_html marks a real detail fetch, so only the
+                        // cache-first read demands it.
+                        //
+                        // This used to accept either column, which was correct while
+                        // both were written together by cacheJobDetail. The sync now
+                        // writes description_text as well, so accepting it would let
+                        // a summary-derived body satisfy the cache and stop the
+                        // detail endpoint ever fetching the real one. That text is
+                        // stripHtml output, and stripHtml collapses all whitespace to
+                        // single spaces, so the page would render the posting as one
+                        // unbroken paragraph -- and the frontend prefers
+                        // descriptionHtml, which the sync never writes.
+                        + (requireCachedBody ? " AND NULLIF(p.description_html, '') IS NOT NULL" : "")
+                        + " LIMIT 1")
                 .bind("sourceType", normalizeSource(sourceType))
                 .bind("boardToken", boardToken.trim())
                 .bind("externalJobId", externalJobId.trim())

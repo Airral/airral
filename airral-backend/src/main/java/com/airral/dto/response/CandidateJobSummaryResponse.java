@@ -26,6 +26,15 @@ public class CandidateJobSummaryResponse {
     private String employmentType;
 
     private String salaryLabel;
+
+    /**
+     * Interval salaryLabel is quoted in, or null when the source never stated one.
+     * Carried on the summary because the sync writes from this object: without it
+     * the column is only ever populated by a detail view, so a posting nobody
+     * opened would keep a correct "$40/hr" label beside a null period, and the
+     * job page would omit structured pay for the whole catalogue.
+     */
+    private String salaryPeriod;
     private String applyUrl;
     private String jobUrl;
     private String applyMode;

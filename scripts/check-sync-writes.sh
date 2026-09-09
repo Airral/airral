@@ -86,7 +86,7 @@ base = dict(
 rich = render(**base,
     sourcePayloadHash="'hash-rich'",
     descriptionText="'Compensation is $180,000 - $230,000. Requires 7+ years. We do not provide visa sponsorship.'",
-    salaryLabel="'$180k-$230k'", jobQualityScore="92",
+    salaryLabel="'$180k-$230k'", salaryPeriod="'YEAR'", jobQualityScore="92",
     qualityReasons="ARRAY['Employer salary listed']", totalCompLabel="'Base listed'",
     compensationConfidence="'POSTED_BASE'", sponsorshipLanguage="'NO_SPONSORSHIP'",
     visaConfidenceScore="15", visaReasons="ARRAY['Posting says sponsorship is not available']",
@@ -96,7 +96,7 @@ rich = render(**base,
 
 bare = render(**base,
     sourcePayloadHash="'hash-bare'", descriptionText="NULL",
-    salaryLabel="'Salary not listed'", jobQualityScore="80",
+    salaryLabel="'Salary not listed'", salaryPeriod="NULL", jobQualityScore="80",
     qualityReasons="ARRAY['Needs salary benchmark']", totalCompLabel="'Benchmark needed'",
     compensationConfidence="'NEEDS_BENCHMARK'", sponsorshipLanguage="'UNKNOWN'",
     visaConfidenceScore="55", visaReasons="ARRAY['Sponsorship not stated']",
@@ -107,7 +107,7 @@ bare = render(**base,
 fresh = render(**base,
     sourcePayloadHash="'hash-fresh'",
     descriptionText="'Updated. Pay is $200,000 - $260,000. We sponsor visas. 9+ years.'",
-    salaryLabel="'$200k-$260k'", jobQualityScore="95",
+    salaryLabel="'$200k-$260k'", salaryPeriod="'YEAR'", jobQualityScore="95",
     qualityReasons="ARRAY['Employer salary listed']", totalCompLabel="'Base + extras listed'",
     compensationConfidence="'POSTED_BASE'", sponsorshipLanguage="'SPONSORS'",
     visaConfidenceScore="90", visaReasons="ARRAY['Posting mentions sponsorship']",
@@ -136,7 +136,8 @@ print(f"DELETE FROM external_job_postings {C};")
 print(rich + ";")
 print(bare + ";")
 print(f"""SELECT 'preserve' AS direction,
-  CASE WHEN salary_label='$180k-$230k' AND sponsorship_language='NO_SPONSORSHIP'
+  CASE WHEN salary_label='$180k-$230k' AND salary_period='YEAR'
+        AND sponsorship_language='NO_SPONSORSHIP'
         AND visa_confidence_score=15 AND experience_years=7 AND seniority_label='Senior'
         AND job_quality_score=92 AND requires_us_work_authorization IS TRUE
         AND stem_opt_risk IS TRUE AND total_comp_label='Base listed'
@@ -149,7 +150,8 @@ print(f"DELETE FROM external_job_postings {C};")
 print(rich + ";")
 print(fresh + ";")
 print(f"""SELECT 'update' AS direction,
-  CASE WHEN salary_label='$200k-$260k' AND sponsorship_language='SPONSORS'
+  CASE WHEN salary_label='$200k-$260k' AND salary_period='YEAR'
+        AND sponsorship_language='SPONSORS'
         AND visa_confidence_score=90 AND experience_years=9 AND seniority_label='Staff+'
         AND job_quality_score=95 AND h1b_transfer_fit IS TRUE
         AND total_comp_label='Base + extras listed'

@@ -15,10 +15,14 @@ public class FlywayConfig {
      * How long to keep trying the first connection, and how often.
      *
      * <p>This exists because of what happens on a cold start. The database is
-     * powered down overnight to halve its cost, and Cloud Run runs the API at
-     * min-instances 0 -- so the first request of the morning starts a container
-     * that may reach Flyway a few seconds before Postgres is accepting
-     * connections. Flyway would fail, the bean would fail, the context would
+     * powered down overnight to halve its cost, so a container starting around
+     * 08:00 ET may reach Flyway a few seconds before Postgres is accepting
+     * connections. That used to mean the first request of the morning, when
+     * Cloud Run ran the API at min-instances 0; the deploy now pins the floor
+     * at 1, which makes the race more likely to be hit rather than less --
+     * Cloud Run is already retrying a replacement instance at the moment the
+     * database comes back, instead of waiting for a caller to arrive.
+     * Flyway would fail, the bean would fail, the context would
      * abort and the container would exit. Cloud Run then retried into the same
      * race, and the whole API sat in a crash loop until the database happened
      * to settle. That took the service down for real.

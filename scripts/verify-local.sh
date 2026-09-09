@@ -238,6 +238,32 @@ code() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@"; }
   && ok "POST /api/applications requires auth" \
   || bad "POST /api/applications should be 401"
 
+# The analytics halves pull in opposite directions and both matter. The writes
+# are made by people who are not signed in, so a stray matcher closing them
+# would silently stop every measurement; the reads hand back aggregate business
+# data and the captured address list, which is somebody's personal data. They
+# sit one path segment apart under the same controller, which is exactly the
+# arrangement a future edit gets backwards.
+[ "$(code -X POST http://localhost:8080/api/events -H 'Content-Type: application/json' \
+     -d '{"event":"page_view","path":"/verify-local"}')" = "204" ] \
+  && ok "POST /api/events stays public" \
+  || bad "POST /api/events should be 204 unauthenticated"
+
+for READ in /api/admin/analytics/visitors /api/admin/analytics/email-signups; do
+  [ "$(code "http://localhost:8080$READ")" = "401" ] \
+    && ok "GET $READ requires auth" \
+    || bad "GET $READ should be 401 unauthenticated"
+done
+
+# Permitted for crawlers on the API host, and only this exact path: the rule is
+# scoped to GET /robots.txt, so a neighbouring path must still answer 401.
+[ "$(code http://localhost:8080/robots.txt)" = "200" ] \
+  && ok "GET /robots.txt is served" || bad "GET /robots.txt should be 200"
+
+[ "$(code http://localhost:8080/robots.txt.bak)" = "401" ] \
+  && ok "the robots.txt rule does not widen past that path" \
+  || bad "GET /robots.txt.bak should be 401"
+
 PROBE="throttle-$RANDOM@local.test"
 LAST=""
 for i in $(seq 1 6); do
