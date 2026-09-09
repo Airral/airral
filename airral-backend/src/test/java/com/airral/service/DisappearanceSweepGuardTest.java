@@ -11,6 +11,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -39,10 +40,15 @@ class DisappearanceSweepGuardTest {
 
     private final ExternalJobPostingStore store = mock(ExternalJobPostingStore.class);
 
+    /** The live sweep: enabled and not reporting. Every guard test below uses this. */
     private ExternalJobSyncService service(boolean sweepEnabled) {
+        return service(sweepEnabled, false);
+    }
+
+    private ExternalJobSyncService service(boolean sweepEnabled, boolean sweepDryRun) {
         return new ExternalJobSyncService(
                 store, mock(CandidateJobSearchService.class),
-                60, 15, LIMIT_PER_SOURCE, 50, 6, 500, sweepEnabled, "airral-test");
+                60, 15, LIMIT_PER_SOURCE, 50, 6, 500, sweepEnabled, sweepDryRun, "airral-test");
     }
 
     private ExternalJobSourceRecord source(String sourceType) {
@@ -129,4 +135,40 @@ class DisappearanceSweepGuardTest {
         assertThat(retire(service(true), "LEVER", 99)).isEqualTo(1L);
         verify(store, times(1)).deactivateUnseenPostings(anyLong(), any());
     }
+    @Test
+    @DisplayName("a dry run reports what it would retire and writes nothing")
+    void dryRunWritesNothing() {
+        when(store.countUnseenPostings(anyLong(), any())).thenReturn(Mono.just(9L));
+        when(store.sampleUnseenPostings(anyLong(), any(), anyInt()))
+                .thenReturn(reactor.core.publisher.Flux.just("Stale role (last seen ...) https://x"));
+
+        // Returns 0 because nothing was retired, not because the guard declined.
+        assertThat(retire(service(true, true), "GREENHOUSE", 120)).isZero();
+        verify(store, times(1)).countUnseenPostings(anyLong(), any());
+        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("a dry run still respects the guard, so the report cannot overstate")
+    void dryRunHonoursTheCeiling() {
+        // A Lever board at its own page cap is not provably whole, so a dry run must
+        // stay silent about it rather than listing rows a live run would never touch.
+        assertThat(retire(service(true, true), "LEVER", 100)).isZero();
+        verify(store, never()).countUnseenPostings(anyLong(), any());
+        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("turning the sweep on alone does not retire anything")
+    void enablingAloneIsNotEnough() {
+        // The default for the dry-run flag is true, so sweep-enabled=true on its own
+        // buys a report. Both flags have to be set before a row is retired.
+        when(store.countUnseenPostings(anyLong(), any())).thenReturn(Mono.just(3L));
+        when(store.sampleUnseenPostings(anyLong(), any(), anyInt()))
+                .thenReturn(reactor.core.publisher.Flux.empty());
+
+        assertThat(retire(service(true, true), "GREENHOUSE", 50)).isZero();
+        verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
 }

@@ -122,11 +122,36 @@ method = src.split("public Mono<Long> deactivateUnseenPostings", 1)
 if len(method) < 2:
     sys.stderr.write("deactivateUnseenPostings not found\n")
     sys.exit(1)
-sweep = re.search(r"(UPDATE external_job_postings.*?AND last_seen_at < :seenSince)", method[1], re.S)
-if not sweep:
+
+# The WHERE clause lives in a constant the UPDATE concatenates, so that the count
+# behind the dry run cannot describe a different set of rows from the one that
+# would actually be retired. Follow the same composition here rather than
+# matching a single literal, or this checks a statement the code does not run.
+predicate = re.search(
+    r'UNSEEN_POSTINGS_PREDICATE\s*=\s*"""(.*?)""";', src, re.S)
+if not predicate:
+    sys.stderr.write("could not find UNSEEN_POSTINGS_PREDICATE\n")
+    sys.exit(1)
+
+head = re.search(r'(UPDATE external_job_postings.*?CURRENT_TIMESTAMP)\s*"""', method[1], re.S)
+if not head:
     sys.stderr.write("could not extract the sweep SQL -- did deactivateUnseenPostings change?\n")
     sys.exit(1)
-sweep_sql = (sweep.group(1)
+
+sweep_sql = (head.group(1) + "\n" + predicate.group(1))
+if ":sourceId" not in sweep_sql or ":seenSince" not in sweep_sql:
+    sys.stderr.write("the reassembled sweep lost its bind parameters\n")
+    sys.exit(1)
+
+# The same predicate must be what the dry run counts on. If the count ever stops
+# sharing it, a dry run could under-report and a retirement would surprise
+# whoever read that report.
+count_method = src.split("public Mono<Long> countUnseenPostings", 1)
+if len(count_method) < 2 or "UNSEEN_POSTINGS_PREDICATE" not in count_method[1][:400]:
+    sys.stderr.write("countUnseenPostings no longer shares the sweep predicate\n")
+    sys.exit(1)
+
+sweep_sql = (sweep_sql
              .replace(":sourceId", "(SELECT id FROM external_job_sources LIMIT 1)")
              .replace(":seenSince", "now() - interval '1 hour'"))
 
