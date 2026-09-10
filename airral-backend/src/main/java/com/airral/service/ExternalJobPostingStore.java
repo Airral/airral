@@ -762,7 +762,32 @@ public class ExternalJobPostingStore {
                             title = EXCLUDED.title,
                             department = EXCLUDED.department,
                             location = EXCLUDED.location,
-                            work_mode = EXCLUDED.work_mode,
+                            -- The latest word from the source wins, but silence does
+                            -- not. This was a plain EXCLUDED assignment, which was
+                            -- safe only while work mode came from the title and the
+                            -- location -- inputs every run has. It now also comes from
+                            -- the body, and Workday and SmartRecruiters ship no body in
+                            -- their list payload, so those runs emit UNKNOWN. Without
+                            -- this guard the sync would blank the column four hours
+                            -- after the hydration pass filled it, and the fix would
+                            -- have looked like it worked for exactly one interval --
+                            -- the same failure the derived block further down records.
+                            -- Shaped like the derived-column guards below, and for the same
+                            -- reason: work mode now depends on a body, and the Workday and
+                            -- SmartRecruiters list payloads carry none, so those runs emit
+                            -- UNKNOWN and a plain EXCLUDED assignment would blank a hydrated
+                            -- value every four hours.
+                            --
+                            -- Keyed on whether THIS RUN had a body, not on whether the answer
+                            -- happens to be UNKNOWN. Keying on the answer looked equivalent and
+                            -- was not: it made the column permanently unclearable, so an
+                            -- employer who moved a job back into the office could never stop it
+                            -- reading REMOTE. A run that read a body is entitled to say UNKNOWN.
+                            work_mode = CASE
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL
+                                THEN EXCLUDED.work_mode
+                                ELSE COALESCE(external_job_postings.work_mode, EXCLUDED.work_mode)
+                            END,
                             employment_type = EXCLUDED.employment_type,
                             -- Never lose a stored body to a run that arrived without one.
                             description_text = COALESCE(NULLIF(EXCLUDED.description_text, ''), external_job_postings.description_text),
@@ -1199,6 +1224,30 @@ public class ExternalJobPostingStore {
         DatabaseClient.GenericExecuteSpec spec = databaseClient.sql("""
                         UPDATE external_job_postings
                         SET external_internal_job_id = :externalInternalJobId,
+                            -- Fill only. Both arms have to hold: the incoming value
+                            -- must say something, and the stored one must not.
+                            --
+                            -- This column was absent from this list entirely, so
+                            -- nothing the detail path derived could ever reach it --
+                            -- which is why work mode stayed UNKNOWN on 74% of the
+                            -- catalogue while sponsorship and seniority, derived from
+                            -- the same body a line below, did not.
+                            --
+                            -- Guarded rather than plain because of who calls this. The
+                            -- hydration pass is one caller; the live detail endpoint is
+                            -- the other, and it writes on every cold job view. A
+                            -- candidate opening a posting must not be able to downgrade
+                            -- a work mode the source itself stated -- the read path
+                            -- derives from prose, the source field is the better
+                            -- signal, and an ordinary page view is no reason to
+                            -- overwrite it. Writing UNKNOWN over a known value is
+                            -- refused for the same reason.
+                            work_mode = CASE
+                                WHEN :workMode <> 'UNKNOWN'
+                                  AND COALESCE(NULLIF(external_job_postings.work_mode, ''), 'UNKNOWN') = 'UNKNOWN'
+                                THEN :workMode
+                                ELSE external_job_postings.work_mode
+                            END,
                             description_html = :descriptionHtml,
                             description_text = :descriptionText,
                             description_excerpt = :descriptionExcerpt,
@@ -1231,6 +1280,9 @@ public class ExternalJobPostingStore {
                 .bind("sourceBoardToken", detail.getSourceBoardToken().trim())
                 .bind("externalJobId", detail.getExternalJobId().trim())
                 .bind("qualityReasons", qualityReasonsFor(detail).toArray(String[]::new))
+                // Normalised to the literal the CASE above compares against, so a
+                // null or blank arrives as the same "says nothing" the column uses.
+                .bind("workMode", cappedText("workMode", firstNonBlank(detail.getWorkMode(), "UNKNOWN")))
                 .bind("sponsorshipLanguage", firstNonBlank(detail.getSponsorshipLanguage(), "UNKNOWN"))
                 .bind("visaReasons", visaReasonsFor(detail).toArray(String[]::new))
                 .bind("now", now);
