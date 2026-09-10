@@ -140,7 +140,20 @@ jobs:
             --max-instances 3 \
             --timeout 300 \
             --startup-probe httpGet.path=/actuator/health,initialDelaySeconds=10,periodSeconds=10,failureThreshold=30 \
-            --set-env-vars "^|^SPRING_PROFILES_ACTIVE=gcp|CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}|DB_NAME=${{ vars.DB_NAME }}|DB_USER=${{ vars.DB_USER }}|AIRRAL_RELEASE_VERSION=${{ inputs.version }}|GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}|AIRRAL_MCP_HOSTNAME=mcp.airral.com|AIRRAL_BOOTSTRAP_ADMIN_EMAIL=${{ vars.BOOTSTRAP_ADMIN_EMAIL }}" \
+            # Résumé storage is derived from RESUME_BUCKET rather than written here,
+            # and that is load bearing in both directions. --set-env-vars replaces
+            # the whole environment, so anything set by hand with `gcloud run
+            # services update` is wiped by the next deploy -- which is how a
+            # service quietly reverts to writing résumés to the container's tmpfs
+            # with nothing in the logs to say so. And naming GCS here before the
+            # bucket exists is a hard down: the bean throws during context refresh
+            # on a blank bucket, so the container never becomes ready.
+            #
+            # With the variable unset this resolves to LOCAL and an empty bucket,
+            # which is exactly today's behaviour. Setting it, once the bucket and
+            # its IAM binding exist, flips storage on the next deploy. Grep the
+            # Cloud Run log for "Resume storage provider is GCS" to confirm it took.
+            --set-env-vars "^|^SPRING_PROFILES_ACTIVE=gcp|CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}|DB_NAME=${{ vars.DB_NAME }}|DB_USER=${{ vars.DB_USER }}|AIRRAL_RELEASE_VERSION=${{ inputs.version }}|GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}|AIRRAL_MCP_HOSTNAME=mcp.airral.com|AIRRAL_BOOTSTRAP_ADMIN_EMAIL=${{ vars.BOOTSTRAP_ADMIN_EMAIL }}|FILE_UPLOAD_STORAGE_PROVIDER=${{ vars.RESUME_BUCKET && 'GCS' || 'LOCAL' }}|FILE_UPLOAD_GCS_BUCKET=${{ vars.RESUME_BUCKET }}" \
             --set-secrets "DB_PASSWORD=db-password:latest,JWT_ENCRYPTION_SECRET=jwt-encryption-secret:latest,CORS_ALLOWED_ORIGINS=cors-allowed-origins:latest"
 
       - name: Smoke test

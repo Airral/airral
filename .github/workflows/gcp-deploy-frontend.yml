@@ -118,13 +118,42 @@ jobs:
           fi
 
       - name: Deploy to Cloud Run
+        env:
+          # Named here rather than inline so the preflight and the deploy cannot
+          # disagree about which identity is being asked for.
+          FRONTEND_SA: ${{ vars.GCP_FRONTEND_SA || format('airral-frontend@{0}.iam.gserviceaccount.com', vars.GCP_PROJECT_ID) }}
         run: |
           set -euo pipefail
+
+          # These four services used to deploy with no --service-account, which
+          # silently gave them Cloud Run's default compute identity -- and that
+          # account holds roles/editor on the project. Four containers whose only
+          # job is to serve HTML were one container escape away from
+          # project-wide write.
+          #
+          # They need no permissions at all: the entrypoint renders
+          # runtime-config.js from environment variables, and the website's SSR
+          # server talks to api.airral.com over public HTTPS. Neither calls a
+          # Google API. Image pulls are done by the Cloud Run service agent, not
+          # by this identity, so an account with no roles is enough.
+          #
+          # Failing here is deliberate. Falling back to the default would put the
+          # Editor identity back without anyone noticing, which is the state this
+          # exists to end.
+          if ! gcloud iam service-accounts describe "$FRONTEND_SA" >/dev/null 2>&1; then
+            echo "::error::Service account $FRONTEND_SA does not exist. Create it first:"
+            echo "::error::  gcloud iam service-accounts create airral-frontend \\"
+            echo "::error::    --display-name='AIRRAL frontends (no roles needed)' --project=${{ vars.GCP_PROJECT_ID }}"
+            echo "::error::Grant it nothing. Do not fall back to the default compute account."
+            exit 1
+          fi
+
           # Sizing is resolved per app above. Scaling to zero either way, so an
           # idle service still costs nothing.
           gcloud run deploy "${{ steps.names.outputs.service }}" \
             --image "${{ steps.names.outputs.image }}:${{ inputs.version }}" \
             --region "${{ vars.GCP_REGION }}" \
+            --service-account "$FRONTEND_SA" \
             --allow-unauthenticated \
             --port 8080 \
             --cpu 1 \

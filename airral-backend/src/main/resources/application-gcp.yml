@@ -32,6 +32,12 @@ spring:
     user: ${DB_USER}
     password: ${DB_PASSWORD}
 
+# Resume storage is NOT switched to GCS here, even though on Cloud Run it has to be. This
+# profile is shared with the GitHub Actions sync job (gcp,sync), which never touches a resume
+# and has no bucket configured; setting file.upload.storage-provider: GCS here would fail that
+# job's startup on the missing file.upload.gcs-bucket. Set both as env vars on the Cloud Run
+# service instead.
+
 airral:
   jobs:
     sync:

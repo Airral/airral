@@ -54,6 +54,26 @@ dependencies {
     implementation 'com.google.cloud.sql:cloud-sql-connector-r2dbc-postgres:1.25.0'
     implementation 'com.google.cloud.sql:postgres-socket-factory:1.25.0'
 
+    // Resume storage on Google Cloud Storage, over the GCS HTTP/JSON API.
+    //
+    // Deliberately NOT com.google.cloud:google-cloud-storage. Its flattened pom drags about
+    // sixty artifacts in, among them gRPC 1.67, protobuf 3.25.5 and OpenTelemetry 1.42.1, and
+    // two of those land badly here. Spring Boot 3.2.5 imports opentelemetry-bom 1.31.0, and
+    // io.spring.dependency-management lets a managed version beat a transitive one, so the
+    // OpenTelemetry that client is compiled against gets silently downgraded while its
+    // unmanaged opentelemetry-api-incubator:1.42.1-alpha stays at 1.42 -- a split that only
+    // shows up at runtime. That is the same class of breakage the connector pin above exists
+    // to avoid, and it is not visible without running the app.
+    //
+    // google-api-services-storage is the JSON API client for the same service. Its only
+    // dependency is google-api-client, which jdbc-socket-factory-core (via the connector
+    // above) already puts on the classpath at 2.7.2 -- higher than the 2.7.0 asked for here,
+    // so nothing moves -- and which brings google-http-client, google-auth-library-oauth2-http
+    // and google-oauth-client with it. Net effect on the graph: one new jar, no version
+    // changes anywhere. No gRPC, no protobuf, no Netty, so r2dbc-postgresql 1.0.7 and
+    // Netty 4.1.109 are untouched.
+    implementation 'com.google.apis:google-api-services-storage:v1-rev20240924-2.0.0'
+
     // Flyway for migrations (blocking, runs on startup)
     implementation 'org.flywaydb:flyway-core:10.13.0'
     implementation 'org.flywaydb:flyway-database-postgresql:10.13.0'
