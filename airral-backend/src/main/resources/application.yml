@@ -47,6 +47,13 @@ server:
   # and silently omits Strict-Transport-Security -- the header is configured and
   # simply never sent. Verified: HSTS was absent from live responses until this
   # was set.
+  #
+  # Left at "framework" deliberately. It also makes Spring register a
+  # ForwardedHeaderTransformer that rewrites the remote address from the
+  # LEFT-MOST X-Forwarded-For entry, which a caller controls, and then strips the
+  # header. Turning this off would take HSTS with it, so ClientIpConfig replaces
+  # that transformer bean instead and resolves the address from the trusted end
+  # of the chain. See airral.client-ip below.
   forward-headers-strategy: framework
   # Cloud Run injects PORT and requires the container to listen on it.
   port: ${PORT:8080}
@@ -124,6 +131,25 @@ airral:
     google:
       client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
       jwk-url: ${GOOGLE_OAUTH_JWK_URL:https://www.googleapis.com/oauth2/v3/certs}
+  client-ip:
+    # How many entries at the RIGHT-hand end of X-Forwarded-For were written by
+    # infrastructure we control. The caller's own address is that many entries
+    # from the right; everything further left is text the caller sent and is
+    # worth nothing.
+    #
+    # 1 because Cloud Run receives traffic directly: domain mappings only, no
+    # external HTTPS load balancer and no Cloud Armor. Exactly one trusted hop
+    # appends, the Google front end that terminates TLS, and what it appends is
+    # the address it accepted the connection from -- so the right-most entry is
+    # the caller.
+    #
+    # Put an external HTTPS load balancer or Cloud Armor in front and this
+    # becomes 2: that proxy appends the caller and Cloud Run then appends the
+    # proxy. It exists so that adding one is a config change rather than a silent
+    # return to a forgeable key. It has to match the real topology in both
+    # directions -- set higher than the number of proxies that actually append
+    # and the index walks left into caller-supplied entries again.
+    trusted-hop-count: ${AIRRAL_CLIENT_IP_TRUSTED_HOP_COUNT:1}
   mcp:
     # The hostname that serves only /mcp. Blank disables the restriction, which
     # is what local development wants -- one origin serving everything. Set in

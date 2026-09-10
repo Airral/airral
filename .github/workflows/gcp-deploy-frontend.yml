@@ -45,13 +45,24 @@ on:
         type: string
 
 permissions:
-  contents: read
+  # contents: read was dropped because nothing here checks out the tree -- both
+  # jobs only run shell and talk to gcloud about images that already exist.
+  # Naming any scope in this block makes every unnamed scope none.
+  #
+  # id-token: write stays, and cannot go: it is what mints the OIDC token the
+  # Workload Identity exchange trades for the deploy service account.
   id-token: write
 
 jobs:
   resolve:
     name: Resolve deploy matrix
     runs-on: ubuntu-latest
+    # This job only turns an input into a JSON list. It never authenticates, so
+    # it is given no token at all: the workflow-level id-token: write would
+    # otherwise let a step here mint credentials for github-actions@, which
+    # holds run.admin and secretAccessor at project level. The privilege belongs
+    # on the job that deploys, not on the one that parses a string.
+    permissions: {}
     outputs:
       apps: ${{ steps.pick.outputs.apps }}
     steps:
@@ -68,6 +79,15 @@ jobs:
     name: Deploy ${{ matrix.app }} ${{ inputs.version }}
     needs: resolve
     runs-on: ubuntu-latest
+    # Gate for the four public frontends. Naming an environment is what gives
+    # repo settings something to attach required reviewers and a deployment
+    # branch policy to; on its own it protects nothing until those rules are
+    # configured in the GitHub UI.
+    #
+    # All four matrix legs name the same environment on purpose: GitHub groups
+    # pending deployments by environment, so one approval releases the whole
+    # run rather than asking four times for what is one decision.
+    environment: prod-frontend
     strategy:
       # Independent services: one failing deploy must not cancel the others.
       fail-fast: false

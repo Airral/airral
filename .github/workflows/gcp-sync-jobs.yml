@@ -29,6 +29,12 @@ on:
     - cron: '0 */4 * * *'
 
 permissions:
+  # contents: read is genuinely needed -- this workflow checks out the tree and
+  # builds the jar. id-token: write is what mints the OIDC token the Workload
+  # Identity exchange consumes, so it cannot be removed from any of the five GCP
+  # workflows without breaking authentication entirely. Everything else is left
+  # unset, which GitHub reads as none: naming any scope in this block opts the
+  # whole token out of the permissive default.
   contents: read
   id-token: write
 
@@ -42,6 +48,16 @@ jobs:
   sync:
     name: Sync external jobs
     runs-on: ubuntu-latest
+    # This is the only job in the repository that reads Secret Manager values
+    # into the runner, so it is the one that most needs a gate. Naming an
+    # environment here is what gives the owner somewhere to attach a deployment
+    # branch policy in repo settings; declaring it alone protects nothing.
+    #
+    # "unattended" is in the name as a warning: this workflow is on a 4-hourly
+    # cron, so required reviewers must NEVER be attached to this environment.
+    # A scheduled run that waits for approval does not run -- it queues, and the
+    # sync silently stops for as long as nobody notices.
+    environment: prod-sync-unattended
     timeout-minutes: 60
     defaults:
       run:
@@ -107,8 +123,24 @@ jobs:
           set -euo pipefail
           # Pulled at run time rather than stored as a GitHub secret, so Secret
           # Manager stays the single source of truth for the password.
+          #
+          # Values fetched by gcloud are NOT GitHub secrets, so nothing redacts
+          # them from this job's log unless we say so. ::add-mask:: is what
+          # registers a value with the log scrubber, and it has to be emitted
+          # between the read and the first use -- a mask registered afterwards
+          # cannot retroactively redact a line already written. So each secret is
+          # masked on the line immediately after the one that reads it, before
+          # the export and long before the jar runs. Registration lasts for the
+          # rest of the job, which is what also covers the java output teed
+          # below and anything a later step echoes.
+          #
+          # The ::add-mask:: line embeds the value in a workflow command; GitHub
+          # consumes those commands rather than printing them, so this does not
+          # itself leak. Do not "simplify" it to echo the variable.
           DB_PASSWORD="$(gcloud secrets versions access latest --secret=db-password)"
+          echo "::add-mask::$DB_PASSWORD"
           JWT_ENCRYPTION_SECRET="$(gcloud secrets versions access latest --secret=jwt-encryption-secret)"
+          echo "::add-mask::$JWT_ENCRYPTION_SECRET"
           export DB_PASSWORD JWT_ENCRYPTION_SECRET
           # JwtTokenProvider validates the secret at startup even though a batch
           # run issues no tokens, so it has to be present.
@@ -120,6 +152,11 @@ jobs:
 
       - name: Summary
         if: always() && steps.db.outputs.skip != 'true'
+        # The grep below is a fixed allowlist of four phrases, not a tail of the
+        # log, and that is deliberate: whatever the application prints, only
+        # lines matching those phrases can reach the run summary. Keep it that
+        # way. A summary is a file the runner uploads rather than a log line, so
+        # it is the wrong place to be relying on the masker as the only defence.
         run: |
           {
             echo "### External job sync"

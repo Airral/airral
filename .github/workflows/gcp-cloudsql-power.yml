@@ -52,7 +52,12 @@ on:
     - cron: '3,23,43 * * * *'
 
 permissions:
-  contents: read
+  # contents: read was dropped because nothing here checks out the tree -- the
+  # job only reads the clock and calls gcloud. Naming any scope in this block
+  # makes every unnamed scope none.
+  #
+  # id-token: write stays, and cannot go: it is what mints the OIDC token the
+  # Workload Identity exchange trades for the service account.
   id-token: write
 
 concurrency:
@@ -64,6 +69,16 @@ jobs:
   power:
     name: Cloud SQL power
     runs-on: ubuntu-latest
+    # This job stops and starts the production database and edits the API
+    # service, so it belongs behind a gate like the deploys -- but only the
+    # branch-policy kind.
+    #
+    # "unattended" is in the name as a warning: this runs three times an hour
+    # on cron, so required reviewers must NEVER be attached to this
+    # environment. A scheduled run that waits for approval does not run; the
+    # database would stay in whatever state it was last left in, and the
+    # pending-approval queue would grow by 72 entries a day.
+    environment: prod-db-power-unattended
     timeout-minutes: 20
 
     steps:

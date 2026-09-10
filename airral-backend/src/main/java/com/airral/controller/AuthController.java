@@ -1,5 +1,6 @@
 package com.airral.controller;
 
+import com.airral.config.ClientIpConfig;
 import com.airral.dto.request.LoginRequest;
 import com.airral.dto.request.GoogleAuthRequest;
 import com.airral.dto.request.RegisterRequest;
@@ -17,7 +18,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.net.InetSocketAddress;
 import java.util.Map;
 
 @RestController
@@ -174,40 +174,21 @@ public class AuthController {
     }
 
     /**
-     * The caller's address as seen from outside.
+     * The caller's address as seen from outside, and the key every throttle
+     * bucket on this controller is counted against.
      *
-     * <p>Deliberately defensive at every step. Cloud Run terminates TLS, so the
-     * socket peer is a Google front end; forward-headers-strategy makes Spring
-     * apply X-Forwarded-For to the request and then <em>remove</em> the header,
-     * so code that reads it directly finds nothing. Worse, the resulting
-     * InetSocketAddress can be unresolved -- getAddress() returns null -- and
-     * dereferencing it threw an NPE that turned every sign-in into a 500.
-     *
-     * <p>An address is only used to bucket rate limiting. Failing to determine
-     * one must never fail the request: "unknown" simply shares a bucket.
+     * <p>This used to parse X-Forwarded-For here and take its left-most entry.
+     * Cloud Run appends the real client address to a caller-supplied header
+     * rather than replacing it, so the left-most entry was the caller's own
+     * text and rotating it bought a fresh bucket per request -- which mattered
+     * because /register and /google check the address bucket only, and it is
+     * the only limit that spans accounts. Resolution now happens once, in
+     * {@link ClientIpConfig}, in the forwarded-header transformer, which is the
+     * only place that still sees the chain: it runs before the exchange exists
+     * and strips the header afterwards.
      */
     private String clientAddress(ServerWebExchange exchange) {
-        String forwarded = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            int comma = forwarded.indexOf(',');
-            String first = (comma < 0 ? forwarded : forwarded.substring(0, comma)).trim();
-            if (!first.isEmpty()) {
-                return first;
-            }
-        }
-
-        InetSocketAddress remote = exchange.getRequest().getRemoteAddress();
-        if (remote != null) {
-            if (remote.getAddress() != null) {
-                return remote.getAddress().getHostAddress();
-            }
-            // Unresolved, which is normal once the forwarded header has been
-            // applied and stripped. The host string still names the client.
-            if (remote.getHostString() != null && !remote.getHostString().isBlank()) {
-                return remote.getHostString();
-            }
-        }
-        return "unknown";
+        return ClientIpConfig.clientAddress(exchange);
     }
 
 }
