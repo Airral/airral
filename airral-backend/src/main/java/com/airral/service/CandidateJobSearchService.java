@@ -1097,6 +1097,27 @@ public class CandidateJobSearchService {
                         "This job's details are temporarily unavailable. Please try again shortly.")));
     }
 
+    /**
+     * The board's own detail payload, with the cache deliberately stepped over.
+     *
+     * <p>Exists for the sync's hydration pass, and the reason it has to exist is
+     * that {@link #getExternalJobDetail} is cache-first: it consults
+     * findCachedJobDetail and only falls through when that comes back empty. A
+     * Workday row already carries a title, a location and an apply URL, so for
+     * the very rows the hydration pass is trying to fill in, the cached lookup
+     * answers and the live fetch never happens. A pass built on
+     * getExternalJobDetail would run, log success and change nothing. That trap
+     * has already cost this project one apparently-working fix.
+     *
+     * <p>Callers get the derived response and nothing else. Persisting it is
+     * cacheJobDetail's job, and the caller decides whether what came back is
+     * worth persisting.
+     */
+    public Mono<CandidateJobDetailResponse> fetchLiveJobDetail(
+            String sourceType, String boardToken, String externalJobId) {
+        return loadExternalJobDetail(normalizeSource(sourceType), boardToken, externalJobId);
+    }
+
     private Mono<CandidateJobDetailResponse> loadExternalJobDetail(String normalizedSource, String boardToken, String externalJobId) {
         return switch (normalizedSource) {
             case "GREENHOUSE" -> getGreenhouseJobDetail(boardToken, parseGreenhouseJobId(externalJobId));
@@ -1893,6 +1914,16 @@ public class CandidateJobSearchService {
                 .location(location)
                 .workMode(workMode)
                 .employmentType(job.getEmploymentType())
+                // Workable's list call is already made with details=true, so the
+                // body is in the payload the sync has in hand -- it was read for
+                // the prose salary two lines above and then dropped on the floor.
+                // Not setting it here is what left every Workable posting with
+                // sponsorship UNKNOWN and no visa, seniority or experience
+                // signals: withDecisionSignals derives all of those from this
+                // field, and the sync writes what this mapper builds. Fetching it
+                // back per posting would mean re-downloading the whole board once
+                // per row for data we already had.
+                .descriptionText(descriptionText)
                 .salaryLabel(salaryLabel)
                 .salaryPeriod(salary == null ? null : salary.period())
                 .applyUrl(applyUrl)

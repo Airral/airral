@@ -1360,6 +1360,136 @@ public class ExternalJobPostingStore {
         return spec.fetch().rowsUpdated();
     }
 
+    /**
+     * A stored posting whose board ships no body in its list payload.
+     */
+    public record MissingBodyRow(Long id, String sourceType, String boardToken, String externalJobId) { }
+
+    /**
+     * Which rows the hydration pass considers work, shared by the select and by
+     * the count that reports the backlog.
+     *
+     * <p>Shared for the same reason the sweep shares its predicate: a "remaining"
+     * number taken from a different set of rows than the one being worked would
+     * make the backlog look like it was draining, or not draining, for reasons
+     * that had nothing to do with the pass.
+     *
+     * <p>Both description columns have to be empty. description_text alone is not
+     * enough: the sync writes that column from the list payload for the boards
+     * that do ship a body, so testing it alone would keep re-fetching Greenhouse
+     * rows that already have everything. And description_html alone is not enough
+     * either, because it is exactly the column a successful hydration fills, so a
+     * row that gained a body must stop matching here or the pass would spend its
+     * whole budget re-reading its own work.
+     */
+    static final String MISSING_BODY_PREDICATE = """
+            WHERE is_active = true
+              AND expires_at > CURRENT_TIMESTAMP
+              AND source_type = ANY(CAST(:sourceTypes AS TEXT[]))
+              AND NULLIF(description_text, '') IS NULL
+              AND NULLIF(description_html, '') IS NULL
+              AND NULLIF(source_board_token, '') IS NOT NULL
+              AND NULLIF(external_job_id, '') IS NOT NULL
+            """;
+
+    /**
+     * The work list for the hydration pass, spread across boards.
+     *
+     * <p>Ordered by each board's own rank first and by id second, so the run takes
+     * one posting from every backlogged board before it takes a second from any of
+     * them. This is the fairness mechanism, and it is the whole answer to a board
+     * that can never succeed: one board in the catalogue answers 403 to this
+     * service every time, and ordering by id alone would hand it whichever end of
+     * the per-run budget its rows happened to sit at, on every run, forever.
+     * Round-robin also costs nothing when there is only one backlogged board --
+     * that board simply takes the whole budget, which is what you want while a
+     * single large Workday tenant is the backlog.
+     *
+     * <p>perBoardLimit is the politeness ceiling on top of that, not the fairness
+     * mechanism: it is the most requests one employer's server will take from a
+     * single run however empty the field is. Set it near the per-run limit and it
+     * effectively does not bind.
+     *
+     * <p>Bounded per run on purpose. Every row here becomes a request to another
+     * company's server and an UPDATE on a db-f1-micro.
+     */
+    public Flux<MissingBodyRow> findRowsMissingDescription(
+            List<String> sourceTypes, int perBoardLimit, int limit) {
+        String[] normalized = normalizedSourceTypes(sourceTypes);
+        if (normalized.length == 0) {
+            return Flux.empty();
+        }
+
+        return databaseClient.sql("""
+                        WITH ranked AS (
+                            SELECT
+                                id,
+                                source_type,
+                                source_board_token,
+                                external_job_id,
+                                -- random(), not id. Ordering by id puts the SAME rows at the
+                                -- head of every board's slice on every run, and the caller gives
+                                -- up on a board after three consecutive failures -- so three
+                                -- permanently bad rows at the head of a board's id order block
+                                -- that board's whole backlog for good, not just slow it down.
+                                -- Bad rows are real here: a Workday requisition the tenant has
+                                -- stopped serving answers 404 while the board still lists it, so
+                                -- it never gains a body and never leaves this work list.
+                                -- Sampling differently each run means a poison row costs one
+                                -- attempt occasionally instead of blocking its board forever.
+                                ROW_NUMBER() OVER (PARTITION BY job_source_id ORDER BY random()) AS board_rank
+                            FROM external_job_postings
+                        """ + MISSING_BODY_PREDICATE + """
+                        )
+                        SELECT id, source_type, source_board_token, external_job_id
+                        FROM ranked
+                        WHERE board_rank <= :perBoardLimit
+                        ORDER BY board_rank
+                        LIMIT :limit
+                        """)
+                .bind("sourceTypes", normalized)
+                .bind("perBoardLimit", Math.max(1, perBoardLimit))
+                .bind("limit", Math.max(1, limit))
+                .map((row, metadata) -> new MissingBodyRow(
+                        row.get("id", Long.class),
+                        row.get("source_type", String.class),
+                        row.get("source_board_token", String.class),
+                        row.get("external_job_id", String.class)))
+                .all();
+    }
+
+    /** How many postings the hydration pass still has to fetch, writing nothing. */
+    public Mono<Long> countRowsMissingDescription(List<String> sourceTypes) {
+        String[] normalized = normalizedSourceTypes(sourceTypes);
+        if (normalized.length == 0) {
+            return Mono.just(0L);
+        }
+
+        return databaseClient.sql("SELECT COUNT(*) AS total FROM external_job_postings "
+                        + MISSING_BODY_PREDICATE)
+                .bind("sourceTypes", normalized)
+                .map((row, metadata) -> {
+                    Long total = row.get("total", Long.class);
+                    return total == null ? 0L : total;
+                })
+                .one()
+                .defaultIfEmpty(0L);
+    }
+
+    private String[] normalizedSourceTypes(List<String> sourceTypes) {
+        if (sourceTypes == null || sourceTypes.isEmpty()) {
+            return new String[0];
+        }
+        return sourceTypes.stream()
+                .filter(Objects::nonNull)
+                // Filtered before normalizing, not after: normalizeSource answers
+                // "ALL" for a blank, and "ALL" is not a source_type any row holds.
+                .filter(value -> !value.isBlank())
+                .map(this::normalizeSource)
+                .distinct()
+                .toArray(String[]::new);
+    }
+
     public Mono<Long> recomputeJobQuality() {
         return databaseClient.sql("""
                         WITH churn AS (
