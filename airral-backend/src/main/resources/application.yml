@@ -214,6 +214,46 @@ airral:
       lease-minutes: ${AIRRAL_JOBS_SYNC_LEASE_MINUTES:50}
       source-concurrency: ${AIRRAL_JOBS_SYNC_SOURCE_CONCURRENCY:6}
       max-sources-per-run: ${AIRRAL_JOBS_SYNC_MAX_SOURCES_PER_RUN:500}
+      # Fetches the posting body for the boards that ship none in their list
+      # payload and answer a real per-posting detail call, so their sponsorship,
+      # visa, seniority, experience and prose pay stop being blank. Sampled over
+      # 200 live postings, 86% had sponsorship UNKNOWN, and Workday alone is
+      # about 28% of the catalogue. Work mode is not fixed by this:
+      # cacheJobDetail does not write that column, and the inference behind it
+      # reads only the title and the location.
+      hydrate-descriptions:
+        # The kill switch. Off means the pass makes no requests and writes
+        # nothing; everything else in the run is unaffected.
+        enabled: ${AIRRAL_JOBS_SYNC_HYDRATE_ENABLED:true}
+        # Boards whose LIST response carries no body AND whose detail endpoint is
+        # a real per-posting fetch. Greenhouse, Lever and Ashby are absent because
+        # theirs arrives with the list and is already stored. Workable is absent
+        # for a second, sharper reason: its list call already asks for
+        # details=true, so its body was always in hand -- and its "detail" fetch
+        # re-downloads the whole board to filter to one job, so hydrating it would
+        # have meant one full board download per posting, every run. Check any
+        # source added here against its get*JobDetail method first; Ashby,
+        # BambooHR and the career pages have the same shape as Workable.
+        sources: ${AIRRAL_JOBS_SYNC_HYDRATE_SOURCES:WORKDAY,SMARTRECRUITERS}
+        # Budget. 400 postings at a concurrency of 4 is about 80 seconds at the
+        # detail latency we see. The arithmetic worst case is NOT 13 minutes: the
+        # sync profile raises airral.jobs.source-timeout-seconds to 45, and the
+        # per-board work is serial, so one backlogged board gets no help from the
+        # concurrency at all. That is why HYDRATION_BUDGET caps the pass at ten
+        # minutes of wall clock regardless of these numbers -- these bound the
+        # request count, the wall clock bounds the run. Concurrency is 4 for the
+        # same reason the pay backfill uses 4: at most 4 in-flight UPDATEs on a
+        # db-f1-micro with a ~25 connection ceiling, and 4 outbound requests
+        # spread across different employers is a polite rate. Zero disables the
+        # pass exactly as enabled: false does.
+        limit-per-run: ${AIRRAL_JOBS_SYNC_HYDRATE_LIMIT_PER_RUN:400}
+        # Politeness ceiling, not the fairness mechanism -- the work list is
+        # already round-robined across boards, so one employer only reaches this
+        # when it is the only one with a backlog. Deliberately close to
+        # limit-per-run: a single large Workday tenant IS the backlog today, and a
+        # tight per-board slice would stretch the drain from days into weeks.
+        limit-per-board: ${AIRRAL_JOBS_SYNC_HYDRATE_LIMIT_PER_BOARD:200}
+        concurrency: ${AIRRAL_JOBS_SYNC_HYDRATE_CONCURRENCY:4}
     greenhouse:
       default-board: ${GREENHOUSE_DEFAULT_BOARD:airbnb}
       # Verified working Greenhouse public boards (last checked 2026-06-17)

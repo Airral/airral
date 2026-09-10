@@ -48,7 +48,11 @@ class DisappearanceSweepGuardTest {
     private ExternalJobSyncService service(boolean sweepEnabled, boolean sweepDryRun) {
         return new ExternalJobSyncService(
                 store, mock(CandidateJobSearchService.class),
-                60, 15, LIMIT_PER_SOURCE, 50, 6, 500, sweepEnabled, sweepDryRun, "airral-test");
+                60, 15, LIMIT_PER_SOURCE, 50, 6, 500, sweepEnabled, sweepDryRun,
+                // Hydration off. These tests are about what the sweep retires, and
+                // it must make no difference to them whether the pass exists.
+                false, 300, 40, 4, "WORKDAY",
+                "airral-test");
     }
 
     private ExternalJobSourceRecord source(String sourceType) {
