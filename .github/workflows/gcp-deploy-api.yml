@@ -15,16 +15,40 @@ on:
         type: string
 
 permissions:
-  contents: read
+  # contents: read was dropped because nothing here checks out the tree -- this
+  # workflow only talks to gcloud about an image that already exists. Naming any
+  # scope in this block makes every unnamed scope none, so what is left is a
+  # token that can do exactly one thing.
+  #
+  # id-token: write stays, and cannot go: it is what mints the OIDC token that
+  # the Workload Identity exchange trades for the deploy service account. Remove
+  # it and the auth step fails.
   id-token: write
 
 jobs:
   deploy:
     name: Deploy ${{ inputs.version }}
     runs-on: ubuntu-latest
+    # Anything that authenticates here becomes github-actions@, which holds
+    # run.admin, iam.serviceAccountUser and secretAccessor at project level --
+    # so the gate has to be on the job, not on who can click the button.
+    # Naming an environment is what gives repo settings something to attach
+    # required reviewers and a deployment branch policy to. On its own it
+    # protects nothing: the rules have to be configured in the GitHub UI, and
+    # until they are, this line only labels the deploy.
+    environment: prod-api
 
     steps:
       - name: Authenticate to Google Cloud
+        # Pinning note, true of all five gcp-*.yml workflows and recorded once
+        # here rather than five times: every action is on a floating major tag.
+        # actions/checkout and actions/setup-java are GitHub's own;
+        # google-github-actions/auth and setup-gcloud are not, and auth is the
+        # step that holds the OIDC token and writes the credentials file. A
+        # moved v2 tag there runs new code as github-actions@. Pinning to a
+        # commit SHA fixes that, but a wrong SHA breaks all five at once, so it
+        # is an owner action with the digests resolved first -- not a rewrite to
+        # be done from memory.
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
@@ -128,6 +152,43 @@ jobs:
           # power job owns it, and a deploy that lands inside the off-window will
           # be corrected at the next transition rather than holding a warm
           # instance against a stopped database.
+          # Résumé storage is derived from RESUME_BUCKET rather than written here,
+          # and that is load bearing in both directions. --set-env-vars replaces
+          # the whole environment, so anything set by hand with `gcloud run
+          # services update` is wiped by the next deploy -- which is how a
+          # service quietly reverts to writing résumés to the container's tmpfs
+          # with nothing in the logs to say so. And naming GCS here before the
+          # bucket exists is a hard down: the bean throws during context refresh
+          # on a blank bucket, so the container never becomes ready.
+          #
+          # With the variable unset this resolves to LOCAL and an empty bucket,
+          # which is exactly today's behaviour. Setting it, once the bucket and
+          # its IAM binding exist, flips storage on the next deploy. Grep the
+          # Cloud Run log for "Resume storage provider is GCS" to confirm it took.
+          #
+          # --set-secrets passes references, never values. Cloud Run resolves
+          # db-password, jwt-encryption-secret and cors-allowed-origins at
+          # instance start using the service's own identity (GCP_API_SA), so no
+          # secret is ever fetched into this runner and there is nothing here for
+          # ::add-mask:: to register. The one workflow that does read secrets into
+          # a runner is gcp-sync-jobs.yml, and that one masks them. Rewriting this
+          # as a shell fetch plus --set-env-vars would put both production secrets
+          # in the runner's process environment, one stray echo from the log.
+          #
+          # All of that rationale sits above the command rather than inside it,
+          # and it has to. A `#` line between two \-continued lines is not an
+          # inline comment: the shell ends the command there and then tries to
+          # run the remaining flags as commands. The résumé note above used to sit
+          # between --startup-probe and --set-env-vars, so the deploy ran with
+          # neither --set-env-vars nor --set-secrets applied and the step then
+          # failed on "--set-env-vars: command not found".
+          #
+          # The failure is loud but it is not clean, which is the part worth
+          # remembering: the truncated command is still a valid deploy, so it
+          # succeeds first. gcloud run deploy without --set-env-vars is a partial
+          # update that carries the previous revision's environment forward, so
+          # the new image ships against the old config and only then does the
+          # step exit 127. A red run here does not mean nothing was released.
           gcloud run deploy airral-api \
             --image "$IMAGE:${{ inputs.version }}" \
             --region "${{ vars.GCP_REGION }}" \
@@ -140,7 +201,7 @@ jobs:
             --max-instances 3 \
             --timeout 300 \
             --startup-probe httpGet.path=/actuator/health,initialDelaySeconds=10,periodSeconds=10,failureThreshold=30 \
-            --set-env-vars "^|^SPRING_PROFILES_ACTIVE=gcp|CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}|DB_NAME=${{ vars.DB_NAME }}|DB_USER=${{ vars.DB_USER }}|AIRRAL_RELEASE_VERSION=${{ inputs.version }}|GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}|AIRRAL_MCP_HOSTNAME=mcp.airral.com|AIRRAL_BOOTSTRAP_ADMIN_EMAIL=${{ vars.BOOTSTRAP_ADMIN_EMAIL }}" \
+            --set-env-vars "^|^SPRING_PROFILES_ACTIVE=gcp|CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}|DB_NAME=${{ vars.DB_NAME }}|DB_USER=${{ vars.DB_USER }}|AIRRAL_RELEASE_VERSION=${{ inputs.version }}|GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}|AIRRAL_MCP_HOSTNAME=mcp.airral.com|AIRRAL_BOOTSTRAP_ADMIN_EMAIL=${{ vars.BOOTSTRAP_ADMIN_EMAIL }}|FILE_UPLOAD_STORAGE_PROVIDER=${{ vars.RESUME_BUCKET && 'GCS' || 'LOCAL' }}|FILE_UPLOAD_GCS_BUCKET=${{ vars.RESUME_BUCKET }}" \
             --set-secrets "DB_PASSWORD=db-password:latest,JWT_ENCRYPTION_SECRET=jwt-encryption-secret:latest,CORS_ALLOWED_ORIGINS=cors-allowed-origins:latest"
 
       - name: Smoke test

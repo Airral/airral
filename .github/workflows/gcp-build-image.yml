@@ -38,13 +38,24 @@ on:
           - admin
 
 permissions:
+  # contents: read is genuinely needed here -- the build job checks out the
+  # release tag. It stays read: nothing in this workflow writes to the
+  # repository, and the build must not be able to move the tag it is building.
+  #
+  # id-token: write is required to mint the OIDC token for Workload Identity,
+  # so it cannot be removed from any of the five GCP workflows.
   contents: read
-  id-token: write   # required to mint the OIDC token for Workload Identity
+  id-token: write
 
 jobs:
   resolve:
     name: Resolve build matrix
     runs-on: ubuntu-latest
+    # Validates a string and emits a JSON list. No checkout, no gcloud, so no
+    # token: without this it would inherit id-token: write and be able to mint
+    # credentials for github-actions@, which can push to Artifact Registry and
+    # read every secret in the project.
+    permissions: {}
     outputs:
       services: ${{ steps.pick.outputs.services }}
     steps:
@@ -69,6 +80,14 @@ jobs:
     name: Build ${{ matrix.service }} ${{ inputs.version }}
     needs: resolve
     runs-on: ubuntu-latest
+    # An image pushed here is what the deploy workflows later ship, so the push
+    # is part of the production path even though nothing is served from it yet.
+    # Naming an environment gives repo settings somewhere to attach a
+    # deployment branch policy; it protects nothing until that is configured.
+    #
+    # Kept separate from prod-api and prod-frontend so a reviewer requirement
+    # can be placed on the deploys without also gating every build.
+    environment: prod-images
     strategy:
       fail-fast: false
       matrix:

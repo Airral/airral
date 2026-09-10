@@ -1,6 +1,5 @@
 package com.airral.controller;
 
-import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 
@@ -15,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 
+import com.airral.config.ClientIpConfig;
 import com.airral.dto.response.VisitorAnalyticsResponse;
 import com.airral.service.VisitorSignalService;
 
@@ -141,34 +141,18 @@ public class VisitorSignalController {
     }
 
     /**
-     * The caller's address as seen from outside.
+     * The caller's address as seen from outside. Only ever hashed into the
+     * salted daily visitor key, never stored.
      *
-     * <p>Defensive in the same way the sign-in path had to become: Cloud Run
-     * terminates TLS and Spring applies then strips X-Forwarded-For, leaving a
-     * remote address that can be unresolved, where getAddress() returns null.
-     * Dereferencing that turned every sign-in into a 500 once already.
-     *
-     * <p>Only ever hashed, never stored.
+     * <p>This had its own copy of the sign-in path's left-most X-Forwarded-For
+     * parse, and inherited the same defect: Cloud Run appends the real address
+     * to a caller-supplied header instead of replacing it, so the left-most
+     * entry was whatever the caller wrote and a visitor could be counted as
+     * many distinct people. Both copies now defer to {@link ClientIpConfig},
+     * which resolves from the trusted right-hand end of the chain in the one
+     * place that can still see it.
      */
     private String clientAddress(ServerWebExchange exchange) {
-        String forwarded = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            int comma = forwarded.indexOf(',');
-            String first = (comma < 0 ? forwarded : forwarded.substring(0, comma)).trim();
-            if (!first.isEmpty()) {
-                return first;
-            }
-        }
-
-        InetSocketAddress remote = exchange.getRequest().getRemoteAddress();
-        if (remote != null) {
-            if (remote.getAddress() != null) {
-                return remote.getAddress().getHostAddress();
-            }
-            if (remote.getHostString() != null && !remote.getHostString().isBlank()) {
-                return remote.getHostString();
-            }
-        }
-        return "unknown";
+        return ClientIpConfig.clientAddress(exchange);
     }
 }
