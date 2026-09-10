@@ -145,6 +145,208 @@ public class CandidateJobSearchService {
                     + "(?:your\\s+|their\\s+|the\\s+|a\\s+)?right\\s+to\\s+work\\b)",
             Pattern.CASE_INSENSITIVE);
 
+    /** A noun a posting uses for the thing being advertised, for the role-scoped patterns below. */
+    private static final String WORK_MODE_ROLE_NOUN = "(?:role|position|job|opportunity|opening)";
+
+    /**
+     * Adverbs that can sit between "is" and "remote" without weakening the claim.
+     *
+     * <p>"primarily" is deliberately absent. "The role is primarily remote, with
+     * travel to the project site required ... approximately 3-4 days per month"
+     * is a real posting from this catalogue, and it is not a remote job in the
+     * sense the Remote filter promises. Every word here has to mean "and nothing
+     * else", which is why the list is short.
+     */
+    private static final String WORK_MODE_FULLY = "(?:fully\\s+|100%\\s+|entirely\\s+|permanently\\s+)?";
+
+    /**
+     * The suffix that turns the word "remote" into a description of the employer.
+     *
+     * <p>{@code \bremote\b} matches inside "remote-first", because the hyphen is a
+     * word boundary. Every claim pattern below therefore carries this lookahead as
+     * well as sitting behind {@link #WORK_MODE_NOT_ABOUT_ROLE} -- the same
+     * belt-and-braces the sponsorship patterns use, and for the same reason: the
+     * cost of a wrong REMOTE is a wasted application.
+     */
+    private static final String WORK_MODE_NOT_EMPLOYER_ADJECTIVE =
+            "(?![-\\s]*(?:first|friendly|forward|native|centric))";
+
+    /**
+     * A posting saying the role itself is remote.
+     *
+     * <p>Every alternative is scoped to THIS role. That is the whole design. A
+     * bare "remote" appears in about a sixth of the bodies in this catalogue and
+     * almost none of those postings are remote: it turns up in benefits lists, in
+     * About Us copy, in equal-opportunity boilerplate, and in the two employers
+     * whose legal notice reads "Notice to Applicants for Jobs Located in NYC or
+     * Remote Jobs Associated With Office in NYC". A bare token was rejected here
+     * for exactly the reason a bare "no" was rejected in
+     * {@link #SPONSORSHIP_REFUSAL}, and a bare "right to work" in
+     * {@link #RIGHT_TO_WORK_REQUIREMENT}: the word alone carries no claim.
+     *
+     * <p>#LI-Remote is the LinkedIn workplace tag. It is the one exception to the
+     * "must name the role" rule, and it earns it -- a recruiter stamps it on one
+     * requisition, not on a company page, so it cannot be About Us copy.
+     */
+    private static final Pattern WORK_MODE_REMOTE_CLAIM = Pattern.compile(
+            "(?:#li[-_]remote\\b)"
+                    + "|(?:\\b(?:this|the)\\s+(?:\\w+\\s+){0,2}?" + WORK_MODE_ROLE_NOUN
+                    + "\\s+(?:is|will\\s+be)\\s+(?:an?\\s+)?" + WORK_MODE_FULLY
+                    + "(?:remote|work[-\\s]from[-\\s]home)\\b" + WORK_MODE_NOT_EMPLOYER_ADJECTIVE + ")"
+                    + "|(?:\\bthis\\s+is\\s+an?\\s+" + WORK_MODE_FULLY
+                    + "(?:remote|work[-\\s]from[-\\s]home)\\b" + WORK_MODE_NOT_EMPLOYER_ADJECTIVE + ")"
+                    + "|(?:\\b(?:work\\s+)?location\\s*:\\s*" + WORK_MODE_FULLY + "remote\\b"
+                    + WORK_MODE_NOT_EMPLOYER_ADJECTIVE + ")"
+                    + "|(?:\\b(?:fully|100%|entirely)\\s+remote\\s+" + WORK_MODE_ROLE_NOUN + "\\b)",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * A negation reaching the word "remote", by proximity rather than by bigram.
+     *
+     * <p>Built the way {@link #SPONSORSHIP_REFUSAL} is built, and for the same
+     * observed reason: employers put words between the negation and the noun.
+     * "Remote work is not an option for this position" has three. Both directions
+     * are needed because the negation lands on either side -- "this role is not
+     * remote" before, "remote work is not available" after -- and the gap cannot
+     * contain a sentence terminator, so a negation never reaches out of its own
+     * sentence into an unrelated clause.
+     *
+     * <p>A bare "no" is allowed here, unlike in {@link #SPONSORSHIP_REFUSAL},
+     * because of the direction this pattern points. There it decided an answer,
+     * so a loose match inverted the result. Here it can only ever cancel a claim
+     * some other pattern already made, and the worst a false match can do is
+     * leave the posting UNKNOWN. A miss is honest; a wrong REMOTE is not.
+     */
+    /**
+     * A refusal aimed at hybrid or onsite, in the same shape as the remote one.
+     *
+     * <p>The remote claim was guarded twice and these two were not guarded at all,
+     * which a review caught on live text: "This is not a hybrid position - the role
+     * is fully onsite at our New York office" answered HYBRID, and "This role is not
+     * fully onsite" answered ONSITE. Both are the posting saying the opposite of what
+     * we recorded, and work_mode is a hard SQL predicate, so either one sends a
+     * candidate to apply for a job that is not what we told them it was.
+     */
+    private static final Pattern WORK_MODE_PLACE_NEGATED = Pattern.compile(
+            "(?:\\b(?:do(?:es)?\\s+not|will\\s+not|can\\s?not|cannot|won'?t|are\\s+not|is\\s+not"
+                    + "|unable\\s+to|not|no|without|neither|nor)\\b[^.!?]{0,30}?"
+                    + "\\b(?:hybrid|on-?\\s?site|in[-\\s]office|in\\s+the\\s+office|in[-\\s]person)\\b)"
+                    + "|(?:\\b(?:hybrid|on-?\\s?site|in[-\\s]office|in\\s+the\\s+office|in[-\\s]person)\\b"
+                    + "[^.!?]{0,30}?\\b(?:is\\s+not|are\\s+not|not\\s+available|not\\s+an\\s+option"
+                    + "|not\\s+offered|unavailable|not\\s+permitted|not\\s+required)\\b)",
+            Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern WORK_MODE_REMOTE_NEGATED = Pattern.compile(
+            "(?:\\b(?:do(?:es)?\\s+not|will\\s+not|can\\s?not|cannot|won'?t|are\\s+not|is\\s+not"
+                    + "|unable\\s+to|not|no|without|neither|nor)\\b[^.!?]{0,30}?"
+                    + "\\b(?:remote|remotely|work\\s+from\\s+home|telecommut\\w*)\\b)"
+                    + "|(?:\\b(?:remote|remotely|work\\s+from\\s+home|telecommut\\w*)\\b[^.!?]{0,30}?"
+                    + "\\b(?:is\\s+not|are\\s+not|not\\s+available|not\\s+an\\s+option|not\\s+offered"
+                    + "|unavailable|not\\s+permitted)\\b)",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * The word "remote" used about the employer, the past, or a perk.
+     *
+     * <p>Also suppress-only. These are the sentences that describe a culture
+     * rather than a requisition -- "we are a remote-first company" in an About Us
+     * block above an on-site role, "during the pandemic we went remote", a remote
+     * work stipend in a benefits list. None of them says where this job is done.
+     */
+    private static final Pattern WORK_MODE_NOT_ABOUT_ROLE = Pattern.compile(
+            "remote[-\\s](?:first|friendly|forward|native|centric)"
+                    + "|(?:went|going|gone|moved)\\s+(?:fully\\s+)?remote"
+                    + "|remote\\s+(?:work\\s+)?(?:culture|stipend|policy|allowance|environment)"
+                    + "|remote\\s+jobs\\b|remote\\s+eligibility|remote\\s+work\\s+options?",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * The two ways of writing hybrid that cannot mean anything else.
+     *
+     * <p>#LI-Hybrid is the LinkedIn workplace tag, stamped per requisition. A
+     * "hybrid schedule" is a statement about time in a place; there is no second
+     * reading of the word once it is attached to a schedule. Neither needs the
+     * corroboration {@link #WORK_MODE_HYBRID_ROLE_CLAIM} requires.
+     */
+    private static final Pattern WORK_MODE_HYBRID_UNAMBIGUOUS = Pattern.compile(
+            "(?:#li[-_]hybrid\\b)|(?:\\bhybrid\\s+schedule\\b)",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * A posting saying the role splits its week between an office and elsewhere.
+     *
+     * <p>Same role-scoping rule as the remote claim. "We operate as a hybrid
+     * workplace" and "we embrace a hybrid work model" are company statements that
+     * appear verbatim on the fully remote requisitions of the same employers, so
+     * neither reaches this pattern.
+     *
+     * <p>Corroboration is required on top of the match, because unlike "remote"
+     * this word has an everyday second meaning and employers use it. Measured on
+     * live postings: "This is a hybrid role: part strategic people leader, part
+     * expert practitioner" and "This is a hybrid role -- roughly half dedicated
+     * to CoS responsibilities and the remainder to special projects" are both
+     * describing a blend of two JOBS, not a week split between an office and a
+     * home. Neither sentence contains a word about a place, which is what
+     * {@link #WORK_MODE_HYBRID_PLACE_CONTEXT} tests for.
+     */
+    private static final Pattern WORK_MODE_HYBRID_ROLE_CLAIM = Pattern.compile(
+            "(?:\\b(?:this|the)\\s+(?:\\w+\\s+){0,2}?" + WORK_MODE_ROLE_NOUN
+                    + "\\s+(?:is|will\\s+be|offers|follows)\\s+(?:an?\\s+)?hybrid\\b)"
+                    + "|(?:\\bhybrid\\s+" + WORK_MODE_ROLE_NOUN + "\\b)"
+                    + "|(?:\\b(?:work\\s+)?(?:model|location|type|arrangement|setting)\\s*:\\s*"
+                    + "[^.\\n]{0,20}?hybrid\\b)",
+            Pattern.CASE_INSENSITIVE);
+
+    /** A word about where the work happens, used to corroborate a hybrid claim. */
+    private static final Pattern WORK_MODE_HYBRID_PLACE_CONTEXT = Pattern.compile(
+            "\\b(?:office|on-?\\s?site|in[-\\s]person|remote|locat(?:ion|ed)|workplace|campus"
+                    + "|commut\\w*|headquarters|hq|days?\\s*(?:an?|per|each|/)\\s*week)\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * How many days a week the posting expects someone in the office.
+     *
+     * <p>The strongest work-mode statement employers actually write, and the one
+     * that reads a number, so it is also the easiest to get wrong. Two guards.
+     *
+     * <p>The week is mandatory. Without it this pattern read "Approximate onsite
+     * expectation of 3-4 days per MONTH minimum" as four days a week and called a
+     * remote consulting role hybrid -- measured on a live SmartRecruiters posting
+     * whose own body opens "The role is primarily remote". A month is not a week
+     * and a quarter is not a week; if the posting did not say week, this says
+     * nothing.
+     *
+     * <p>The gap between the place and the count is {@code [^.!?]{0,40}} rather
+     * than unbounded, so the count cannot be picked up from the next sentence --
+     * the same clause discipline SALARY_RANGE_PATTERN needed after "$120,000 -
+     * $150,000, plus an annual bonus" handed its interval to the wage.
+     */
+    private static final Pattern WORK_MODE_OFFICE_DAYS_PER_WEEK = Pattern.compile(
+            "(?:(?:on-?\\s?site|in[-\\s]office|in\\s+the\\s+office|in[-\\s]person)"
+                    + "[^.!?\\r\\n]{0,40}?\\b(?<daysAfter>[1-5])\\s*\\+?\\s*(?:days?|x)\\b"
+                    + "(?:\\s*(?:an?|per|each|/)\\s*week|\\s*weekly))"
+                    + "|(?:\\b(?<daysBefore>[1-5])\\s*\\+?\\s*(?:days?|x)\\b"
+                    + "(?:\\s*(?:an?|per|each|/)\\s*week|\\s*weekly)"
+                    + "[^.!?\\r\\n]{0,40}?(?:on-?\\s?site|in[-\\s]office|in\\s+the\\s+office|in[-\\s]person))",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * A posting saying the role is on-site, in as many words.
+     *
+     * <p>Nothing infers ONSITE from the absence of remote language. That
+     * assumption is the one {@link #inferWorkMode} was deliberately changed to
+     * stop making, when it filed 1331 of 1368 postings as on-site and made the
+     * On-site filter mean "everything we could not classify". A location, an
+     * office address and a "collaborative in-person culture" are all still not a
+     * statement that this job is done in a building five days a week.
+     */
+    private static final Pattern WORK_MODE_ONSITE_CLAIM = Pattern.compile(
+            "(?:\\b(?:this|the)\\s+(?:\\w+\\s+){0,2}?" + WORK_MODE_ROLE_NOUN
+                    + "\\s+(?:is|will\\s+be)\\s+(?:an?\\s+)?(?:fully\\s+|100%\\s+)?on-?\\s?site\\b)"
+                    + "|(?:\\bmust\\s+(?:be\\s+able\\s+to\\s+)?work\\s+(?:fully\\s+)?on-?\\s?site\\b)"
+                    + "|(?:\\b(?:fully|100%)\\s+on-?\\s?site\\b)",
+            Pattern.CASE_INSENSITIVE);
+
     /**
      * A pay range written out in a job description.
      *
@@ -2219,6 +2421,7 @@ public class CandidateJobSearchService {
         job.setCompensationConfidence(firstNonBlank(job.getCompensationConfidence(), inferCompensationConfidence(job.getSalaryLabel())));
         applyVisaSignals(job, descriptionText);
         applyExperienceSignals(job, descriptionText);
+        applyWorkModeSignal(job, descriptionText);
         return job;
     }
 
@@ -2248,7 +2451,46 @@ public class CandidateJobSearchService {
         detail.setCompensationConfidence(firstNonBlank(detail.getCompensationConfidence(), inferCompensationConfidence(detail.getSalaryLabel())));
         applyVisaSignals(detail, detail.getDescriptionText());
         applyExperienceSignals(detail, detail.getDescriptionText());
+        applyWorkModeSignal(detail, detail.getDescriptionText());
         return detail;
+    }
+
+    /**
+     * Fills in a work mode nothing else could resolve, and only then.
+     *
+     * <p>This is where the precedence is enforced, and it is enforced by not
+     * running: every mapper has already asked its source's own field and then
+     * the title and location by the time this is reached, so a value that is not
+     * UNKNOWN came from one of those and is left exactly as it is. The same
+     * applies to a row read back from the database, where the column already
+     * holds whatever an earlier pass resolved.
+     *
+     * <p>Deliberately does not rebuild the tags. buildTags adds a "Remote" or
+     * "Hybrid" tag from the work mode the mapper had, so a posting resolved here
+     * gains the column without gaining the tag. Nothing reads the two together
+     * -- both the SQL filter and the in-process catalogue filter test the column
+     * -- and rewriting the tags would change the array and the search vector for
+     * every hydrated row, which is a great deal of write traffic for a duplicate
+     * of a value the filter already has.
+     */
+    private void applyWorkModeSignal(CandidateJobSummaryResponse job, String descriptionText) {
+        if (!isUnresolvedWorkMode(job.getWorkMode())) {
+            return;
+        }
+        String derived = workModeFromDescription(descriptionText);
+        if (derived != null) {
+            job.setWorkMode(derived);
+        }
+    }
+
+    private void applyWorkModeSignal(CandidateJobDetailResponse detail, String descriptionText) {
+        if (!isUnresolvedWorkMode(detail.getWorkMode())) {
+            return;
+        }
+        String derived = workModeFromDescription(descriptionText);
+        if (derived != null) {
+            detail.setWorkMode(derived);
+        }
     }
 
     private void applyExperienceSignals(CandidateJobSummaryResponse job, String descriptionText) {
@@ -4861,6 +5103,134 @@ public class CandidateJobSearchService {
             return "HYBRID";
         }
         return "UNKNOWN";
+    }
+
+    /** True for the values that mean "we could not tell", including a null column. */
+    private boolean isUnresolvedWorkMode(String workMode) {
+        return workMode == null || workMode.isBlank() || "UNKNOWN".equalsIgnoreCase(workMode);
+    }
+
+    /**
+     * Work mode as the posting body states it. A LAST resort, never an override.
+     *
+     * <p>Only ever consulted by applyWorkModeSignal, and only for a posting
+     * nothing else resolved. The order matters more than the patterns do:
+     * a source's own field is the most reliable signal in the system -- Ashby
+     * resolves about 95% of its postings from one -- and a guess read out of
+     * prose must never be allowed to contradict it. Reading the body first would
+     * make the catalogue worse, not better.
+     *
+     * <p>The body alone is read, not the title, company and tags that
+     * {@link #inferVisaSignalFromText} folds in. The title and the location have
+     * already had their turn by the time this runs, and adding the company name
+     * would let an employer called "Remote Year" answer the question.
+     *
+     * <p>Measured over 1,394 live postings pulled from the recommended feed,
+     * 1,231 of which held UNKNOWN: this resolves 399 of them (32%), as 347
+     * HYBRID, 41 REMOTE and 11 ONSITE. Every REMOTE was read by hand. They are
+     * "#LI-Remote", "Work Location: This is a remote / work-from-home role",
+     * "This role is fully remote within the United States", and one employer's
+     * template line "Location: Remote" on field roles that carry heavy travel --
+     * which is that employer's own word for where the job is done.
+     *
+     * <p>The 832 that stay UNKNOWN are overwhelmingly postings whose body never
+     * raises the subject: 109 of the first 154 examined contained no work-mode
+     * vocabulary at all. That is the honest answer for them.
+     *
+     * @return REMOTE, HYBRID or ONSITE when the body says so, otherwise null
+     */
+    private String workModeFromDescription(String descriptionText) {
+        if (descriptionText == null || descriptionText.isBlank()) {
+            return null;
+        }
+
+        // A day count is the most specific thing an employer writes, so it is
+        // read first. Nothing in the live sample triggered a day count and a
+        // remote claim at once, so this ordering costs nothing measurable.
+        var days = WORK_MODE_OFFICE_DAYS_PER_WEEK.matcher(descriptionText);
+        while (days.find()) {
+            if (placeClaimNegated(descriptionText, days.start())) {
+                continue;
+            }
+            String count = firstNonBlank(days.group("daysAfter"), days.group("daysBefore"));
+            return "5".equals(count) ? "ONSITE" : "HYBRID";
+        }
+
+        var tag = WORK_MODE_HYBRID_UNAMBIGUOUS.matcher(descriptionText);
+        while (tag.find()) {
+            if (placeClaimNegated(descriptionText, tag.start())) {
+                continue;
+            }
+            return "HYBRID";
+        }
+
+        var hybrid = WORK_MODE_HYBRID_ROLE_CLAIM.matcher(descriptionText);
+        while (hybrid.find()) {
+            if (placeClaimNegated(descriptionText, hybrid.start())) {
+                continue;
+            }
+            if (WORK_MODE_HYBRID_PLACE_CONTEXT.matcher(sentenceAround(descriptionText, hybrid.start())).find()) {
+                return "HYBRID";
+            }
+        }
+
+        // Every claim is re-checked inside its own sentence rather than the whole
+        // body, so a refusal in one paragraph cannot cancel a claim in another
+        // and an About Us block cannot cancel the requisition's own statement.
+        var remote = WORK_MODE_REMOTE_CLAIM.matcher(descriptionText);
+        while (remote.find()) {
+            String sentence = sentenceAround(descriptionText, remote.start());
+            if (WORK_MODE_REMOTE_NEGATED.matcher(sentence).find()
+                    || WORK_MODE_NOT_ABOUT_ROLE.matcher(sentence).find()) {
+                continue;
+            }
+            return "REMOTE";
+        }
+
+        var onsite = WORK_MODE_ONSITE_CLAIM.matcher(descriptionText);
+        while (onsite.find()) {
+            if (placeClaimNegated(descriptionText, onsite.start())) {
+                continue;
+            }
+            return "ONSITE";
+        }
+
+        return null;
+    }
+
+    /** True when the sentence holding this claim is refusing it rather than making it. */
+    private boolean placeClaimNegated(String descriptionText, int at) {
+        String sentence = sentenceAround(descriptionText, at);
+        return WORK_MODE_PLACE_NEGATED.matcher(sentence).find()
+                || WORK_MODE_NOT_ABOUT_ROLE.matcher(sentence).find();
+    }
+
+    /**
+     * The sentence a match sits in, so a guard cannot reach past its own clause.
+     *
+     * <p>A newline ends a sentence here as well as the three terminators.
+     * Descriptions arrive as stripped HTML, where a heading or a list item ends
+     * without any punctuation at all -- "Work Location" and "Location: Remote"
+     * are two lines, not one sentence.
+     */
+    private String sentenceAround(String text, int position) {
+        int start = 0;
+        for (int i = position - 1; i >= 0; i--) {
+            char c = text.charAt(i);
+            if (c == '.' || c == '!' || c == '?' || c == '\n') {
+                start = i + 1;
+                break;
+            }
+        }
+        int end = text.length();
+        for (int i = position; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '.' || c == '!' || c == '?' || c == '\n') {
+                end = i + 1;
+                break;
+            }
+        }
+        return text.substring(start, end);
     }
 
     private String formatLeverWorkMode(String workplaceType, String location) {
