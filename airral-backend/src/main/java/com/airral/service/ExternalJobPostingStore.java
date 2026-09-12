@@ -238,6 +238,12 @@ public class ExternalJobPostingStore {
                     p.work_mode,
                     p.employment_type,
                     p.salary_label,
+                    -- Was left out of every summary projection while the detail query had it,
+                    -- so the list API answered with salaryPeriod null on all 40 cards measured
+                    -- while 38 of those cards had "/hr" sitting inside salary_label. The unit
+                    -- survived only as display text, which means no consumer of the list could
+                    -- tell an hourly rate from an annual one -- it could only re-read English.
+                    p.salary_period,
                     p.apply_url,
                     p.job_url,
                     p.apply_mode,
@@ -361,6 +367,7 @@ public class ExternalJobPostingStore {
                         .workMode(row.get("work_mode", String.class))
                         .employmentType(row.get("employment_type", String.class))
                         .salaryLabel(row.get("salary_label", String.class))
+                        .salaryPeriod(row.get("salary_period", String.class))
                         .applyUrl(row.get("apply_url", String.class))
                         .jobUrl(row.get("job_url", String.class))
                         .applyMode(row.get("apply_mode", String.class))
@@ -516,6 +523,9 @@ public class ExternalJobPostingStore {
                     p.work_mode,
                     p.employment_type,
                     p.salary_label,
+                    -- Same omission as findRecommendedJobs: this builds the same card, so it
+                    -- has to carry the same unit.
+                    p.salary_period,
                     p.apply_url,
                     p.job_url,
                     p.apply_mode,
@@ -613,6 +623,7 @@ public class ExternalJobPostingStore {
                         .workMode(row.get("work_mode", String.class))
                         .employmentType(row.get("employment_type", String.class))
                         .salaryLabel(row.get("salary_label", String.class))
+                        .salaryPeriod(row.get("salary_period", String.class))
                         .applyUrl(row.get("apply_url", String.class))
                         .jobUrl(row.get("job_url", String.class))
                         .applyMode(row.get("apply_mode", String.class))
@@ -1542,6 +1553,46 @@ public class ExternalJobPostingStore {
                 .toArray(String[]::new);
     }
 
+    /**
+     * Rescores every live posting, and now also says why on the one signal that
+     * separates postings from each other.
+     *
+     * <p>The count was already computed here and already spent: a title an employer
+     * has six or more active postings under is penalised 20 points, and the measured
+     * effect is large -- median quality 45 for rows in a 6+ group against 70 for a
+     * singleton. None of that reached the candidate. The card showed "Fresh source
+     * date", which was true of every posting, while the fact that actually moved the
+     * score was computed and dropped. This writes it back as a reason, at the same
+     * threshold the -20 band uses, so the chip and the penalty can never disagree.
+     *
+     * <p>The wording is the count and nothing more, and it has to be, because the
+     * count cannot tell duplication from volume. The group is one employer and one
+     * lowercased title across every location and every board: a retailer with a
+     * cashier opening in 41 stores lands in the same 41-row group as an agency that
+     * reposted one requisition 41 times. "41 copies" would be false for the first
+     * employer and "41 reposts" for both, since no posting history was read. What
+     * we can say is how many postings the employer has under that title, which is
+     * the query. The candidate draws the inference; we supply the number.
+     *
+     * <p>For the same reason the chip does not say "live". The count is over
+     * {@code is_active = true} alone, while every list a candidate sees also
+     * requires {@code expires_at > CURRENT_TIMESTAMP}, and this runs before
+     * expireOldJobs in the sync pipeline -- so a group can hold rows that are about
+     * to be retired minutes later in the same run.
+     *
+     * <p>Deliberately no reason for the first_seen_at bands in the same expression,
+     * tempting as a listing age is. first_seen_at records when WE first saw a
+     * posting, not when the employer published it, and the column only exists from
+     * migration V7, so the corpus holds a few weeks of it: measured over the live
+     * data, the -15 band at 120 days has never fired for a single row. "Listed 147
+     * days" would be an invention, and printing it here would make this change the
+     * very thing it exists to remove.
+     *
+     * <p>Runs after every upsert in a sync run (see ExternalJobSyncService), which
+     * is what makes the write durable: the upsert's quality_reasons branch takes
+     * EXCLUDED whenever the run carried a body, so a reason written here before the
+     * upserts would be erased by them.
+     */
     public Mono<Long> recomputeJobQuality() {
         return databaseClient.sql("""
                         WITH churn AS (
@@ -1553,6 +1604,18 @@ public class ExternalJobPostingStore {
                         scored AS (
                             SELECT
                                 p.id,
+                                c.copies,
+                                -- Rebuilt from scratch every run rather than appended to, so a
+                                -- posting whose employer is down to one opening under this title
+                                -- loses the chip instead of carrying a stale count for life.
+                                -- The filter is coupled to the exact wording appended below:
+                                -- change one and the other strands a chip that never clears.
+                                ARRAY(
+                                    SELECT reason
+                                    FROM unnest(p.quality_reasons) WITH ORDINALITY AS u(reason, ord)
+                                    WHERE reason NOT LIKE 'Employer has % postings with this title'
+                                    ORDER BY ord
+                                ) AS kept_reasons,
                                 GREATEST(0, LEAST(100,
                                     50
                                     + CASE WHEN p.salary_label IS NOT NULL
@@ -1578,13 +1641,36 @@ public class ExternalJobPostingStore {
                               ON c.company_id = p.company_id
                              AND c.norm_title = LOWER(p.title)
                             WHERE p.is_active = true
+                        ),
+                        reasoned AS (
+                            SELECT
+                                s.id,
+                                s.score,
+                                CASE
+                                    WHEN s.copies >= 6
+                                        -- The cast is not decoration: with an untyped literal
+                                        -- on the left, "text || bigint" has no unambiguous
+                                        -- operator to resolve to.
+                                        THEN array_append(
+                                                s.kept_reasons,
+                                                'Employer has ' || s.copies::text
+                                                    || ' postings with this title')
+                                    ELSE s.kept_reasons
+                                END AS reasons
+                            FROM scored s
                         )
                         UPDATE external_job_postings t
-                        SET job_quality_score = s.score,
+                        SET job_quality_score = r.score,
+                            quality_reasons = r.reasons,
                             updated_at = CURRENT_TIMESTAMP
-                        FROM scored s
-                        WHERE t.id = s.id
-                          AND t.job_quality_score IS DISTINCT FROM s.score
+                        FROM reasoned r
+                        WHERE t.id = r.id
+                          -- Both halves are needed. The score guard alone skipped a row
+                          -- whose count crossed the threshold without moving the score
+                          -- (the band is flat above 6), which would have left the chip
+                          -- saying a number that is no longer true.
+                          AND (t.job_quality_score IS DISTINCT FROM r.score
+                               OR t.quality_reasons IS DISTINCT FROM r.reasons)
                         """)
                 .fetch()
                 .rowsUpdated();
@@ -1926,6 +2012,9 @@ public class ExternalJobPostingStore {
                             p.work_mode,
                             p.employment_type,
                             p.salary_label,
+                            -- Same omission as findRecommendedJobs: this builds the same card, so it
+                            -- has to carry the same unit.
+                            p.salary_period,
                             p.apply_url,
                             p.job_url,
                             p.apply_mode,
@@ -1974,6 +2063,7 @@ public class ExternalJobPostingStore {
                         .workMode(row.get("work_mode", String.class))
                         .employmentType(row.get("employment_type", String.class))
                         .salaryLabel(row.get("salary_label", String.class))
+                        .salaryPeriod(row.get("salary_period", String.class))
                         .applyUrl(row.get("apply_url", String.class))
                         .jobUrl(row.get("job_url", String.class))
                         .applyMode(row.get("apply_mode", String.class))
@@ -2099,7 +2189,6 @@ public class ExternalJobPostingStore {
         return qualityReasonsFor(
                 job.getSalaryLabel(),
                 job.getLocation(),
-                job.getSourceUpdatedAt(),
                 job.getApplyUrl(),
                 job.getJobUrl(),
                 job.getDepartment(),
@@ -2114,7 +2203,6 @@ public class ExternalJobPostingStore {
         return qualityReasonsFor(
                 detail.getSalaryLabel(),
                 detail.getLocation(),
-                detail.getSourceUpdatedAt(),
                 detail.getApplyUrl(),
                 detail.getJobUrl(),
                 detail.getDepartment(),
@@ -2172,7 +2260,6 @@ public class ExternalJobPostingStore {
     private List<String> qualityReasonsFor(
             String salaryLabel,
             String location,
-            OffsetDateTime sourceUpdatedAt,
             String applyUrl,
             String jobUrl,
             String department,
@@ -2182,9 +2269,9 @@ public class ExternalJobPostingStore {
         if (location != null && !location.isBlank() && !location.equalsIgnoreCase("Location not listed")) {
             reasons.add("Location clear");
         }
-        if (sourceUpdatedAt != null) {
-            reasons.add("Fresh source date");
-        }
+        // Kept in step with CandidateJobSearchService.buildQualityReasons, which is
+        // the same list built on the write path. "Fresh source date" came out of
+        // both: it fired whenever the source stated a timestamp, which is always.
         if (firstNonBlank(applyUrl, jobUrl) != null) {
             reasons.add("Direct apply link");
         }

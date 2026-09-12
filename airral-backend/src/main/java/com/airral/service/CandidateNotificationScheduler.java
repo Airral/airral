@@ -93,7 +93,13 @@ public class CandidateNotificationScheduler {
                 .flatMap(user -> countNewJobsSince(pref.getLastJobAlertSentAt())
                         .filter(count -> count > 0)
                         .flatMap(newJobCount -> {
-                            String subject = newJobCount + " new roles match your profile";
+                            // Was "N new roles match your profile". Nothing here has ever
+                            // looked at a profile: countNewJobsSince below takes no user
+                            // id, joins no profile and scores no match -- it is one
+                            // COUNT(*) over created_at, so every candidate was being sent
+                            // the same number described as being about them. The count is
+                            // real; only the claim attached to it was not.
+                            String subject = newJobCount + " new roles added to Airral";
                             String body = buildJobAlertBody(user, newJobCount, pref.getUnsubscribeToken());
                             return emailService.sendEmail(user.getEmail(), subject, body)
                                     .then(updateLastSent(pref, "jobAlert"));
@@ -104,13 +110,26 @@ public class CandidateNotificationScheduler {
                 });
     }
 
+    /**
+     * How many live postings entered the catalogue since the cutoff. Catalogue-wide,
+     * for everybody: no user id, no profile, no match scoring.
+     *
+     * <p>The liveness test was {@code expired_at IS NULL} and there is no
+     * expired_at column -- V7 created expires_at and deleted_at -- so this threw
+     * on every call and the caller's onErrorResume turned that into "no alert".
+     * The scheduler defaults to disabled, so it has been a latent break rather
+     * than a live one, but the subject line above cannot be made honest about a
+     * count that never gets taken. Now the same predicate the rest of the
+     * catalogue is read through.
+     */
     private Mono<Long> countNewJobsSince(OffsetDateTime since) {
         OffsetDateTime cutoff = since != null ? since : OffsetDateTime.now().minus(1, ChronoUnit.DAYS);
         return databaseClient.sql("""
                         SELECT COUNT(*) as cnt
                         FROM external_job_postings
                         WHERE created_at > :cutoff
-                          AND expired_at IS NULL
+                          AND is_active = true
+                          AND expires_at > CURRENT_TIMESTAMP
                         """)
                 .bind("cutoff", cutoff)
                 .map((row, meta) -> row.get("cnt", Long.class))
@@ -123,8 +142,7 @@ public class CandidateNotificationScheduler {
         String bodyHtml = """
                 <h2 style="color:#111827; margin:0 0 16px;">Hey %s, %d new roles just landed</h2>
                 <p style="color:#4b5563; line-height:1.6;">
-                  We found <strong>%d new jobs</strong> since your last visit that may match your profile.
-                  Check them out before they get buried.
+                  We added <strong>%d new jobs</strong> to the board. Have a look before they get buried.
                 </p>
                 <div style="margin:24px 0;">
                   <a href="%s/jobs" style="display:inline-block; padding:12px 24px; background-color:#007C6D; color:#ffffff; text-decoration:none; border-radius:6px; font-weight:600;">
@@ -135,7 +153,7 @@ public class CandidateNotificationScheduler {
                   Tip: Run resume fit on your top picks to see where you stand before applying.
                 </p>
                 """.formatted(firstName, newJobCount, newJobCount, appBaseUrl);
-        return emailService.wrapInTemplate("New job matches", bodyHtml, unsubscribeToken);
+        return emailService.wrapInTemplate("New roles on Airral", bodyHtml, unsubscribeToken);
     }
 
     // ==================== 2. FOLLOW-UP REMINDERS (Daily 10:00 AM) ====================

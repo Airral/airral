@@ -1489,6 +1489,167 @@
   line-height: 1.5;
 }
 
+/* ── Fit findings ─────────────────────────────────── */
+/* Borrows the truth panel's shell and the fit card's palette on purpose: the
+   score above and these rows are one report, and a new shape here would read as
+   a second, unrelated feature. */
+.fit-findings {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.fit-findings h2 {
+  margin: 2px 0 0;
+  color: #101828;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.fit-finding-card {
+  /* The detail panel is a fixed grid track and everything in here is text the
+     candidate or the employer wrote, so every level that could be stretched by
+     one long unbroken word is given a floor of zero. */
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.fit-finding-card h3 {
+  margin: 0;
+  color: #101828;
+  font-size: 12.5px;
+  font-weight: 900;
+}
+
+.fit-finding-note {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.fit-weak-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+.fit-weak-lines > li {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+/* The candidate's own words, set apart from the advice about them so the change
+   being asked for is visible rather than described. A resume line arrives as
+   one unbroken run of text, which is exactly what pushes this column past its
+   track, so the wrap rule is not optional here. */
+.fit-weak-lines blockquote {
+  margin: 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid #007C6D;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.fit-weak-lines p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.fit-advice {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+}
+
+.fit-advice li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  color: #4b5563;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* A character, not a Material Icons ligature. The icon-font markers elsewhere on
+   this page put their ligature name into generated content, which some screen
+   readers read out as the words "check circle"; a bullet has nothing to read. */
+.fit-advice li::before {
+  content: '•';
+  color: #005f54;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.fit-gaps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+}
+
+/* Wraps rather than sitting in fixed columns: a long requirement should drop to
+   its own line under the label instead of squeezing it. */
+.fit-gaps li {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  color: #374151;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+/* The priority is spelled out, not encoded as a colour, so the row still says
+   "Required" to a reader who cannot see the difference between two tints. */
+.fit-gap-label {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #6b7280;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.fit-gap-detail {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .apply-checklist {
   display: grid;
   gap: 12px;
@@ -2239,6 +2400,14 @@
   }
 
   .truth-column {
+    padding: 10px;
+  }
+
+  .fit-findings {
+    padding: 12px;
+  }
+
+  .fit-finding-card {
     padding: 10px;
   }
 

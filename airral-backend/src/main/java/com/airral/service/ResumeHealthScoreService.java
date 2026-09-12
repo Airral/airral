@@ -32,8 +32,53 @@ public class ResumeHealthScoreService {
 
     private final ObjectMapper objectMapper;
 
+    /** A figure, with grouping or decimals: 12, 30, 1,200, 12.5, 1,250,000. */
+    private static final String NUMBER = "\\d+(?:[.,]\\d+)*";
+
+    /**
+     * The words that turn a bare number into a claim about work done.
+     *
+     * <p>Nothing here is a unit of time. "5+ years of experience" appears on
+     * almost every resume and is not an achievement, so counting it would hand 20
+     * points to every document that has a career history -- which is the same
+     * failure this pattern is being fixed for, pointed the other way.
+     */
+    private static final String COUNTED_NOUNS =
+            "users|clients|customers|projects|teams?|people|members|employees"
+                    + "|revenue|sales|reduction|increase|improvement|growth|savings";
+
+    /**
+     * Detects a quantified achievement, worth 20 of the 100 health points.
+     *
+     * <p>This used to wrap {@code \b} around alternatives that end in {@code %}
+     * and begin with {@code $}, and a word boundary can do neither. {@code \b}
+     * needs a word character on exactly one side: after "40%" the next character
+     * is a space or a full stop, both non-word like "%" itself, and before "$2M"
+     * the previous character is a space, both non-word like "$". So "increased
+     * revenue 40%" and "raised $2M" -- the two shapes a quantified achievement
+     * most often takes -- could not match, while "20 projects" could, because
+     * "s" is a word character. Percentages and dollar figures were structurally
+     * invisible to the one check that is supposed to reward them, which is a
+     * large part of why a 677-word nonsense document came back 100/100 grade A.
+     *
+     * <p>The boundaries are now only where a boundary is possible: a lookbehind
+     * so a match cannot start in the middle of a longer number, and {@code \b}
+     * only after alternatives that end in a word character.
+     *
+     * <p>Every branch still requires a unit or a counted noun, so a number on its
+     * own can never score. That is what keeps "(555) 123-4567", "2019 - 2023" and
+     * "Java 8+" out: a phone number, a date range and a version are all numbers
+     * with nothing measured attached to them, and counting one would be the same
+     * kind of lie as missing a real metric.
+     */
     private static final Pattern QUANTIFIED_PATTERN = Pattern.compile(
-            "\\b(\\d{1,3}[,.]?\\d*[%+]|\\$\\d+[KkMmBb]?|\\d+\\s*(?:percent|%|users|clients|customers|projects|teams?|people|members|employees|revenue|sales|reduction|increase|improvement|growth|savings))\\b",
+            "(?<![\\w$])(?:"
+                    + "\\$" + NUMBER + "(?:\\s?[KMB])?\\b"                // $2M, $450K, $3,500
+                    + "|" + NUMBER + "\\s?%"                              // 40%, 12.5%, 40 %
+                    + "|" + NUMBER + "\\s?percent\\b"                     // 40 percent
+                    + "|" + NUMBER + "x\\b"                               // 3x, 10x (not 24x7)
+                    + "|" + NUMBER + "\\+?\\s*(?:" + COUNTED_NOUNS + ")\\b" // 20 projects, 1,200+ users
+                    + ")",
             Pattern.CASE_INSENSITIVE
     );
 
