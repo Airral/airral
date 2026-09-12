@@ -26,6 +26,29 @@ interface JobDescriptionView {
   hasContent: boolean;
 }
 
+/**
+ * One weak-line finding, split back into the candidate's own words and the
+ * advice about them.
+ *
+ * <p>ResumeJobFitAnalyzer.findWeakBullets returns the two fused into a single
+ * sentence: Strengthen "&lt;the line they wrote&gt;" with the action you owned,
+ * its scale, and a measurable result. Printed whole, the candidate's own line
+ * is buried mid-sentence and the identical trailing rule repeats on every row.
+ * Split, the line can be quoted back to them and the rule said once beneath it.
+ */
+interface ResumeLineFinding {
+  /** The candidate's line. Empty when the finding carried no quoted excerpt. */
+  quote: string;
+  advice: string;
+}
+
+/** A requirement the analyzer could not match, with its priority kept. */
+interface RequirementGap {
+  /** "Required", "Core", "Preferred" or "Experience". Empty if unlabelled. */
+  label: string;
+  detail: string;
+}
+
 @Component({
   selector: 'app-jobs',
   standalone: true,
@@ -474,10 +497,15 @@ export class JobsComponent implements OnInit, OnDestroy {
         this.savedJobKeys.add(sourceJobKey);
         this.savingJob = false;
         this.actionMessage = 'Saved to your tracker.';
+        // Same zoneless gap as runFitForSelectedJob below: nothing schedules a
+        // repaint after an HTTP callback, so the button stayed on "Saving..."
+        // and the confirmation never appeared until an unrelated click.
+        this.changeDetectorRef.detectChanges();
       },
       error: () => {
         this.savingJob = false;
         this.actionError = 'Could not save this job. Try again in a moment.';
+        this.changeDetectorRef.detectChanges();
       },
     });
   }
@@ -502,10 +530,18 @@ export class JobsComponent implements OnInit, OnDestroy {
         this.fitResult = result;
         this.fittingJob = false;
         this.actionMessage = 'Resume fit is ready.';
+        // There is no zone.js in this app, so an HTTP callback schedules no
+        // change detection of its own -- every other async path in this file
+        // ends with this call for that reason. Without it the fit report sat in
+        // memory until some unrelated bound event happened to repaint the page:
+        // the button returned to "Run resume fit" and nothing appeared, which
+        // reads as a run that failed.
+        this.changeDetectorRef.detectChanges();
       },
       error: () => {
         this.fittingJob = false;
         this.actionError = 'Upload a resume first, then run fit for this job.';
+        this.changeDetectorRef.detectChanges();
       },
     });
   }
@@ -916,6 +952,87 @@ export class JobsComponent implements OnInit, OnDestroy {
       'Check salary, work mode, and source quality',
     ];
   }
+
+  /**
+   * The weak lines the fit run found, ready to quote back to the candidate.
+   *
+   * <p>A straight read of fitResult.weakBullets, which the API has been
+   * returning on every run and this page rendered nowhere. The split is for
+   * display only: a finding whose shape this does not recognise is passed
+   * through whole rather than guessed at, so a change to the analyzer's wording
+   * degrades to a plain sentence instead of a mangled one.
+   *
+   * <p>Worth knowing when reading the markup: the analyzer scans the resume for
+   * duty phrasing on its own and never looks at the posting, so these lines are
+   * the same on every job. The template says so rather than letting the panel
+   * imply the lines were chosen for this role.
+   */
+  getWeakResumeLines(): ResumeLineFinding[] {
+    return (this.fitResult?.weakBullets ?? []).map((finding) => {
+      const opening = finding.indexOf('"');
+      const closing = finding.lastIndexOf('"');
+      const quote = opening >= 0 && closing > opening + 1 ? finding.slice(opening + 1, closing).trim() : '';
+      const lead = quote ? finding.slice(0, opening).trim() : '';
+      const tail = quote ? finding.slice(closing + 1).trim() : '';
+      if (!quote || !lead || !tail) {
+        return { quote: '', advice: finding };
+      }
+
+      // "Strengthen" + "it" + "with the action you owned, ...". The verb and the
+      // rule are the analyzer's own words; the pronoun is the only word added,
+      // and it stands in for the quotation now shown directly above the line.
+      return { quote, advice: `${lead} it ${tail}` };
+    });
+  }
+
+  /**
+   * The rewrite guidance that is not already on screen as a quoted weak line.
+   *
+   * <p>buildRewriteGuidance seeds its list with the first two weakBullets
+   * verbatim before adding anything of its own, so suggestedRewrites is mostly
+   * a copy of weakBullets. Rendering both lists in full would print the same
+   * sentence twice under two headings and read as two independent findings.
+   * What survives the overlap is the one part computed against this posting:
+   * the keyword gaps to add evidence for, or the matched skills worth moving
+   * into recent bullets.
+   */
+  getTailoringAdvice(): string[] {
+    const alreadyQuoted = new Set(this.fitResult?.weakBullets ?? []);
+    return (this.fitResult?.suggestedRewrites ?? []).filter((line) => !alreadyQuoted.has(line));
+  }
+
+  /**
+   * What the posting asks for that the resume did not answer.
+   *
+   * <p>The analyzer prefixes each entry with its priority ("Required: Kafka"),
+   * which is the difference between a blocker and a nice-to-have, so the label
+   * is kept as its own column instead of being flattened into the line.
+   */
+  getRequirementGaps(): RequirementGap[] {
+    return (this.fitResult?.missingRequirements ?? []).map((entry) => {
+      const separator = entry.indexOf(': ');
+      if (separator <= 0) {
+        return { label: '', detail: entry };
+      }
+
+      return { label: entry.slice(0, separator).trim(), detail: entry.slice(separator + 2).trim() };
+    });
+  }
+
+  /** Whether the run produced anything beyond the score and the matched list. */
+  hasFitFindings(): boolean {
+    return this.getWeakResumeLines().length > 0
+      || this.getTailoringAdvice().length > 0
+      || this.getRequirementGaps().length > 0;
+  }
+
+  // These two build new objects on every change-detection pass, so *ngFor is
+  // told how to recognise a row it has already drawn. Without a trackBy it
+  // compares by identity, finds nothing it knows, and rebuilds the whole list
+  // each pass. The string rows elsewhere on this page do not need one, because
+  // equal strings are already the same value.
+  readonly trackByResumeLine = (_index: number, line: ResumeLineFinding): string => `${line.quote}|${line.advice}`;
+  readonly trackByRequirementGap = (_index: number, gap: RequirementGap): string => `${gap.label}|${gap.detail}`;
 
   copyJobReport(): void {
     if (!this.selectedJob) {

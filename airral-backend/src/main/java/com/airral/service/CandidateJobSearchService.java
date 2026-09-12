@@ -2412,7 +2412,6 @@ public class CandidateJobSearchService {
         job.setQualityReasons(firstNonNull(job.getQualityReasons(), buildQualityReasons(
                 job.getSalaryLabel(),
                 job.getLocation(),
-                job.getSourceUpdatedAt(),
                 job.getApplyUrl(),
                 job.getJobUrl(),
                 job.getDepartment(),
@@ -2442,7 +2441,6 @@ public class CandidateJobSearchService {
         detail.setQualityReasons(firstNonNull(detail.getQualityReasons(), buildQualityReasons(
                 detail.getSalaryLabel(),
                 detail.getLocation(),
-                detail.getSourceUpdatedAt(),
                 detail.getApplyUrl(),
                 detail.getJobUrl(),
                 detail.getDepartment(),
@@ -5314,7 +5312,6 @@ public class CandidateJobSearchService {
     private List<String> buildQualityReasons(
             String salaryLabel,
             String location,
-            OffsetDateTime sourceUpdatedAt,
             String applyUrl,
             String jobUrl,
             String department,
@@ -5324,9 +5321,14 @@ public class CandidateJobSearchService {
         if (location != null && !location.isBlank() && !"Location not listed".equalsIgnoreCase(location)) {
             reasons.add("Location clear");
         }
-        if (sourceUpdatedAt != null) {
-            reasons.add("Fresh source date");
-        }
+        // "Fresh source date" was here, on sourceUpdatedAt != null. Every board we
+        // read publishes a timestamp, so it fired on effectively every posting and
+        // told a candidate nothing that separated one card from another. It was not
+        // free either: the list below is capped at five, so a constant was taking a
+        // slot from a reason that differs between postings. Deliberately not replaced
+        // by an age claim -- see ExternalJobPostingStore.recomputeJobQuality, which
+        // fills that slot with a count it was already computing: how many postings
+        // the employer has under this title. A count, not a verdict on why.
         if (firstNonBlank(applyUrl, jobUrl) != null) {
             reasons.add("Direct apply link");
         }

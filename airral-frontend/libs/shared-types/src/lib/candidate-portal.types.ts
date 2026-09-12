@@ -51,6 +51,16 @@ export interface CandidateJobSummary {
   workMode?: 'REMOTE' | 'HYBRID' | 'ONSITE' | 'UNKNOWN' | string;
   employmentType?: string;
   salaryLabel?: string;
+  /**
+   * Interval the salary figures are quoted in: YEAR, HOUR, MONTH, WEEK, DAY, ONE_TIME.
+   * Absent when the source never stated one.
+   *
+   * Declared here rather than on the detail because a card shows pay too, and until the
+   * list query projected the column the interval survived only inside salaryLabel's text --
+   * a consumer could read "/hr" but could not act on it. CandidateJobDetail extends this
+   * interface, so the detail path is unchanged.
+   */
+  salaryPeriod?: string;
   applyUrl?: string;
   jobUrl?: string;
   applyMode?: 'INTERNAL_APPLY' | 'PARTNER_APPLY' | 'EXTERNAL_APPLY' | string;
@@ -93,11 +103,6 @@ export interface CandidateJobDetail extends CandidateJobSummary {
   salaryMin?: number;
   salaryMax?: number;
   salaryCurrency?: string;
-  /**
-   * Interval salaryMin/salaryMax are quoted in: YEAR, HOUR, MONTH, WEEK, DAY,
-   * ONE_TIME. Absent when the source never stated one.
-   */
-  salaryPeriod?: string;
   sourcePayloadHash?: string;
 }
 

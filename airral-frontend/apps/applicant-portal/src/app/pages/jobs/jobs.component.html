@@ -393,10 +393,74 @@
               <h3>Matched</h3>
               <p>{{ fitResult.matchedRequirements.slice(0, 4).join(', ') }}</p>
             </div>
-            <div *ngIf="fitResult.keywordGaps.length">
-              <h3>Keyword gaps</h3>
-              <p>{{ fitResult.keywordGaps.slice(0, 4).join(', ') }}</p>
-            </div>
+            <!-- "Keyword gaps" used to print here as a finding of its own. It is
+                 the missing requirements list with the preferred ones filtered
+                 out and the priority labels dropped, so the same skills appeared
+                 twice on one screen under two headings and read as two separate
+                 results. The gap list below carries all of them and says which
+                 of them the posting calls required. -->
+          </div>
+        </section>
+
+        <!-- The rest of the report the fit run already produces. fitScore,
+             matchedRequirements and keywordGaps were the only three fields this
+             page rendered; the weak lines found in the resume, the tailoring
+             advice for this posting and every requirement that went unmatched
+             were computed on each run and dropped before the candidate saw them.
+             Each block is hidden when its array is empty -- a resume with no
+             duty phrasing legitimately has no weak lines, and an empty heading
+             would read as something having gone wrong. -->
+        <section class="fit-findings" *ngIf="hasFitFindings()"
+                 aria-labelledby="fit-findings-heading">
+          <div>
+            <p class="description-label">Resume fit</p>
+            <h2 id="fit-findings-heading">What to work on</h2>
+          </div>
+
+          <div class="fit-finding-card" *ngIf="getWeakResumeLines().length">
+            <h3>Lines to strengthen</h3>
+            <p class="fit-finding-note">
+              Found by reading your resume for duty phrasing. It does not read this posting, so these lines come up the same way on every job.
+            </p>
+            <ul class="fit-weak-lines">
+              <li *ngFor="let line of getWeakResumeLines(); trackBy: trackByResumeLine">
+                <blockquote *ngIf="line.quote">{{ line.quote }}</blockquote>
+                <p>{{ line.advice }}</p>
+              </li>
+            </ul>
+          </div>
+
+          <div class="fit-finding-card" *ngIf="getTailoringAdvice().length">
+            <h3>For this posting</h3>
+            <ul class="fit-advice">
+              <li *ngFor="let advice of getTailoringAdvice()">{{ advice }}</li>
+            </ul>
+          </div>
+
+          <div class="fit-finding-card" *ngIf="getRequirementGaps().length">
+            <!-- "not found in your resume" was wrong for one row this list can
+                 render. missingRequirements carries an experience entry as well
+                 as skills, and that entry reads "5+ years requested; 3 years
+                 shown" -- a heading saying the years were not found sat directly
+                 above a row saying which years were found. "not matched" is true
+                 of both: the skill name was not there, or the years were there
+                 and fell short. -->
+            <h3>Asked for here, not matched in your resume</h3>
+            <ul class="fit-gaps">
+              <li *ngFor="let gap of getRequirementGaps(); trackBy: trackByRequirementGap">
+                <span class="fit-gap-label" *ngIf="gap.label">{{ gap.label }}</span>
+                <span class="fit-gap-detail">{{ gap.detail }}</span>
+              </li>
+            </ul>
+            <!-- Scoped to the skills on purpose. The experience row is not
+                 matched on a name at all -- it compares a number in the posting
+                 against a number parsed from the resume -- so the unqualified
+                 version of this note described how a row got here in a way that
+                 was not true of every row. That row states its own two numbers,
+                 which is why nothing was added to cover it. -->
+            <p class="fit-finding-note">
+              Skills are matched on name, so work you did but described in different words shows up here as unmatched.
+            </p>
           </div>
         </section>
 
