@@ -3543,7 +3543,8 @@ public class CandidateJobSearchService {
             String haystack,
             RoleTargets targets) {
         String jobFamily = jobRoleFamily(job);
-        boolean knownMismatch = roleIsKnownMismatch(jobFamily, targets.picked());
+        boolean knownMismatch = roleIsKnownMismatch(
+                jobFamily, job == null ? null : job.getDepartment(), targets.picked());
         int bestScore = 0;
         String bestRole = null;
         String titleText = normalizedTermText(job.getTitle());
@@ -3720,7 +3721,7 @@ public class CandidateJobSearchService {
      * could not read, and it was being printed on warehouse postings for people
      * who had asked for warehouse work.
      */
-    private boolean roleIsKnownMismatch(String jobFamily, Set<String> pickedFamilies) {
+    private boolean roleIsKnownMismatch(String jobFamily, String jobDepartment, Set<String> pickedFamilies) {
         if (jobFamily == null) {
             return false;
         }
@@ -3739,8 +3740,35 @@ public class CandidateJobSearchService {
             return false;
         }
 
-        return !pickedFamilies.contains(jobFamily)
-                && pickedFamilies.stream().noneMatch(family -> RoleFamilyTaxonomy.adjacent(family, jobFamily));
+        if (pickedFamilies.contains(jobFamily)
+                || pickedFamilies.stream().anyMatch(family -> RoleFamilyTaxonomy.adjacent(family, jobFamily))) {
+            return false;
+        }
+
+        // Last check: does the department disagree with the title?
+        //
+        // classify() reads the title first and returns on any hit, so a broad
+        // keyword in the title beats a specific one in the department. "Variable
+        // Schedule Operations Associate, Dashmart" is an hourly store job in a
+        // "112 Order Fulfillment" department, and Operations' bare "operations"
+        // keyword claims it before "fulfillment" is ever read -- so a candidate
+        // who picked Retail was told this was outside their target while "Team
+        // Member - Mahwah", the same employer, department and pay band, sat at
+        // the top of the same feed labelled "Role fit: Retail".
+        //
+        // Fixing the classification instead was rejected for now: "operations"
+        // carries the 5th largest family, and the titles it reads correctly
+        // ("Senior Revenue Operations Manager") outnumber the hourly ones it
+        // misreads. What can be fixed safely is the claim. Two readings that
+        // disagree are not grounds to assert either, so we assert neither. This
+        // only ever withdraws a sentence -- it hides nothing and adds nothing.
+        String fromDepartment = RoleFamilyTaxonomy.classify(null, jobDepartment);
+        if (fromDepartment != null && !fromDepartment.equals(jobFamily)) {
+            return !pickedFamilies.contains(fromDepartment)
+                    && pickedFamilies.stream().noneMatch(family -> RoleFamilyTaxonomy.adjacent(family, fromDepartment));
+        }
+
+        return true;
     }
 
     /**
