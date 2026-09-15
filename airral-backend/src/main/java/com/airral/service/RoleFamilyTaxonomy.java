@@ -109,7 +109,7 @@ final class RoleFamilyTaxonomy {
                     // wrong answer we would state to a candidate.
                     "merchandis", "team member", "guest advocate",
                     "front of store", "checkout",
-                    "general merchandise", "service and engagement", "style consultant",
+                    "service and engagement", "style consultant",
                     "sales floor", "specialty sales", "dept supervisor", "department supervisor",
                     "beauty", "fitting room")),
             new RoleFamilyRule("Housekeeping", List.of(
@@ -195,8 +195,13 @@ final class RoleFamilyTaxonomy {
                     "recruiter", "recruiting", "talent acquisition", "people partner",
                     "human resource", "hr business", "people operations",
                     "compensation and benefits")),
+            // " counsel " is padded. Unpadded it is a substring of every
+            // -Counselor title: "Camp Counselor", "Guidance Counselor" and
+            // "Admissions Counselor" were all Legal, so a candidate who picked
+            // Teaching was told a camp counselor job was outside their target.
+            // Padding keeps "General Counsel" and "Associate Counsel" here.
             new RoleFamilyRule("Legal", List.of(
-                    "legal", "counsel", "paralegal", "compliance", "regulatory", "privacy",
+                    "legal", " counsel ", "compliance", "regulatory", "privacy",
                     "risk manager")),
             new RoleFamilyRule("Operations", List.of(
                     "operations", "logistics", "supply chain", "procurement", "planner",
@@ -207,7 +212,7 @@ final class RoleFamilyTaxonomy {
                     "staffing admin")),
             new RoleFamilyRule("Laboratory", List.of(
                     "chemist", "microbiolog", "laboratory", " lab ", "lab technician", "biolog",
-                    "toxicolog", "petroleum inspector")),
+                    "toxicolog")),
             new RoleFamilyRule("Teaching", List.of(
                     "teacher", "tutor", "instructor", "childcare", "child care", "preschool",
                     "educator", "camp counselor")));
@@ -346,21 +351,21 @@ final class RoleFamilyTaxonomy {
     }
 
     /**
-     * Phrases checked before the family table, where a frontline keyword is a
-     * prefix of a professional title.
+     * Phrases checked before the family table.
      *
-     * <p>The family table is ordered frontline-first on purpose, and first match
-     * wins, which is what keeps "Sales Associate - Building Materials" out of
-     * business development. The cost is that a short frontline keyword can be a
-     * prefix of a longer professional title: Retail's "front end" is a prefix of
-     * "Front End Engineer". Only the longer, unambiguous form belongs here --
-     * this list is not a second taxonomy and must not grow into one.
+     * <p>For one case only: an unambiguous professional title carrying a domain
+     * word that an earlier family claims. "Staff Software Engineer, Clinical
+     * Fit" was Healthcare, because Healthcare is scanned first and holds
+     * "clinical", and it arrived at the top of a Healthcare candidate's feed
+     * labelled "Role fit: Healthcare". This list is not a second taxonomy and
+     * must not grow into one.
      *
-     * <p>The second group is the mirror case: an unambiguous professional title
-     * carrying a domain word that an earlier family claims. "Staff Software
-     * Engineer, Clinical Fit" was Healthcare, because Healthcare is scanned
-     * first and holds "clinical", and it arrived at the top of a Healthcare
-     * candidate's feed labelled "Role fit: Healthcare".
+     * <p>Eight "front end"/"back end" forms were here and have been removed.
+     * They were added to stop Retail's "front end" keyword claiming "Front End
+     * Engineer"; that keyword is gone, so the premise went with it, and what the
+     * entries did instead was claim "Front End Lead" -- a supermarket
+     * checkout-lane supervisor -- for software, in the ranker and in the count
+     * shown beside the Retail option.
      *
      * <p>Measured over 1,384 distinct live (title, department) pairs, these
      * entries move 3 postings and change coverage not at all: one each out of
@@ -380,9 +385,6 @@ final class RoleFamilyTaxonomy {
      */
     private static final List<RoleFamilyRule> PRIORITY_RULES = List.of(
             new RoleFamilyRule("Software engineer", List.of(
-                    "front end engineer", "front end developer", "front end architect",
-                    "front end lead", "back end engineer", "back end developer",
-                    "back end architect", "back end lead",
                     "software engineer", "software developer")),
             new RoleFamilyRule("Data science", List.of(
                     "data scientist", "machine learning engineer")));
@@ -532,6 +534,11 @@ final class RoleFamilyTaxonomy {
             Map.entry("Manufacturing", List.of("assembler")),
             // 23 and 8.
             Map.entry("Administrative", List.of("front desk", "administrative assistant")));
+
+    /** The families the seed table has keys for, as written. */
+    static List<String> seededFamilies() {
+        return List.copyOf(RETRIEVAL_SEEDS.keySet());
+    }
 
     /** Measured text-search seeds that retrieve this family, or empty. */
     static List<String> retrievalSeeds(String family) {

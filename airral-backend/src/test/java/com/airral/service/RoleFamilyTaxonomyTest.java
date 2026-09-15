@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.LinkedHashSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,12 +38,15 @@ class RoleFamilyTaxonomyTest {
      * Teaching. Store security alone is 348 live postings.
      */
     @Test
-    @DisplayName("every offered label classifies back to its own family")
+    @DisplayName("every offered label resolves as a picked label")
     void everyLabelRoundTrips() {
+        // pickedLabel is what the ranker calls. An earlier version of this test
+        // called classifyTerm, which consults a label index built from the same
+        // labels() this iterates -- 29 identity lookups that could not fail.
         List<String> broken = new ArrayList<>();
         for (String label : RoleFamilyTaxonomy.labels()) {
-            if (!label.equals(RoleFamilyTaxonomy.classifyTerm(label))) {
-                broken.add(label + " -> " + RoleFamilyTaxonomy.classifyTerm(label));
+            if (!label.equals(RoleFamilyTaxonomy.pickedLabel(label))) {
+                broken.add(label + " -> " + RoleFamilyTaxonomy.pickedLabel(label));
             }
         }
         assertThat(broken)
@@ -50,16 +55,30 @@ class RoleFamilyTaxonomyTest {
     }
 
     /**
-     * Read the DECLARATION, not the built map.
+     * Which families cannot recognise their own name in a posting title.
      *
-     * <p>Two earlier versions of this test iterated {@code labels() x labels()}
-     * calling {@code adjacent()}, which proves nothing: {@code buildAdjacency}
-     * inserts both directions unconditionally, so a symmetry assertion over the
-     * built map can never fail, and every name such a loop returns is in
-     * {@code labels()} by construction -- a pair written {@code ("Warehouse",
-     * "Drivr")} passed both. A misspelled family is silent: it matches no job and
-     * the near-miss score is simply never awarded.
+     * <p>The property the label index papers over, pinned as an exact set so it
+     * cannot grow unnoticed. For these, a posting titled "<em>Label</em> Worker"
+     * places nowhere and earns no family credit. The gap is covered by
+     * {@code pickedLabel} for the candidate and {@code RETRIEVAL_SEEDS} for the
+     * feed -- not by adding bare labels as keywords, which was tried and
+     * reverted because a bare label in an early family beats a specific keyword
+     * in every later one.
      */
+    @Test
+    @DisplayName("the families whose own name does not classify are a known, fixed set")
+    void familiesThatCannotReadTheirOwnName() {
+        List<String> unreadable = new ArrayList<>();
+        for (String label : RoleFamilyTaxonomy.labels()) {
+            if (!label.equals(RoleFamilyTaxonomy.classify(label, null))) {
+                unreadable.add(label);
+            }
+        }
+        assertThat(unreadable).containsExactlyInAnyOrder(
+                "Store security", "Maintenance", "Healthcare", "Data science",
+                "Design", "Administrative", "Teaching");
+    }
+
     @Test
     @DisplayName("every declared adjacency names two real, different families")
     void declaredAdjacencyNamesRealFamilies() {
@@ -89,17 +108,38 @@ class RoleFamilyTaxonomyTest {
         assertThat(bad).isEmpty();
     }
 
+    /**
+     * Adjacency resolves exactly where it was declared, and nowhere else.
+     *
+     * <p>An earlier version iterated {@code declaredPairs()} and queried the map
+     * {@code buildAdjacency()} builds from {@code declaredPairs()} with an
+     * unconditional insert in both directions, so it could not fail. Sweeping
+     * all ordered pairs against the declaration can.
+     */
     @Test
-    @DisplayName("a declared adjacency holds in both directions")
-    void declaredAdjacencyIsUsableBothWays() {
+    @DisplayName("adjacency resolves exactly where it was declared")
+    void adjacencyMatchesTheDeclarationExactly() {
+        Set<String> declared = new LinkedHashSet<>();
         for (List<String> pair : RoleFamilyTaxonomy.declaredPairs()) {
-            assertThat(RoleFamilyTaxonomy.adjacent(pair.get(0), pair.get(1)))
-                    .as(pair.get(0) + " -> " + pair.get(1) + " was declared and must resolve")
-                    .isTrue();
-            assertThat(RoleFamilyTaxonomy.adjacent(pair.get(1), pair.get(0)))
-                    .as(pair.get(1) + " -> " + pair.get(0) + " is the same pair read backwards")
-                    .isTrue();
+            declared.add(pair.get(0) + " -> " + pair.get(1));
+            declared.add(pair.get(1) + " -> " + pair.get(0));
         }
+
+        List<String> unexpected = new ArrayList<>();
+        List<String> dead = new ArrayList<>();
+        for (String a : RoleFamilyTaxonomy.labels()) {
+            for (String b : RoleFamilyTaxonomy.labels()) {
+                boolean resolves = RoleFamilyTaxonomy.adjacent(a, b);
+                boolean written = declared.contains(a + " -> " + b);
+                if (resolves && !written) {
+                    unexpected.add(a + " -> " + b);
+                } else if (written && !resolves) {
+                    dead.add(a + " -> " + b);
+                }
+            }
+        }
+        assertThat(dead).as("a declared pair that does not resolve is dead").isEmpty();
+        assertThat(unexpected).as("nothing may be adjacent that was not written down").isEmpty();
     }
 
     /**
@@ -255,10 +295,17 @@ class RoleFamilyTaxonomyTest {
                 .isEqualTo("Software engineer");
         assertThat(RoleFamilyTaxonomy.classify("Front End React Developer", null))
                 .isEqualTo("Software engineer");
-        assertThat(RoleFamilyTaxonomy.classify("Front End Lead", "Engineering"))
+        assertThat(RoleFamilyTaxonomy.classify("Back End Engineer", null))
                 .isEqualTo("Software engineer");
 
         // The accepted cost, pinned so it is a decision and not a surprise.
+        // "Front End Lead" and "Front End Supervisor" are supermarket
+        // checkout-lane titles about as often as software ones, and nothing in
+        // the title decides it. A priority entry claimed them for software,
+        // which took the whole Front End cohort out of the count shown beside
+        // the Retail option during onboarding.
+        assertThat(RoleFamilyTaxonomy.classify("Front End Lead", "Grocery")).isNull();
+        assertThat(RoleFamilyTaxonomy.classify("Front End Supervisor", "Front End")).isNull();
         assertThat(RoleFamilyTaxonomy.classify("Front End Associate", null)).isNull();
         assertThat(RoleFamilyTaxonomy.classify("Closing Team Leader", "Front End")).isNull();
 
@@ -285,7 +332,7 @@ class RoleFamilyTaxonomyTest {
         RoleMatchClassifier classifier = new RoleMatchClassifier();
         assertThat(classifier.classifyJob("Cashier", "Front End", null).families())
                 .doesNotContain(RoleMatchClassifier.RoleFamily.SOFTWARE_ENGINEERING);
-        assertThat(classifier.classifyJob("Front End Lead", "Engineering", null).families())
+        assertThat(classifier.classifyJob("Front End Developer", "Engineering", null).families())
                 .contains(RoleMatchClassifier.RoleFamily.SOFTWARE_ENGINEERING);
     }
 
@@ -327,10 +374,14 @@ class RoleFamilyTaxonomyTest {
     @DisplayName("every retrieval seed belongs to a real family and is not the label again")
     void retrievalSeedsAreWellFormed() {
         List<String> labels = RoleFamilyTaxonomy.labels();
-        List<String> withSeeds = labels.stream()
-                .filter(label -> !RoleFamilyTaxonomy.retrievalSeeds(label).isEmpty())
-                .toList();
+        // The table's own keys. Filtering labels() -- as this first did -- means
+        // a key that is not a label is never visited, so the stated guard
+        // against a dead entry could not fail.
+        List<String> withSeeds = RoleFamilyTaxonomy.seededFamilies();
         assertThat(withSeeds).as("the seed table cannot be empty").isNotEmpty();
+        assertThat(withSeeds)
+                .as("a seed table key that is not an offered family retrieves for nothing")
+                .allMatch(labels::contains);
 
         for (String label : withSeeds) {
             for (String seed : RoleFamilyTaxonomy.retrievalSeeds(label)) {
@@ -353,16 +404,4 @@ class RoleFamilyTaxonomyTest {
         assertThat(RoleFamilyTaxonomy.retrievalSeeds("Not A Family")).isEmpty();
     }
 
-    private static List<String> declaredAdjacencyNames() {
-        List<String> names = new ArrayList<>();
-        for (String label : RoleFamilyTaxonomy.labels()) {
-            for (String other : RoleFamilyTaxonomy.labels()) {
-                if (RoleFamilyTaxonomy.adjacent(label, other)) {
-                    names.add(other);
-                }
-            }
-        }
-        assertThat(names).as("the adjacency table cannot be empty").isNotEmpty();
-        return names;
-    }
 }

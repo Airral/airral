@@ -515,6 +515,12 @@ public class CandidateJobSearchService {
             "BAMBOOHR",
             "JAZZHR"
     );
+    /**
+     * What a posting scores when it shares the candidate's wording but not their
+     * family. Above the caller's 8-point threshold, below a family agreement.
+     */
+    private static final int MISMATCHED_TERM_FIT = 12;
+
     private static final Set<String> GENERIC_ROLE_WORDS = Set.of(
             "engineer",
             "developer",
@@ -881,6 +887,12 @@ public class CandidateJobSearchService {
         return joinNonBlank(";",
                 "skills=" + canonicalTerms(context.skills()),
                 "roles=" + canonicalTerms(context.targetRoles()),
+                // Provenance is part of the key, not decoration: the same role
+                // set scores differently depending on whether the candidate
+                // stated it, so leaving it out lets a cached result computed
+                // from a resume be served to someone who has since said what
+                // they want.
+                "rolesStated=" + context.targetRolesStated(),
                 "must=" + canonicalTerms(context.mustHaveSkills()),
                 "nice=" + canonicalTerms(context.niceToHaveSkills()),
                 "avoid=" + canonicalTerms(context.avoidKeywords()),
@@ -3054,7 +3066,11 @@ public class CandidateJobSearchService {
      * for two identical resumes because one headline happened to be two words
      * long.
      *
-     * <p>So the taxonomy ranks and explains, and does not hide. A job ordered
+     * <p>So the taxonomy ranks and explains. Nothing in it lowers a score
+     * either, which matters more than it sounds: a family tier that zeroed a
+     * score on disagreement hid postings without touching any filter, by
+     * dropping them past the "scored well enough" check onto the compatibility
+     * vote below. A job ordered
      * badly costs a candidate some scrolling; a job hidden costs them the job,
      * and they cannot tell it happened. Retrieval is what concentrates the feed
      * on the work they asked for -- see {@code RoleFamilyTaxonomy.RETRIEVAL_SEEDS}
@@ -3539,20 +3555,6 @@ public class CandidateJobSearchService {
                 continue;
             }
 
-            // A label picked from our list is an identity, not a phrase to
-            // string-match. Token scoring it is how the inversion this class was
-            // fixed for survived: picking "Sales" scored "Sales Floor Associate"
-            // 24 on the shared word and printed "Role fit: Sales" on a store job
-            // the taxonomy calls Retail, and picking "IT support" scored 21 on
-            // the bare word "support" because meaningfulRoleTokens drops "it" as
-            // too short -- putting a Customer-service posting top of an
-            // IT-support feed. Picking "Healthcare" scored 24 on "Senior Applied
-            // Research Scientist, Multimodal Foundation Models - Healthcare".
-            // The family tier below is the right reader for these.
-            if (RoleFamilyTaxonomy.pickedLabel(role) != null) {
-                continue;
-            }
-
             List<String> tokens = meaningfulRoleTokens(normalizedRole);
             int score = 0;
             if (containsTerm(titleText, normalizedRole)) {
@@ -3610,26 +3612,47 @@ public class CandidateJobSearchService {
                 }
             } else if (candidateFamilies.stream().anyMatch(family -> RoleFamilyTaxonomy.adjacent(family, jobFamily))) {
                 if (bestScore < 10) {
-                    return new RoleFit(10, List.of("Near your target: " + jobFamily), false);
+                    // The sentence says "your target", so there has to be one.
+                    // Read off a resume it was pure invention: a candidate who
+                    // stated nothing and whose headline said "Senior Software
+                    // Engineer" was shown "Data Scientist" with "Near your
+                    // target: Data science" against a target they never set.
+                    List<String> reasons = targets.picked().isEmpty()
+                            ? List.of()
+                            : List.of("Near your target: " + jobFamily);
+                    return new RoleFit(10, reasons, false);
                 }
-            } else if (bestScore < 21 && knownMismatch) {
-                // Both sides place, and they disagree. A single word shared with
-                // the title is not enough to overturn that, and crediting it here
-                // puts two contradictory lines on the same card: "Role fit: Store
-                // security" next to "Role is outside your target titles", which is
-                // what a candidate targeting Store security saw on a Security
-                // Engineer posting. Anything at 21 or above is the candidate's own
-                // wording appearing in the title, which outranks the inference.
-                //
-                // Calling roleIsKnownMismatch rather than re-deriving the test is
-                // what makes the score and the sentence agree by construction:
-                // the caller adds "Role is outside your target titles" on exactly
-                // this predicate, so the two can no longer drift apart. It also
-                // confines the zeroing to picked labels -- a disagreement between
-                // a job and a family we merely inferred from free text leaves the
-                // posting unboosted rather than pushed down.
-                return RoleFit.none(true);
             }
+        }
+
+        // A shared word against a family that disagrees: clamp, never zero, and
+        // say nothing.
+        //
+        // "Sales Operations Analyst" contains the word a candidate who picked
+        // Operations gave us, and the table calls it Sales. Both readings are
+        // real, so the honest handling is to keep the posting, rank it below an
+        // actual Operations job, and make no claim about it either way.
+        //
+        // Zeroing it instead -- which is what this did -- hid it. Not through
+        // any filter of this taxonomy's: a zero drops the posting past
+        // passesTargetRoleFilter's "scored well enough" check onto
+        // RoleMatchClassifier's compatibility vote, and that answers false for
+        // Operations against Sales. The candidate lost five operations jobs
+        // while the detail page went on scoring them, so the only way to reach
+        // one was to already have its URL.
+        //
+        // MISMATCHED_TERM_FIT sits above the caller's threshold of 8, so the
+        // posting keeps its place and earns no "outside your target titles"
+        // line, and below the 20 a real family agreement earns, so a genuine
+        // match always outranks a coincidence of vocabulary.
+        if (knownMismatch) {
+            // Silent at any score, not only when clamping. A partial token hit
+            // left "Security Engineer" at 7 for a candidate targeting Store
+            // security, which is below the clamp but still printed "Role fit:
+            // Store security" next to "Role is outside your target titles" on
+            // the same card. One word in common does not entitle us to both
+            // statements, or to either one.
+            return new RoleFit(Math.min(bestScore, MISMATCHED_TERM_FIT), List.of(), true);
         }
 
         RoleMatchClassifier.RoleIntent profileIntent = candidateRoleIntent(context);
@@ -3659,7 +3682,6 @@ public class CandidateJobSearchService {
         // with everything and every classifiable posting collected the bonus.
         if (bestScore == 0
                 && jobFamily == null
-                && candidateFamilies.isEmpty()
                 && profileIntent.isKnown()
                 && jobIntent.isKnown()
                 && ROLE_MATCH_CLASSIFIER.compatible(profileIntent, jobIntent)
@@ -3792,7 +3814,11 @@ public class CandidateJobSearchService {
         // those two families retrieving on a bare label the table documents as
         // unusable. The candidate's own wording is added above and so still
         // survives the cap first.
-        List<String> pickedFamilies = List.copyOf(RoleFamilyTaxonomy.pickedLabels(context.targetRoles()));
+        // Provenance again: broadening off a resume-scraped title would search
+        // for work the candidate never asked about.
+        List<String> pickedFamilies = context.targetRolesStated()
+                ? List.copyOf(RoleFamilyTaxonomy.pickedLabels(context.targetRoles()))
+                : List.of();
         int deepest = pickedFamilies.stream()
                 .mapToInt(family -> RoleFamilyTaxonomy.retrievalSeeds(family).size())
                 .max()
@@ -4576,11 +4602,11 @@ public class CandidateJobSearchService {
      * and drifted, which put that sentence on warehouse postings for people who
      * had asked for warehouse work.
      *
-     * <p>It also halves the repeated work. {@code classify} walks 297 keywords,
-     * twice for a title that places nowhere, and it was running up to four times
-     * per job per request -- once each from the filter and the scorer, doubled by
-     * re-deriving the verdict. It now runs twice: the filter and the scorer are
-     * separate passes over the same posting, which this record does not merge.
+     * <p>It also reduces the repeated work, without eliminating it.
+     * {@code classify} walks 297 keywords, twice for a title that places
+     * nowhere, and it was running up to four times per kept posting. It now runs
+     * three times: the track check reads it once, and the filter and the scorer
+     * are separate passes over the same posting that this record does not merge.
      */
     private record RoleFit(int score, List<String> reasons, boolean knownMismatch) {
         private static RoleFit none(boolean knownMismatch) {
@@ -4591,10 +4617,11 @@ public class CandidateJobSearchService {
     /**
      * The candidate's role targets, read once per request.
      *
-     * <p>{@code picked} are the labels they chose from the offered list, and are
-     * the only families allowed to hide a posting. {@code all} additionally holds
-     * families inferred from free text, which may rank a posting up and nothing
-     * more. Hoisted out of the per-job path because it depends only on the
+     * <p>{@code picked} are the labels they chose from the offered list. They
+     * are the only families that may be named in a reason shown to the
+     * candidate, and the only ones that may produce "Role is outside your target
+     * titles". {@code all} additionally holds families inferred from free text,
+     * which may raise a score and may not speak. Hoisted out of the per-job path because it depends only on the
      * candidate, and the inferred half costs a keyword scan per target role.
      */
     private record RoleTargets(Set<String> picked, Set<String> all) {

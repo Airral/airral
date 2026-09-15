@@ -302,9 +302,15 @@ class RoleTargetMatchingTest {
                 .experience(Json.of("[{\"company\":\"Acme\",\"title\":\"Product Manager\",\"current\":true}]"))
                 .matchPreferences(Json.of("{}"))
                 .build();
-        assertThat(rank(withSuffix, job("2", "Warehouse Associate", "Order Fulfillment")))
-                .as("two spellings of one resume must not produce different feeds")
-                .hasSize(1);
+        // Asserting the reasons, not the size: the size is identical with and
+        // without the provenance guard, so it proved nothing. What differs is
+        // whether a scraped title is treated as a stated one.
+        List<CandidateJobSummaryResponse> suffixed = rank(
+                withSuffix, job("2", "Warehouse Associate", "Order Fulfillment"));
+        assertThat(byTitle(suffixed, "Warehouse Associate").getMatchReasons())
+                .as("two spellings of one resume must not produce different claims")
+                .isEqualTo(byTitle(ranked, "Warehouse Associate").getMatchReasons())
+                .noneMatch(OUTSIDE_TARGET::equals);
     }
 
     /**
@@ -352,8 +358,9 @@ class RoleTargetMatchingTest {
 
         assertThat(ranked.get(0).getTitle()).isIn("Account Executive", "Business Development Manager");
         assertThat(byTitle(ranked, "Sales Floor Associate").getMatchReasons())
-                .as("a store floor job may not be labelled a Sales role fit")
-                .noneMatch(reason -> reason.equals("Role fit: Sales"));
+                .as("a store floor job may not be labelled a Sales role fit, nor called off-target")
+                .noneMatch(reason -> reason.startsWith("Role fit:"))
+                .noneMatch(OUTSIDE_TARGET::equals);
         assertThat(byTitle(ranked, "Account Executive").getMatchScore())
                 .isGreaterThan(byTitle(ranked, "Sales Floor Associate").getMatchScore());
     }
@@ -371,6 +378,10 @@ class RoleTargetMatchingTest {
         assertThat(ranked.get(0).getTitle()).isEqualTo("Help Desk Technician");
         assertThat(byTitle(ranked, "Help Desk Technician").getMatchReasons())
                 .anyMatch(reason -> reason.startsWith("Role fit:"));
+        assertThat(byTitle(ranked, "Technical Support Engineer").getMatchReasons())
+                .as("it shares the word support and is a different family; say neither thing")
+                .noneMatch(reason -> reason.startsWith("Role fit:"))
+                .noneMatch(OUTSIDE_TARGET::equals);
     }
 
     @Test
@@ -388,7 +399,8 @@ class RoleTargetMatchingTest {
                 .anyMatch(reason -> reason.startsWith("Role fit:"));
         assertThat(byTitle(ranked, "Senior Project Manager - Healthcare Construction").getMatchReasons())
                 .as("it is a construction job; it may not claim a healthcare role fit")
-                .noneMatch(reason -> reason.contains("Healthcare"));
+                .noneMatch(reason -> reason.contains("Healthcare"))
+                .noneMatch(OUTSIDE_TARGET::equals);
     }
 
     @Test
