@@ -50,7 +50,25 @@ public class CandidateProfileController {
 
     /**
      * PUT /api/candidate/profile
-     * Update the current user's profile. Partial updates supported (null fields are ignored).
+     * Update the current user's profile. Partial updates supported: a null field means
+     * "this request does not mention it" and leaves the stored value alone.
+     *
+     * <p>Because null already means "unmentioned", it cannot also mean "remove this",
+     * and a candidate who wanted a preference gone had no way to say so -- the field
+     * came back null, the update skipped it, and the old value kept shaping their job
+     * feed. Clearing is therefore expressed with a value:
+     *
+     * <ul>
+     *   <li>an empty list clears that list, and for targetRoles it is recorded as a
+     *       deliberate choice rather than an unanswered question;</li>
+     *   <li>an empty string clears location, work mode and employment type;</li>
+     *   <li>zero clears a salary expectation.</li>
+     * </ul>
+     *
+     * <p>matchPreferences is merged key by key rather than replaced, so a client that
+     * sends a subset -- onboarding sends four keys -- no longer wipes the rest,
+     * including the work-authorization answers this endpoint accepts but the response
+     * body does not carry back.
      */
     @PutMapping
     @PreAuthorize("hasAnyAuthority('APPLICANT', 'ADMIN')")

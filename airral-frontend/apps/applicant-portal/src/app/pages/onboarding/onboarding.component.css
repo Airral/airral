@@ -860,3 +860,134 @@
   outline-offset: 2px;
   border-radius: 6px;
 }
+
+/* ── Step 1: saying what is needed ────────────────── */
+/*
+   Everything in this block exists because step 1 could not be passed and did
+   not say why. The requirement line is the load-bearing part: it is on the page
+   before any click, so it needs to read as guidance rather than as an error,
+   and it has to stay legible once satisfied rather than vanishing and leaving
+   the user wondering whether it still applies.
+*/
+.role-requirement {
+  margin: -8px 0 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #b45309;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.role-requirement.met {
+  border-left-color: #007C6D;
+  background: #e6f7f5;
+  color: #00655a;
+}
+
+.role-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.role-loading .material-icons.spin {
+  font-size: 18px;
+  animation: spin 1.2s linear infinite;
+}
+
+/* Not styled as a dead end. The retry and the free-text box below it are both
+   still live, so this is amber rather than red. */
+.role-load-error {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 12px 14px;
+  border: 1.5px solid #fcd34d;
+  border-radius: 10px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+}
+
+.role-retry {
+  border: 1.5px solid #b45309;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #92400e;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+
+.role-retry:hover {
+  background: #fef3c7;
+}
+
+/* The live posting count behind an option. Quiet, because it is context for the
+   label and not the label. */
+.role-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+}
+
+.role-chip:hover .role-count {
+  color: #007C6D;
+}
+
+.role-chip.selected .role-count {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.role-chip.show-more {
+  border-style: dashed;
+  color: #6b7280;
+}
+
+.role-coverage {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.custom-role {
+  display: grid;
+  gap: 8px;
+}
+
+.field-note {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.optional-tag {
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Only ever shown after a Continue that could not be honoured, so this one is
+   allowed to look like an error. */
+.step-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #b91c1c;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 600;
+}

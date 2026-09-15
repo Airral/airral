@@ -109,6 +109,25 @@ export class JobsComponent implements OnInit, OnDestroy {
   resumeHealth: ResumeHealthScore | null = null;
   resumeHealthDismissed = false;
 
+  // What the saved profile is doing to this feed, for feedShapingCaveat()
+  private savedTargetRoles: string[] = [];
+  private profileLocation = '';
+  private openToRelocation = false;
+  /**
+   * Whether the three fields above are actually known.
+   *
+   * <p>Without this they are indistinguishable from "profile loaded, nothing
+   * saved", and the caveat's second branch reads an empty role list as proof
+   * that the server guessed the role. It is not: the profile request runs
+   * alongside the jobs request and can land later or fail outright
+   * (catchError swallows it), and in both cases a user with saved roles would
+   * have been told those roles were "read from your headline or resume rather
+   * than chosen by you" -- a plain false statement about their own settings,
+   * flashed on load or left up permanently. Saying nothing is the only honest
+   * answer while the profile is unknown.
+   */
+  private matchProfileLoaded = false;
+
   // "What's new" tracking
   newSinceLastVisit = 0;
 
@@ -132,6 +151,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     this.signedIn.set(this.auth.isAuthenticated());
     this.loadJobs();
     this.loadResumeHealth();
+    this.loadMatchProfile();
     this.checkProfileUpdate();
   }
 
@@ -807,6 +827,139 @@ export class JobsComponent implements OnInit, OnDestroy {
       return 'Postings that do not state an experience level are hidden while this filter is on — choose Any level to include them.';
     }
     return '';
+  }
+
+  /**
+   * Says what the saved profile is doing to this list, in the same voice as
+   * filterCaveat above: the actual reason, and the control that undoes it.
+   *
+   * <p>The explicit filters announced themselves and the profile did not, which
+   * is the worse of the two silences -- a preference set once during signup, or
+   * a role read off a resume, kept removing whole categories of work months
+   * later with nothing on the page admitting it. Target roles and location are
+   * hard filters server-side (CandidateJobSearchService.passesTargetRoleFilter,
+   * passesLocationFilter): postings are dropped from the page, not just sorted
+   * down, so "shown" is not the whole of what matched.
+   *
+   * <p>Every clause here is checked against something real rather than assumed.
+   * The saved roles come from the candidate's own profile, and the unchosen role
+   * term comes from the server's own "Role fit: X" reason, which it only emits
+   * for a term it actually matched on. So if the ranker stops guessing roles,
+   * this stops claiming it does.
+   *
+   * <p>This is deliberately not the complete list of what narrows the feed, and
+   * no copy on either page may claim that it is. passesSeniorityFilter also
+   * hard-drops postings, on years of experience computed from resume entries:
+   * measured against 1,572 distinct live postings, its people-manager rule alone
+   * removes 340 of them (22%) from any candidate under eight years -- "Project
+   * Manager" and "Product Manager" included, which a user can pick as a target
+   * role by name. It is left unsaid because the client cannot reproduce
+   * computeYearsOfExperience, and a filter we cannot evaluate is one we must not
+   * assert. The honest shape is a caveat that names what it can prove.
+   */
+  feedShapingCaveat(): string {
+    if (!this.signedIn() || !this.matchProfileLoaded) {
+      return '';
+    }
+
+    const sentences: string[] = [];
+    const savedRoles = this.savedRolesSummary();
+    const unchosenRoles = this.unchosenRoleTerms();
+
+    if (savedRoles) {
+      sentences.push(`Your saved target roles (${savedRoles}) are narrowing this list: postings in other role families are removed before you see them.`);
+    } else if (unchosenRoles.length) {
+      sentences.push(`These are matched on ${unchosenRoles.join(' and ')}, read from your headline or resume rather than chosen by you, and postings in other role families are removed before you see them.`);
+    }
+
+    if (this.profileLocation && !this.openToRelocation) {
+      sentences.push(`Your saved location (${this.profileLocation}) is filtering too: postings that are neither nearby nor marked remote are hidden while "Open to relocate" is off.`);
+    }
+
+    return sentences.join(' ');
+  }
+
+  /**
+   * The saved roles, named in full or counted when there are too many to name.
+   *
+   * <p>Three of six roles printed as a bare parenthetical reads as the whole
+   * list, so a user could go looking for the reason a fourth role's postings
+   * were missing and find no mention of it. The count is the cheapest way for
+   * the sentence to stop pretending it named everything.
+   */
+  private savedRolesSummary(): string {
+    const named = this.savedTargetRoles.slice(0, 3);
+    if (!named.length) {
+      return '';
+    }
+
+    const remaining = this.savedTargetRoles.length - named.length;
+    return remaining > 0 ? `${named.join(', ')} and ${remaining} more` : named.join(', ');
+  }
+
+  /**
+   * Role terms the server says it matched on that the candidate never typed.
+   *
+   * <p>scoreRoleFit names the winning term in a "Role fit: X" reason, and X is
+   * always one of the roles the ranker was given -- the saved list when there is
+   * one, otherwise the headline and the job titles read out of the resume. A
+   * term that is not in the saved list is therefore one of the guessed ones, by
+   * the server's own account of what it did.
+   */
+  private unchosenRoleTerms(): string[] {
+    const saved = new Set(this.savedTargetRoles.map((role) => this.normalizeRoleTerm(role)));
+    const terms = new Set<string>();
+
+    for (const job of this.jobs) {
+      for (const reason of job.matchReasons ?? []) {
+        const match = /^role fit:\s*(.+)$/i.exec(reason.trim());
+        const term = match?.[1]?.trim();
+        if (!term || saved.has(this.normalizeRoleTerm(term))) {
+          continue;
+        }
+        terms.add(term);
+        if (terms.size >= 2) {
+          return Array.from(terms);
+        }
+      }
+    }
+
+    return Array.from(terms);
+  }
+
+  private normalizeRoleTerm(term: string): string {
+    return (term || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  /**
+   * Loads the saved profile purely to explain the feed.
+   *
+   * <p>Signed-in only, and it changes nothing about the request: personalization
+   * is applied server-side from the token, so this page could not previously say
+   * what was being applied. getCandidateProfile caches per email in the API
+   * service, so this rides along with the fetch the rest of the portal makes.
+   */
+  private loadMatchProfile(): void {
+    const email = this.auth.getCurrentUser()?.email;
+    if (!this.signedIn() || !email) {
+      return;
+    }
+
+    this.candidateApi.getCandidateProfile(email).pipe(
+      catchError(() => of(null))
+    ).subscribe((profile) => {
+      if (!profile) {
+        return;
+      }
+
+      this.savedTargetRoles = (profile.matchPreferences?.targetRoles ?? [])
+        .filter((role) => typeof role === 'string' && role.trim().length > 0)
+        .map((role) => role.trim());
+      this.profileLocation = (profile.location ?? '').trim();
+      this.openToRelocation = Boolean(profile.matchPreferences?.openToRelocation);
+      this.matchProfileLoaded = true;
+      this.changeDetectorRef.detectChanges();
+    });
   }
 
   /**

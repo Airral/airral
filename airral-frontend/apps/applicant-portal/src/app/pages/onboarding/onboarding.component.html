@@ -19,38 +19,115 @@
       <h1>What roles are you looking for?</h1>
       <p class="step-desc">Pick all that apply. We'll use these to find your best-fit jobs.</p>
 
-      <div class="role-grid">
+      <!-- The requirement, next to the control that needs it, before anyone
+           clicks anything. This screen used to state it nowhere at all: it
+           needed both a role and a level, said neither, and left Continue
+           disabled while the user worked out why nothing happened. -->
+      <p class="role-requirement" id="step1-requirement" [class.met]="canProceedStep1">
+        {{ step1Requirement }}
+      </p>
+
+      <div class="role-loading" *ngIf="roleFamiliesLoading">
+        <span class="material-icons spin">autorenew</span>
+        <span>Loading the roles we have jobs for...</span>
+      </div>
+
+      <div class="role-load-error" role="alert" *ngIf="roleFamiliesError">
+        <p>{{ roleFamiliesError }} Type the role you want below, or try again.</p>
+        <button type="button" class="role-retry" (click)="loadRoleFamilies()">Try again</button>
+      </div>
+
+      <!-- Loaded fine and there is genuinely nothing to offer. Says so, rather
+           than rendering an empty grid the user reads as a broken page. -->
+      <p class="role-coverage" *ngIf="!roleFamiliesLoading && !roleFamiliesError && roleOptions.length === 0">
+        We have no role groups to show right now. Type the role you want below and we'll use that.
+      </p>
+
+      <div class="role-grid" *ngIf="roleOptions.length > 0">
+        <!-- The count needs to say what it counts. On its own "Retail 2,228"
+             reads as "picking this shows me 2,228 jobs", which is not what the
+             number is -- it is how many live postings we grouped into this
+             family, and the first feed is seeded by a text search on the label,
+             which returns a different figure. The label also stops a screen
+             reader announcing the icon ligature ("check Retail 2228"). -->
         <button
           class="role-chip"
-          *ngFor="let role of roleOptions"
+          *ngFor="let role of visibleRoleOptions"
           [class.selected]="role.selected"
+          [attr.aria-pressed]="role.selected"
+          [attr.aria-label]="role.label + ', ' + (role.jobCount | number) + ' live jobs grouped here'"
+          [attr.title]="(role.jobCount | number) + ' live jobs grouped here'"
           (click)="toggleRole(role)"
           type="button">
           <span class="material-icons check" *ngIf="role.selected">check</span>
           {{ role.label }}
+          <span class="role-count">{{ role.jobCount | number }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="role-chip show-more"
+          *ngIf="!showAllRoles && hiddenRoleCount > 0"
+          (click)="showAllRoles = true">
+          + {{ hiddenRoleCount }} more
         </button>
       </div>
 
+      <!-- Say what the list does not cover. The grouping places about 87% of
+           live postings; the rest is a long tail of one-off titles. Showing
+           the number is how someone in that tail learns to use the box below
+           instead of concluding we have nothing for them. -->
+      <p class="role-coverage" *ngIf="roleOptions.length > 0 && totalJobCount > 0">
+        Counted from {{ totalJobCount | number }} live jobs.
+        <ng-container *ngIf="unclassifiedJobCount > 0">
+          {{ unclassifiedJobCount | number }} of them don't fit any of these groups, so if yours is
+          not here, type it below.
+        </ng-container>
+      </p>
+
       <div class="custom-role">
+        <label class="section-label" for="custom-role-input">Another role</label>
         <input
+          id="custom-role-input"
           type="text"
           [(ngModel)]="customRole"
-          placeholder="Other role (type your own)">
+          (ngModelChange)="onCustomRoleChanged()"
+          placeholder="Type any role -- e.g. groundskeeper, CNA, line cook">
+        <p class="field-note">Anything you type here counts as a role, so this step is never a dead end.</p>
       </div>
 
       <div class="seniority-section">
-        <label class="section-label">Your level</label>
+        <label class="section-label">Your level <span class="optional-tag">optional</span></label>
+        <!-- Optional on purpose. Requiring it is what made this step
+             impassable, and it earns less than it cost: 17% of live postings
+             carry no seniority at all, and Entry/Mid/Senior/Staff/Lead does not
+             describe most of the catalogue.
+
+             The note deliberately does not say this helps us rank matches,
+             because today it does not. The value is stored under
+             matchPreferences.seniority and nothing reads that key --
+             toCandidateMatchContext does not pass it through, and the only
+             seniority signal the ranker has is yearsOfExperience computed from
+             the resume's own dates. Claiming a field shapes results when it
+             does not is the one thing this product will not do, so the note
+             describes what actually happens instead. -->
+        <p class="field-note">
+          We don't need this. What we rank on is the experience we can read from your resume, and
+          where we can't read it we leave your level unknown rather than guess.
+        </p>
         <div class="seniority-options">
           <button
             type="button"
             *ngFor="let level of ['ENTRY', 'MID', 'SENIOR', 'STAFF', 'LEAD']"
             [class.selected]="seniority === level"
-            (click)="seniority = level"
+            (click)="seniority = seniority === level ? '' : level"
             class="seniority-chip">
             {{ level === 'ENTRY' ? 'Entry' : level === 'MID' ? 'Mid' : level === 'SENIOR' ? 'Senior' : level === 'STAFF' ? 'Staff' : 'Lead' }}
           </button>
         </div>
       </div>
+
+      <p class="step-error" role="alert" *ngIf="step1Error">{{ step1Error }}</p>
     </section>
 
     <!-- ─── Step 2: Resume ────────────────────────── -->
@@ -181,6 +258,12 @@
             <span class="salary-sep">—</span>
             <input type="number" [(ngModel)]="salaryMax" placeholder="Max (e.g. 180000)">
           </div>
+          <!-- Says what we will do with it rather than refusing to continue. A
+               silent correction would be the same class of problem as a silent
+               block. -->
+          <p class="field-note" *ngIf="salaryRangeInverted">
+            Your minimum is above your maximum. We'll save the lower number as the minimum.
+          </p>
         </div>
 
         <div class="pref-field sponsor-field">
@@ -216,11 +299,15 @@
       </button>
       <div class="footer-spacer" *ngIf="step === 1"></div>
 
+      <!-- Never disabled. A disabled Continue with nothing on the page to
+           explain it is the whole bug: clicking did nothing and said nothing.
+           It stays live, points at the requirement text for a screen reader,
+           and nextStep() answers a click it cannot honour. -->
       <button
         class="btn-next"
         type="button"
         (click)="nextStep()"
-        [disabled]="step === 1 && !canProceedStep1"
+        [attr.aria-describedby]="step === 1 ? 'step1-requirement' : null"
         *ngIf="step < 3">
         Continue
         <span class="material-icons">arrow_forward</span>

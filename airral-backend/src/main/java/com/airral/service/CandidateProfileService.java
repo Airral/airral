@@ -12,6 +12,7 @@ import com.airral.repository.CandidateProfileRepository;
 import com.airral.repository.CandidateResumeDocumentRepository;
 import com.airral.repository.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.r2dbc.postgresql.codec.Json;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +27,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.util.function.Tuple2;
 
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -46,6 +48,20 @@ import java.util.regex.Pattern;
 public class CandidateProfileService {
     private static final Pattern SAFE_RESUME_FILE_NAME = Pattern.compile("^resume-[0-9]+\\.(pdf|docx)$");
     private static final int MAX_PARSE_ERROR_LENGTH = 1_000;
+
+    /**
+     * Key recording that the candidate emptied their target-role list on purpose.
+     *
+     * <p>An empty list on its own is ambiguous: it is what a profile that never
+     * set roles looks like and what a profile that just cleared them looks like,
+     * and the two want opposite treatment. The job ranker reads an empty list as
+     * permission to guess roles from the headline and the resume's job titles
+     * (CandidateJobSearchService.toCandidateMatchContext falls back to
+     * inferredTargetRoles), so without this key a cleared list came straight back
+     * as a feed still narrowed by roles the user never typed and could not see.
+     * The key states the fact and leaves the policy to whoever reads it.
+     */
+    private static final String TARGET_ROLES_CLEARED_KEY = "targetRolesCleared";
 
     private final CandidateProfileRepository profileRepository;
     private final CandidateResumeDocumentRepository resumeDocumentRepository;
@@ -112,8 +128,8 @@ public class CandidateProfileService {
                                     if (request.getOpenToWork() != null) profile.setOpenToWork(request.getOpenToWork());
                                     if (request.getPreferredEmploymentType() != null) profile.setPreferredEmploymentType(request.getPreferredEmploymentType());
                                     if (request.getPreferredWorkMode() != null) profile.setPreferredWorkMode(request.getPreferredWorkMode());
-                                    if (request.getSalaryExpectationMin() != null) profile.setSalaryExpectationMin(request.getSalaryExpectationMin());
-                                    if (request.getSalaryExpectationMax() != null) profile.setSalaryExpectationMax(request.getSalaryExpectationMax());
+                                    if (request.getSalaryExpectationMin() != null) profile.setSalaryExpectationMin(clearableAmount(request.getSalaryExpectationMin()));
+                                    if (request.getSalaryExpectationMax() != null) profile.setSalaryExpectationMax(clearableAmount(request.getSalaryExpectationMax()));
                                     if (request.getSalaryCurrency() != null) profile.setSalaryCurrency(request.getSalaryCurrency());
 
                                     if (request.getSkills() != null) {
@@ -126,7 +142,8 @@ public class CandidateProfileService {
                                         profile.setEducation(toJson(request.getEducation(), "[]"));
                                     }
                                     if (request.getMatchPreferences() != null) {
-                                        profile.setMatchPreferences(toJson(request.getMatchPreferences(), "{}"));
+                                        profile.setMatchPreferences(
+                                                mergeMatchPreferences(profile.getMatchPreferences(), request.getMatchPreferences()));
                                     }
 
                                     profile.setProfileCompletion(computeCompletion(profile));
@@ -541,11 +558,87 @@ public class CandidateProfileService {
                 .build();
     }
 
+    /**
+     * Reads a zero or negative salary figure as "I no longer have an expectation".
+     *
+     * <p>Null cannot carry that meaning on this endpoint: null already means "this
+     * update does not mention the field", which is what lets onboarding send four
+     * keys without flattening the rest of the profile. So a candidate who emptied
+     * the salary boxes sent null, the update skipped the field, and the old figure
+     * stayed. A stored expectation is not cosmetic: it re-ranks every posting whose
+     * range sits outside it and takes a flat 14 points off any posting that lists no
+     * pay at all (CandidateJobSearchService.scorePreferenceFit), which was 15 of 300
+     * postings sampled from the live feed. Clearing has to be sayable with a value,
+     * and no real expectation is zero or below.
+     */
+    private BigDecimal clearableAmount(BigDecimal amount) {
+        return amount.signum() <= 0 ? null : amount;
+    }
+
     private Json toJson(Object value, String fallback) {
         try {
             return Json.of(objectMapper.writeValueAsString(value));
         } catch (JsonProcessingException e) {
             return Json.of(fallback);
+        }
+    }
+
+    /**
+     * Folds an incoming preference payload into the stored one instead of
+     * replacing it wholesale.
+     *
+     * <p>The replace lost data on every save. The request DTO accepts -- and the
+     * search path reads -- keys that CandidateProfileResponse.MatchPreferences
+     * does not carry: requiresEVerify, needsSponsorshipNow, needsSponsorshipLater,
+     * workAuthorizationStatus, openToCapExemptEmployers, visaNotes and
+     * workAuthorizationExpiresAt. A client that saved back the profile the API
+     * had just handed it therefore sent those keys missing and wiped them,
+     * silently, including work-authorization answers the candidate gave once and
+     * had no reason to re-enter. Onboarding's finish() sends four keys and
+     * flattened the rest the same way.
+     *
+     * <p>The merge rule is also what makes clearing expressible: a key the client
+     * actually sent wins -- empty list and false included -- and a key it did not
+     * send is left alone. So "targetRoles": [] means clear, while an omitted
+     * targetRoles means keep, a difference a full replace cannot represent.
+     */
+    private Json mergeMatchPreferences(Json stored, UpdateCandidateProfileRequest.MatchPreferences incoming) {
+        Map<String, Object> merged = new LinkedHashMap<>(readJsonObject(stored));
+
+        readJsonObject(toJson(incoming, "{}")).forEach((key, value) -> {
+            if (value != null) {
+                merged.put(key, value);
+            }
+        });
+
+        // Only touched when the client sent the key at all, so a partial update
+        // that never mentions target roles cannot flip the candidate's choice.
+        if (incoming.getTargetRoles() != null) {
+            boolean clearedOnPurpose = incoming.getTargetRoles().stream()
+                    .noneMatch(role -> role != null && !role.isBlank());
+            if (clearedOnPurpose) {
+                merged.put(TARGET_ROLES_CLEARED_KEY, Boolean.TRUE);
+            } else {
+                merged.remove(TARGET_ROLES_CLEARED_KEY);
+            }
+        }
+
+        return toJson(merged, "{}");
+    }
+
+    private Map<String, Object> readJsonObject(Json json) {
+        String value = jsonToString(json);
+        if (value == null || value.isBlank() || value.equals("null")) {
+            return Map.of();
+        }
+
+        try {
+            Map<String, Object> parsed = objectMapper.readValue(value, new TypeReference<LinkedHashMap<String, Object>>() {});
+            return parsed == null ? Map.of() : parsed;
+        } catch (JsonProcessingException e) {
+            // Unreadable preferences are treated as absent rather than fatal: the
+            // candidate's save must still land, and this column is written by us.
+            return Map.of();
         }
     }
 

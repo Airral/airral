@@ -130,6 +130,17 @@
     </p>
   </div>
 
+  <!-- Same idiom as the filter caveat above, deliberately outside the filters
+       panel: that panel starts collapsed on mobile, and a profile is narrowing
+       the feed whether or not the user has opened the filter controls. -->
+  <p class="filter-caveat feed-caveat" *ngIf="feedShapingCaveat() as feedCaveat" aria-live="polite">
+    <span class="material-icons">info_outline</span>
+    <span>
+      {{ feedCaveat }}
+      <a routerLink="/profile" class="feed-caveat-link">Change or clear these in your profile</a>
+    </span>
+  </p>
+
   <!-- Resume Health Banner -->
   <div class="resume-health-banner" *ngIf="showResumeHealthBanner">
     <div class="rhb-content">

@@ -31,6 +31,9 @@ export class ProfileComponent implements OnInit {
   notificationPrefsLoading = false;
   notificationSaveMessage = '';
 
+  /** Second click required before a clear runs, so the button cannot be a slip. */
+  clearConfirmPending = false;
+
   constructor(
     private readonly candidateApi: CandidatePortalService,
     private readonly auth: AuthService,
@@ -101,6 +104,7 @@ export class ProfileComponent implements OnInit {
     this.applyTextFieldsToProfile();
     this.saving = true;
     this.successMessage = '';
+    this.clearConfirmPending = false;
 
     this.candidateApi.updateCandidateProfile(this.profile).subscribe({
       next: (p) => {
@@ -111,13 +115,102 @@ export class ProfileComponent implements OnInit {
         this.successMessage = 'Profile saved — job matches will update when you return to Jobs.';
         // Signal the jobs page to refresh with new profile data
         localStorage.setItem('airral_profile_updated', Date.now().toString());
-        setTimeout(() => (this.successMessage = ''), 4000);
+        setTimeout(() => {
+          this.successMessage = '';
+          this.changeDetectorRef.markForCheck();
+        }, 4000);
+        // Zoneless: nothing repaints off the back of an HTTP callback on its own,
+        // so the saved state and the banner below stayed invisible until the next
+        // unrelated interaction nudged a pass.
+        this.changeDetectorRef.markForCheck();
       },
       error: () => {
         this.saving = false;
         this.profileError = 'Could not save profile. Try again in a moment.';
+        this.changeDetectorRef.markForCheck();
       },
     });
+  }
+
+  /**
+   * Empties the target-role list and saves it, which is a different request from
+   * "I have not picked roles yet".
+   *
+   * <p>It goes through save() rather than its own call so it lands on the one
+   * write path: the same merge rules, the same jobs-page refresh signal, the same
+   * error handling. An empty list reaches the API explicitly, which is what lets
+   * the backend record the choice instead of reading it as an unanswered question.
+   */
+  clearTargetRoles(): void {
+    this.targetRolesText = '';
+    this.save();
+  }
+
+  requestClearPreferences(): void {
+    this.clearConfirmPending = true;
+  }
+
+  cancelClearPreferences(): void {
+    this.clearConfirmPending = false;
+  }
+
+  /**
+   * Clears the preferences that narrow or re-rank the feed, and only those.
+   *
+   * <p>Work authorization (needs sponsorship, needs E-Verify) is deliberately
+   * left alone: those answers are facts about the candidate, not search
+   * settings, and switching them off to widen a list would hand someone jobs
+   * that cannot hire them. "Open to relocation" is left alone for the same
+   * reason in reverse -- clearing it would narrow the feed, since the location
+   * filter only stands down when it is on.
+   *
+   * <p>Salary is sent as 0 rather than null on purpose: null means "this update
+   * does not mention the field" on the profile endpoint, so it was the reason an
+   * emptied salary box never actually cleared. Zero is read as "no expectation"
+   * and comes back as empty.
+   */
+  clearPreferences(): void {
+    if (!this.profile) return;
+
+    this.targetRolesText = '';
+    this.mustHaveSkillsText = '';
+    this.niceToHaveSkillsText = '';
+    this.avoidKeywordsText = '';
+
+    // '' is what the form's own "Any" option writes and what the API reads as
+    // cleared; undefined would mean "this update does not mention the field" and
+    // would leave the old value in place. The typed unions have no empty member,
+    // which is why these go through a cast rather than a plain assignment.
+    this.profile.preferredWorkMode = '' as unknown as CandidateProfile['preferredWorkMode'];
+    this.profile.preferredEmploymentType = '' as unknown as CandidateProfile['preferredEmploymentType'];
+    this.profile.salaryExpectationMin = 0;
+    this.profile.salaryExpectationMax = 0;
+
+    this.profile.matchPreferences = {
+      ...(this.profile.matchPreferences ?? {}),
+      salaryRequired: false,
+      directCompanySourceOnly: false,
+      easyApplyOnly: false,
+    };
+
+    this.save();
+  }
+
+  get hasSavedPreferences(): boolean {
+    const preferences = this.profile?.matchPreferences ?? {};
+    return Boolean(
+      preferences.targetRoles?.length
+      || preferences.mustHaveSkills?.length
+      || preferences.niceToHaveSkills?.length
+      || preferences.avoidKeywords?.length
+      || preferences.salaryRequired
+      || preferences.directCompanySourceOnly
+      || preferences.easyApplyOnly
+      || this.profile?.preferredWorkMode
+      || this.profile?.preferredEmploymentType
+      || this.profile?.salaryExpectationMin
+      || this.profile?.salaryExpectationMax
+    );
   }
 
   get completionPercent(): number {
@@ -189,7 +282,9 @@ export class ProfileComponent implements OnInit {
 
   get targetRolesPreview(): string {
     const roles = this.profile?.matchPreferences?.targetRoles ?? [];
-    return roles.length ? roles.slice(0, 3).join(', ') : 'No target roles yet';
+    // "yet" read as an unfinished step, which is now the wrong story half the
+    // time: an empty list can be a choice the user made on this page.
+    return roles.length ? roles.slice(0, 3).join(', ') : 'No target roles saved';
   }
 
   get skillsPreview(): string {
