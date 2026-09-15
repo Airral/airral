@@ -96,16 +96,18 @@ final class RoleFamilyTaxonomy {
                     "cafe", "banquet", "steward")),
             new RoleFamilyRule("Retail", List.of(
                     "cashier", "sales associate", "sales specialist", "retail", "store associate",
-                    // Both "front end" and "front of store" belong here. "Front End
-                    // Associate / Supervisor / Clerk" are standard grocery titles and
-                    // "Front End" is a real store department, while "Front of Store
-                    // Attendant" is Target's wording for the same work. An earlier
-                    // pass dropped "front end" because Retail is scanned before
-                    // Software engineer and so claimed "Front End Engineer" -- that
-                    // cost four real retail titles and every posting whose only
-                    // signal was a Front End department. PRIORITY_RULES fixes the
-                    // collision at the right end instead.
-                    "merchandis", "team member", "guest advocate", "front end",
+                    // "front of store" but deliberately not "front end", after
+                    // trying both. Retail is scanned before Software engineer, so
+                    // the bare phrase claimed "Front End Web Developer", "Front
+                    // End React Developer" and every posting whose only signal was
+                    // a Front End department. PRIORITY_RULES cannot rescue those:
+                    // it matches exact suffixes, so any intervening word gets
+                    // through. The cost is that "Front End Associate" and a bare
+                    // "Front End" department now place nowhere, and that is the
+                    // better failure -- a posting we could not read is reported as
+                    // unplaced, where a software posting filed under Retail is a
+                    // wrong answer we would state to a candidate.
+                    "merchandis", "team member", "guest advocate",
                     "front of store", "checkout",
                     "general merchandise", "service and engagement", "style consultant",
                     "sales floor", "specialty sales", "dept supervisor", "department supervisor",
@@ -131,31 +133,11 @@ final class RoleFamilyTaxonomy {
                     "electrician", "plumber", "hvac", "welder", "carpenter", "machinist",
                     "millwright", "pipefitter", "installer", "maintenance technician",
                     "facilities technician", "field technician", "service technician",
-                    "heat pump",
-                    // The bare label, last in this family so the specific
-                    // entries above still win. Without it "Maintenance Worker"
-                    // and a "Maintenance" department placed nowhere, so a
-                    // candidate who picked Maintenance got a family while the
-                    // postings that match it had none.
-                    "maintenance")),
+                    "heat pump")),
             new RoleFamilyRule("Healthcare", List.of(
                     "nurse", "nursing", " rn ", "lpn", "cna", "caregiver", "patient", "clinical",
                     "physician", "medical assistant", "pharmacist", "dental", "therapist",
-                    "phlebotom", "veterinar", "massage",
-                    // No bare "healthcare" keyword, unlike the other families
-                    // whose label could not match its own name. It was added and
-                    // removed: in this catalogue "healthcare" appears far more
-                    // often modifying another domain than naming the work.
-                    // Measured on the live Healthcare feed, the titles it caught
-                    // were "Senior Project Manager - Healthcare Construction" and
-                    // "Senior Applied Research Scientist, Multimodal Foundation
-                    // Models - Healthcare"; it caught no clinical title that the
-                    // entries above had missed. US clinical postings say Medical
-                    // Assistant, CNA, Patient Care Technician or the licence, all
-                    // of which are already here. A candidate who picks the
-                    // "Healthcare" option is unaffected: the offered label is
-                    // resolved by identity in pickedLabel, not by this table.
-                    "nurse practitioner", "physician assistant")),
+                    "phlebotom", "veterinar", "massage")),
             new RoleFamilyRule("Manufacturing", List.of(
                     "manufacturing", "production associate", "production operator", "assembler",
                     "machine operator", " plant ", "fabricat", "press operator",
@@ -175,9 +157,7 @@ final class RoleFamilyTaxonomy {
             new RoleFamilyRule("Data science", List.of(
                     "data engineer", "data scientist", "machine learning", "ml engineer",
                     "ai engineer", "applied scientist", "research scientist", "analytics engineer",
-                    "data platform", "data infrastructure",
-                    // Bare label last: "Data Science Manager" placed nowhere.
-                    "data science")),
+                    "data platform", "data infrastructure")),
             new RoleFamilyRule("Analytics", List.of(
                     "data analyst", "business analyst", "analytics", "business intelligence",
                     "reporting analyst", "insights analyst")),
@@ -224,17 +204,13 @@ final class RoleFamilyTaxonomy {
             new RoleFamilyRule("Administrative", List.of(
                     "executive assistant", "administrative assistant", "office manager",
                     "receptionist", "front desk", "data entry", "office coordinator",
-                    "staffing admin",
-                    // Bare label last: "Administrative Coordinator" placed nowhere.
-                    "administrative")),
+                    "staffing admin")),
             new RoleFamilyRule("Laboratory", List.of(
                     "chemist", "microbiolog", "laboratory", " lab ", "lab technician", "biolog",
                     "toxicolog", "petroleum inspector")),
             new RoleFamilyRule("Teaching", List.of(
                     "teacher", "tutor", "instructor", "childcare", "child care", "preschool",
-                    "educator", "camp counselor",
-                    // Bare label last: "Teaching Assistant" placed nowhere.
-                    "teaching")));
+                    "educator", "camp counselor")));
 
     /**
      * Families a candidate who asked for one would plausibly take the other.

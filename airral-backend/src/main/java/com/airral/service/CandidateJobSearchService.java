@@ -3040,30 +3040,28 @@ public class CandidateJobSearchService {
      * unrelated functional tracks. A weak "58% match" is not useful for a SWE seeing
      * compliance, sales, or account roles.
      *
-     * <p>That was already the intent, and it only ever worked for candidates
-     * {@link RoleMatchClassifier} had a family for. It has none for warehouse,
-     * retail, driver, food service or construction work, and an unclassified
-     * profile is treated as compatible with everything -- so the filter was
-     * inert for most of the catalogue. The shared-taxonomy check below extends
-     * the same rule to those candidates rather than introducing a new one.
+     * <p>Deliberately NOT extended to the shared role taxonomy, after trying it
+     * twice and cutting real users both times. The idea was that a job whose
+     * family confidently disagrees with the candidate's could be hidden; the
+     * flaw is that nothing here knows what the candidate actually chose.
+     * {@code context.targetRoles()} is not a statement of intent -- when the
+     * candidate has set none, {@link #inferredTargetRoles} fills it from their
+     * resume headline and past job titles, and by the time it arrives here a
+     * scraped previous employer's title is indistinguishable from a ticked
+     * option. Filtering on it hid warehouse jobs from someone whose last job was
+     * in software, told a product manager trying to leave product management
+     * that a barista job was outside their target, and produced opposite feeds
+     * for two identical resumes because one headline happened to be two words
+     * long.
      *
-     * <p>Where the line sits: a job is hidden only on a confident disagreement,
-     * never on an absence of information. Both sides have to place in
-     * {@link RoleFamilyTaxonomy}, in different families that are not neighbours.
-     * The 13.6% of titles that place nowhere are always kept, which is also what
-     * stops a narrow family from emptying the feed. Measured against the live
-     * 17,175 postings on 2026-09-15, the thinnest kept set belongs to Teaching
-     * at 2,361 postings, or 14% of the corpus: 5 teaching jobs, no neighbours,
-     * and the 2,356 unplaced. Every other family keeps between 2,558 and 7,481.
-     * A candidate in that position is looking at a catalogue that genuinely has
-     * five teaching jobs in it, and onboarding shows them the 5 before they
-     * pick.
+     * <p>So the taxonomy ranks and explains, and does not hide. A job ordered
+     * badly costs a candidate some scrolling; a job hidden costs them the job,
+     * and they cannot tell it happened. Retrieval is what concentrates the feed
+     * on the work they asked for -- see {@code RoleFamilyTaxonomy.RETRIEVAL_SEEDS}
+     * -- and that cannot make a posting disappear.
      *
-     * <p>This is the opposite call to the one made for seniority, and
-     * deliberately: there we hide postings that do not state a level the
-     * employer could have stated, while here the family is our own reading of a
-     * title, and hiding a job on our own inference needs both readings to agree
-     * that they disagree.
+     * <p>Hiding on family becomes available once a picked label is stored as a
+     * picked label, separately from what we infer. It is not a scoring problem.
      */
     private boolean passesTargetRoleFilter(
             CandidateJobSummaryResponse job, CandidateMatchContext context, RoleTargets targets) {
@@ -3073,17 +3071,23 @@ public class CandidateJobSearchService {
 
         RoleMatchClassifier.RoleIntent profileIntent = candidateRoleIntent(context);
         RoleMatchClassifier.RoleIntent jobIntent = jobRoleIntent(job);
-        if (!ROLE_MATCH_CLASSIFIER.careerTrackCompatible(profileIntent, jobIntent)) {
+        String jobFamily = jobRoleFamily(job);
+        boolean insideStatedFamily = jobFamily != null && targets.all().contains(jobFamily);
+        // The track check reads the resume headline, so it vetoes on employment
+        // history. That is defensible for an unrelated job and indefensible
+        // inside the family the candidate named: it was hiding "Warehouse
+        // Operations Manager" from a warehouse candidate because their last job
+        // title contained "Engineer", which made them an individual contributor
+        // and the posting people-management. Adding a resume deleted every
+        // supervisor-track job in their own family from the feed.
+        if (!insideStatedFamily
+                && !ROLE_MATCH_CLASSIFIER.careerTrackCompatible(profileIntent, jobIntent)) {
             return false;
         }
 
         RoleFit roleFit = scoreRoleFit(job, context, jobMatchText(job), targets);
         if (roleFit.score() >= 8) {
             return true;
-        }
-
-        if (roleFit.knownMismatch()) {
-            return false;
         }
 
         return ROLE_MATCH_CLASSIFIER.compatible(profileIntent, jobIntent);
@@ -3253,6 +3257,12 @@ public class CandidateJobSearchService {
     private CandidateMatchContext toCandidateMatchContext(CandidateProfile profile) {
         Map<String, Object> matchPreferences = mapFromJson(profile.getMatchPreferences() == null ? null : profile.getMatchPreferences().asString());
         Set<String> targetRoles = normalizedTerms(stringsFromObject(matchPreferences.get("targetRoles")));
+        // Provenance matters downstream and was previously lost here. Anything
+        // this method infers is indistinguishable from something the candidate
+        // stated once it is in the set, and code that hid postings or asserted
+        // "Role is outside your target titles" then did so on a scraped
+        // previous job title. Only stated roles may carry those consequences.
+        boolean targetRolesStated = !targetRoles.isEmpty();
         if (targetRoles.isEmpty()) {
             targetRoles = normalizedTerms(inferredTargetRoles(profile));
         }
@@ -3260,6 +3270,7 @@ public class CandidateJobSearchService {
         return new CandidateMatchContext(
                 normalizedTerms(stringsFromJson(profile.getSkills() == null ? null : profile.getSkills().asString())),
                 targetRoles,
+                targetRolesStated,
                 normalizedTerms(stringsFromObject(matchPreferences.get("mustHaveSkills"))),
                 normalizedTerms(stringsFromObject(matchPreferences.get("niceToHaveSkills"))),
                 normalizedTerms(stringsFromObject(matchPreferences.get("avoidKeywords"))),
@@ -3405,13 +3416,6 @@ public class CandidateJobSearchService {
             }
         }
         return null;
-    }
-
-    private CandidateJobSummaryResponse applyCandidateMatch(CandidateJobSummaryResponse job, CandidateMatchContext context) {
-        if (job == null) {
-            return null;
-        }
-        return applyCandidateMatch(job, context, jobMatchText(job), RoleTargets.from(context));
     }
 
     private CandidateJobSummaryResponse applyCandidateMatch(
@@ -3585,9 +3589,24 @@ public class CandidateJobSearchService {
         Set<String> candidateFamilies = targets.all();
         if (jobFamily != null && !candidateFamilies.isEmpty()) {
             if (candidateFamilies.contains(jobFamily)) {
-                if (bestScore < 20) {
-                    bestScore = 20;
-                    bestRole = jobFamily;
+                // A label they picked scores above a family we read out of free
+                // text. At equal weight the inference does not rank anything up,
+                // it dilutes: a candidate who picked Store security and typed
+                // "privacy engineer" saw a Compliance Analyst tie with a Security
+                // Officer, both at 71, the former labelled "Role fit: Legal" --
+                // a family they never mentioned.
+                boolean fromPickedLabel = targets.picked().contains(jobFamily);
+                int tier = fromPickedLabel ? 20 : 16;
+                if (bestScore < tier) {
+                    bestScore = tier;
+                    // Only a picked label earns its name in a reason. "Role fit:
+                    // Legal" was being printed for a candidate who typed
+                    // "Privacy Engineer" -- Legal is our reading of the substring
+                    // "privacy", not anything they said, and stating it back to
+                    // them as their role fit is inventing a preference. The
+                    // inference still ranks the posting up; it just does not get
+                    // to speak.
+                    bestRole = fromPickedLabel ? jobFamily : null;
                 }
             } else if (candidateFamilies.stream().anyMatch(family -> RoleFamilyTaxonomy.adjacent(family, jobFamily))) {
                 if (bestScore < 10) {
@@ -3653,7 +3672,19 @@ public class CandidateJobSearchService {
             return RoleFit.none(knownMismatch);
         }
 
-        return new RoleFit(bestScore, List.of("Role fit: " + displayTerm(bestRole)), knownMismatch);
+        if (bestRole == null) {
+            return new RoleFit(bestScore, List.of(), knownMismatch);
+        }
+
+        // A family label is shown exactly as onboarding offered it. displayTerm
+        // title-cases each word, which renamed the option between two screens:
+        // the picker said "Store security" and "Food service" while the job card
+        // said "Store Security" and "Food Service". The label is an identity now,
+        // so it travels unchanged; anything else is still the candidate's own
+        // free text and keeps the title-casing.
+        String label = RoleFamilyTaxonomy.pickedLabel(bestRole);
+        String shown = label != null ? label : displayTerm(bestRole);
+        return new RoleFit(bestScore, List.of("Role fit: " + shown), knownMismatch);
     }
 
     /**
@@ -3753,12 +3784,26 @@ public class CandidateJobSearchService {
             }
         }
 
-        // Seeds that actually retrieve the picked family. Added after the roles
-        // themselves so the candidate's own wording always survives the cap
-        // below, and only for labels they picked -- broadening off a family we
-        // guessed from free text would search for work they never asked about.
-        for (String family : RoleFamilyTaxonomy.pickedLabels(context.targetRoles())) {
-            queries.addAll(RoleFamilyTaxonomy.retrievalSeeds(family));
+        // Seeds that actually retrieve the picked families, interleaved so each
+        // family gets its first seed before any family gets its second. Appended
+        // in family order, the cap below silently starved the third and fourth
+        // pick: four frontline picks produced eight queries in which Retail's
+        // "sales associate" and Food service's "barista" never appeared, leaving
+        // those two families retrieving on a bare label the table documents as
+        // unusable. The candidate's own wording is added above and so still
+        // survives the cap first.
+        List<String> pickedFamilies = List.copyOf(RoleFamilyTaxonomy.pickedLabels(context.targetRoles()));
+        int deepest = pickedFamilies.stream()
+                .mapToInt(family -> RoleFamilyTaxonomy.retrievalSeeds(family).size())
+                .max()
+                .orElse(0);
+        for (int rank = 0; rank < deepest; rank++) {
+            for (String family : pickedFamilies) {
+                List<String> seeds = RoleFamilyTaxonomy.retrievalSeeds(family);
+                if (rank < seeds.size()) {
+                    queries.add(seeds.get(rank));
+                }
+            }
         }
 
         RoleMatchClassifier.RoleIntent intent = candidateRoleIntent(context);
@@ -4447,6 +4492,12 @@ public class CandidateJobSearchService {
     private record CandidateMatchContext(
             Set<String> skills,
             Set<String> targetRoles,
+            /**
+             * True when {@code targetRoles} came from the candidate, not from
+             * their resume. Read by {@link RoleTargets} to decide what may be
+             * treated as a picked label.
+             */
+            boolean targetRolesStated,
             Set<String> mustHaveSkills,
             Set<String> niceToHaveSkills,
             Set<String> avoidKeywords,
@@ -4525,16 +4576,13 @@ public class CandidateJobSearchService {
      * and drifted, which put that sentence on warehouse postings for people who
      * had asked for warehouse work.
      *
-     * <p>It also removes the repeated work. {@code classify} walks 297 keywords,
+     * <p>It also halves the repeated work. {@code classify} walks 297 keywords,
      * twice for a title that places nowhere, and it was running up to four times
      * per job per request -- once each from the filter and the scorer, doubled by
-     * re-deriving the verdict. Now it runs once.
+     * re-deriving the verdict. It now runs twice: the filter and the scorer are
+     * separate passes over the same posting, which this record does not merge.
      */
     private record RoleFit(int score, List<String> reasons, boolean knownMismatch) {
-        private MatchComponent component() {
-            return new MatchComponent(score, reasons);
-        }
-
         private static RoleFit none(boolean knownMismatch) {
             return new RoleFit(0, List.of(), knownMismatch);
         }
@@ -4554,9 +4602,14 @@ public class CandidateJobSearchService {
             if (context == null) {
                 return new RoleTargets(Set.of(), Set.of());
             }
-            return new RoleTargets(
-                    RoleFamilyTaxonomy.pickedLabels(context.targetRoles()),
-                    RoleFamilyTaxonomy.classifyTerms(context.targetRoles()));
+            // Only stated roles can be picked labels. A resume-derived set
+            // contains past job titles, and one of those matching an offered
+            // label exactly -- "Product Manager" -- is a coincidence of
+            // employment history, not a statement about what they want next.
+            Set<String> picked = context.targetRolesStated()
+                    ? RoleFamilyTaxonomy.pickedLabels(context.targetRoles())
+                    : Set.of();
+            return new RoleTargets(picked, RoleFamilyTaxonomy.classifyTerms(context.targetRoles()));
         }
     }
 

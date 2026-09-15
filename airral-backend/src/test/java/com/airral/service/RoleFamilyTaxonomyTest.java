@@ -194,61 +194,93 @@ class RoleFamilyTaxonomyTest {
     }
 
     /**
-     * A family has to be able to recognise its own name in a posting title.
+     * Seven families cannot recognise their own name in a posting title.
      *
-     * <p>Seven labels could not, and fixing only the candidate side left the
-     * halves disagreeing: a candidate who picked "Maintenance" got a family
-     * while "Maintenance Worker" and a "Maintenance" department placed nowhere,
-     * so the postings that matched them sat at the score floor and the feed
-     * filled with unplaceable white-collar titles instead.
+     * <p>"Maintenance Worker", "Teaching Assistant" and "Administrative
+     * Coordinator" place nowhere, because those families carry only specific
+     * entries. Adding the bare labels as keywords was tried and reverted: this
+     * table is scanned family by family in order, so a bare label in an early
+     * family beats a specific keyword in every later one -- "maintenance" put
+     * "Maintenance Data Analyst" in Maintenance ahead of Analytics and
+     * "Maintenance Planner" ahead of Operations. It also moves the counts shown
+     * during onboarding, which {@link RoleFamilyTaxonomy#classifyTerm} already
+     * gives as the reason not to do it.
+     *
+     * <p>The gap is closed on the candidate side by {@code pickedLabel} and on
+     * the retrieval side by {@code RETRIEVAL_SEEDS}, which searches "hvac" and
+     * "maintenance technician" rather than the label. This test pins the
+     * unplaced answers so that a future attempt to "fix" them has to read the
+     * reasoning first.
      */
     @Test
-    @DisplayName("a posting titled with the bare family name places in that family")
-    void bareFamilyNameInATitlePlaces() {
-        assertThat(RoleFamilyTaxonomy.classify("Maintenance Worker", null)).isEqualTo("Maintenance");
-        assertThat(RoleFamilyTaxonomy.classify("Shift Lead", "Maintenance")).isEqualTo("Maintenance");
-        // Healthcare is the deliberate exception -- see its rule for the corpus
-        // measurement. In this catalogue the bare word modifies another domain
-        // more often than it names the work, so it is read by the clinical
-        // entries instead and a title carrying only the word places nowhere.
-        assertThat(RoleFamilyTaxonomy.classify("Senior Project Manager - Healthcare Construction", "Real estate"))
-                .isNotEqualTo("Healthcare");
-        assertThat(RoleFamilyTaxonomy.classify("Nurse Practitioner", null)).isEqualTo("Healthcare");
-        assertThat(RoleFamilyTaxonomy.classify("Administrative Coordinator", null)).isEqualTo("Administrative");
-        assertThat(RoleFamilyTaxonomy.classify("Teaching Assistant", null)).isEqualTo("Teaching");
-        assertThat(RoleFamilyTaxonomy.classify("Data Science Manager", null)).isEqualTo("Data science");
+    @DisplayName("a bare family name in a title is unplaced, on purpose")
+    void bareFamilyNameIsUnplaced() {
+        assertThat(RoleFamilyTaxonomy.classify("Maintenance Worker", null)).isNull();
+        assertThat(RoleFamilyTaxonomy.classify("Teaching Assistant", null)).isNull();
+        assertThat(RoleFamilyTaxonomy.classify("Administrative Coordinator", null)).isNull();
 
-        // The bare label goes last in its family, so the specific entries above
-        // it still decide. A nurse is Healthcare by "nurse", not by the label.
-        assertThat(RoleFamilyTaxonomy.classify("Registered Nurse", null)).isEqualTo("Healthcare");
+        // What the bare labels would have cost: each of these belongs to a
+        // family later in the table than the one whose label appears in it.
+        assertThat(RoleFamilyTaxonomy.classify("Maintenance Data Analyst", null)).isEqualTo("Analytics");
+        assertThat(RoleFamilyTaxonomy.classify("Maintenance Planner", null)).isEqualTo("Operations");
+        assertThat(RoleFamilyTaxonomy.classify("Data Science Program Manager", null))
+                .isEqualTo("Project manager");
+
+        // The specific entries still carry the families themselves.
         assertThat(RoleFamilyTaxonomy.classify("Maintenance Technician", null)).isEqualTo("Maintenance");
+        assertThat(RoleFamilyTaxonomy.classify("Registered Nurse", null)).isEqualTo("Healthcare");
+        assertThat(RoleFamilyTaxonomy.classify("Executive Assistant", null)).isEqualTo("Administrative");
     }
 
     /**
-     * Both readings of "front end" have to work.
+     * "front end" belongs to software here, and retail loses the tie.
      *
-     * <p>Dropping Retail's "front end" to stop it claiming software titles cost
-     * four real grocery titles and every posting whose only signal was a Front
-     * End department. The previous test here pinned {@code classify("Cashier",
-     * "Front End")} and passed for the wrong reason -- the title "Cashier"
-     * matches Retail on its own, so the department was never consulted and the
-     * case the test documented was never covered.
+     * <p>Both placements were tried. With "front end" in Retail, which is
+     * scanned first, "Front End Web Developer" and "Front End React Developer"
+     * became retail jobs and a software candidate lost them -- and
+     * PRIORITY_RULES cannot rescue those, because it matches exact suffixes and
+     * any intervening word gets through. Without it, "Front End Associate" and a
+     * bare "Front End" department are unplaced.
+     *
+     * <p>Unplaced is the better failure: a posting we could not read is reported
+     * as unread, where a software posting filed under Retail is a wrong answer
+     * we would state to a candidate as a reason.
      */
     @Test
-    @DisplayName("front end is the store, unless the title says engineer")
-    void frontEndReadsBothWays() {
-        // Retail titles and the bare department, with no other retail signal.
-        assertThat(RoleFamilyTaxonomy.classify("Front End Associate", null)).isEqualTo("Retail");
-        assertThat(RoleFamilyTaxonomy.classify("Front End Supervisor", null)).isEqualTo("Retail");
-        assertThat(RoleFamilyTaxonomy.classify("Front End Clerk", null)).isEqualTo("Retail");
-        assertThat(RoleFamilyTaxonomy.classify("Closing Team Leader", "Front End")).isEqualTo("Retail");
-
-        // Software titles that share the prefix.
+    @DisplayName("front end reads as software, and retail front end is unplaced")
+    void frontEndReadsAsSoftware() {
         assertThat(RoleFamilyTaxonomy.classify("Front End Engineer", "Engineering"))
                 .isEqualTo("Software engineer");
-        assertThat(RoleFamilyTaxonomy.classify("Front End Developer", null)).isEqualTo("Software engineer");
-        assertThat(RoleFamilyTaxonomy.classify("Front End Lead", "Engineering")).isEqualTo("Software engineer");
-        assertThat(RoleFamilyTaxonomy.classify("Back End Engineer", null)).isEqualTo("Software engineer");
+        assertThat(RoleFamilyTaxonomy.classify("Front End Web Developer", null))
+                .isEqualTo("Software engineer");
+        assertThat(RoleFamilyTaxonomy.classify("Front End React Developer", null))
+                .isEqualTo("Software engineer");
+        assertThat(RoleFamilyTaxonomy.classify("Front End Lead", "Engineering"))
+                .isEqualTo("Software engineer");
+
+        // The accepted cost, pinned so it is a decision and not a surprise.
+        assertThat(RoleFamilyTaxonomy.classify("Front End Associate", null)).isNull();
+        assertThat(RoleFamilyTaxonomy.classify("Closing Team Leader", "Front End")).isNull();
+
+        // A cashier is still retail, by its own title rather than a department.
+        assertThat(RoleFamilyTaxonomy.classify("Cashier", "Front End")).isEqualTo("Retail");
+
+        // The mirror case: a professional title carrying a domain word an
+        // earlier family claims. This reached the top of a Healthcare feed as
+        // "Role fit: Healthcare", on Healthcare's "clinical".
+        assertThat(RoleFamilyTaxonomy.classify("Staff Software Engineer, Clinical Fit", null))
+                .isEqualTo("Software engineer");
+        assertThat(RoleFamilyTaxonomy.classify("Data Scientist, Patient Outcomes", null))
+                .isEqualTo("Data science");
+
+        // And the frontline-first ordering it sits in front of still holds.
+        assertThat(RoleFamilyTaxonomy.classify("Sales Associate - Building Materials", null))
+                .isEqualTo("Retail");
+        assertThat(RoleFamilyTaxonomy.classify("Target Security Specialist", null))
+                .isEqualTo("Store security");
+        assertThat(RoleFamilyTaxonomy.classify("Senior Project Manager - Data Center Construction", null))
+                .as("measured: priority-listing project manager took nine of these from Construction")
+                .isEqualTo("Construction");
 
         RoleMatchClassifier classifier = new RoleMatchClassifier();
         assertThat(classifier.classifyJob("Cashier", "Front End", null).families())
