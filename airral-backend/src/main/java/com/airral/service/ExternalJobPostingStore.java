@@ -16,7 +16,9 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
@@ -30,6 +32,9 @@ public class ExternalJobPostingStore {
 
     private final DatabaseClient databaseClient;
     private final CompanyLogoService companyLogoService;
+
+    /** See {@link #findRoleFamilies()}. Built in the constructor, one per instance. */
+    private final Mono<RoleFamilyCatalog> roleFamilyCatalog;
 
     /**
      * Declared width of every VARCHAR this class writes, keyed by bind name.
@@ -72,6 +77,20 @@ public class ExternalJobPostingStore {
     public ExternalJobPostingStore(DatabaseClient databaseClient, CompanyLogoService companyLogoService) {
         this.databaseClient = databaseClient;
         this.companyLogoService = companyLogoService;
+        // Only a catalogue with families in it is held for the full TTL.
+        // Caching a bad answer here would hand every signup for the next hour an
+        // onboarding screen with no role options on it.
+        //
+        // The empty check has to be on the value, not on the empty-Mono arm:
+        // queryRoleFamilies ends in Flux.reduceWith, which emits its seed when
+        // the query returns no rows, so it never completes empty and the third
+        // argument below can never fire. Verified against reactor-core 3.7.3 --
+        // without this test, a query that returned nothing was served as a valid
+        // catalogue of zero families for a full hour.
+        this.roleFamilyCatalog = Mono.defer(this::queryRoleFamilies)
+                .cache(value -> value.families().isEmpty() ? Duration.ZERO : ROLE_FAMILY_CACHE_TTL,
+                        error -> Duration.ZERO,
+                        () -> Duration.ZERO);
     }
 
     public Flux<ExternalJobSourceRecord> findActiveSources() {
@@ -465,6 +484,381 @@ public class ExternalJobPostingStore {
                 .map((row, metadata) -> row.get("total", Long.class))
                 .one()
                 .defaultIfEmpty(0L);
+    }
+
+
+    // ── Role families offered at onboarding ──────────
+    //
+    // Everything from here to findJobsBySkills exists to answer one question:
+    // which roles do we actually have jobs for? Onboarding used to answer it from
+    // a hardcoded list of 24 options, all of them tech or white-collar, over a
+    // catalogue that is mostly neither. Counting the answer out of the corpus is
+    // the only version of this that cannot drift back.
+
+    /**
+     * How long a computed role-family catalogue is served before it is recomputed.
+     *
+     * <p>The corpus only moves when the sync runs, and that is on a four hour
+     * fixed delay ({@code airral.jobs.sync.fixed-delay-ms}), so an hour is
+     * fresher than the data it describes. The reason to cache at all is who
+     * calls this: it is the first request onboarding makes, so without a cache
+     * every signup would run a full grouped scan against a db-f1-micro with a
+     * ~25 connection ceiling.
+     */
+    private static final Duration ROLE_FAMILY_CACHE_TTL = Duration.ofHours(1);
+
+    /**
+     * Hard ceiling on the grouped title rows pulled back for classification.
+     *
+     * <p>Measured against the live corpus on 2026-09-15: 16,520 active postings
+     * hold 11,545 distinct (title, department) pairs, so this is headroom, not a
+     * filter. It is here so the query can never stream an unbounded result set
+     * if the catalogue grows by an order of magnitude. Ordering by count
+     * descending means that if the ceiling is ever reached, what gets dropped is
+     * the smallest groups rather than an arbitrary slice.
+     */
+    private static final int MAX_ROLE_FAMILY_TITLE_GROUPS = 40_000;
+
+    /**
+     * The role families onboarding offers, and the title text that lands in each.
+     *
+     * <p>Measured over the 16,520 active postings on 2026-09-15, the largest
+     * families are Retail (13.5%), Software engineer (10.3%), Warehouse (10.2%)
+     * and Sales (9.6%). The hardcoded list this replaces had no option at all for
+     * warehouse, fulfillment, cashier, driver, cook or housekeeping work -- about
+     * a third of the catalogue -- so most candidates had no way to say what they
+     * wanted.
+     *
+     * <p>Order is significant: first match wins, and it is deliberately not
+     * alphabetical. The frontline families come first because their titles are
+     * full of words the professional families would otherwise claim. "Sales
+     * Associate - Building Materials" and "Sales Floor Dept Supervisor" are
+     * Lowe's store jobs, not business development, and "Target Security
+     * Specialist" is store security, not security engineering. The classifier
+     * this borrows its shape from, {@link RoleMatchClassifier}, has the reverse
+     * order and puts 15.2% of the corpus into a "Sales" bucket that is almost
+     * entirely retail floor staff.
+     *
+     * <p>Matching is plain substring containment over a normalized title, which
+     * is why several entries carry deliberate leading or trailing spaces
+     * (" auto ", " tire ", " rn ", " lab "): without them they match inside
+     * longer words. The truncated entries ("merchandis", "housekeep",
+     * "fabricat") are deliberate too, so one entry covers the -ing and -er forms.
+     *
+     * <p>Labels are one or two words on purpose, and they double as the search
+     * term the first job feed is seeded with. Compound labels measurably break
+     * that: the feed seeds a {@code plainto_tsquery}, which ANDs its terms, so
+     * "Warehouse &amp; Fulfillment" returns 161 live jobs where "Warehouse"
+     * alone returns 513 and "Fulfillment" alone returns 1,233. "Store security"
+     * over "Loss prevention" is the same measurement -- 337 against 33.
+     *
+     * <p>Be clear about how good this is: it resolves 86.4% of live titles. The
+     * remaining 13.6% is a long tail whose largest single title is 11 postings,
+     * and it does misfile things -- "Forward Deployed Engineer (FDE) -
+     * Communications, Media" lands in Marketing on the word "communications".
+     * That is why {@link RoleFamilyCatalog} also carries the unclassified count
+     * and the page always keeps a free-text box. We show the families we can
+     * count, and say plainly how many jobs fit none of them, rather than
+     * presenting a tidy list as if it were the whole catalogue.
+     */
+    private static final List<RoleFamilyRule> ROLE_FAMILY_RULES = List.of(
+            new RoleFamilyRule("Warehouse", List.of(
+                    // "inbound operations" rather than a bare "inbound", and no
+                    // "outbound" at all. Measured over the live corpus: the bare
+                    // keywords decided 38 postings and not one was warehouse work
+                    // -- 13 were "Staff Inbound/Outbound Product Manager", 6 were
+                    // inbound and outbound SDRs, and the rest were Target's
+                    // "Inbound Operations Team Leader", which the narrowed form
+                    // still keeps. The truck-unload titles that do belong here
+                    // ("Seasonal: 4am Inbound (Stocking)") carry "stocking" too.
+                    "warehouse", "fulfillment", "fulfilment", "distribution center", "stocker",
+                    "stocking", "receiver", "inbound operations", "loader", "order picker",
+                    "order selector", "packer", "freight", "material handler", "forklift",
+                    "cart attendant", "cart associate")),
+            new RoleFamilyRule("Driver", List.of(
+                    "driver", "cdl", "courier", "delivery associate", "delivery specialist",
+                    "transportation")),
+            new RoleFamilyRule("Food service", List.of(
+                    "barista", "cook", "chef", "food and beverage", "food service", "kitchen",
+                    "dishwasher", "bakery", " deli ", "bartender", "restaurant", "starbucks",
+                    "cafe", "banquet", "steward")),
+            new RoleFamilyRule("Retail", List.of(
+                    "cashier", "sales associate", "sales specialist", "retail", "store associate",
+                    "merchandis", "team member", "guest advocate", "front end", "checkout",
+                    "general merchandise", "service and engagement", "style consultant",
+                    "sales floor", "specialty sales", "dept supervisor", "department supervisor",
+                    "beauty", "fitting room")),
+            new RoleFamilyRule("Housekeeping", List.of(
+                    "custodian", "janitor", "cleaner", "cleaning", "housekeep", "houseperson",
+                    "groundskeep", "landscap", "lawn care", " porter ", "room attendant")),
+            new RoleFamilyRule("Store security", List.of(
+                    "security specialist", "security officer", "security guard", "loss prevention",
+                    "asset protection", "assets protection", "safety specialist")),
+            new RoleFamilyRule("Automotive", List.of(
+                    // " mechanic " is padded because the unpadded form is a
+                    // substring of "mechanical": measured over the live corpus it
+                    // swept 86 mechanical-engineering postings into Automotive
+                    // ("Mechanical Engineer", "Senior Mechanical Design Engineer",
+                    // "Mechanical Project Manager - Data Center Construction")
+                    // against only 30 real mechanic jobs. All 30 keep their family
+                    // with the padding; the engineering titles go to Construction
+                    // or to unplaced, and unplaced is the honest answer for them.
+                    "automotive", " auto ", "auto technician", "detailer", " mechanic ", " tire ",
+                    "collision", "body shop", "lot attendant", "parts associate")),
+            new RoleFamilyRule("Maintenance", List.of(
+                    "electrician", "plumber", "hvac", "welder", "carpenter", "machinist",
+                    "millwright", "pipefitter", "installer", "maintenance technician",
+                    "facilities technician", "field technician", "service technician",
+                    "heat pump")),
+            new RoleFamilyRule("Healthcare", List.of(
+                    "nurse", "nursing", " rn ", "lpn", "cna", "caregiver", "patient", "clinical",
+                    "physician", "medical assistant", "pharmacist", "dental", "therapist",
+                    "phlebotom", "veterinar", "massage")),
+            new RoleFamilyRule("Manufacturing", List.of(
+                    "manufacturing", "production associate", "production operator", "assembler",
+                    "machine operator", " plant ", "fabricat", "press operator",
+                    "quality inspector", "inspector")),
+            new RoleFamilyRule("Construction", List.of(
+                    "construction", "surveyor", "quantity survey", "estimator", "superintendent",
+                    "field service", "rigger")),
+            new RoleFamilyRule("Software engineer", List.of(
+                    "software engineer", "software developer", "full stack", "fullstack",
+                    "frontend", "front end engineer", "backend", "back end engineer",
+                    "web developer", "application developer", "java developer", "python developer",
+                    "platform engineer", "site reliability", " sre ", "devops", "cloud engineer",
+                    "mobile engineer", "android engineer", "ios engineer", "firmware",
+                    "embedded engineer", "qa engineer", "test engineer",
+                    "member of technical staff", "engineering manager", "software architect",
+                    "solutions architect", "enterprise architect", "developer")),
+            new RoleFamilyRule("Data science", List.of(
+                    "data engineer", "data scientist", "machine learning", "ml engineer",
+                    "ai engineer", "applied scientist", "research scientist", "analytics engineer",
+                    "data platform", "data infrastructure")),
+            new RoleFamilyRule("Analytics", List.of(
+                    "data analyst", "business analyst", "analytics", "business intelligence",
+                    "reporting analyst", "insights analyst")),
+            new RoleFamilyRule("Security engineer", List.of(
+                    "security engineer", "application security", "cloud security", "cybersecurity",
+                    "infosec", "security architect")),
+            new RoleFamilyRule("IT support", List.of(
+                    "help desk", "helpdesk", "it support", "desktop support",
+                    "system administrator", "systems administrator", "network engineer",
+                    "network administrator", "salesforce administrator")),
+            new RoleFamilyRule("Product manager", List.of(
+                    "product manager", "product owner", "product lead", "technical product")),
+            new RoleFamilyRule("Design", List.of(
+                    "designer", "product design", "ux ", "ui ux", "user experience",
+                    "user research", "creative director")),
+            new RoleFamilyRule("Project manager", List.of(
+                    "project manager", "program manager", "scrum master", "project coordinator",
+                    "program coordinator", "project management")),
+            new RoleFamilyRule("Sales", List.of(
+                    "account executive", "business development", "sales manager",
+                    "sales representative", "sales engineer", "account manager",
+                    "solutions consultant", "solution consultant", "inside sales", "outside sales",
+                    "sales director", "seller", "sales ")),
+            new RoleFamilyRule("Customer service", List.of(
+                    "customer success", "customer support", "customer service",
+                    "customer experience", "client success", "support specialist", "call center",
+                    "contact center", "technical support", "advocate")),
+            new RoleFamilyRule("Marketing", List.of(
+                    "marketing", "brand ", "communications", "demand generation",
+                    "public relations", "social media", " seo ", "community manager")),
+            new RoleFamilyRule("Finance", List.of(
+                    "finance", "financial", "accounting", "accountant", "controller", "payroll",
+                    "treasury", "audit", " tax ")),
+            new RoleFamilyRule("Recruiting", List.of(
+                    "recruiter", "recruiting", "talent acquisition", "people partner",
+                    "human resource", "hr business", "people operations",
+                    "compensation and benefits")),
+            new RoleFamilyRule("Legal", List.of(
+                    "legal", "counsel", "paralegal", "compliance", "regulatory", "privacy",
+                    "risk manager")),
+            new RoleFamilyRule("Operations", List.of(
+                    "operations", "logistics", "supply chain", "procurement", "planner",
+                    "scheduling", "dispatch", "inventory")),
+            new RoleFamilyRule("Administrative", List.of(
+                    "executive assistant", "administrative assistant", "office manager",
+                    "receptionist", "front desk", "data entry", "office coordinator",
+                    "staffing admin")),
+            new RoleFamilyRule("Laboratory", List.of(
+                    "chemist", "microbiolog", "laboratory", " lab ", "lab technician", "biolog",
+                    "toxicolog", "petroleum inspector")),
+            new RoleFamilyRule("Teaching", List.of(
+                    "teacher", "tutor", "instructor", "childcare", "child care", "preschool",
+                    "educator", "camp counselor")));
+
+    /**
+     * The role families we can back with live jobs, largest first.
+     *
+     * <p>Served from {@link #ROLE_FAMILY_CACHE_TTL}. Only a value is cached that
+     * long; a failure and an empty result are cached for zero time, so one bad
+     * query does not pin an hour of broken onboarding on every new signup.
+     */
+    public Mono<RoleFamilyCatalog> findRoleFamilies() {
+        return roleFamilyCatalog;
+    }
+
+    /**
+     * Group live postings by title, then classify the groups in Java.
+     *
+     * <p>The alternative was a generated {@code CASE} of every keyword in
+     * {@link #ROLE_FAMILY_RULES} and letting Postgres do the counting, which
+     * returns 30 rows instead of ~11.5k. It was rejected on where the work
+     * lands: that is around 900 substring tests per posting on a shared-core
+     * db-f1-micro that is also serving the site, against a grouped scan and
+     * 11.5k short rows here. Cloud Run can be scaled; the database cannot. It
+     * also keeps the taxonomy in Java where {@link #classifyRoleFamily} is
+     * testable without a database.
+     *
+     * <p>The predicates are the ones {@code findRecommendedJobs} applies with no
+     * parameters, so the counts describe the feed the candidate is about to see.
+     * The feed's default 60 day recency window is deliberately not applied:
+     * measured on 2026-09-15 it excludes nothing at all (16,530 postings with
+     * and without it), and a window would make a displayed count drift with a
+     * request parameter the candidate never sees.
+     */
+    private Mono<RoleFamilyCatalog> queryRoleFamilies() {
+        return databaseClient.sql("""
+                        SELECT
+                            LOWER(p.title) AS title,
+                            LOWER(COALESCE(p.department, '')) AS department,
+                            COUNT(*) AS job_count
+                        FROM external_job_postings p
+                        JOIN external_companies c ON c.id = p.company_id
+                        WHERE p.is_active = true
+                          AND p.expires_at > CURRENT_TIMESTAMP
+                        GROUP BY 1, 2
+                        -- Title breaks count ties so that if the ceiling below is
+                        -- ever reached, the rows kept are the same ones each run.
+                        ORDER BY job_count DESC, title
+                        LIMIT :maxGroups
+                        """)
+                .bind("maxGroups", MAX_ROLE_FAMILY_TITLE_GROUPS)
+                .map((row, metadata) -> new RoleFamilyTitleGroup(
+                        row.get("title", String.class),
+                        row.get("department", String.class),
+                        row.get("job_count", Long.class)))
+                .all()
+                .reduceWith(RoleFamilyTally::new, RoleFamilyTally::add)
+                .map(RoleFamilyTally::toCatalog);
+    }
+
+    /**
+     * The family a posting title belongs to, or null when none of them fit.
+     *
+     * <p>Null is the point. A title we cannot place is reported as unplaced
+     * rather than pushed into the nearest bucket, because the count next to a
+     * family label is a claim about how many jobs a candidate would find there.
+     *
+     * <p>Department is only a fallback, and only when the title says nothing.
+     * Measured on the live corpus it lifts coverage from 78.3% to 86.4% and is
+     * mostly right ("Shift Lead" under "112 Order Fulfillment" is warehouse
+     * work), but it is the weaker signal: "Sr. Forward Deployed Engineer" under
+     * "Professional Services Operations" becomes Operations, which is not what
+     * that job is. Reading it before the title would make that worse, not better.
+     */
+    static String classifyRoleFamily(String title, String department) {
+        String fromTitle = matchRoleFamily(normalizeForRoleFamily(title));
+        if (fromTitle != null) {
+            return fromTitle;
+        }
+        return matchRoleFamily(normalizeForRoleFamily(department));
+    }
+
+    private static String matchRoleFamily(String normalizedText) {
+        if (normalizedText.isBlank()) {
+            return null;
+        }
+
+        for (RoleFamilyRule rule : ROLE_FAMILY_RULES) {
+            for (String keyword : rule.keywords()) {
+                if (normalizedText.contains(keyword)) {
+                    return rule.label();
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Lowercase, strip punctuation to single spaces, and pad with one space.
+     *
+     * <p>The padding is what lets a keyword written as " auto " behave like a
+     * whole word even at the very start or end of a title: "Auto Technician"
+     * normalizes to " auto technician " and matches, while "Automation Engineer"
+     * normalizes to " automation engineer " and does not. Keywords in
+     * {@link #ROLE_FAMILY_RULES} are written already in this form; the test suite
+     * asserts that, because a keyword that cannot survive its own normalization
+     * matches nothing and fails silently.
+     */
+    private static String normalizeForRoleFamily(String value) {
+        if (value == null || value.isBlank()) {
+            return " ";
+        }
+
+        String normalized = value.toLowerCase(Locale.US)
+                .replace("&", " and ")
+                .replaceAll("[^a-z0-9]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return normalized.isEmpty() ? " " : " " + normalized + " ";
+    }
+
+    /** One family label and the normalized title fragments that land in it. */
+    private record RoleFamilyRule(String label, List<String> keywords) {
+    }
+
+    /** One grouped row from the catalogue query, before it is classified. */
+    private record RoleFamilyTitleGroup(String title, String department, Long jobCount) {
+    }
+
+    /** One role family a candidate can pick, with the live jobs behind it. */
+    public record RoleFamilyCount(String label, long jobCount) {
+    }
+
+    /**
+     * What we can honestly say about the shape of the catalogue.
+     *
+     * <p>{@code unclassifiedJobCount} is not an error figure to hide. It is 13.6%
+     * of live postings, and the page shows it so a candidate whose work is in
+     * that tail can see the list is not the whole catalogue and use the free-text
+     * box instead of assuming we have nothing for them.
+     */
+    public record RoleFamilyCatalog(
+            List<RoleFamilyCount> families,
+            long unclassifiedJobCount,
+            long totalJobCount) {
+    }
+
+    /** Folds grouped title rows into family totals. One instance per query. */
+    private static final class RoleFamilyTally {
+
+        private final Map<String, Long> countsByLabel = new LinkedHashMap<>();
+        private long unclassifiedJobCount;
+        private long totalJobCount;
+
+        RoleFamilyTally add(RoleFamilyTitleGroup group) {
+            long jobs = group.jobCount() == null ? 0L : group.jobCount();
+            totalJobCount += jobs;
+
+            String label = classifyRoleFamily(group.title(), group.department());
+            if (label == null) {
+                unclassifiedJobCount += jobs;
+            } else {
+                countsByLabel.merge(label, jobs, Long::sum);
+            }
+            return this;
+        }
+
+        RoleFamilyCatalog toCatalog() {
+            List<RoleFamilyCount> families = countsByLabel.entrySet().stream()
+                    .map(entry -> new RoleFamilyCount(entry.getKey(), entry.getValue()))
+                    .sorted(Comparator.comparingLong(RoleFamilyCount::jobCount).reversed()
+                            .thenComparing(RoleFamilyCount::label))
+                    .toList();
+            return new RoleFamilyCatalog(families, unclassifiedJobCount, totalJobCount);
+        }
     }
 
     /**

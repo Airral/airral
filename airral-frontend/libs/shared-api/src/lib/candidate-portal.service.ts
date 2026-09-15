@@ -12,6 +12,7 @@ import {
   CandidateProfile,
   CandidateResumeReview,
   CandidateSavedJob,
+  JobRoleFamilyCatalog,
   SaveCandidateJobRequest,
   UpdateCandidateSavedJobRequest,
   UpdateCandidateProfileRequest,
@@ -132,6 +133,20 @@ export class CandidatePortalService {
     }
 
     return this.apiClient.get<CandidateJobPageResponse>(`/candidate/jobs/recommended/page?${params.toString()}`);
+  }
+
+  /**
+   * The role families we actually have live jobs for, largest first.
+   *
+   * Onboarding renders these instead of a hardcoded list of 24 tech job titles,
+   * which is what left a warehouse or retail candidate with nothing to pick.
+   * Deliberately not cached or shareReplay'd here: it is asked for once when
+   * onboarding opens, the backend already serves it from an hourly cache, and
+   * the response carries Cache-Control for the browser. A second layer here
+   * would only mean a long-lived tab showing counts from an older corpus.
+   */
+  getJobRoleFamilies(): Observable<JobRoleFamilyCatalog> {
+    return this.apiClient.get<JobRoleFamilyCatalog>('/candidate/jobs/role-families');
   }
 
   getExternalJobDetail(sourceType: string, boardToken: string, jobId: string | number): Observable<CandidateJobDetail> {

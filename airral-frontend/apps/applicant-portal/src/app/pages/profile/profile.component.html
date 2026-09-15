@@ -94,6 +94,10 @@
           <div class="field">
             <label for="location">Location</label>
             <input id="location" [(ngModel)]="profile.location" name="location" placeholder="San Francisco, CA">
+            <small class="field-help">
+              While this is set, postings outside your state or metro are removed unless they are marked remote. Turn
+              on <strong>Open to relocate</strong> below to keep them.
+            </small>
           </div>
           <div class="field">
             <label for="openToWork">Search mode</label>
@@ -115,14 +119,26 @@
           <span class="material-icons">radar</span>
           <div>
             <h3>Match inputs</h3>
-            <p>These signals now feed the upgraded job ranking model.</p>
+            <p>
+              Change these whenever you like. The Jobs page names the saved roles and location narrowing your feed
+              right now.
+            </p>
           </div>
         </div>
 
         <div class="form-grid">
           <div class="field full">
-            <label for="targetRoles">Target roles</label>
+            <div class="field-label-row">
+              <label for="targetRoles">Target roles</label>
+              <button type="button" class="btn-inline-clear" (click)="clearTargetRoles()" [disabled]="saving"
+                      *ngIf="targetRolesText">Clear roles</button>
+            </div>
             <textarea id="targetRoles" [(ngModel)]="targetRolesText" name="targetRoles" rows="2" placeholder="Frontend Engineer, Product Manager, Data Analyst"></textarea>
+            <small class="field-help">
+              Postings in unrelated role families are removed from your feed while roles are saved here. Leaving this
+              empty does not necessarily widen the list: the Jobs page names whatever is still narrowing your feed,
+              including a role read from your headline or resume.
+            </small>
           </div>
           <div class="field full">
             <label for="skills">Resume skills</label>
@@ -148,7 +164,10 @@
           <span class="material-icons">filter_alt</span>
           <div>
             <h3>Search preferences</h3>
-            <p>Dealbreakers lower weak matches before they reach your first page.</p>
+            <p>
+              Work mode, employment type and salary re-rank your feed. A saved salary expectation also pushes down
+              postings that list no pay at all.
+            </p>
           </div>
         </div>
 
@@ -213,6 +232,37 @@
             <span class="material-icons">fact_check</span>
             <strong>Needs E-Verify</strong>
           </label>
+        </div>
+
+        <div class="clear-preferences">
+          <div class="clear-copy">
+            <strong>Clear your match preferences</strong>
+            <p>
+              Clears target roles, must-have and nice-to-have skills, avoid keywords, work mode, employment type and
+              salary expectations, and switches off <strong>Salary required</strong>,
+              <strong>Direct source only</strong> and <strong>Easy apply</strong>.
+            </p>
+            <p>
+              Left as they are: your resume, your skills and your work authorization answers, because those are facts
+              about you rather than filters. Your <strong>location</strong> and <strong>Open to relocate</strong> are
+              also left alone, and location keeps filtering your feed on its own. Clear the location field above, or
+              turn on Open to relocate, if you want that gone too.
+            </p>
+          </div>
+          <div class="clear-actions" *ngIf="!clearConfirmPending">
+            <button type="button" class="btn-clear-prefs" (click)="requestClearPreferences()"
+                    [disabled]="saving || !hasSavedPreferences">
+              {{ hasSavedPreferences ? 'Clear preferences' : 'Nothing saved to clear' }}
+            </button>
+          </div>
+          <div class="clear-actions" *ngIf="clearConfirmPending">
+            <button type="button" class="btn-clear-prefs confirm" (click)="clearPreferences()" [disabled]="saving">
+              Yes, clear them
+            </button>
+            <button type="button" class="btn-clear-cancel" (click)="cancelClearPreferences()" [disabled]="saving">
+              Keep them
+            </button>
+          </div>
         </div>
       </section>
 

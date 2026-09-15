@@ -95,6 +95,34 @@ export interface CandidateJobPageResponse {
   nextOffset?: number | null;
 }
 
+/**
+ * One role family onboarding can offer, and the live jobs behind it.
+ *
+ * The count is shown next to the label on purpose. Onboarding used to offer 24
+ * hardcoded options over a catalogue that mostly did not contain them, so the
+ * count is the part that keeps the offer honest -- a family is only there
+ * because postings put it there, and a thin one says so instead of looking the
+ * same as a large one.
+ */
+export interface JobRoleFamily {
+  label: string;
+  jobCount: number;
+}
+
+/**
+ * The families we can back with jobs, and what fit none of them.
+ *
+ * `unclassifiedJobCount` is meant to be displayed, not swallowed. It is around
+ * an eighth of live postings, and a candidate whose work is in that tail needs
+ * to see that the list is not the whole catalogue rather than conclude we have
+ * nothing for them.
+ */
+export interface JobRoleFamilyCatalog {
+  families: JobRoleFamily[];
+  unclassifiedJobCount: number;
+  totalJobCount: number;
+}
+
 export interface CandidateJobDetail extends CandidateJobSummary {
   externalInternalJobId?: string;
   descriptionHtml?: string;

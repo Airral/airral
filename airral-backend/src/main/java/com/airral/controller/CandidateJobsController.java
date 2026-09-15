@@ -5,6 +5,8 @@ import com.airral.dto.response.CandidateJobPageResponse;
 import com.airral.dto.response.CandidateJobSummaryResponse;
 import com.airral.security.JwtTokenProvider;
 import com.airral.service.CandidateJobSearchService;
+import com.airral.service.ExternalJobPostingStore;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,16 +18,52 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
+
 @RestController
 @RequestMapping("/api/candidate/jobs")
 public class CandidateJobsController {
 
     private final CandidateJobSearchService candidateJobSearchService;
+    private final ExternalJobPostingStore externalJobPostingStore;
     private final JwtTokenProvider jwtTokenProvider;
 
-    public CandidateJobsController(CandidateJobSearchService candidateJobSearchService, JwtTokenProvider jwtTokenProvider) {
+    public CandidateJobsController(
+            CandidateJobSearchService candidateJobSearchService,
+            ExternalJobPostingStore externalJobPostingStore,
+            JwtTokenProvider jwtTokenProvider) {
         this.candidateJobSearchService = candidateJobSearchService;
+        // Straight to the store rather than through CandidateJobSearchService:
+        // this reads the shape of the corpus and takes no candidate context, so
+        // there is nothing the search service would add to it.
+        this.externalJobPostingStore = externalJobPostingStore;
         this.jwtTokenProvider = jwtTokenProvider;
+    }
+
+    /**
+     * The role families we have live jobs for, largest first.
+     *
+     * <p>Onboarding renders this instead of a hardcoded list. Measured over the
+     * live corpus, that list was 24 options and 100% of them tech or
+     * white-collar, over a catalogue that is roughly 70% neither -- so the roles
+     * offered have to be counted out of the postings we hold, or they drift back.
+     *
+     * <p>Unauthenticated, like every other GET under this path: these are
+     * aggregate counts over jobs already public on the jobs page, and onboarding
+     * needs them the moment the page opens. The response carries the unplaced
+     * count too, which the page shows rather than hides -- 13.6% of postings fit
+     * no family, and a candidate whose work is in that tail needs to know the
+     * list is not the whole catalogue.
+     *
+     * <p>{@code max-age} is well short of the server-side hour so a browser can
+     * never be more stale than the service is.
+     */
+    @GetMapping("/role-families")
+    public Mono<ResponseEntity<ExternalJobPostingStore.RoleFamilyCatalog>> getRoleFamilies() {
+        return externalJobPostingStore.findRoleFamilies()
+                .map(catalog -> ResponseEntity.ok()
+                        .cacheControl(CacheControl.maxAge(Duration.ofMinutes(10)).cachePublic())
+                        .body(catalog));
     }
 
     @GetMapping("/recommended")
