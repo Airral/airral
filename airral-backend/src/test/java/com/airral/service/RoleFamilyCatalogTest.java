@@ -3,8 +3,6 @@ package com.airral.service;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -198,54 +196,18 @@ class RoleFamilyCatalogTest {
         return ExternalJobPostingStore.classifyRoleFamily(title, null);
     }
 
-    @SuppressWarnings("unchecked")
     private static List<String> allKeywords() {
         List<String> keywords = new ArrayList<>();
-        for (Object rule : rules()) {
-            keywords.addAll((List<String>) recordComponent(rule, "keywords"));
+        for (RoleFamilyTaxonomy.RoleFamilyRule rule : RoleFamilyTaxonomy.ROLE_FAMILY_RULES) {
+            keywords.addAll(rule.keywords());
         }
         assertThat(keywords).isNotEmpty();
         return keywords;
     }
 
     private static List<String> allLabels() {
-        List<String> labels = new ArrayList<>();
-        for (Object rule : rules()) {
-            labels.add((String) recordComponent(rule, "label"));
-        }
+        List<String> labels = RoleFamilyTaxonomy.labels();
         assertThat(labels).isNotEmpty();
         return labels;
-    }
-
-    /**
-     * Read the rule table out of the store.
-     *
-     * <p>Reflection because the table is a private constant, and the two tests
-     * that need it are checking the table itself rather than a behaviour any
-     * public method exposes -- a malformed keyword produces no wrong answer, only
-     * a missing one.
-     */
-    private static List<?> rules() {
-        try {
-            Field field = ExternalJobPostingStore.class.getDeclaredField("ROLE_FAMILY_RULES");
-            field.setAccessible(true);
-            return (List<?>) field.get(null);
-        } catch (ReflectiveOperationException ex) {
-            throw new AssertionError("ROLE_FAMILY_RULES is the table these tests exist to check", ex);
-        }
-    }
-
-    private static Object recordComponent(Object rule, String name) {
-        try {
-            for (RecordComponent component : rule.getClass().getRecordComponents()) {
-                if (component.getName().equals(name)) {
-                    component.getAccessor().setAccessible(true);
-                    return component.getAccessor().invoke(rule);
-                }
-            }
-        } catch (ReflectiveOperationException ex) {
-            throw new AssertionError("RoleFamilyRule." + name + " is no longer readable", ex);
-        }
-        throw new AssertionError("RoleFamilyRule has no component named " + name);
     }
 }
