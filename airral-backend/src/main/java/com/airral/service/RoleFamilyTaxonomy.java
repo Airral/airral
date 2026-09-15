@@ -96,17 +96,20 @@ final class RoleFamilyTaxonomy {
                     "cafe", "banquet", "steward")),
             new RoleFamilyRule("Retail", List.of(
                     "cashier", "sales associate", "sales specialist", "retail", "store associate",
-                    // "front of store" rather than "front end". Both spellings were
-                    // meant to catch the same retail usage, but measured over the
-                    // live corpus the phrase "front end" appears in no title and no
-                    // department at all, while "Front of Store Attendant" is real
-                    // Target wording. What "front end" did catch was software:
-                    // Retail is scanned before Software engineer, so "Front End
-                    // Engineer" landed here, and a cashier posting under a "Front
-                    // End" department was handed to a software candidate carrying
-                    // the reason "Role fit: Software Engineering".
-                    "merchandis", "team member", "guest advocate", "front of store", "checkout",
-                    "general merchandise", "service and engagement", "style consultant",
+                    // "front of store" but deliberately not "front end", after
+                    // trying both. Retail is scanned before Software engineer, so
+                    // the bare phrase claimed "Front End Web Developer", "Front
+                    // End React Developer" and every posting whose only signal was
+                    // a Front End department. PRIORITY_RULES cannot rescue those:
+                    // it matches exact suffixes, so any intervening word gets
+                    // through. The cost is that "Front End Associate" and a bare
+                    // "Front End" department now place nowhere, and that is the
+                    // better failure -- a posting we could not read is reported as
+                    // unplaced, where a software posting filed under Retail is a
+                    // wrong answer we would state to a candidate.
+                    "merchandis", "team member", "guest advocate",
+                    "front of store", "checkout",
+                    "service and engagement", "style consultant",
                     "sales floor", "specialty sales", "dept supervisor", "department supervisor",
                     "beauty", "fitting room")),
             new RoleFamilyRule("Housekeeping", List.of(
@@ -192,8 +195,13 @@ final class RoleFamilyTaxonomy {
                     "recruiter", "recruiting", "talent acquisition", "people partner",
                     "human resource", "hr business", "people operations",
                     "compensation and benefits")),
+            // " counsel " is padded. Unpadded it is a substring of every
+            // -Counselor title: "Camp Counselor", "Guidance Counselor" and
+            // "Admissions Counselor" were all Legal, so a candidate who picked
+            // Teaching was told a camp counselor job was outside their target.
+            // Padding keeps "General Counsel" and "Associate Counsel" here.
             new RoleFamilyRule("Legal", List.of(
-                    "legal", "counsel", "paralegal", "compliance", "regulatory", "privacy",
+                    "legal", " counsel ", "compliance", "regulatory", "privacy",
                     "risk manager")),
             new RoleFamilyRule("Operations", List.of(
                     "operations", "logistics", "supply chain", "procurement", "planner",
@@ -204,7 +212,7 @@ final class RoleFamilyTaxonomy {
                     "staffing admin")),
             new RoleFamilyRule("Laboratory", List.of(
                     "chemist", "microbiolog", "laboratory", " lab ", "lab technician", "biolog",
-                    "toxicolog", "petroleum inspector")),
+                    "toxicolog")),
             new RoleFamilyRule("Teaching", List.of(
                     "teacher", "tutor", "instructor", "childcare", "child care", "preschool",
                     "educator", "camp counselor")));
@@ -226,22 +234,42 @@ final class RoleFamilyTaxonomy {
      * bank, and Teaching has no neighbours at all because the licensing makes
      * every apparent neighbour a career change rather than a near miss.
      *
-     * <p>Sales is the entry to watch. It sits next to Retail because a store
-     * "Sales Associate" and an "Account Executive" really do share the label,
-     * and the direction matters: someone who picked Retail may well look at
-     * sales floor work, which is where our Sales bucket's retail-flavoured
-     * titles live. It earns the near-miss score, never the full one.
+     * <p>Retail and Sales are deliberately NOT neighbours, reversing an earlier
+     * call. The reasoning for pairing them was that a store "Sales Associate"
+     * and an "Account Executive" share a word, and that a retail candidate might
+     * want sales floor work -- but sales floor work is classified as Retail by
+     * the frontline-first ordering, so what is left in Sales is enterprise B2B.
+     * Measured on the live feed, the pairing put "Mid-Market Account Executive,
+     * Commerce" and "Sr. Client Partner, Amazon" at the top of a Retail
+     * candidate's results labelled "Near your target: Sales". Those are not
+     * near that candidate's target by any reading.
      */
+    /**
+     * Entry-level hourly work with no licence or degree gate, mutually adjacent.
+     *
+     * <p>Declared as a cluster rather than fifteen pairs because that is what it
+     * is: one labour market whose members people move between freely, often at
+     * the same employer. Leaving it pairwise is what produced the gap this fixes
+     * -- Retail had four neighbours while Warehouse, the second largest family in
+     * the catalogue, had only Driver, Manufacturing and Operations. A candidate
+     * who picked Warehouse had Cashier, Line Cook, Custodian and Security
+     * Officer hidden from them with "Role is outside your target titles" on
+     * each, which is not true of that market.
+     *
+     * <p>Driver is not in the cluster: the CDL entries gate much of that family
+     * behind a licence, so it stays pairwise with Warehouse and Operations.
+     * Manufacturing stays out for the same reason -- certification and shift
+     * work make it adjacent to Warehouse and Maintenance but not to a cafe.
+     */
+    private static final List<String> FRONTLINE_CLUSTER = List.of(
+            "Warehouse", "Retail", "Food service", "Housekeeping", "Store security");
+
     private static final List<List<String>> ADJACENT_PAIRS = List.of(
             List.of("Warehouse", "Driver"),
             List.of("Warehouse", "Manufacturing"),
             List.of("Warehouse", "Operations"),
             List.of("Driver", "Operations"),
             List.of("Retail", "Customer service"),
-            List.of("Retail", "Food service"),
-            List.of("Retail", "Sales"),
-            List.of("Retail", "Store security"),
-            List.of("Food service", "Housekeeping"),
             List.of("Housekeeping", "Maintenance"),
             List.of("Manufacturing", "Maintenance"),
             List.of("Manufacturing", "Laboratory"),
@@ -269,12 +297,32 @@ final class RoleFamilyTaxonomy {
 
     private static Map<String, Set<String>> buildAdjacency() {
         Map<String, Set<String>> adjacency = new LinkedHashMap<>();
-        for (List<String> pair : ADJACENT_PAIRS) {
+        for (List<String> pair : declaredPairs()) {
             adjacency.computeIfAbsent(pair.get(0), ignored -> new LinkedHashSet<>()).add(pair.get(1));
             adjacency.computeIfAbsent(pair.get(1), ignored -> new LinkedHashSet<>()).add(pair.get(0));
         }
         adjacency.replaceAll((family, neighbours) -> Collections.unmodifiableSet(neighbours));
         return Collections.unmodifiableMap(adjacency);
+    }
+
+    /**
+     * Every adjacency as it was written down, before it is made symmetric.
+     *
+     * <p>Exposed because the tests that check this table have to read the
+     * declaration, not the built map. Iterating the built map proves nothing: it
+     * inserts both directions unconditionally, so a symmetry assertion over it
+     * can never fail, and a misspelled family name simply never matches any job
+     * and is invisible. Two earlier tests did exactly that and passed on a table
+     * containing whatever was typed.
+     */
+    static List<List<String>> declaredPairs() {
+        List<List<String>> pairs = new ArrayList<>(ADJACENT_PAIRS);
+        for (int i = 0; i < FRONTLINE_CLUSTER.size(); i++) {
+            for (int j = i + 1; j < FRONTLINE_CLUSTER.size(); j++) {
+                pairs.add(List.of(FRONTLINE_CLUSTER.get(i), FRONTLINE_CLUSTER.get(j)));
+            }
+        }
+        return List.copyOf(pairs);
     }
 
     /**
@@ -301,6 +349,45 @@ final class RoleFamilyTaxonomy {
         }
         return match(normalize(department));
     }
+
+    /**
+     * Phrases checked before the family table.
+     *
+     * <p>For one case only: an unambiguous professional title carrying a domain
+     * word that an earlier family claims. "Staff Software Engineer, Clinical
+     * Fit" was Healthcare, because Healthcare is scanned first and holds
+     * "clinical", and it arrived at the top of a Healthcare candidate's feed
+     * labelled "Role fit: Healthcare". This list is not a second taxonomy and
+     * must not grow into one.
+     *
+     * <p>Eight "front end"/"back end" forms were here and have been removed.
+     * They were added to stop Retail's "front end" keyword claiming "Front End
+     * Engineer"; that keyword is gone, so the premise went with it, and what the
+     * entries did instead was claim "Front End Lead" -- a supermarket
+     * checkout-lane supervisor -- for software, in the ranker and in the count
+     * shown beside the Retail option.
+     *
+     * <p>Measured over 1,384 distinct live (title, department) pairs, these
+     * entries move 3 postings and change coverage not at all: one each out of
+     * Healthcare, Manufacturing and Warehouse into Software engineer and Data
+     * science. "product manager", "project manager" and "program manager" were
+     * measured for this list and left out -- they moved 10 postings, nine of
+     * them titles like "Senior Project Manager - Data Center Construction" out
+     * of Construction, which takes real work away from a Construction candidate
+     * to no one's benefit.
+     *
+     * <p>Reordering the whole table longest-keyword-first was tried and rejected:
+     * it fixes this case and breaks others, because a short keyword is often the
+     * right answer. "Warehouse Operations Manager" would go to Operations on
+     * "operations" (10 characters) over Warehouse on "warehouse" (9), and
+     * "Retail Customer Service Associate" would leave Retail for Customer
+     * service. Both are wrong, and both are silent.
+     */
+    private static final List<RoleFamilyRule> PRIORITY_RULES = List.of(
+            new RoleFamilyRule("Software engineer", List.of(
+                    "software engineer", "software developer")),
+            new RoleFamilyRule("Data science", List.of(
+                    "data scientist", "machine learning engineer")));
 
     private static final Map<String, String> LABELS_BY_NORMALIZED_FORM = buildLabelIndex();
 
@@ -343,6 +430,38 @@ final class RoleFamilyTaxonomy {
         return match(normalized);
     }
 
+    /**
+     * The offered label this text exactly is, or null if it is anything else.
+     *
+     * <p>This is the identity check, and it is deliberately not
+     * {@link #classifyTerm}. A label the candidate ticked from our own list says
+     * what family they want by definition. A family we guessed from free text
+     * they typed is an inference off one substring hit, and the table is a
+     * 297-keyword first-match-wins scan that misfiles things: "Privacy Engineer"
+     * hits Legal on "privacy", "Technical Support Engineer" hits Customer
+     * service on "technical support", "Driving Instructor" hits Teaching on
+     * "instructor". Those inferences are fine for ranking something up. They
+     * must never hide a job, which is why the filter reads this and not that.
+     */
+    static String pickedLabel(String roleText) {
+        return LABELS_BY_NORMALIZED_FORM.get(normalize(roleText));
+    }
+
+    /** The offered labels a candidate actually picked, first mention first. */
+    static Set<String> pickedLabels(Iterable<String> roleTexts) {
+        Set<String> labels = new LinkedHashSet<>();
+        if (roleTexts == null) {
+            return labels;
+        }
+        for (String roleText : roleTexts) {
+            String label = pickedLabel(roleText);
+            if (label != null) {
+                labels.add(label);
+            }
+        }
+        return labels;
+    }
+
     /** Families behind a candidate's stated roles, first mention first. */
     static Set<String> classifyTerms(Iterable<String> roleTexts) {
         Set<String> families = new LinkedHashSet<>();
@@ -356,6 +475,77 @@ final class RoleFamilyTaxonomy {
             }
         }
         return families;
+    }
+
+    /**
+     * Extra text-search seeds for a picked family, chosen by measured yield.
+     *
+     * <p>A picked label is already seeded into retrieval on its own, and that is
+     * not enough. The label is a word people use to describe a kind of work, not
+     * a word that appears in its job titles. Measured against the live API on
+     * 2026-09-15, searching "maintenance" returned 50 postings of which
+     * <em>zero</em> were maintenance work -- finance analysts, an HR director, a
+     * sales engineer, all matched on the word appearing in a description. A
+     * candidate who picked Maintenance saw a feed with nothing for them in it.
+     *
+     * <p>An earlier pass measured only whether each label returned results at
+     * all, found every one of the 29 returned over 100, and concluded retrieval
+     * needed no change. That counted hits, not relevant hits, and was wrong.
+     *
+     * <p>Each seed below was measured by classifying its first 50 results and
+     * counting how many land in the family it is meant to retrieve. The figure
+     * in each comment is that count. Selection is by absolute on-family yield
+     * rather than by percentage, because a seed cannot mislead anyone: the feed
+     * filter removes off-family postings anyway, so a seed that brings 18 real
+     * jobs among 50 is worth more than one that brings 5 out of 7.
+     *
+     * <p>Families absent from this table are absent on purpose. No seed found
+     * meaningful volume for IT support (29 live postings), Teaching (5) or
+     * Recruiting, because the catalogue genuinely holds almost none of that
+     * work. Housekeeping is absent for a different reason: its best seed was
+     * the bare word "housekeeping", which is its own label and therefore
+     * already searched, and its next candidates returned 8, 3 and 2 postings.
+     * A seed cannot retrieve what is not there, and onboarding shows the count
+     * next to the label before the candidate picks it.
+     */
+    private static final Map<String, List<String>> RETRIEVAL_SEEDS = Map.ofEntries(
+            // 50 and 49 on-family of 50 results each.
+            Map.entry("Warehouse", List.of("order picker", "forklift")),
+            // 50 and 28.
+            Map.entry("Driver", List.of("cdl driver", "truck driver")),
+            // 36 and 36. The label "retail" itself returned car detailers,
+            // recruiters and enterprise account executives.
+            Map.entry("Retail", List.of("sales associate", "cashier")),
+            // 50 and 18.
+            Map.entry("Food service", List.of("barista", "line cook")),
+            // 44 and 43.
+            Map.entry("Automotive", List.of("automotive technician", "tire technician")),
+            // 35 and 21.
+            Map.entry("Laboratory", List.of("laboratory technician", "chemist")),
+            // 34 and 23.
+            Map.entry("Store security", List.of("security specialist", "loss prevention")),
+            // 21 and 14, together most of the 73 postings this family holds.
+            Map.entry("Maintenance", List.of("hvac", "maintenance technician")),
+            // 19 and 5. Small family, 45 live postings.
+            Map.entry("Healthcare", List.of("clinical", "medical assistant")),
+            // 18 on-family of 50. "manufacturing" measured 16 but is the label
+            // itself, which retrieval already searches, so it is not repeated
+            // here; a test asserts no seed equals its own label.
+            Map.entry("Manufacturing", List.of("assembler")),
+            // 23 and 8.
+            Map.entry("Administrative", List.of("front desk", "administrative assistant")));
+
+    /** The families the seed table has keys for, as written. */
+    static List<String> seededFamilies() {
+        return List.copyOf(RETRIEVAL_SEEDS.keySet());
+    }
+
+    /** Measured text-search seeds that retrieve this family, or empty. */
+    static List<String> retrievalSeeds(String family) {
+        if (family == null) {
+            return List.of();
+        }
+        return RETRIEVAL_SEEDS.getOrDefault(family, List.of());
     }
 
     /** True when a candidate asking for {@code family} would plausibly take {@code other}. */
@@ -378,6 +568,14 @@ final class RoleFamilyTaxonomy {
     private static String match(String normalizedText) {
         if (normalizedText.isBlank()) {
             return null;
+        }
+
+        for (RoleFamilyRule rule : PRIORITY_RULES) {
+            for (String keyword : rule.keywords()) {
+                if (normalizedText.contains(keyword)) {
+                    return rule.label();
+                }
+            }
         }
 
         for (RoleFamilyRule rule : ROLE_FAMILY_RULES) {
