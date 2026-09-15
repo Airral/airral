@@ -428,6 +428,36 @@ class RoleTargetMatchingTest {
                 .noneMatch(reason -> reason.startsWith("Near your target:"));
     }
 
+    /**
+     * Two readings that disagree are not grounds to assert either.
+     *
+     * <p>{@code classify} reads the title first and returns on any hit, so a
+     * broad keyword in a title beats a specific one in a department. These three
+     * postings are the same employer, department and pay band -- $17.40 hourly
+     * DashMart store work -- and only the middle one carries the word
+     * "operations". It was the only one told it was outside a Retail candidate's
+     * target, while the first sat at the top of the same feed.
+     */
+    @Test
+    @DisplayName("a department that disagrees with the title withdraws the off-target claim")
+    void conflictingSignalsAssertNothing() {
+        List<CandidateJobSummaryResponse> ranked = rank(
+                pickedRoles("Retail"),
+                job("1", "Team Member - Mahwah", "112 Order Fulfillment"),
+                job("2", "Variable Schedule Operations Associate, Dashmart", "112 Order Fulfillment"),
+                job("3", "Shift Lead, Dashmart", "112 Order Fulfillment"),
+                job("4", "Senior Revenue Operations Manager", "Revenue"));
+
+        assertThat(byTitle(ranked, "Variable Schedule Operations Associate, Dashmart").getMatchReasons())
+                .as("its department is order fulfillment; we cannot call it off-target")
+                .noneMatch(OUTSIDE_TARGET::equals);
+
+        // And the claim still stands where both readings agree it should.
+        assertThat(byTitle(ranked, "Senior Revenue Operations Manager").getMatchReasons())
+                .as("nothing about this posting is retail work")
+                .contains(OUTSIDE_TARGET);
+    }
+
     // ── the detail page: no filter, so the words have to be right ─────
     //
     // A candidate can open any posting by link or from search, and that path
