@@ -32,14 +32,18 @@ final class RoleMatchClassifier {
 
     static {
         ROLE_PHRASES.put(RoleFamily.SOFTWARE_ENGINEERING, List.of(
-                // "front end" and "back end" are spelled out to the engineer/developer
-                // form on purpose. At a retailer the "Front End" department is the
-                // checkout lanes, and the bare phrase classified every cashier in a
-                // Front End department as a software engineer. The one-word
-                // "frontend"/"backend" spellings are unambiguous and stay.
+                // "front end" and "back end" are spelled out on purpose. At a retailer
+                // the "Front End" department is the checkout lanes, and the bare phrase
+                // classified every cashier in a Front End department as a software
+                // engineer. The one-word "frontend"/"backend" spellings are unambiguous
+                // and stay. All four suffixes are listed because spelling out only
+                // engineer/developer silently dropped "Front End Lead" and "Front End
+                // Architect", real software titles, to no family at all.
                 "software engineer", "software developer", "full stack", "frontend", "backend",
-                "front end engineer", "front end developer", "back end engineer",
-                "back end developer", "web developer", "application developer", "java developer",
+                "front end engineer", "front end developer", "front end architect",
+                "front end lead", "back end engineer", "back end developer",
+                "back end architect", "back end lead",
+                "web developer", "application developer", "java developer",
                 "python developer", "platform engineer", "site reliability", "sre", "devops",
                 "cloud engineer", "mobile engineer", "android engineer", "ios engineer",
                 "firmware engineer", "systems engineer", "qa engineer", "test automation engineer",

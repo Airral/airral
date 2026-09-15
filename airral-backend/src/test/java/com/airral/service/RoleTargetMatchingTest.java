@@ -143,6 +143,178 @@ class RoleTargetMatchingTest {
                 .anyMatch(reason -> reason.contains("Diesel Technician"));
     }
 
+    // ── free text and resumes: an inference must never hide a job ─────
+    //
+    // The filter reads only families the candidate picked from our own list. A
+    // family derived from text they typed, or from their employment history, is
+    // one substring hit against a 297-keyword first-match-wins table, and the
+    // table misfiles things. These cases each gutted a feed.
+
+    @Test
+    @DisplayName("a typed target we misread does not hide the work they asked for")
+    void misreadFreeTextHidesNothing() {
+        // "Privacy Engineer" hits the Legal family on the substring "privacy".
+        List<CandidateJobSummaryResponse> ranked = rank(
+                typedRoles("Privacy Engineer"),
+                job("1", "Security Engineer", "Engineering"),
+                job("2", "Staff Software Engineer", "Engineering"),
+                job("3", "Corporate Counsel", "Legal"));
+
+        assertThat(ranked).extracting(CandidateJobSummaryResponse::getTitle)
+                .as("one substring hit on \"privacy\" is not grounds to hide every software job")
+                .contains("Security Engineer", "Staff Software Engineer");
+
+        assertThat(byTitle(ranked, "Staff Software Engineer").getMatchReasons())
+                .as("we guessed the family; we cannot assert the job is off-target")
+                .noneMatch(OUTSIDE_TARGET::equals);
+    }
+
+    @Test
+    @DisplayName("an instructor is not hidden from driving jobs")
+    void instructorKeywordDoesNotHideDriving() {
+        // "Driving Instructor" hits Teaching on "instructor", and Teaching has
+        // no neighbours, so this hid every driving job in the feed.
+        List<CandidateJobSummaryResponse> ranked = rank(
+                typedRoles("Driving Instructor"),
+                job("1", "CDL Driver", "Transportation"),
+                job("2", "Delivery Driver", null));
+
+        assertThat(ranked).extracting(CandidateJobSummaryResponse::getTitle)
+                .containsExactlyInAnyOrder("CDL Driver", "Delivery Driver");
+    }
+
+    /**
+     * A career-changer's resume must not override what they typed.
+     *
+     * <p>"Police Officer" places nowhere, and a headline fallback then read the
+     * candidate's software employment history and used it to hard-filter: every
+     * store-security, retail, warehouse and healthcare posting was removed and
+     * the feed became software roles. The free-text box exists for exactly the
+     * roles the table cannot place, so for those users it was worse than inert.
+     */
+    @Test
+    @DisplayName("a resume headline does not override a typed target")
+    void resumeHeadlineDoesNotOverrideTypedTarget() {
+        CandidateProfile careerChanger = CandidateProfile.builder()
+                .headline("Software Engineer II at The Home Depot")
+                .matchPreferences(Json.of("{\"targetRoles\":[\"Police Officer\"]}"))
+                .build();
+
+        List<CandidateJobSummaryResponse> ranked = rank(
+                careerChanger,
+                job("1", "Security Officer", "Stores"),
+                job("2", "Asset Protection Specialist", "Stores"),
+                job("3", "Staff Software Engineer", "Engineering"));
+
+        assertThat(ranked).extracting(CandidateJobSummaryResponse::getTitle)
+                .as("they typed Police Officer; their old job title is not a filter")
+                .contains("Security Officer", "Asset Protection Specialist");
+    }
+
+    /**
+     * The fallback bonus must not fire off a resume headline.
+     *
+     * <p>Ticking Warehouse with a software headline ranked "Mechanical Engineer"
+     * above "Delivery Driver" carrying "Role fit: Software Engineering" -- the
+     * original fault, reintroduced by its own fix, because one candidate reading
+     * consulted the headline and the other did not.
+     */
+    @Test
+    @DisplayName("a software headline does not promote engineering over the picked family")
+    void headlineDoesNotPromoteUnrelatedEngineering() {
+        CandidateProfile warehouseSeekerWithSoftwareResume = CandidateProfile.builder()
+                .headline("Software Engineer II at The Home Depot")
+                .matchPreferences(Json.of("{\"targetRoles\":[\"Warehouse\"]}"))
+                .build();
+
+        List<CandidateJobSummaryResponse> ranked = rank(
+                warehouseSeekerWithSoftwareResume,
+                job("1", "Order Picker", "Order Fulfillment"),
+                job("2", "Quality Engineer", null),
+                job("3", "Delivery Driver", null));
+
+        assertThat(ranked.get(0).getTitle()).isEqualTo("Order Picker");
+        assertThat(ranked).extracting(CandidateJobSummaryResponse::getMatchReasons)
+                .as("nothing here supports a software claim")
+                .allSatisfy(reasons -> assertThat(reasons)
+                        .noneMatch(reason -> reason.contains("Software Engineering")));
+
+        if (ranked.stream().anyMatch(job -> "Quality Engineer".equals(job.getTitle()))) {
+            assertThat(byTitle(ranked, "Delivery Driver").getMatchScore())
+                    .as("warehouse-adjacent work outranks unrelated engineering")
+                    .isGreaterThan(byTitle(ranked, "Quality Engineer").getMatchScore());
+        }
+    }
+
+    // ── a picked label is an identity, not a phrase to string-match ─────
+
+    @Test
+    @DisplayName("picking Sales does not rank store floor jobs as Sales")
+    void pickedLabelIsNotTokenMatched() {
+        // "Sales Floor Associate" contains "Sales" and scored 24 on it, printing
+        // "Role fit: Sales" on a job this taxonomy calls Retail -- the very
+        // inversion this class was changed to remove.
+        List<CandidateJobSummaryResponse> ranked = rank(
+                pickedRoles("Sales"),
+                job("1", "Sales Floor Associate", "Stores"),
+                job("2", "Account Executive", "Sales"),
+                job("3", "Business Development Manager", "Sales"));
+
+        assertThat(ranked.get(0).getTitle()).isIn("Account Executive", "Business Development Manager");
+        assertThat(ranked).extracting(CandidateJobSummaryResponse::getTitle)
+                .doesNotContain("Sales Floor Associate");
+    }
+
+    @Test
+    @DisplayName("picking IT support does not match on the bare word support")
+    void shortTokenInLabelDoesNotMatch() {
+        // meaningfulRoleTokens drops "it" as too short, leaving "support", which
+        // scored 21 and skipped the family check entirely.
+        List<CandidateJobSummaryResponse> ranked = rank(
+                pickedRoles("IT support"),
+                job("1", "Help Desk Technician", "IT"),
+                job("2", "Technical Support Engineer", "Support"));
+
+        assertThat(ranked.get(0).getTitle()).isEqualTo("Help Desk Technician");
+        assertThat(byTitle(ranked, "Help Desk Technician").getMatchReasons())
+                .anyMatch(reason -> reason.startsWith("Role fit:"));
+    }
+
+    @Test
+    @DisplayName("picking Healthcare does not match the word in an unrelated title")
+    void genericLabelWordDoesNotMatch() {
+        List<CandidateJobSummaryResponse> ranked = rank(
+                pickedRoles("Healthcare"),
+                job("1", "Medical Assistant I", "Medical Group"),
+                job("2", "Senior Project Manager - Healthcare Construction", "Real estate"));
+
+        assertThat(ranked).extracting(CandidateJobSummaryResponse::getTitle)
+                .as("naming the word healthcare does not make a construction job healthcare work")
+                .containsExactly("Medical Assistant I");
+        assertThat(byTitle(ranked, "Medical Assistant I").getMatchReasons())
+                .anyMatch(reason -> reason.startsWith("Role fit:"));
+    }
+
+    @Test
+    @DisplayName("frontline families are kept for each other, enterprise sales is not")
+    void frontlineWorkIsKeptForAFrontlineCandidate() {
+        List<CandidateJobSummaryResponse> ranked = rank(
+                pickedRoles("Warehouse"),
+                job("1", "Order Picker", "Order Fulfillment"),
+                job("2", "Cashier", "Stores"),
+                job("3", "Line Cook", null),
+                job("4", "Custodian", null),
+                job("5", "Mid-Market Account Executive, Commerce", "Sales"));
+
+        assertThat(ranked).extracting(CandidateJobSummaryResponse::getTitle)
+                .as("entry-level frontline work is one market")
+                .contains("Order Picker", "Cashier", "Line Cook", "Custodian");
+        assertThat(ranked).extracting(CandidateJobSummaryResponse::getTitle)
+                .as("an enterprise account executive is not warehouse-adjacent")
+                .doesNotContain("Mid-Market Account Executive, Commerce");
+        assertThat(ranked.get(0).getTitle()).isEqualTo("Order Picker");
+    }
+
     // ── the detail page: no filter, so the words have to be right ─────
     //
     // A candidate can open any posting by link or from search, and that path
@@ -209,6 +381,11 @@ class RoleTargetMatchingTest {
     }
 
     // ── fixtures ─────────────────────────────────────
+
+    /** What the free-text box stores: whatever the candidate typed. */
+    private CandidateProfile typedRoles(String... roles) {
+        return pickedRoles(roles);
+    }
 
     /** What onboarding stores: family labels, no resume, no skills. */
     private CandidateProfile pickedRoles(String... roles) {

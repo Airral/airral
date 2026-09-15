@@ -49,41 +49,88 @@ class RoleFamilyTaxonomyTest {
                 .isEmpty();
     }
 
+    /**
+     * Read the DECLARATION, not the built map.
+     *
+     * <p>Two earlier versions of this test iterated {@code labels() x labels()}
+     * calling {@code adjacent()}, which proves nothing: {@code buildAdjacency}
+     * inserts both directions unconditionally, so a symmetry assertion over the
+     * built map can never fail, and every name such a loop returns is in
+     * {@code labels()} by construction -- a pair written {@code ("Warehouse",
+     * "Drivr")} passed both. A misspelled family is silent: it matches no job and
+     * the near-miss score is simply never awarded.
+     */
     @Test
-    @DisplayName("adjacency is symmetric and names only real families")
-    void adjacencyIsWellFormed() {
+    @DisplayName("every declared adjacency names two real, different families")
+    void declaredAdjacencyNamesRealFamilies() {
         List<String> labels = RoleFamilyTaxonomy.labels();
+        List<List<String>> pairs = RoleFamilyTaxonomy.declaredPairs();
+        assertThat(pairs).as("the adjacency table cannot be empty").isNotEmpty();
 
-        // A typo in the adjacency table is silent: the entry simply never
-        // matches any job family, and the near-miss score is never awarded.
-        for (String family : labels) {
-            for (String other : labels) {
-                if (RoleFamilyTaxonomy.adjacent(family, other)) {
-                    assertThat(RoleFamilyTaxonomy.adjacent(other, family))
-                            .as(family + " is near " + other + ", so the reverse must hold too")
+        List<String> bad = new ArrayList<>();
+        for (List<String> pair : pairs) {
+            if (pair.size() != 2) {
+                bad.add("not a pair: " + pair);
+                continue;
+            }
+            if (!labels.contains(pair.get(0))) {
+                bad.add("no such family: " + pair.get(0) + " (in " + pair + ")");
+            }
+            if (!labels.contains(pair.get(1))) {
+                bad.add("no such family: " + pair.get(1) + " (in " + pair + ")");
+            }
+            if (pair.get(0).equals(pair.get(1))) {
+                // Same-family and near-family score differently and print
+                // different sentences, so a self-pair would make the weaker of
+                // the two reachable for an exact match.
+                bad.add("family paired with itself: " + pair.get(0));
+            }
+        }
+        assertThat(bad).isEmpty();
+    }
+
+    @Test
+    @DisplayName("a declared adjacency holds in both directions")
+    void declaredAdjacencyIsUsableBothWays() {
+        for (List<String> pair : RoleFamilyTaxonomy.declaredPairs()) {
+            assertThat(RoleFamilyTaxonomy.adjacent(pair.get(0), pair.get(1)))
+                    .as(pair.get(0) + " -> " + pair.get(1) + " was declared and must resolve")
+                    .isTrue();
+            assertThat(RoleFamilyTaxonomy.adjacent(pair.get(1), pair.get(0)))
+                    .as(pair.get(1) + " -> " + pair.get(0) + " is the same pair read backwards")
+                    .isTrue();
+        }
+    }
+
+    /**
+     * The frontline families are one labour market; Retail and Sales are not.
+     *
+     * <p>Warehouse having only Driver, Manufacturing and Operations meant a
+     * warehouse candidate had Cashier, Line Cook, Custodian and Security Officer
+     * hidden with "Role is outside your target titles" on each. Retail-to-Sales
+     * was the opposite error: sales floor titles classify as Retail, so what is
+     * left in Sales is enterprise B2B, and the pairing put "Mid-Market Account
+     * Executive" at the top of a retail feed as a near miss.
+     */
+    @Test
+    @DisplayName("entry-level frontline work is mutually adjacent; enterprise sales is not")
+    void frontlineWorkIsOneMarket() {
+        List<String> frontline = List.of("Warehouse", "Retail", "Food service", "Housekeeping", "Store security");
+        for (String a : frontline) {
+            for (String b : frontline) {
+                if (!a.equals(b)) {
+                    assertThat(RoleFamilyTaxonomy.adjacent(a, b))
+                            .as(a + " and " + b + " are the same entry-level market")
                             .isTrue();
                 }
             }
         }
 
-        // Anything declared that is not in the label list matches nothing, so
-        // sweep the declared names against the families that actually exist.
-        assertThat(declaredAdjacencyNames())
-                .as("an adjacency entry naming a family that does not exist is dead")
-                .allMatch(labels::contains);
-    }
-
-    @Test
-    @DisplayName("a family is never its own neighbour")
-    void familiesAreNotAdjacentToThemselves() {
-        // Same-family and near-family score differently and print different
-        // sentences, so an entry pairing a family with itself would make the
-        // weaker of the two reachable for an exact match.
-        for (String label : RoleFamilyTaxonomy.labels()) {
-            assertThat(RoleFamilyTaxonomy.adjacent(label, label))
-                    .as(label + " should be an exact match, not a near one")
-                    .isFalse();
-        }
+        assertThat(RoleFamilyTaxonomy.adjacent("Retail", "Sales"))
+                .as("Sales holds enterprise B2B; store floor titles are already Retail")
+                .isFalse();
+        assertThat(RoleFamilyTaxonomy.adjacent("Warehouse", "Software engineer")).isFalse();
+        assertThat(RoleFamilyTaxonomy.adjacent("Teaching", "Driver")).isFalse();
     }
 
     @Test
@@ -117,6 +164,26 @@ class RoleFamilyTaxonomyTest {
         assertThat(RoleFamilyTaxonomy.classify("Front End Engineer", "Engineering"))
                 .isEqualTo("Software engineer");
 
+        // The mirror case: a professional title carrying a domain word that an
+        // earlier family claims. "Staff Software Engineer, Clinical Fit" was
+        // Healthcare, on Healthcare's "clinical", and reached the top of a
+        // Healthcare candidate's feed as "Role fit: Healthcare".
+        assertThat(RoleFamilyTaxonomy.classify("Staff Software Engineer, Clinical Fit", null))
+                .isEqualTo("Software engineer");
+        assertThat(RoleFamilyTaxonomy.classify("Software Engineer, Restaurant Platform", null))
+                .isEqualTo("Software engineer");
+        assertThat(RoleFamilyTaxonomy.classify("Data Scientist, Patient Outcomes", null))
+                .isEqualTo("Data science");
+
+        // But the frontline-first ordering it sits in front of still holds.
+        assertThat(RoleFamilyTaxonomy.classify("Sales Associate - Building Materials", null))
+                .isEqualTo("Retail");
+        assertThat(RoleFamilyTaxonomy.classify("Target Security Specialist", null))
+                .isEqualTo("Store security");
+        assertThat(RoleFamilyTaxonomy.classify("Senior Project Manager - Data Center Construction", null))
+                .as("measured: priority-listing project manager took nine of these from Construction")
+                .isEqualTo("Construction");
+
         RoleMatchClassifier classifier = new RoleMatchClassifier();
         assertThat(classifier.classifyJob("Cashier", "Front End", null).families())
                 .doesNotContain(RoleMatchClassifier.RoleFamily.SOFTWARE_ENGINEERING);
@@ -124,6 +191,134 @@ class RoleFamilyTaxonomyTest {
                 .contains(RoleMatchClassifier.RoleFamily.SOFTWARE_ENGINEERING);
         assertThat(classifier.classifyJob("Front End Developer", "Engineering", null).families())
                 .contains(RoleMatchClassifier.RoleFamily.SOFTWARE_ENGINEERING);
+    }
+
+    /**
+     * A family has to be able to recognise its own name in a posting title.
+     *
+     * <p>Seven labels could not, and fixing only the candidate side left the
+     * halves disagreeing: a candidate who picked "Maintenance" got a family
+     * while "Maintenance Worker" and a "Maintenance" department placed nowhere,
+     * so the postings that matched them sat at the score floor and the feed
+     * filled with unplaceable white-collar titles instead.
+     */
+    @Test
+    @DisplayName("a posting titled with the bare family name places in that family")
+    void bareFamilyNameInATitlePlaces() {
+        assertThat(RoleFamilyTaxonomy.classify("Maintenance Worker", null)).isEqualTo("Maintenance");
+        assertThat(RoleFamilyTaxonomy.classify("Shift Lead", "Maintenance")).isEqualTo("Maintenance");
+        // Healthcare is the deliberate exception -- see its rule for the corpus
+        // measurement. In this catalogue the bare word modifies another domain
+        // more often than it names the work, so it is read by the clinical
+        // entries instead and a title carrying only the word places nowhere.
+        assertThat(RoleFamilyTaxonomy.classify("Senior Project Manager - Healthcare Construction", "Real estate"))
+                .isNotEqualTo("Healthcare");
+        assertThat(RoleFamilyTaxonomy.classify("Nurse Practitioner", null)).isEqualTo("Healthcare");
+        assertThat(RoleFamilyTaxonomy.classify("Administrative Coordinator", null)).isEqualTo("Administrative");
+        assertThat(RoleFamilyTaxonomy.classify("Teaching Assistant", null)).isEqualTo("Teaching");
+        assertThat(RoleFamilyTaxonomy.classify("Data Science Manager", null)).isEqualTo("Data science");
+
+        // The bare label goes last in its family, so the specific entries above
+        // it still decide. A nurse is Healthcare by "nurse", not by the label.
+        assertThat(RoleFamilyTaxonomy.classify("Registered Nurse", null)).isEqualTo("Healthcare");
+        assertThat(RoleFamilyTaxonomy.classify("Maintenance Technician", null)).isEqualTo("Maintenance");
+    }
+
+    /**
+     * Both readings of "front end" have to work.
+     *
+     * <p>Dropping Retail's "front end" to stop it claiming software titles cost
+     * four real grocery titles and every posting whose only signal was a Front
+     * End department. The previous test here pinned {@code classify("Cashier",
+     * "Front End")} and passed for the wrong reason -- the title "Cashier"
+     * matches Retail on its own, so the department was never consulted and the
+     * case the test documented was never covered.
+     */
+    @Test
+    @DisplayName("front end is the store, unless the title says engineer")
+    void frontEndReadsBothWays() {
+        // Retail titles and the bare department, with no other retail signal.
+        assertThat(RoleFamilyTaxonomy.classify("Front End Associate", null)).isEqualTo("Retail");
+        assertThat(RoleFamilyTaxonomy.classify("Front End Supervisor", null)).isEqualTo("Retail");
+        assertThat(RoleFamilyTaxonomy.classify("Front End Clerk", null)).isEqualTo("Retail");
+        assertThat(RoleFamilyTaxonomy.classify("Closing Team Leader", "Front End")).isEqualTo("Retail");
+
+        // Software titles that share the prefix.
+        assertThat(RoleFamilyTaxonomy.classify("Front End Engineer", "Engineering"))
+                .isEqualTo("Software engineer");
+        assertThat(RoleFamilyTaxonomy.classify("Front End Developer", null)).isEqualTo("Software engineer");
+        assertThat(RoleFamilyTaxonomy.classify("Front End Lead", "Engineering")).isEqualTo("Software engineer");
+        assertThat(RoleFamilyTaxonomy.classify("Back End Engineer", null)).isEqualTo("Software engineer");
+
+        RoleMatchClassifier classifier = new RoleMatchClassifier();
+        assertThat(classifier.classifyJob("Cashier", "Front End", null).families())
+                .doesNotContain(RoleMatchClassifier.RoleFamily.SOFTWARE_ENGINEERING);
+        assertThat(classifier.classifyJob("Front End Lead", "Engineering", null).families())
+                .contains(RoleMatchClassifier.RoleFamily.SOFTWARE_ENGINEERING);
+    }
+
+    /**
+     * A picked label is an identity; free text is a guess.
+     *
+     * <p>These are the substring hits that gutted feeds when one table answered
+     * both questions. They are still the answer for ranking, and must never be
+     * the answer for hiding -- which is why {@link RoleFamilyTaxonomy#pickedLabel}
+     * exists separately from {@link RoleFamilyTaxonomy#classifyTerm}.
+     */
+    @Test
+    @DisplayName("free text never counts as a picked label")
+    void freeTextIsNotAPickedLabel() {
+        assertThat(RoleFamilyTaxonomy.classifyTerm("Privacy Engineer")).isEqualTo("Legal");
+        assertThat(RoleFamilyTaxonomy.pickedLabel("Privacy Engineer")).isNull();
+
+        assertThat(RoleFamilyTaxonomy.classifyTerm("Driving Instructor")).isEqualTo("Teaching");
+        assertThat(RoleFamilyTaxonomy.pickedLabel("Driving Instructor")).isNull();
+
+        assertThat(RoleFamilyTaxonomy.classifyTerm("Technical Support Engineer")).isEqualTo("Customer service");
+        assertThat(RoleFamilyTaxonomy.pickedLabel("Technical Support Engineer")).isNull();
+
+        // Offered labels, in whatever case they come back in.
+        assertThat(RoleFamilyTaxonomy.pickedLabel("Warehouse")).isEqualTo("Warehouse");
+        assertThat(RoleFamilyTaxonomy.pickedLabel("store security")).isEqualTo("Store security");
+        assertThat(RoleFamilyTaxonomy.pickedLabel("IT Support")).isEqualTo("IT support");
+        assertThat(RoleFamilyTaxonomy.pickedLabel(null)).isNull();
+    }
+
+    /**
+     * A seed has to be a phrase that appears in titles, not a word for the work.
+     *
+     * <p>Guarding the table rather than the numbers in its comments: a seed
+     * naming a family that does not exist is dead, and a seed equal to its own
+     * label adds nothing because the label is already searched on its own.
+     */
+    @Test
+    @DisplayName("every retrieval seed belongs to a real family and is not the label again")
+    void retrievalSeedsAreWellFormed() {
+        List<String> labels = RoleFamilyTaxonomy.labels();
+        List<String> withSeeds = labels.stream()
+                .filter(label -> !RoleFamilyTaxonomy.retrievalSeeds(label).isEmpty())
+                .toList();
+        assertThat(withSeeds).as("the seed table cannot be empty").isNotEmpty();
+
+        for (String label : withSeeds) {
+            for (String seed : RoleFamilyTaxonomy.retrievalSeeds(label)) {
+                assertThat(seed).isNotBlank().isLowerCase();
+                assertThat(seed)
+                        .as(label + " already searches its own label; " + seed + " adds nothing")
+                        .isNotEqualToIgnoringCase(label);
+                // A seed that its own family does not classify into itself is
+                // retrieving for the wrong bucket.
+                assertThat(RoleFamilyTaxonomy.classify(seed, null))
+                        .as("seed " + seed + " should read as " + label)
+                        .isEqualTo(label);
+            }
+        }
+
+        assertThat(RoleFamilyTaxonomy.retrievalSeeds("Maintenance"))
+                .as("the family whose label retrieved zero real jobs")
+                .isNotEmpty();
+        assertThat(RoleFamilyTaxonomy.retrievalSeeds(null)).isEmpty();
+        assertThat(RoleFamilyTaxonomy.retrievalSeeds("Not A Family")).isEmpty();
     }
 
     private static List<String> declaredAdjacencyNames() {
