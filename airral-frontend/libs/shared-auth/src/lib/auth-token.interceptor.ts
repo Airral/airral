@@ -66,6 +66,32 @@ function base64UrlDecode(value: string): string {
   return buffer.from(normalized, 'base64').toString('binary');
 }
 
+/**
+ * Routes that work without signing in, where a 401 must not redirect.
+ *
+ * <p>The handler below logs out and navigates to /login on any 401, which is
+ * right on a page that needed a session and wrong on a page that did not. The
+ * unsubscribe page is reached from an email footer by someone whose session is
+ * usually long dead -- a weekly digest goes out on Sundays -- and the shell
+ * fires an authenticated badge request on every route, so that 401 arrived
+ * moments after the page rendered and replaced it with a sign-in form, with the
+ * token gone from the URL. The reader was asked to log in in order to
+ * unsubscribe, which is the dead end this page exists to remove.
+ *
+ * <p>The session is still cleared, because the token really is dead. Only the
+ * navigation is suppressed. authGuard already redirects, and it preserves a
+ * returnUrl, which this never did.
+ */
+const PUBLIC_PAGE_PATHS = ['/unsubscribe'];
+
+function isOnPublicPage(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const path = window.location.pathname;
+  return PUBLIC_PAGE_PATHS.some((publicPath) => path === publicPath || path.startsWith(publicPath + '/'));
+}
+
 export const authTokenInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
   const router = inject(Router);
@@ -90,9 +116,10 @@ export const authTokenInterceptor: HttpInterceptorFn = (req, next) => {
         console.warn('Received 401 Unauthorized - logging out');
         authService.logout();
 
-        // Redirect to login
+        // Redirect to login, unless the reader is on a page that never needed
+        // one -- see PUBLIC_PAGE_PATHS above.
         const currentUrl = typeof window !== 'undefined' ? window.location.pathname : '';
-        if (!currentUrl.includes('/login')) {
+        if (!currentUrl.includes('/login') && !isOnPublicPage()) {
           router.navigate(['/login']);
         }
       }
