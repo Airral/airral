@@ -3,6 +3,7 @@ import { CanActivateFn } from '@angular/router';
 import { inject } from '@angular/core';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
+import { SessionEndReason } from './session-expiry';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { consumeLocalAuthHandoff } from './auth-handoff';
 import { PORTAL_ID, PortalId } from './portal-id';
@@ -37,9 +38,19 @@ function currentPathAsReturnUrl(): string {
   );
 }
 
-function redirectToLogin(portal: PortalId | null): false {
+/**
+ * Send someone to sign in, saying why if we know.
+ *
+ * <p>The reason is carried so the login page can tell "your session ran out"
+ * apart from "we could not confirm your session". The second is what every
+ * session stored before the expiry change reads as, and calling that expired
+ * would be a small invention in the one place this change exists to stop
+ * inventing.
+ */
+function redirectToLogin(portal: PortalId | null, reason: SessionEndReason | null): false {
+  const suffix = reason ? `&reason=${reason}` : '';
   const elsewhere = loginUrlFor(portal);
-  window.location.href = elsewhere ?? `/login?returnUrl=${currentPathAsReturnUrl()}`;
+  window.location.href = elsewhere ?? `/login?returnUrl=${currentPathAsReturnUrl()}${suffix}`;
   return false;
 }
 
@@ -52,16 +63,24 @@ export const authGuard: CanActivateFn = () => {
     return true;
   }
 
-  // Check if user is authenticated AND token is not expired
-  if (authService.isAuthenticated() && tokenService.isTokenValid()) {
+  // Not "valid" -- not known to have ended. The server also rejects a token
+  // inside its exp once tokenVersion moves on, which is invisible here, so
+  // passing this is never permission; the interceptor's 401 handling is.
+  if (authService.isAuthenticated() && tokenService.hasUnexpiredSession()) {
     return true;
   }
 
-  // Token expired or invalid - logout and redirect
+  // AuthService may already have cleared the session during startup, in which
+  // case it holds the reason and there is nothing left to read off the token.
+  // Read, never consumed: this guard can run more than once for a single
+  // navigation, and the first run consuming the reason left the second run's
+  // redirect to win with no explanation attached.
+  const reason = authService.sessionEndReason() ?? tokenService.sessionEndReason();
+
   if (authService.isAuthenticated()) {
-    console.warn('Token expired - logging out');
+    console.warn(`Session not usable (${reason ?? 'unknown'}) - logging out`);
     authService.logout();
   }
 
-  return redirectToLogin(portal);
+  return redirectToLogin(portal, reason);
 };

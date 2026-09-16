@@ -2,6 +2,13 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { TokenService } from './token.service';
+import {
+  clearSessionEndReason,
+  rememberSessionEndReason,
+  readSessionEndReason,
+  SessionEndReason,
+  SessionExpiry,
+} from './session-expiry';
 import { User, UserRole } from '@airral/shared-types';
 
 @Injectable({
@@ -21,22 +28,56 @@ export class AuthService {
     this.currentUserSubject = new BehaviorSubject<User | null>(this.tokenService.getUser());
     this.currentUser$ = this.currentUserSubject.asObservable();
 
-    this.isAuthenticatedSubject = new BehaviorSubject<boolean>(this.tokenService.isTokenValid());
+    this.isAuthenticatedSubject = new BehaviorSubject<boolean>(this.tokenService.hasUnexpiredSession());
     this.isAuthenticated$ = this.isAuthenticatedSubject.asObservable();
   }
 
   /**
-   * Initialize authentication state and clear expired tokens
+   * Discard a stored session we cannot vouch for, before anything reads it.
+   *
+   * <p>This used to fire only for a token whose `exp` said it had passed, which
+   * an encrypted token never does, so in practice it never fired at all. Now it
+   * also clears a session with no usable expiry record -- which is every
+   * session stored before this change shipped. Those get signed out once, on
+   * their next page load, and that is the intended cost: their real expiry is
+   * not recoverable by any means (the token is a JWE the client cannot read and
+   * there is no introspection endpoint), so the only honest readings are "gone"
+   * or "we do not know", and this change exists because the second must not be
+   * reported as fine.
+   *
+   * <p>The reason is kept so the login page can say which of the two happened.
    */
   private initializeAuth(): void {
-    if (this.tokenService.hasToken() && this.tokenService.isTokenExpired()) {
-      console.warn('Found expired token on initialization - clearing');
+    const reason = this.tokenService.sessionEndReason();
+    if (reason) {
+      console.warn(`Clearing stored session on initialization (${reason})`);
+      rememberSessionEndReason(reason);
       this.tokenService.clear();
     }
   }
 
-  login(user: User, token: string): void {
-    this.tokenService.setToken(token);
+  /**
+   * Why the stored session was discarded, if it was.
+   *
+   * <p>Reads without consuming. The guard redirects with a full page load and
+   * can run more than once for one navigation, so a one-shot read left the
+   * second run with nothing and its reason-less redirect won -- dropping the
+   * user on a bare login form. The login page clears this once it has shown it.
+   */
+  sessionEndReason(): SessionEndReason | null {
+    return readSessionEndReason();
+  }
+
+  /**
+   * Establish a session, with the point at which it ends.
+   *
+   * <p>`expiry` is required. Every caller has to know when the session it is
+   * creating runs out, so a path that cannot say is a build failure rather than
+   * a session the client will later claim is valid forever.
+   */
+  login(user: User, token: string, expiry: SessionExpiry): void {
+    clearSessionEndReason();
+    this.tokenService.setToken(token, expiry);
     this.tokenService.setUser(user);
     this.currentUserSubject.next(user);
     this.isAuthenticatedSubject.next(true);
@@ -53,8 +94,11 @@ export class AuthService {
   }
 
   isAuthenticated(): boolean {
-    // Double-check token validity
-    const isValid = this.isAuthenticatedSubject.value && this.tokenService.isTokenValid();
+    // Re-check, because a session can age out between page load and now.
+    // "unexpired" is not "valid": the server also rejects a token inside its
+    // exp once tokenVersion moves on, which is invisible from here, so the
+    // interceptor's 401 handling remains the backstop.
+    const isValid = this.isAuthenticatedSubject.value && this.tokenService.hasUnexpiredSession();
 
     // If state is out of sync, update it
     if (this.isAuthenticatedSubject.value !== isValid) {

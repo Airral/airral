@@ -36,6 +36,15 @@ export interface User {
 
 export interface AuthResponse {
   token: string;
+  /**
+   * Seconds the token stays valid, from when this response was received.
+   *
+   * Optional because a response from a backend older than this field exists;
+   * `sessionExpiryFromResponse` labels that case `assumed` rather than
+   * refusing it. Relative rather than absolute so a browser with a wrong clock
+   * still measures the right duration.
+   */
+  expiresInSeconds?: number;
   refreshToken?: string;
   userId?: number;
   email?: string;

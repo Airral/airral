@@ -3,11 +3,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import {
-  AuthService,
-  routeAfterAuth,
-  userFromAuthResponse,
-} from '@airral/shared-auth';
+import { AuthService, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { RegisterRequest } from '@airral/shared-types';
 import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
@@ -78,6 +74,7 @@ export class SignUpComponent {
           currentPortal: 'website',
           user,
           token: res.token,
+          expiry: sessionExpiryFromResponse(res.expiresInSeconds),
           router: this.router,
           authService: this.authService,
         });

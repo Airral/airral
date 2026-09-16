@@ -2,6 +2,7 @@ import { Router } from '@angular/router';
 import { User } from '@airral/shared-types';
 import { PORTAL_ROUTES, USER_ROLES } from '@airral/shared-utils';
 import { AuthService } from './auth.service';
+import { SessionExpiry } from './session-expiry';
 import { buildLocalAuthHandoffUrl } from './auth-handoff';
 import { PortalId, safeReturnUrl } from './portal-id';
 
@@ -77,6 +78,8 @@ export function routeAfterAuth(opts: {
   currentPortal: PortalId | null;
   user: User;
   token: string;
+  /** When the session ends. Required, so no path can create one without it. */
+  expiry: SessionExpiry;
   router: Router;
   authService: AuthService;
   returnUrl?: string | null;
@@ -86,7 +89,7 @@ export function routeAfterAuth(opts: {
   const target = portalForRole(opts.role, opts.user.isPlatformAdmin === true);
 
   if (target === opts.currentPortal) {
-    opts.authService.login(opts.user, opts.token);
+    opts.authService.login(opts.user, opts.token, opts.expiry);
     opts.router.navigateByUrl(
       opts.sameOriginDefault ?? safeReturnUrl(opts.returnUrl)
     );
@@ -101,6 +104,7 @@ export function routeAfterAuth(opts: {
   window.location.href = buildLocalAuthHandoffUrl(
     PORTAL_URLS[target],
     opts.user,
-    opts.token
+    opts.token,
+    opts.expiry
   );
 }

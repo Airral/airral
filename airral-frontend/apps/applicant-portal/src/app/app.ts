@@ -26,13 +26,19 @@ export class App implements OnInit {
   ngOnInit(): void {
     this.visitorSignals.trackPageViews('applicant');
 
-    // Not on a page that works without signing in. isAuthenticated() cannot be
-    // trusted here: the backend token is an encrypted JWE, so the client cannot
-    // read its expiry and isTokenExpired returns false for it unconditionally --
-    // meaning anyone who ever signed in on this browser looks logged in forever
-    // while the server expires them after 24h. Firing this badge request on the
-    // unsubscribe page therefore produced a 401 seconds after it rendered, and
-    // the 401 handler signed the reader out and redirected them to /login.
+    // Not on a page that works without signing in.
+    //
+    // This was load-bearing: isAuthenticated() could not be trusted, because
+    // the client had no way to read an encrypted token's expiry and reported
+    // every past sign-in as current. Firing this badge request on the
+    // unsubscribe page produced a 401 seconds after it rendered, and the 401
+    // handler signed the reader out and redirected them away mid-task.
+    //
+    // TokenService now knows when a session ends, so isLoggedIn is answerable
+    // and that specific failure is gone. The check stays anyway: a page reached
+    // from an email has no reason to ask an authenticated question, and a
+    // session the server has disowned inside its own expiry -- tokenVersion
+    // moved on -- still 401s here with nothing in the client able to predict it.
     if (this.isLoggedIn && !this.onPublicPage()) {
       this.loadTrackerBadge();
     }

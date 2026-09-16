@@ -3,12 +3,7 @@ import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import {
-  AuthService,
-  PORTAL_ID,
-  routeAfterAuth,
-  userFromAuthResponse,
-} from '@airral/shared-auth';
+import { AuthService, PORTAL_ID, SessionExpiry, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { AuthResponse, User } from '@airral/shared-types';
 import { GoogleAuthButtonComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES, USER_ROLES } from '@airral/shared-utils';
@@ -84,10 +79,10 @@ export class LoginComponent {
 
     this.isLoading = false;
     this.googleLoading = false;
-    this.redirectByRole(role, user, response.token);
+    this.redirectByRole(role, user, response.token, sessionExpiryFromResponse(response.expiresInSeconds));
   }
 
-  private redirectByRole(role: string, user: User, token: string): void {
+  private redirectByRole(role: string, user: User, token: string, expiry: SessionExpiry): void {
     // Shared with the applicant login so the two doors cannot drift apart:
     // whichever one you arrive at, your role decides where you end up.
     routeAfterAuth({
@@ -95,6 +90,7 @@ export class LoginComponent {
       currentPortal: this.portal,
       user,
       token,
+      expiry,
       router: this.router,
       authService: this.authService,
       returnUrl: this.route.snapshot.queryParamMap.get('returnUrl'),
