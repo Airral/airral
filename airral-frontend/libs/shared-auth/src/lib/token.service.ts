@@ -1,10 +1,30 @@
 // libs/shared-auth/src/lib/token.service.ts
 import { Injectable } from '@angular/core';
 
-import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from './auth-storage-keys';
+import { AUTH_SESSION_EXPIRY_KEY, AUTH_TOKEN_KEY, AUTH_USER_KEY } from './auth-storage-keys';
+import {
+  SESSION_EXPIRY_GRACE_MS,
+  SessionEndReason,
+  SessionExpiry,
+  SessionStatus,
+} from './session-expiry';
 
 const TOKEN_KEY = AUTH_TOKEN_KEY;
 const USER_KEY = AUTH_USER_KEY;
+const EXPIRY_KEY = AUTH_SESSION_EXPIRY_KEY;
+
+/**
+ * The tail of the token the expiry record describes.
+ *
+ * <p>Without this, a record left over from a previous session would be applied
+ * to a new one: sign in again inside the old window and the fresh session is
+ * killed on the spot, or worse, a partial write leaves a token with somebody
+ * else's end time. A mismatch reads as unverifiable -- sign in once -- which is
+ * always recoverable, where a wrongly-live session is not.
+ */
+function tokenFingerprint(token: string): string {
+  return token.slice(-24);
+}
 const memoryStore = new Map<string, string>();
 
 const memoryStorage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = {
@@ -57,8 +77,20 @@ export class TokenService {
     }
   }
 
-  setToken(token: string): void {
+  /**
+   * Store the token together with when the session ends.
+   *
+   * <p>The expiry is required, not optional. Every path that mints a session
+   * has to say when it ends, so a path that forgets is a compile error rather
+   * than a session nobody can judge -- which is the shape of the defect this
+   * replaces.
+   */
+  setToken(token: string, expiry: SessionExpiry): void {
     this.getStorage().setItem(TOKEN_KEY, token);
+    this.getStorage().setItem(
+      EXPIRY_KEY,
+      JSON.stringify({ expiresAt: expiry.expiresAt, src: expiry.source, tk: tokenFingerprint(token) })
+    );
   }
 
   getToken(): string | null {
@@ -68,7 +100,41 @@ export class TokenService {
 
   removeToken(): void {
     this.getStorage().removeItem(TOKEN_KEY);
+    this.getStorage().removeItem(EXPIRY_KEY);
     this.getSessionStorage()?.removeItem(TOKEN_KEY);
+  }
+
+  /** The stored expiry, if there is one that describes the current token. */
+  getSessionExpiry(): SessionExpiry | null {
+    const token = this.getToken();
+    if (!token) {
+      return null;
+    }
+
+    // Read from localStorage only, with no sessionStorage fallback, and that is
+    // deliberate: nothing in this repo has ever written the expiry to
+    // sessionStorage, so a token found there came from a build that predates
+    // this and provably has no sidecar. It stays unverifiable.
+    const raw = this.getStorage().getItem(EXPIRY_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as { expiresAt?: unknown; src?: unknown; tk?: unknown };
+      if (typeof parsed.expiresAt !== 'number' || !Number.isFinite(parsed.expiresAt)) {
+        return null;
+      }
+      if (parsed.tk !== tokenFingerprint(token)) {
+        return null;
+      }
+      return {
+        expiresAt: parsed.expiresAt,
+        source: parsed.src === 'server' ? 'server' : 'assumed',
+      };
+    } catch {
+      return null;
+    }
   }
 
   setUser(user: any): void {
@@ -90,76 +156,71 @@ export class TokenService {
   }
 
   /**
-   * Check if the current token is expired
-   * @returns true if token is expired or invalid, false if valid
+   * What we can honestly say about the stored session.
+   *
+   * <p>This replaced `isTokenExpired`, which answered a two-state question the
+   * client could not answer. For an encrypted token -- which is every token
+   * this backend issues -- it returned `false`, meaning "not expired", always
+   * and forever, while the server expired the token after 24 hours. The three
+   * things that consumed it therefore believed any past sign-in was current.
+   *
+   * <p>`unverifiable` is the state that did not exist before and is the whole
+   * point. A session we cannot place in time is not reported as fine.
    */
-  isTokenExpired(): boolean {
+  sessionStatus(): SessionStatus {
     const token = this.getToken();
     if (!token) {
-      return true;
+      return 'none';
     }
 
-    try {
-      const parsedToken = this.parseToken(token);
-      if (!parsedToken || !this.isAllowedToken(parsedToken)) {
-        return true;
-      }
-
-      if (parsedToken.encrypted) {
-        return false;
-      }
-
-      const payload = parsedToken.payload;
-
-      // exp claim is in seconds, convert to milliseconds
-      if (!payload.exp) {
-        return true;
-      }
-
-      const expiryTime = payload.exp * 1000;
-      const now = Date.now();
-
-      // Add 30 second buffer to account for clock skew
-      return now >= (expiryTime - 30000);
-    } catch (error) {
-      console.error('Error parsing JWT token:', error);
-      return true;
+    const parsedToken = this.parseToken(token);
+    if (!parsedToken || !this.isAllowedToken(parsedToken)) {
+      return 'unverifiable';
     }
+
+    const expiry = this.getSessionExpiry();
+    if (!expiry) {
+      return 'unverifiable';
+    }
+
+    return Date.now() > expiry.expiresAt + SESSION_EXPIRY_GRACE_MS ? 'expired' : 'unexpired';
   }
 
   /**
-   * Check if token exists and is not expired
-   * @returns true if token is valid and not expired
+   * Why a stored session should be discarded, or null to keep it.
+   *
+   * <p>Separate from the status so the two reasons can be said differently to a
+   * person: one is "your session ran out", the other is "we could not confirm
+   * your session". Reporting the second as the first would be a small lie in
+   * the one place this change exists to stop lying.
    */
-  isTokenValid(): boolean {
-    return this.hasToken() && !this.isTokenExpired();
+  sessionEndReason(): SessionEndReason | null {
+    const status = this.sessionStatus();
+    return status === 'expired' || status === 'unverifiable' ? status : null;
   }
 
   /**
-   * Get token expiration time in milliseconds
-   * @returns expiration timestamp or null if invalid
+   * True when the session is not known to have ended.
+   *
+   * <p>Named for what it can actually establish. It is NOT `isTokenValid`,
+   * which it replaced: the server also rejects a token well inside its `exp`
+   * once the user's `tokenVersion` moves on, and the client cannot see that. So
+   * this is never permission -- the interceptor's 401 handling stays the thing
+   * that catches a session the server has disowned.
    */
-  getTokenExpiry(): number | null {
-    const token = this.getToken();
-    if (!token) {
-      return null;
-    }
-
-    try {
-      const parsedToken = this.parseToken(token);
-      if (!parsedToken || !this.isAllowedToken(parsedToken)) {
-        return null;
-      }
-
-      if (parsedToken.encrypted) {
-        return null;
-      }
-
-      return parsedToken.payload.exp ? parsedToken.payload.exp * 1000 : null;
-    } catch {
-      return null;
-    }
+  hasUnexpiredSession(): boolean {
+    return this.sessionStatus() === 'unexpired';
   }
+
+  /**
+   * `getTokenExpiry` was removed here rather than fixed.
+   *
+   * <p>It read the `exp` claim out of the token and returned null for an
+   * encrypted one -- which is every token this backend issues -- so it always
+   * answered null, and it had no callers anywhere in the four apps. Keeping it
+   * would leave two ways to ask when the session ends, one of which cannot
+   * work. {@link getSessionExpiry} is the one that can.
+   */
 
   clear(): void {
     this.removeToken();

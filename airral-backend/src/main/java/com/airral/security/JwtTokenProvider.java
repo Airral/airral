@@ -77,6 +77,27 @@ public class JwtTokenProvider {
      * Kept for callers that predate session revocation. Version 0 is the
      * default every existing user carries, so these behave exactly as before.
      */
+    /**
+     * How long a token minted right now will live, in milliseconds.
+     *
+     * <p>Told to the client so it can stop claiming a session is valid when it
+     * cannot know. The token is an encrypted JWE, so the browser cannot read its
+     * own {@code exp}: {@code TokenService.isTokenExpired} returned false for
+     * every encrypted token unconditionally, which made anyone who had ever
+     * signed in look signed in forever while the server expired them here.
+     *
+     * <p>This reads the same field {@link #generateToken} stamps, so the two
+     * cannot disagree today. If a per-token lifetime is ever introduced --
+     * a remember-me, a short-lived admin session -- this stops being a safe
+     * answer and the value has to be returned from the mint itself.
+     * {@code JwtExpiryContractTest} decodes a freshly minted token and asserts
+     * its expiry matches this, so that divergence fails the build rather than
+     * quietly shortening or extending every browser session.
+     */
+    public long getExpirationMillis() {
+        return jwtExpiration;
+    }
+
     public String generateToken(Long userId, String email, String role, Long organizationId,
                                 String organizationTier, Boolean isPlatformAdmin,
                                 String department, Long managerId) {

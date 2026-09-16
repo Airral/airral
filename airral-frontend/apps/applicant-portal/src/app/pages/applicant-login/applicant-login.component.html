@@ -98,6 +98,7 @@
         </p>
       </div>
 
+      <p class="session-notice" *ngIf="sessionNotice && !errorMessage">{{ sessionNotice }}</p>
       <p class="error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
 
       <button class="primary-action" type="submit" [disabled]="loading || googleLoading">

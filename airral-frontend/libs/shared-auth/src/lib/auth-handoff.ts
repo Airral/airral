@@ -1,17 +1,55 @@
 import { AuthService } from './auth.service';
 import { User } from '@airral/shared-types';
-import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from './auth-storage-keys';
+import { AUTH_SESSION_EXPIRY_KEY, AUTH_TOKEN_KEY, AUTH_USER_KEY } from './auth-storage-keys';
+import { ASSUMED_SESSION_LIFETIME_MS, SessionExpiry } from './session-expiry';
 
 const AUTH_HANDOFF_KEY = 'airralAuth';
 
-export function buildLocalAuthHandoffUrl(targetUrl: string, user: User, token: string): string {
+/**
+ * The expiry a handoff fragment describes.
+ *
+ * <p>Absolute across the fragment, unlike the relative seconds used on the
+ * wire, because both ends are the same browser reading the same clock -- so an
+ * instant transfers exactly and no re-anchoring is needed.
+ *
+ * <p>A fragment without one is accepted and labelled `assumed`. It means the
+ * bundle that built it predates this change, which happens on every deploy
+ * while caches drain and for as long as somebody keeps a tab open. Refusing
+ * those would break cross-portal sign-in for the whole rollout, and the admin
+ * portal has no other door. Labelling is what keeps it honest: the session
+ * works, and nothing claims the server vouched for its end time.
+ */
+function expiryFromHandoff(expiresAt: unknown, now: number = Date.now()): SessionExpiry {
+  if (typeof expiresAt === 'number' && Number.isFinite(expiresAt) && expiresAt > now) {
+    return { expiresAt, source: 'server' };
+  }
+  return { expiresAt: now + ASSUMED_SESSION_LIFETIME_MS, source: 'assumed' };
+}
+
+/** Written by both consumers, so neither can leave a session nobody can judge. */
+function writeHandoffExpiry(token: string, expiry: SessionExpiry): void {
+  window.localStorage.setItem(
+    AUTH_SESSION_EXPIRY_KEY,
+    JSON.stringify({ expiresAt: expiry.expiresAt, src: expiry.source, tk: token.slice(-24) })
+  );
+}
+
+export function buildLocalAuthHandoffUrl(
+  targetUrl: string,
+  user: User,
+  token: string,
+  expiry: SessionExpiry
+): string {
   if (!isTrustedHandoffTarget(targetUrl)) {
     return targetUrl;
   }
 
   const url = new URL(targetUrl, window.location.origin);
   const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
-  hashParams.set(AUTH_HANDOFF_KEY, base64UrlEncode(JSON.stringify({ token, user })));
+  hashParams.set(
+    AUTH_HANDOFF_KEY,
+    base64UrlEncode(JSON.stringify({ token, user, expiresAt: expiry.expiresAt }))
+  );
   url.hash = hashParams.toString();
   return url.toString();
 }
@@ -52,12 +90,22 @@ export function consumeAuthHandoffBeforeBootstrap(): void {
   cleanUrl(hashParams.toString());
 
   try {
-    const parsed = JSON.parse(base64UrlDecode(encoded)) as { token?: string; user?: User };
+    const parsed = JSON.parse(base64UrlDecode(encoded)) as {
+      token?: string;
+      user?: User;
+      expiresAt?: unknown;
+    };
     if (!parsed.token || !parsed.user) {
       return;
     }
     window.localStorage.setItem(AUTH_TOKEN_KEY, parsed.token);
     window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(parsed.user));
+    // AuthService does not exist yet on this path, so the expiry is written
+    // directly alongside the token. Omitting it here would hand the app a
+    // session with no end time, which reads as unverifiable and signs the
+    // arriving user straight back out -- breaking the very handoff this
+    // function exists to complete.
+    writeHandoffExpiry(parsed.token, expiryFromHandoff(parsed.expiresAt));
   } catch {
     // Nothing to restore. The fragment is already gone.
   }
@@ -75,12 +123,16 @@ export function consumeLocalAuthHandoff(authService: AuthService): boolean {
   }
 
   try {
-    const parsed = JSON.parse(base64UrlDecode(encoded)) as { token?: string; user?: User };
+    const parsed = JSON.parse(base64UrlDecode(encoded)) as {
+      token?: string;
+      user?: User;
+      expiresAt?: unknown;
+    };
     if (!parsed.token || !parsed.user) {
       return false;
     }
 
-    authService.login(parsed.user, parsed.token);
+    authService.login(parsed.user, parsed.token, expiryFromHandoff(parsed.expiresAt));
     hashParams.delete(AUTH_HANDOFF_KEY);
     scheduleCleanUrl(hashParams.toString());
     return true;

@@ -3,13 +3,7 @@ import { Component, Inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import {
-  AuthService,
-  PORTAL_ID,
-  PortalId,
-  routeAfterAuth,
-  userFromAuthResponse,
-} from '@airral/shared-auth';
+import { AuthService, PORTAL_ID, PortalId, clearSessionEndReason, noticeForSessionEndReason, readSessionEndReason, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { AuthResponse, RegisterRequest } from '@airral/shared-types';
 import { USER_ROLES } from '@airral/shared-utils';
 import { GoogleAuthButtonComponent } from '@airral/shared-ui';
@@ -32,6 +26,16 @@ export class ApplicantLoginComponent {
   loading = false;
   googleLoading = false;
   errorMessage = '';
+  /**
+   * Why they were sent here, when they did not come on purpose.
+   *
+   * <p>Arriving at a login form with no explanation is what the old behaviour
+   * did, and the two reasons are genuinely different: a session that ran out,
+   * and a session we could not place in time. The second is what every session
+   * stored before the expiry change reads as, and calling it expired would be
+   * an invention.
+   */
+  sessionNotice = '';
   showPassword = false;
   googleAvailable = false;
 
@@ -44,6 +48,13 @@ export class ApplicantLoginComponent {
   ) {
     this.mode = this.route.snapshot.queryParamMap.get('mode') === 'register' ? 'register' : 'login';
     this.googleAvailable = this.hasGoogleClientId();
+    // The query parameter carries it across origins (the admin portal sends
+    // people to the HR login); storage carries it when a same-origin redirect
+    // races itself and loses the parameter. Whichever arrived, show it once.
+    this.sessionNotice = noticeForSessionEndReason(
+      this.route.snapshot.queryParamMap.get('reason') ?? readSessionEndReason()
+    );
+    clearSessionEndReason();
   }
 
   get isRegisterMode(): boolean {
@@ -203,6 +214,7 @@ export class ApplicantLoginComponent {
       currentPortal: this.portal,
       user,
       token: response.token,
+      expiry: sessionExpiryFromResponse(response.expiresInSeconds),
       router: this.router,
       authService: this.authService,
       returnUrl: this.route.snapshot.queryParamMap.get('returnUrl'),
