@@ -95,7 +95,7 @@ public class JwtTokenProvider {
      * quietly shortening or extending every browser session.
      */
     public long getExpirationMillis() {
-        return jwtExpiration + 3600000L;
+        return jwtExpiration;
     }
 
     public String generateToken(Long userId, String email, String role, Long organizationId,
