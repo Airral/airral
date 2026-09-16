@@ -76,11 +76,28 @@ export class ProfileComponent implements OnInit {
     });
   }
 
+  /**
+   * Toggle one email preference, and only claim success if the server agrees.
+   *
+   * <p>"Preferences updated" used to be printed for any 200 response. The PUT
+   * did not write anything, so the response carried the old values, and line
+   * below rebinds from it -- meaning the toggle snapped back to where it was in
+   * the same tick that the success text appeared. HTTP 200 is evidence that the
+   * request was received, never that it took effect, so the message is now
+   * gated on the response actually carrying the value that was asked for.
+   *
+   * <p>The wording of the failure is deliberately neutral. Two harmless races
+   * can make the values disagree -- toggling the same switch twice quickly, and
+   * a one-click unsubscribe landing between the write and the read -- so this
+   * says the preference was not confirmed rather than asserting a failure, and
+   * leaves the switch showing whatever the server last reported.
+   */
   toggleNotification(key: keyof NotificationPreferences): void {
     if (!this.notificationPrefs) return;
     const current = this.notificationPrefs[key];
-    const update: Partial<NotificationPreferences> = { [key]: !current };
-    this.notificationPrefs = { ...this.notificationPrefs, [key]: !current };
+    const desired = !current;
+    const update: Partial<NotificationPreferences> = { [key]: desired };
+    this.notificationPrefs = { ...this.notificationPrefs, [key]: desired };
     this.candidateApi.updateNotificationPreferences(update).pipe(
       catchError(() => {
         // revert on error
@@ -92,9 +109,19 @@ export class ProfileComponent implements OnInit {
     ).subscribe((result) => {
       if (result) {
         this.notificationPrefs = result;
-        this.notificationSaveMessage = 'Preferences updated';
-        setTimeout(() => (this.notificationSaveMessage = ''), 2000);
+        this.notificationSaveMessage = result[key] === desired
+          ? 'Preferences updated'
+          : 'That preference did not save. Try again in a moment.';
+      } else {
+        this.notificationSaveMessage = 'That preference did not save. Try again in a moment.';
       }
+      // Zoneless: a bare timer callback repaints nothing, so without this the
+      // banner stayed on screen until an unrelated interaction nudged a pass --
+      // the save() path below already learned this.
+      setTimeout(() => {
+        this.notificationSaveMessage = '';
+        this.changeDetectorRef.markForCheck();
+      }, 3000);
       this.changeDetectorRef.markForCheck();
     });
   }

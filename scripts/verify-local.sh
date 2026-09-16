@@ -264,6 +264,20 @@ done
   && ok "the robots.txt rule does not widen past that path" \
   || bad "GET /robots.txt.bak should be 401"
 
+# The unsubscribe link from an email footer. It returned 401 for its whole
+# existence, because there was no SecurityConfig rule for it and the default is
+# authenticated -- and someone clicking a link in their mail client has no
+# session token for this API. No unit test could catch it: they call the
+# controller method directly and never go through the security filter chain.
+[ "$(code 'http://localhost:8080/api/candidate/notifications/unsubscribe?token=not-a-real-token')" = "200" ] \
+  && ok "the email unsubscribe link is reachable without signing in" \
+  || bad "GET /api/candidate/notifications/unsubscribe should be 200; a 401 makes every unsubscribe link in every email dead"
+
+# ...and that making it public did not widen past it.
+[ "$(code http://localhost:8080/api/candidate/notifications/preferences)" = "401" ] \
+  && ok "notification preferences still require a session" \
+  || bad "GET /api/candidate/notifications/preferences should be 401"
+
 PROBE="throttle-$RANDOM@local.test"
 LAST=""
 for i in $(seq 1 6); do

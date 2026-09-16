@@ -97,9 +97,42 @@ public class CandidateEmailService {
     }
 
     /**
+     * Persist a preference row the caller has already mutated.
+     *
+     * <p>The controller holds only this service, which is why the save lives
+     * here rather than being a bare repository call at the call site. It returns
+     * the saved entity so the response can be built from what was written,
+     * instead of from a second read that may not see it.
+     *
+     * <p>This is an UPDATE, not an insert. The entity does not implement
+     * {@code Persistable}, carries no {@code @Version} and there is no custom
+     * {@code IsNewStrategy}, so Spring Data R2DBC decides newness from the id --
+     * and an entity hydrated from a row has one. That matters because
+     * {@code candidate_notification_preferences} has a unique constraint on
+     * {@code user_id}, which an insert would violate.
+     */
+    public Mono<CandidateNotificationPreference> savePreferences(CandidateNotificationPreference preference) {
+        return preferenceRepository.save(preference);
+    }
+
+    /**
      * Unsubscribe via token (one-click unsubscribe from email footer).
      */
-    public Mono<Void> unsubscribeAll(String unsubscribeToken) {
+    /**
+     * Switch every notification off for the holder of this token.
+     *
+     * <p>Returns false when the token matches no row, so the caller can say so.
+     * This used to return {@code Mono<Void>} and the endpoint answered "You've
+     * been unsubscribed" either way -- including for a token that matched
+     * nothing, which is the one case where the sentence is both false and
+     * expensive: someone holding a stale link is told they are unsubscribed and
+     * carries on receiving mail.
+     *
+     * <p>Telling them apart leaks nothing worth protecting. The token is a
+     * per-user UUID, so confirming that some random one does not exist says
+     * nothing a guess had not already established.
+     */
+    public Mono<Boolean> unsubscribeAll(String unsubscribeToken) {
         return preferenceRepository.findByUnsubscribeToken(unsubscribeToken)
                 .flatMap(pref -> {
                     pref.setJobAlertEnabled(false);
@@ -110,7 +143,7 @@ public class CandidateEmailService {
                     pref.setUpdatedAt(OffsetDateTime.now());
                     return preferenceRepository.save(pref);
                 })
-                .then();
+                .hasElement();
     }
 
     /**

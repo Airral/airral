@@ -684,9 +684,38 @@ textarea::placeholder {
   margin: 0 0 12px;
 }
 
+/*
+ * Shown when the server reports that nothing is sending these emails yet. It
+ * is a statement of fact about the system, not a warning, so it reads as
+ * secondary text rather than an alert.
+ */
+.notif-inactive {
+  font-size: 12px;
+  color: #667789;
+  line-height: 1.5;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  background: #F4F6F8;
+  border-radius: 6px;
+}
+
 .notification-toggles {
   display: grid;
   gap: 4px;
+}
+
+/*
+ * A setting with no feature behind it. Dimmed and non-interactive rather than
+ * deleted, so the row still says plainly what we cannot do instead of quietly
+ * vanishing -- and so it is obvious what to re-enable when the feature exists.
+ */
+.notif-toggle-unbuilt {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.notif-toggle-unbuilt div span {
+  font-style: italic;
 }
 
 .notif-toggle {

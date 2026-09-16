@@ -284,6 +284,10 @@
         </div>
       </div>
       <p class="notif-save-msg" *ngIf="notificationSaveMessage">{{ notificationSaveMessage }}</p>
+      <p class="notif-inactive" *ngIf="notificationPrefs && notificationPrefs.emailDeliveryActive === false">
+        We are not sending these emails yet. Your choices are saved and will apply
+        from the day we switch them on.
+      </p>
       <div class="notification-toggles">
         <label class="notif-toggle">
           <input type="checkbox" [checked]="notificationPrefs.jobAlertEnabled" (change)="toggleNotification('jobAlertEnabled')">
@@ -317,12 +321,12 @@
             <span>Reminder to run resume fit if you haven't tried it yet</span>
           </div>
         </label>
-        <label class="notif-toggle">
-          <input type="checkbox" [checked]="notificationPrefs.savedJobChangeEnabled" (change)="toggleNotification('savedJobChangeEnabled')">
+        <label class="notif-toggle notif-toggle-unbuilt">
+          <input type="checkbox" disabled [checked]="false">
           <span class="toggle-track"></span>
           <div>
             <strong>Saved job updates</strong>
-            <span>Alert when a saved job is reposted or expires</span>
+            <span>Not built yet &mdash; we cannot tell you when a saved job is reposted or expires</span>
           </div>
         </label>
       </div>
