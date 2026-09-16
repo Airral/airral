@@ -6,17 +6,35 @@ import { ASSUMED_SESSION_LIFETIME_MS, SessionExpiry } from './session-expiry';
 const AUTH_HANDOFF_KEY = 'airralAuth';
 
 /**
- * Whether a handed-over token is even the shape this backend issues.
+ * Whether a handed-over token is the shape this backend actually issues.
  *
  * <p>Both consumers checked only that the token was truthy, then wrote it to
  * storage verbatim. Any *.airral.com page is a trusted handoff host, so a
- * crafted fragment could seed an arbitrary string as somebody's session token.
- * With parseToken now total that is merely useless rather than fatal, but
- * refusing it here means the state never reaches storage at all -- and a
- * refused handoff leaves the visitor on a login form, which is recoverable.
+ * crafted fragment could seed an arbitrary string as somebody's session.
+ *
+ * <p>Counting the five parts is not enough, which the first version of this
+ * got wrong: "x..y.z.w" has five parts and passes, so the junk was written and
+ * then cleared a moment later as unverifiable. The right outcome by the wrong
+ * route. The header is decoded and checked here, matching what
+ * {@code isEncryptedBackendToken} in the interceptor requires, so a token that
+ * could never have come from this backend never reaches storage.
+ *
+ * <p>Total, like everything else on this path: a header that will not decode
+ * is a false answer, not a thrown error, because this runs before the
+ * application bootstraps and a throw here has nothing to catch it.
  */
 function looksLikeSessionToken(token: string): boolean {
-  return token.split('.').length === 5;
+  const parts = token.split('.');
+  if (parts.length !== 5) {
+    return false;
+  }
+
+  try {
+    const header = JSON.parse(base64UrlDecode(parts[0]));
+    return header?.alg === 'dir' && header?.enc === 'A256GCM';
+  } catch {
+    return false;
+  }
 }
 
 /**
