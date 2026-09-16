@@ -26,9 +26,24 @@ export class App implements OnInit {
   ngOnInit(): void {
     this.visitorSignals.trackPageViews('applicant');
 
-    if (this.isLoggedIn) {
+    // Not on a page that works without signing in. isAuthenticated() cannot be
+    // trusted here: the backend token is an encrypted JWE, so the client cannot
+    // read its expiry and isTokenExpired returns false for it unconditionally --
+    // meaning anyone who ever signed in on this browser looks logged in forever
+    // while the server expires them after 24h. Firing this badge request on the
+    // unsubscribe page therefore produced a 401 seconds after it rendered, and
+    // the 401 handler signed the reader out and redirected them to /login.
+    if (this.isLoggedIn && !this.onPublicPage()) {
       this.loadTrackerBadge();
     }
+  }
+
+  /** Pages reachable from an email, where no session is assumed. */
+  private onPublicPage(): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.location.pathname.startsWith('/unsubscribe');
   }
 
   get isLoggedIn(): boolean {
