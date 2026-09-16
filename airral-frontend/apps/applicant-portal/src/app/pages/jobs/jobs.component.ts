@@ -800,7 +800,19 @@ export class JobsComponent implements OnInit, OnDestroy {
    * profile. A number with nothing behind it is worse than no number.
    */
   showMatchScore(job: CandidateJobSummary | null): boolean {
-    return Boolean(job?.matchScore && this.signedIn());
+    // The presence of the number is now the whole signal. The server writes a
+    // match score in exactly one place, and only when it has something the
+    // candidate told us to match against -- so if there is a score, it was
+    // computed from stated preferences, and if there is not, there was nothing
+    // to compute from.
+    //
+    // The signedIn() check that used to be here was mine, and it was the wrong
+    // fix. It hid the number from visitors while still showing it to anyone who
+    // had merely registered -- which is exactly the case that was reported: a
+    // signed-in account with no resume being told it was a 64% profile match.
+    // Gating the display made a fabricated figure look more legitimate instead
+    // of removing it.
+    return job?.matchScore != null;
   }
 
   /**
@@ -1194,7 +1206,12 @@ export class JobsComponent implements OnInit, OnDestroy {
 
     const report = [
       `${this.selectedJob.title} at ${this.selectedJob.companyName}`,
-      `${this.getDecisionLabel(this.selectedJob)} · ${this.selectedJob.matchScore ?? 'No'}% match`,
+      // Reads "No% match" when there is no score, which there now usually is
+      // not. Say nothing about matching rather than something ungrammatical
+      // about nothing.
+      ...(this.showMatchScore(this.selectedJob)
+        ? [`${this.getDecisionLabel(this.selectedJob)} · ${this.selectedJob.matchScore}% match`]
+        : [this.getDecisionLabel(this.selectedJob)]),
       ...(this.fitResult ? [`Resume fit: ${this.fitResult.fitScore}%`] : []),
       '',
       'Why apply:',

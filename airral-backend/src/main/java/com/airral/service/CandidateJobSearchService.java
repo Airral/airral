@@ -1821,7 +1821,6 @@ public class CandidateJobSearchService {
                 .easyApplyAvailable(false)
                 .sourceUpdatedAt(job.getUpdatedAt())
                 .postedLabel(formatPostedLabel(job.getUpdatedAt()))
-                .matchScore(inferMatchScore(job.getTitle(), firstDepartment(job)))
                 .connectionsCount(0)
                 .tags(buildTags(job.getTitle(), firstDepartment(job), inferWorkMode(job.getTitle(), location), List.of()))
                 .build());
@@ -1858,7 +1857,6 @@ public class CandidateJobSearchService {
                 .applyMode("EXTERNAL_APPLY")
                 .sourceUpdatedAt(job.getUpdatedAt())
                 .postedLabel(formatPostedLabel(job.getUpdatedAt()))
-                .matchScore(inferMatchScore(job.getTitle(), firstDepartment(job)))
                 .connectionsCount(0)
                 .tags(buildTags(job.getTitle(), firstDepartment(job), inferWorkMode(job.getTitle(), location), officeNames(job)))
                 .sourcePayloadHash(hash(job.getId() + "|" + job.getUpdatedAt() + "|" + job.getAbsoluteUrl()))
@@ -1909,7 +1907,6 @@ public class CandidateJobSearchService {
                 .easyApplyAvailable(false)
                 .sourceUpdatedAt(sourceDate)
                 .postedLabel(formatPostedLabel(sourceDate))
-                .matchScore(inferMatchScore(posting.getText(), department))
                 .connectionsCount(0)
                 .tags(buildTags(posting.getText(), department, workMode, List.of()))
                 .build());
@@ -1987,7 +1984,6 @@ public class CandidateJobSearchService {
                 .easyApplyAvailable(false)
                 .sourceUpdatedAt(job.getPublishedAt())
                 .postedLabel(formatPostedLabel(job.getPublishedAt()))
-                .matchScore(inferMatchScore(job.getTitle(), firstNonBlank(job.getDepartment(), job.getTeam())))
                 .connectionsCount(0)
                 .tags(buildTags(job.getTitle(), firstNonBlank(job.getDepartment(), job.getTeam()), workMode, List.of()))
                 .build());
@@ -2063,7 +2059,6 @@ public class CandidateJobSearchService {
                 .easyApplyAvailable(false)
                 .sourceUpdatedAt(posting.getReleasedDate())
                 .postedLabel(formatPostedLabel(posting.getReleasedDate()))
-                .matchScore(inferMatchScore(posting.getName(), department))
                 .connectionsCount(0)
                 .tags(buildTags(posting.getName(), department, workMode, smartRecruitersExtraTags(posting)))
                 .build());
@@ -2146,7 +2141,6 @@ public class CandidateJobSearchService {
                 .easyApplyAvailable(false)
                 .sourceUpdatedAt(sourceDate)
                 .postedLabel(formatPostedLabel(sourceDate))
-                .matchScore(inferMatchScore(job.getTitle(), firstNonBlank(job.getDepartment(), job.getFunction())))
                 .connectionsCount(0)
                 .tags(buildTags(job.getTitle(), firstNonBlank(job.getDepartment(), job.getFunction()), workMode, compactList(job.getIndustry(), job.getExperience(), job.getEducation())))
                 .build());
@@ -2212,7 +2206,6 @@ public class CandidateJobSearchService {
                 .easyApplyAvailable(false)
                 .sourceUpdatedAt(sourceDate)
                 .postedLabel(formatPostedLabel(sourceDate))
-                .matchScore(inferMatchScore(posting.getTitle(), firstListValue(posting.getBulletFields())))
                 .connectionsCount(0)
                 .tags(buildTags(posting.getTitle(), firstListValue(posting.getBulletFields()), workMode, posting.getBulletFields()))
                 .build());
@@ -2261,7 +2254,6 @@ public class CandidateJobSearchService {
                 .applyMode("EXTERNAL_APPLY")
                 .sourceUpdatedAt(sourceDate)
                 .postedLabel(formatPostedLabel(sourceDate))
-                .matchScore(inferMatchScore(info.getTitle(), null))
                 .connectionsCount(0)
                 .tags(buildTags(info.getTitle(), null, workMode, compactList(info.getTimeType(), info.getJobReqId())))
                 .sourcePayloadHash(hash(externalPath + "|" + info.getStartDate() + "|" + url))
@@ -2292,7 +2284,6 @@ public class CandidateJobSearchService {
                 .easyApplyAvailable(false)
                 .sourceUpdatedAt(job.getPostedDate())
                 .postedLabel(formatPostedLabel(job.getPostedDate()))
-                .matchScore(inferMatchScore(title, department))
                 .connectionsCount(0)
                 .tags(buildTags(title, department, inferWorkMode(title, location), compactList(bambooHrLabel(job.getStatus()))))
                 .build());
@@ -2360,7 +2351,6 @@ public class CandidateJobSearchService {
                 .easyApplyAvailable(false)
                 .sourceUpdatedAt(sourceDate)
                 .postedLabel(formatPostedLabel(sourceDate))
-                .matchScore(inferMatchScore(job.getTitle(), null))
                 .connectionsCount(0)
                 .tags(buildTags(job.getTitle(), null, workMode, compactList(employmentType, sourceName)))
                 .build());
@@ -5599,17 +5589,31 @@ public class CandidateJobSearchService {
         };
     }
 
-    private Integer inferMatchScore(String title, String department) {
-        String combined = ((title == null ? "" : title) + " " + (department == null ? "" : department)).toLowerCase(Locale.US);
-
-        if (combined.contains("frontend") || combined.contains("front-end") || combined.contains("ui")) {
-            return 74;
-        }
-        if (combined.contains("software") || combined.contains("engineer") || combined.contains("product")) {
-            return 70;
-        }
-        return 64;
-    }
+    /*
+     * inferMatchScore was deleted here, along with the ten places that
+     * called it.
+     *
+     * It was three constants keyed on whether a title contained a word, and it
+     * never read the candidate -- no profile, no skills, no stated roles, no
+     * user id. It returned 74 for "frontend", "front-end" or "ui", 70 for
+     * "software", "engineer" or "product", and 64 for everything else. That 64
+     * is the "64% profile match on a job where I did not push my resume" a
+     * reviewer reported, and it was served to anonymous visitors too.
+     *
+     * The buckets were not even the crude classification they looked like:
+     * "ui" was matched as a substring, so "Build Engineer", "Building
+     * Maintenance", "Recruiter", "Equity Analyst", "Suite Attendant" and "Guide
+     * Services Lead" all scored 74 on the letters u-i, while a Registered Nurse
+     * scored 64. The output was noise wearing a percentage sign.
+     *
+     * A match score is now written in exactly one place, applyCandidateMatch,
+     * which runs only when there is a candidate context to match against. With
+     * no context the field stays null and the portal shows nothing -- see
+     * showMatchScore. Both comparators already order nulls last, so an
+     * anonymous feed falls through to recency and a signed-in feed with no
+     * stated preferences falls through to job quality. Both are orderings we
+     * can explain.
+     */
 
     private Integer inferJobQualityScore(
             String salaryLabel,

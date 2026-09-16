@@ -269,10 +269,9 @@ public class ExternalJobPostingStore {
                     p.easy_apply_available,
                     p.source_updated_at,
                     p.posted_label,
-                    p.match_score,
                     p.connections_count,
                     p.tags,
-                    COALESCE(p.job_quality_score, p.match_score, 78) AS job_quality_score,
+                    COALESCE(p.job_quality_score, 78) AS job_quality_score,
                     p.quality_reasons,
                     COALESCE(
                         p.total_comp_label,
@@ -393,7 +392,6 @@ public class ExternalJobPostingStore {
                         .easyApplyAvailable(row.get("easy_apply_available", Boolean.class))
                         .sourceUpdatedAt(row.get("source_updated_at", OffsetDateTime.class))
                         .postedLabel(row.get("posted_label", String.class))
-                        .matchScore(row.get("match_score", Integer.class))
                         .connectionsCount(row.get("connections_count", Integer.class))
                         .tags(tagsFrom(row.get("tags", Object.class)))
                         .jobQualityScore(row.get("job_quality_score", Integer.class))
@@ -707,10 +705,9 @@ public class ExternalJobPostingStore {
                     p.easy_apply_available,
                     p.source_updated_at,
                     p.posted_label,
-                    p.match_score,
                     p.connections_count,
                     p.tags,
-                    COALESCE(p.job_quality_score, p.match_score, 78) AS job_quality_score,
+                    COALESCE(p.job_quality_score, 78) AS job_quality_score,
                     p.quality_reasons,
                     COALESCE(
                         p.total_comp_label,
@@ -805,7 +802,6 @@ public class ExternalJobPostingStore {
                         .easyApplyAvailable(row.get("easy_apply_available", Boolean.class))
                         .sourceUpdatedAt(row.get("source_updated_at", OffsetDateTime.class))
                         .postedLabel(row.get("posted_label", String.class))
-                        .matchScore(row.get("match_score", Integer.class))
                         .connectionsCount(row.get("connections_count", Integer.class))
                         .tags(tagsFrom(row.get("tags", Object.class)))
                         .jobQualityScore(row.get("job_quality_score", Integer.class))
@@ -1155,6 +1151,13 @@ public class ExternalJobPostingStore {
         spec = bindNullable(spec, "jobUrl", job.getJobUrl(), String.class);
         spec = bindNullable(spec, "sourceUpdatedAt", sourceUpdatedAt, OffsetDateTime.class);
         spec = bindNullable(spec, "postedLabel", job.getPostedLabel(), String.class);
+        // Always null now, and left in place deliberately. Nothing reads
+        // match_score any more -- the four read paths stopped selecting it when
+        // inferMatchScore was deleted, because it was a three-value title
+        // keyword check computed without any candidate and it was being served
+        // to anonymous visitors as a "profile match". Dropping the column is a
+        // migration and its own decision; writing null to an unread column
+        // costs nothing and keeps this change to the read path.
         spec = bindNullable(spec, "matchScore", job.getMatchScore(), Integer.class);
         spec = bindNullable(spec, "jobQualityScore", firstNonNull(job.getJobQualityScore(), job.getMatchScore()), Integer.class);
         spec = bindNullable(spec, "totalCompLabel", firstNonBlank(job.getTotalCompLabel(), inferTotalCompLabel(job.getSalaryLabel())), String.class);
@@ -1229,11 +1232,10 @@ public class ExternalJobPostingStore {
                             p.apply_mode,
                             p.source_updated_at,
                             p.posted_label,
-                            p.match_score,
                             p.connections_count,
                             p.tags,
                             p.source_payload_hash,
-                            COALESCE(p.job_quality_score, p.match_score, 78) AS job_quality_score,
+                            COALESCE(p.job_quality_score, 78) AS job_quality_score,
                             p.quality_reasons,
                             COALESCE(
                                 p.total_comp_label,
@@ -1314,7 +1316,6 @@ public class ExternalJobPostingStore {
                         .applyMode(row.get("apply_mode", String.class))
                         .sourceUpdatedAt(row.get("source_updated_at", OffsetDateTime.class))
                         .postedLabel(row.get("posted_label", String.class))
-                        .matchScore(row.get("match_score", Integer.class))
                         .connectionsCount(row.get("connections_count", Integer.class))
                         .tags(tagsFrom(row.get("tags", Object.class)))
                         .sourcePayloadHash(row.get("source_payload_hash", String.class))
@@ -2196,10 +2197,9 @@ public class ExternalJobPostingStore {
                             p.easy_apply_available,
                             p.source_updated_at,
                             p.posted_label,
-                            p.match_score,
                             p.connections_count,
                             p.tags,
-                            COALESCE(p.job_quality_score, p.match_score, 78) AS job_quality_score,
+                            COALESCE(p.job_quality_score, 78) AS job_quality_score,
                             p.quality_reasons,
                             COALESCE(p.total_comp_label, 'Benchmark needed') AS total_comp_label,
                             COALESCE(p.compensation_confidence, 'NEEDS_BENCHMARK') AS compensation_confidence,
@@ -2245,7 +2245,6 @@ public class ExternalJobPostingStore {
                         .easyApplyAvailable(row.get("easy_apply_available", Boolean.class))
                         .sourceUpdatedAt(row.get("source_updated_at", OffsetDateTime.class))
                         .postedLabel(row.get("posted_label", String.class))
-                        .matchScore(row.get("match_score", Integer.class))
                         .connectionsCount(row.get("connections_count", Integer.class))
                         .tags(tagsFrom(row.get("tags", Object.class)))
                         .jobQualityScore(row.get("job_quality_score", Integer.class))
