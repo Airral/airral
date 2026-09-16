@@ -1,15 +1,27 @@
 name: GCP · Cloud SQL Power
 
-# Starts the POC database at 08:00 ET and stops it at 20:00 ET, and can be run
-# by hand at any time. A stopped Cloud SQL instance is not billed for CPU or
-# memory -- only storage -- so a 12-hour day roughly halves the compute cost,
-# which is the largest line item in this project.
+# Starts and stops the POC database, BY HAND ONLY. The schedule is gone.
 #
-# GitHub cron is UTC only and has no DST handling. Rather than scheduling the
-# two transitions, this runs hourly and asks whether the current
-# America/New_York time is inside the window, then converges on that answer.
-# One expression stays correct across DST, and no single run is load-bearing --
-# GitHub's scheduler is best-effort and often hours late.
+# It ran every twenty minutes on paper. Measured from the run history on
+# 2026-09-16, GitHub actually fired it every three to five hours: 00:59Z,
+# 05:39Z, 10:16Z, then nothing until a manual run at 15:00Z. The 10:16Z run
+# was 06:16 ET, outside the window, so it correctly stopped the database --
+# and the run that should have started it again at 08:03 ET never happened.
+# Production was down from 08:00 to 11:00 ET, in the middle of a working day,
+# and nothing alerted.
+#
+# The converge-on-desired-state design below is right and is kept for manual
+# runs. It cannot help here: a self-healing schedule still has to run to heal,
+# and three firing opportunities an hour that GitHub honours once every four
+# hours is not a schedule. Tuning the cron further would be tuning the wrong
+# thing.
+#
+# So the instance stays on (activation policy ALWAYS) and the saving is given
+# up deliberately. A db-f1-micro is roughly $8/month always-on against $4 at
+# twelve hours a day: the schedule was buying about four dollars a month in
+# exchange for multi-hour outages during business hours. A GCP-native Cloud
+# Scheduler job would keep both, and is the thing to build if the bill ever
+# matters more than this.
 #
 # Note: while the database is stopped the API returns errors -- 500 from
 # GlobalExceptionHandler's catch-all, because an R2DBC failure is a
@@ -34,22 +46,6 @@ on:
           - start
           - stop
           - status
-  schedule:
-    # Every twenty minutes, because the job converges on the desired state
-    # rather than acting at a transition, so extra runs are free no-ops. One
-    # expression is DST-correct on its own, since the window is evaluated in
-    # America/New_York.
-    #
-    # The interval is what bounds drift. GitHub's scheduler is best-effort and
-    # frequently late, and on an hourly cron that showed up as a real window of
-    # roughly 09:30-23:15 instead of the intended 08:00-20:00: the database was
-    # down when people would use it and up when nobody would. Three firing
-    # opportunities an hour cuts that to about twenty minutes at each end.
-    #
-    # Offset off the hour on purpose. :00, :15, :30 and :45 are the most
-    # contended minutes on GitHub's shared schedulers and the most likely to be
-    # delayed or dropped.
-    - cron: '3,23,43 * * * *'
 
 permissions:
   # contents: read was dropped because nothing here checks out the tree -- the
@@ -90,6 +86,10 @@ jobs:
             ACTION='${{ inputs.action }}'
             echo "manual run: $ACTION"
           else
+            # Unreachable while there is no schedule trigger, and kept for the
+            # day a reliable one exists -- a Cloud Scheduler job calling this
+            # by dispatch, or GitHub cron if it ever becomes dependable.
+            #
             # Converge on the state the schedule wants, rather than acting only
             # at the instant of a transition.
             #
