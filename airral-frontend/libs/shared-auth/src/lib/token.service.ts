@@ -147,9 +147,26 @@ export class TokenService {
     this.getStorage().setItem(USER_KEY, JSON.stringify(user));
   }
 
+  /**
+   * The stored user, or null if the stored value is not readable.
+   *
+   * <p>The try/catch is not new caution. AuthService reads this in its
+   * constructor, so an unparseable value here rejects bootstrapApplication and
+   * leaves every route on the origin blank, with nothing able to clear it --
+   * the same failure that parseToken above documents. This one predates the
+   * expiry change; it is fixed here because it is the same hazard one line
+   * away, and finding it separately later would mean finding it in production.
+   */
   getUser(): any {
     const user = this.getStorage().getItem(USER_KEY) ?? this.getSessionStorage()?.getItem(USER_KEY);
-    return user ? JSON.parse(user) : null;
+    if (!user) {
+      return null;
+    }
+    try {
+      return JSON.parse(user);
+    } catch {
+      return null;
+    }
   }
 
   removeUser(): void {
@@ -233,22 +250,47 @@ export class TokenService {
     this.removeUser();
   }
 
+  /**
+   * Read a token's header, or null if it cannot be read.
+   *
+   * <p>Total by construction, and it has to be. This used to throw: `atob`
+   * raises on any segment that is not base64 and `JSON.parse` raises on any
+   * that is not JSON, so a token like `x..y.z.w` -- five parts, so it clears
+   * the length check -- threw from here.
+   *
+   * <p>That was survivable while the only caller wrapped it in a try/catch
+   * returning "expired". It stopped being survivable when sessionStatus
+   * replaced that caller, because sessionStatus is reached from
+   * AuthService.initializeAuth, which runs in the AuthService CONSTRUCTOR. A
+   * throw there escapes dependency injection and rejects
+   * bootstrapApplication, whose only handler is a console.error -- so the root
+   * component never renders and every route on the origin is a blank page,
+   * including /login, the public /jobs and /unsubscribe. Nothing can clear the
+   * bad value because nothing runs.
+   *
+   * <p>A value that cannot be parsed is not an exception here, it is an
+   * answer: null, which callers already read as unverifiable.
+   */
   private parseToken(token: string): { header: any; payload: any | null; encrypted: boolean } | null {
     const parts = token.split('.');
     if (parts.length !== 3 && parts.length !== 5) {
       return null;
     }
 
-    const header = JSON.parse(this.base64UrlDecode(parts[0]));
-    if (parts.length === 5) {
-      return { header, payload: null, encrypted: true };
-    }
+    try {
+      const header = JSON.parse(this.base64UrlDecode(parts[0]));
+      if (parts.length === 5) {
+        return { header, payload: null, encrypted: true };
+      }
 
-    return {
-      header,
-      payload: JSON.parse(this.base64UrlDecode(parts[1])),
-      encrypted: false,
-    };
+      return {
+        header,
+        payload: JSON.parse(this.base64UrlDecode(parts[1])),
+        encrypted: false,
+      };
+    } catch {
+      return null;
+    }
   }
 
   private base64UrlDecode(value: string): string {

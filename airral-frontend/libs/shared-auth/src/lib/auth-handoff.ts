@@ -6,6 +6,20 @@ import { ASSUMED_SESSION_LIFETIME_MS, SessionExpiry } from './session-expiry';
 const AUTH_HANDOFF_KEY = 'airralAuth';
 
 /**
+ * Whether a handed-over token is even the shape this backend issues.
+ *
+ * <p>Both consumers checked only that the token was truthy, then wrote it to
+ * storage verbatim. Any *.airral.com page is a trusted handoff host, so a
+ * crafted fragment could seed an arbitrary string as somebody's session token.
+ * With parseToken now total that is merely useless rather than fatal, but
+ * refusing it here means the state never reaches storage at all -- and a
+ * refused handoff leaves the visitor on a login form, which is recoverable.
+ */
+function looksLikeSessionToken(token: string): boolean {
+  return token.split('.').length === 5;
+}
+
+/**
  * The expiry a handoff fragment describes.
  *
  * <p>Absolute across the fragment, unlike the relative seconds used on the
@@ -95,7 +109,7 @@ export function consumeAuthHandoffBeforeBootstrap(): void {
       user?: User;
       expiresAt?: unknown;
     };
-    if (!parsed.token || !parsed.user) {
+    if (!parsed.token || !parsed.user || !looksLikeSessionToken(parsed.token)) {
       return;
     }
     // AuthService does not exist yet on this path, so the expiry is written
@@ -131,7 +145,7 @@ export function consumeLocalAuthHandoff(authService: AuthService): boolean {
       user?: User;
       expiresAt?: unknown;
     };
-    if (!parsed.token || !parsed.user) {
+    if (!parsed.token || !parsed.user || !looksLikeSessionToken(parsed.token)) {
       return false;
     }
 
