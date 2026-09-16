@@ -148,6 +148,12 @@ public class CandidateEmailService {
 
     /**
      * Build the unsubscribe URL for email footers.
+     *
+     * <p>This points at the applicant portal, not the API, and the portal has to
+     * have the route. It did not: the portal's router ends in a catch-all that
+     * redirects to /jobs, so this link silently dropped the token and took the
+     * reader to the job feed. Opening the API's own path to the public did not
+     * help, because no email has ever contained that address.
      */
     public String unsubscribeUrl(String unsubscribeToken) {
         return appBaseUrl + "/unsubscribe?token=" + unsubscribeToken;
@@ -160,7 +166,7 @@ public class CandidateEmailService {
         return """
                 <div style="margin-top:32px; padding-top:16px; border-top:1px solid #e1e5e9; font-size:12px; color:#667789;">
                   <p>You're receiving this because you have an AIRRAL account.</p>
-                  <p><a href="%s" style="color:#667789;">Unsubscribe from all emails</a> · <a href="%s/settings" style="color:#667789;">Manage preferences</a></p>
+                  <p><a href="%s" style="color:#667789;">Unsubscribe from all emails</a> · <a href="%s/profile" style="color:#667789;">Manage preferences</a></p>
                   <p style="margin-top:8px;">AIRRAL · Job search, simplified.</p>
                 </div>
                 """.formatted(unsubscribeUrl(unsubscribeToken), appBaseUrl);

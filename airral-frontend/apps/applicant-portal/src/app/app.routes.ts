@@ -23,6 +23,15 @@ const authenticatedRoutes: Route[] = [
 
 export const appRoutes: Route[] = [
   {
+    // Linked from every email footer, and deliberately outside the auth guard:
+    // someone acting on an email is not necessarily signed in, and requiring a
+    // login to unsubscribe is the same dead end as the 401 this replaced.
+    // Authorisation is the token in the query string.
+    path: 'unsubscribe',
+    loadComponent: () =>
+      import('./pages/unsubscribe/unsubscribe.component').then((m) => m.UnsubscribeComponent),
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./pages/applicant-login/applicant-login.component').then((m) => m.ApplicantLoginComponent),

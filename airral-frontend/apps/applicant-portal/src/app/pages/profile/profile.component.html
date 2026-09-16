@@ -284,7 +284,14 @@
         </div>
       </div>
       <p class="notif-save-msg" *ngIf="notificationSaveMessage">{{ notificationSaveMessage }}</p>
-      <p class="notif-inactive" *ngIf="notificationPrefs && notificationPrefs.emailDeliveryActive === false">
+      <!--
+        !== true, not === false. The field is optional, so an absent one is what
+        arrives from a backend revision older than this change or from a cached
+        bundle mid-deploy -- and treating absent as "delivery is on" brings back
+        the unqualified promise this notice exists to qualify. No evidence of
+        delivery is not evidence of delivery.
+      -->
+      <p class="notif-inactive" *ngIf="notificationPrefs && notificationPrefs.emailDeliveryActive !== true">
         We are not sending these emails yet. Your choices are saved and will apply
         from the day we switch them on.
       </p>

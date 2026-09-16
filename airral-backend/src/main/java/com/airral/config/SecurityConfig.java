@@ -152,16 +152,14 @@ public class SecurityConfig {
                         // switch notifications off. It is idempotent, so a repeat is
                         // harmless.
                         //
-                        // UNSETTLED, and it needs deciding before outbound email is
-                        // switched on: mail clients and security scanners prefetch
-                        // links, and a GET that mutates will be triggered by them, so
-                        // somebody who never clicked can be unsubscribed. Nothing is
-                        // sent today so no such link exists in the wild yet. The usual
-                        // fix is a confirmation page whose button POSTs, together with
-                        // List-Unsubscribe-Post headers on the mail; that is a choice
-                        // about how the email itself is built, so it is left to
-                        // whoever turns sending on rather than guessed at here.
-                        .pathMatchers(HttpMethod.GET, "/api/candidate/notifications/unsubscribe").permitAll()
+                        // A POST rather than a GET on purpose. Mail clients and
+                        // security scanners prefetch links, so a mutating GET is fired
+                        // for people who never clicked and unsubscribes them silently.
+                        // The footer links to the portal's /unsubscribe page, which
+                        // renders on a GET, changes nothing, and posts here only when
+                        // somebody presses the button. Pair it with
+                        // List-Unsubscribe-Post headers when sending is switched on.
+                        .pathMatchers(HttpMethod.POST, "/api/candidate/notifications/unsubscribe").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/feed/signals").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/feed/news").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/seo/**").permitAll()

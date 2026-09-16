@@ -2,6 +2,7 @@ package com.airral.controller;
 
 import com.airral.dto.request.UpdateNotificationPreferencesRequest;
 import com.airral.dto.response.NotificationPreferencesResponse;
+import com.airral.dto.response.UnsubscribeResultResponse;
 import com.airral.security.JwtTokenProvider;
 import com.airral.service.CandidateEmailService;
 import com.airral.exception.BadRequestException;
@@ -98,20 +99,35 @@ public class CandidateNotificationController {
     }
 
     /**
-     * GET /api/candidate/notifications/unsubscribe?token=...
-     * One-click unsubscribe from all emails (link in email footer).
+     * POST /api/candidate/notifications/unsubscribe
+     *
+     * <p>Switches every notification off for the holder of the token. Public,
+     * because the person clicking a link in their mail client has no session
+     * token for this API -- authorisation is the per-user UUID itself, and the
+     * only thing the call can do is turn notifications off.
+     *
+     * <p>A POST, not a GET, and that is the whole point of the shape. Mail
+     * clients and security scanners prefetch links, so a mutating GET gets
+     * fired for people who never clicked and unsubscribes them silently. The
+     * portal's /unsubscribe page is what the footer links to; it renders on a
+     * plain GET, changes nothing, and posts here only when someone presses the
+     * button.
      */
-    @GetMapping("/unsubscribe")
-    public Mono<ResponseEntity<String>> unsubscribe(@RequestParam String token) {
+    @PostMapping("/unsubscribe")
+    public Mono<ResponseEntity<UnsubscribeResultResponse>> unsubscribe(@RequestParam String token) {
         if (token == null || token.isBlank()) {
-            return Mono.just(ResponseEntity.badRequest().body("Invalid token"));
+            return Mono.just(ResponseEntity.badRequest().body(new UnsubscribeResultResponse(
+                    false, "That link is missing its code. You can turn notifications off in your profile.")));
         }
         return emailService.unsubscribeAll(token)
-                .map(unsubscribed -> unsubscribed
-                        ? ResponseEntity.ok("You've been unsubscribed from all AIRRAL emails. "
-                                + "You can re-enable notifications from your profile settings.")
-                        : ResponseEntity.ok("That unsubscribe link is no longer valid. "
-                                + "You can turn notifications off from your profile settings."));
+                .map(unsubscribed -> ResponseEntity.ok(unsubscribed
+                        ? new UnsubscribeResultResponse(true,
+                                "You have been unsubscribed from all AIRRAL emails.")
+                        // Said plainly rather than as a success. Someone holding
+                        // a stale link who is told they are unsubscribed carries
+                        // on receiving mail and has no reason to look again.
+                        : new UnsubscribeResultResponse(false,
+                                "That unsubscribe link is no longer valid. Nothing has changed.")));
     }
 
     private String extractToken(String authHeader) {
