@@ -98,14 +98,17 @@ export function consumeAuthHandoffBeforeBootstrap(): void {
     if (!parsed.token || !parsed.user) {
       return;
     }
+    // AuthService does not exist yet on this path, so the expiry is written
+    // directly alongside the token. Omitting it would hand the app a session
+    // with no end time, which reads as unverifiable and signs the arriving user
+    // straight back out -- breaking the very handoff this exists to complete.
+    //
+    // Written before the token, so that a write failing part-way leaves a
+    // record with no token (which reads as 'none', a login form) rather than a
+    // token with no record (which reads as unverifiable, an instant sign-out).
+    writeHandoffExpiry(parsed.token, expiryFromHandoff(parsed.expiresAt));
     window.localStorage.setItem(AUTH_TOKEN_KEY, parsed.token);
     window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(parsed.user));
-    // AuthService does not exist yet on this path, so the expiry is written
-    // directly alongside the token. Omitting it here would hand the app a
-    // session with no end time, which reads as unverifiable and signs the
-    // arriving user straight back out -- breaking the very handoff this
-    // function exists to complete.
-    writeHandoffExpiry(parsed.token, expiryFromHandoff(parsed.expiresAt));
   } catch {
     // Nothing to restore. The fragment is already gone.
   }

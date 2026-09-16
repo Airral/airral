@@ -86,11 +86,17 @@ export class TokenService {
    * replaces.
    */
   setToken(token: string, expiry: SessionExpiry): void {
-    this.getStorage().setItem(TOKEN_KEY, token);
+    // Record first, token second, and the order is the point. If the second
+    // write fails -- a storage quota, a browser clearing site data mid-write --
+    // this way leaves a record with no token, which reads as 'none' and simply
+    // shows a login form. The other order leaves a token with no record, which
+    // reads as unverifiable and signs the user out immediately after they
+    // signed in.
     this.getStorage().setItem(
       EXPIRY_KEY,
       JSON.stringify({ expiresAt: expiry.expiresAt, src: expiry.source, tk: tokenFingerprint(token) })
     );
+    this.getStorage().setItem(TOKEN_KEY, token);
   }
 
   getToken(): string | null {
