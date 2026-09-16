@@ -199,6 +199,21 @@ export class CandidatePortalService {
   }
 
   /** Update notification preferences. */
+  /**
+   * Switch every notification email off using a footer token.
+   *
+   * <p>A POST because mail clients prefetch links: acting on a GET would
+   * unsubscribe people who never clicked. No auth header -- the caller is
+   * usually not signed in, which is the whole reason the previous
+   * authenticated-only route was unusable.
+   */
+  unsubscribeAll(token: string): Observable<{ unsubscribed: boolean; message: string }> {
+    return this.apiClient.post<{ unsubscribed: boolean; message: string }>(
+      `/candidate/notifications/unsubscribe?token=${encodeURIComponent(token)}`,
+      {}
+    );
+  }
+
   updateNotificationPreferences(request: UpdateNotificationPreferencesRequest): Observable<NotificationPreferences> {
     return this.apiClient.put<NotificationPreferences>('/candidate/notifications/preferences', request);
   }

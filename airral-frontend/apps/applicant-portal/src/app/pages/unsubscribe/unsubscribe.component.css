@@ -1,0 +1,69 @@
+.unsub-page {
+  display: flex;
+  justify-content: center;
+  padding: 64px 20px;
+  background: #F7F9FB;
+  min-height: 100vh;
+}
+
+.unsub-card {
+  max-width: 480px;
+  width: 100%;
+  background: #FFFFFF;
+  border: 1px solid #E1E5E9;
+  border-radius: 10px;
+  padding: 28px;
+}
+
+.unsub-card h1 {
+  font-size: 20px;
+  margin: 0 0 14px;
+  color: #1B2733;
+}
+
+.unsub-card p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #43536B;
+  margin: 0 0 12px;
+}
+
+.unsub-note {
+  font-size: 13px;
+  color: #667789;
+}
+
+.unsub-confirm {
+  margin-top: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #FFFFFF;
+  background: #007C6D;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.unsub-confirm:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.unsub-done {
+  font-weight: 600;
+  color: #007C6D;
+}
+
+.unsub-invalid {
+  color: #8A5A00;
+}
+
+.unsub-links {
+  margin-top: 18px;
+  font-size: 13px;
+}
+
+.unsub-links a {
+  color: #007C6D;
+}

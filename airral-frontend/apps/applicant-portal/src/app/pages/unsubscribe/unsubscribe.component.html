@@ -1,0 +1,34 @@
+<div class="unsub-page">
+  <div class="unsub-card">
+    <h1>Unsubscribe from AIRRAL emails</h1>
+
+    <ng-container *ngIf="!outcome">
+      <ng-container *ngIf="token">
+        <p>
+          This turns off every AIRRAL notification email — job alerts, follow-up
+          reminders, the weekly digest and resume nudges.
+        </p>
+        <p class="unsub-note">
+          Nothing has changed yet. You can turn individual emails back on any time
+          from your profile.
+        </p>
+        <button type="button" class="unsub-confirm" (click)="confirm()" [disabled]="working">
+          {{ working ? 'Unsubscribing…' : 'Unsubscribe me from all emails' }}
+        </button>
+      </ng-container>
+
+      <p *ngIf="!token" class="unsub-invalid">
+        This link is missing its code, so we cannot tell which account it belongs
+        to. You can turn notifications off from your profile instead.
+      </p>
+    </ng-container>
+
+    <ng-container *ngIf="outcome">
+      <p [class.unsub-done]="outcome.unsubscribed" [class.unsub-invalid]="!outcome.unsubscribed">
+        {{ outcome.message }}
+      </p>
+    </ng-container>
+
+    <p class="unsub-links"><a href="/profile">Manage individual preferences</a></p>
+  </div>
+</div>

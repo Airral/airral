@@ -333,6 +333,12 @@ export interface NotificationPreferences {
   weeklyDigestEnabled: boolean;
   resumeNudgeEnabled: boolean;
   savedJobChangeEnabled: boolean;
+  /**
+   * Whether anything is sending these emails yet. Comes from the scheduler
+   * property on the server, so the notice it drives clears itself once the
+   * scheduler is switched on rather than needing a frontend release.
+   */
+  emailDeliveryActive?: boolean;
 }
 
 export interface UpdateNotificationPreferencesRequest {

@@ -264,6 +264,26 @@ done
   && ok "the robots.txt rule does not widen past that path" \
   || bad "GET /robots.txt.bak should be 401"
 
+# What the unsubscribe page posts to. It was authenticated-only and returned 401
+# for its whole existence -- and someone clicking a link in their mail client has
+# no session token for this API. No unit test could catch that: they call the
+# controller method directly and never traverse the security filter chain.
+[ "$(code -X POST 'http://localhost:8080/api/candidate/notifications/unsubscribe?token=not-a-real-token')" = "200" ] \
+  && ok "the unsubscribe endpoint is reachable without signing in" \
+  || bad "POST /api/candidate/notifications/unsubscribe should be 200; a 401 makes every unsubscribe link in every email dead"
+
+# And it must be a POST only. A mutating GET is fired by the link prefetching
+# that mail clients and security scanners do, which unsubscribes people who
+# never clicked.
+[ "$(code 'http://localhost:8080/api/candidate/notifications/unsubscribe?token=not-a-real-token')" = "401" ] \
+  && ok "unsubscribing is not reachable by a prefetchable GET" \
+  || bad "GET /api/candidate/notifications/unsubscribe should not be public"
+
+# ...and that making it public did not widen past it.
+[ "$(code http://localhost:8080/api/candidate/notifications/preferences)" = "401" ] \
+  && ok "notification preferences still require a session" \
+  || bad "GET /api/candidate/notifications/preferences should be 401"
+
 PROBE="throttle-$RANDOM@local.test"
 LAST=""
 for i in $(seq 1 6); do

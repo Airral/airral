@@ -138,6 +138,28 @@ public class SecurityConfig {
                         // who has not made an account yet. Neither reads anything.
                         .pathMatchers(HttpMethod.POST, "/api/events").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/email-signups").permitAll()
+                        // The unsubscribe link from an email footer. It was behind
+                        // anyExchange().authenticated() and returned 401, which makes
+                        // it unusable by definition: someone clicking a link in their
+                        // mail client is not carrying a session token for this API.
+                        // The endpoint, the per-user token and the service method all
+                        // worked -- CandidateEmailService.unsubscribeAll is in fact the
+                        // one place in this feature that always did save correctly --
+                        // and the route was simply unreachable.
+                        //
+                        // Authorisation is the token itself, a per-user UUID stored on
+                        // the preference row, and the only thing the call can do is
+                        // switch notifications off. It is idempotent, so a repeat is
+                        // harmless.
+                        //
+                        // A POST rather than a GET on purpose. Mail clients and
+                        // security scanners prefetch links, so a mutating GET is fired
+                        // for people who never clicked and unsubscribes them silently.
+                        // The footer links to the portal's /unsubscribe page, which
+                        // renders on a GET, changes nothing, and posts here only when
+                        // somebody presses the button. Pair it with
+                        // List-Unsubscribe-Post headers when sending is switched on.
+                        .pathMatchers(HttpMethod.POST, "/api/candidate/notifications/unsubscribe").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/feed/signals").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/feed/news").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/seo/**").permitAll()
