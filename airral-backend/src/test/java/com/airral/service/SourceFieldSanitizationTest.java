@@ -40,7 +40,7 @@ class SourceFieldSanitizationTest {
             mock(CandidateProfileRepository.class),
             mock(UserRepository.class),
             new ObjectMapper(),
-            "airbnb", "", "", "", "", "", "", "", "", "", "", "US", 45, 0, 1);
+            "airbnb", "", "", "", "", "", "", "", "", "", "", "US", 45, 2000, 0, 1);
 
     private String department(String value) {
         return ReflectionTestUtils.invokeMethod(service, "sanitizeDepartment", value);

@@ -33,6 +33,16 @@ public class ExternalJobSyncService {
     private final CandidateJobSearchService candidateJobSearchService;
     private final int retentionDays;
     private final int purgeAfterDays;
+    /**
+     * Hard ceiling on {@code airral.jobs.sync.limit-per-source}.
+     *
+     * <p>Not a tuning knob: it is the point past which one board could fill a sync
+     * run on its own. Lowe's Workday board lists 12,597 postings, so a ceiling
+     * below that silently truncates it, and a ceiling far above it lets a
+     * misconfigured board starve the other 127.
+     */
+    private static final int MAX_LIMIT_PER_SOURCE = 20000;
+
     private final int limitPerSource;
     private final int leaseMinutes;
     private final int sourceConcurrency;
@@ -110,7 +120,7 @@ public class ExternalJobSyncService {
             CandidateJobSearchService candidateJobSearchService,
             @Value("${airral.jobs.retention-days:60}") int retentionDays,
             @Value("${airral.jobs.purge-after-days:15}") int purgeAfterDays,
-            @Value("${airral.jobs.sync.limit-per-source:500}") int limitPerSource,
+            @Value("${airral.jobs.sync.limit-per-source:2000}") int limitPerSource,
             @Value("${airral.jobs.sync.lease-minutes:50}") int leaseMinutes,
             @Value("${airral.jobs.sync.source-concurrency:6}") int sourceConcurrency,
             @Value("${airral.jobs.sync.max-sources-per-run:500}") int maxSourcesPerRun,
@@ -127,7 +137,11 @@ public class ExternalJobSyncService {
         this.candidateJobSearchService = candidateJobSearchService;
         this.retentionDays = Math.max(1, retentionDays);
         this.purgeAfterDays = Math.max(1, purgeAfterDays);
-        this.limitPerSource = Math.max(1, Math.min(limitPerSource, 500));
+        // Was clamped to 500 here as well as in the search service, so raising the
+        // property alone changed nothing. Measured against the live boards on
+        // 2026-09-21, that 500 was taking 7,677 of Greenhouse's 10,660 US postings
+        // and about 3,000 of Workday's ~16,800 -- Lowe's alone lists 12,597.
+        this.limitPerSource = Math.max(1, Math.min(limitPerSource, MAX_LIMIT_PER_SOURCE));
         this.leaseMinutes = Math.max(5, leaseMinutes);
         this.sourceConcurrency = Math.max(1, Math.min(sourceConcurrency, 20));
         this.maxSourcesPerRun = Math.max(1, maxSourcesPerRun);
@@ -348,8 +362,15 @@ public class ExternalJobSyncService {
             // greenhouseSummaries takes max(limit * 2, limit) from a response that
             // carries the whole board.
             case "GREENHOUSE" -> limitPerSource * 2;
-            // These clients cap their own page at 100 regardless of what is asked.
-            case "LEVER", "SMARTRECRUITERS" -> Math.min(limitPerSource, 100);
+            // Lever, SmartRecruiters and Workday all page at a size their API
+            // fixes (100, 100 and 20), and all three now walk that page until the
+            // board runs out or the limit is reached, so the limit is the ceiling
+            // for each. This line was 100 for Lever and SmartRecruiters while
+            // neither of them paged; widening it is only correct BECAUSE they now
+            // do. If a client ever stops paging, bring its ceiling back down in the
+            // same commit -- an overstated ceiling here reads a truncated fetch as
+            // a whole board and retires live postings.
+            case "LEVER", "SMARTRECRUITERS" -> limitPerSource;
             // Paginate until exhausted or the limit, so the limit is the ceiling.
             case "WORKDAY", "ASHBY", "WORKABLE", "BAMBOOHR" -> limitPerSource;
             default -> 0;

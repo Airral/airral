@@ -88,20 +88,53 @@ class DisappearanceSweepGuardTest {
     }
 
     @Test
-    @DisplayName("Lever returning its own full page is not a complete board")
+    @DisplayName("Lever at its own ceiling is not swept")
     void leverPageCapIsRespected() {
-        // The bug this whole guard exists for. Lever's client caps its page at 100,
-        // so the old comparison against the sync's limit of 500 could never fire and
-        // every Lever board was swept on a truncated response on every run.
-        assertThat(retire(service(true), "LEVER", 100)).isZero();
+        // The bug this whole guard exists for. Lever's client capped its page at 100
+        // and made one call, so the comparison against the sync's limit could never
+        // fire and every Lever board over 100 postings was swept on a truncated
+        // response on every run. The client now walks skip to exhaustion, so the
+        // ceiling is the limit -- but a fetch that really did reach the limit is
+        // still indistinguishable from a truncated one, and is still not swept.
+        assertThat(retire(service(true), "LEVER", LIMIT_PER_SOURCE)).isZero();
         verify(store, never()).deactivateUnseenPostings(anyLong(), any());
     }
 
     @Test
-    @DisplayName("SmartRecruiters shares the same 100-row page cap")
+    @DisplayName("a paging Lever client makes 100 rows a complete board")
+    void leverShortPageIsComplete() {
+        // The counterpart, and the whole reason the ceiling could be widened: under
+        // a client that pages, stopping at 100 means the board ended at 100. Reading
+        // that as truncation is what kept the sweep off Lever entirely.
+        when(store.countUnseenPostings(anyLong(), any())).thenReturn(Mono.just(3L));
+        when(store.deactivateUnseenPostings(anyLong(), any())).thenReturn(Mono.just(3L));
+
+        assertThat(retire(service(true), "LEVER", 100)).isEqualTo(3L);
+        verify(store, times(1)).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("SmartRecruiters at its own ceiling is not swept")
     void smartRecruitersPageCapIsRespected() {
-        assertThat(retire(service(true), "SMARTRECRUITERS", 100)).isZero();
+        // It used to stop after five 100-row pages, so 100 rows was evidence of
+        // truncation. It now pages up to the limit, so the limit is the ceiling --
+        // and a board that returns fewer than that really has been seen whole.
+        assertThat(retire(service(true), "SMARTRECRUITERS", LIMIT_PER_SOURCE)).isZero();
         verify(store, never()).deactivateUnseenPostings(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("a short SmartRecruiters page is now a complete board, not a truncated one")
+    void smartRecruitersShortPageIsComplete() {
+        // The counterpart to the test above, and the reason widening the ceiling is
+        // a behaviour change rather than a comment change: 100 rows used to be read
+        // as truncated and is now read as whole, so the guard is reached and the
+        // store is asked. Under a paginating client that is the correct reading.
+        when(store.countUnseenPostings(anyLong(), any())).thenReturn(Mono.just(2L));
+        when(store.deactivateUnseenPostings(anyLong(), any())).thenReturn(Mono.just(2L));
+
+        assertThat(retire(service(true), "SMARTRECRUITERS", 100)).isEqualTo(2L);
+        verify(store, times(1)).deactivateUnseenPostings(anyLong(), any());
     }
 
     @Test
@@ -158,9 +191,12 @@ class DisappearanceSweepGuardTest {
     @Test
     @DisplayName("a dry run still respects the guard, so the report cannot overstate")
     void dryRunHonoursTheCeiling() {
-        // A Lever board at its own page cap is not provably whole, so a dry run must
+        // A Lever board at its own ceiling is not provably whole, so a dry run must
         // stay silent about it rather than listing rows a live run would never touch.
-        assertThat(retire(service(true, true), "LEVER", 100)).isZero();
+        // The ceiling moved from 100 to the limit when the client learned to page;
+        // what this test is about is that the dry run reads the same ceiling the
+        // live run does, not what that number happens to be.
+        assertThat(retire(service(true, true), "LEVER", LIMIT_PER_SOURCE)).isZero();
         verify(store, never()).countUnseenPostings(anyLong(), any());
         verify(store, never()).deactivateUnseenPostings(anyLong(), any());
     }

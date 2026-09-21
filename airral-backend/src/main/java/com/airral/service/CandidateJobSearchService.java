@@ -488,6 +488,20 @@ public class CandidateJobSearchService {
     }
 
     private static final int LIVE_SOURCE_LIMIT = 500;
+    /**
+     * The batch sync's own per-source ceiling, deliberately far above
+     * {@link #LIVE_SOURCE_LIMIT}.
+     *
+     * <p>They are separate numbers because they answer different questions. A
+     * candidate waiting on a response should never make us hold thousands of
+     * postings in a Cloud Run instance's heap, so the request path keeps 500. The
+     * sync has nobody waiting, runs on a GitHub Actions runner with its own
+     * memory, and is the only thing that decides how much of a board we actually
+     * hold -- at 500 it was taking 7,677 of Greenhouse's 10,660 US postings and
+     * 3,000 of Workday's ~16,800, measured against the live boards on 2026-09-21.
+     * Lowe's alone lists 12,597.
+     */
+    private static final int SYNC_SOURCE_LIMIT_CEILING = 20000;
     private static final int PERSONALIZED_RANKING_WINDOW = 500;
     private static final int PERSONALIZED_RANKING_LIMIT = 2000;
     private static final int PERSONALIZED_RANKING_CACHE_MAX_ENTRIES = 256;
@@ -584,6 +598,7 @@ public class CandidateJobSearchService {
     private final String jazzHrPages;
     private final String supportedCountry;
     private final int defaultMaxAgeDays;
+    private final int syncSourceLimit;
     private final int maxLiveFallbackSources;
     private final int liveFallbackSourceConcurrency;
     private final Map<String, RankedJobsCacheEntry> personalizedRankingCache = new ConcurrentHashMap<>();
@@ -620,6 +635,7 @@ public class CandidateJobSearchService {
             @Value("${airral.jobs.jazzhr.pages:}") String jazzHrPages,
             @Value("${airral.jobs.country:US}") String supportedCountry,
             @Value("${airral.jobs.max-age-days:60}") int defaultMaxAgeDays,
+            @Value("${airral.jobs.sync.limit-per-source:2000}") int syncSourceLimit,
             @Value("${airral.jobs.live-fallback.max-sources:12}") int maxLiveFallbackSources,
             @Value("${airral.jobs.live-fallback.source-concurrency:4}") int liveFallbackSourceConcurrency) {
         this.externalJobPostingStore = externalJobPostingStore;
@@ -649,6 +665,7 @@ public class CandidateJobSearchService {
         this.defaultMaxAgeDays = defaultMaxAgeDays <= 0
                 ? DEFAULT_MAX_AGE_DAYS
                 : Math.min(defaultMaxAgeDays, DEFAULT_MAX_AGE_DAYS);
+        this.syncSourceLimit = Math.max(1, Math.min(syncSourceLimit, SYNC_SOURCE_LIMIT_CEILING));
         this.maxLiveFallbackSources = Math.max(0, maxLiveFallbackSources);
         this.liveFallbackSourceConcurrency = Math.max(1, Math.min(liveFallbackSourceConcurrency, 12));
     }
@@ -1162,7 +1179,8 @@ public class CandidateJobSearchService {
     public Mono<SourceFetch> fetchForSync(
             String source, String boardToken, Integer limit, Integer maxAgeDays) {
         java.util.concurrent.atomic.AtomicInteger raw = new java.util.concurrent.atomic.AtomicInteger();
-        return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, null, null, false, false, raw)
+        return getLiveRecommendedJobs(
+                        source, boardToken, limit, maxAgeDays, null, null, false, false, raw, syncSourceLimit)
                 .collectList()
                 .map(jobs -> new SourceFetch(jobs, raw.get()));
     }
@@ -1189,7 +1207,7 @@ public class CandidateJobSearchService {
             boolean tolerateSourceFailures,
             boolean applyFreshnessFilter) {
         return getLiveRecommendedJobs(source, boardToken, limit, maxAgeDays, query, company,
-                tolerateSourceFailures, applyFreshnessFilter, null);
+                tolerateSourceFailures, applyFreshnessFilter, null, LIVE_SOURCE_LIMIT);
     }
 
     private Flux<CandidateJobSummaryResponse> getLiveRecommendedJobs(
@@ -1201,8 +1219,9 @@ public class CandidateJobSearchService {
             String company,
             boolean tolerateSourceFailures,
             boolean applyFreshnessFilter,
-            java.util.concurrent.atomic.AtomicInteger rawCounter) {
-        int resolvedLimit = normalizeLimit(limit);
+            java.util.concurrent.atomic.AtomicInteger rawCounter,
+            int sourceLimitCeiling) {
+        int resolvedLimit = normalizeLimit(limit, sourceLimitCeiling);
         int resolvedMaxAgeDays = normalizeMaxAgeDays(maxAgeDays);
         List<Flux<CandidateJobSummaryResponse>> sourceStreams =
                 recommendationSourceStreams(source, boardToken, resolvedLimit, tolerateSourceFailures);
@@ -1623,9 +1642,22 @@ public class CandidateJobSearchService {
 
     private Flux<CandidateJobSummaryResponse> leverSummaries(String siteName, int limit) {
         String resolvedSite = siteName.trim();
-        return leverClient.listJobs(resolvedSite, Math.max(limit * 2, limit))
-                .timeout(sourceTimeout())
-                .flatMapMany(postings -> Flux.fromIterable(postings == null ? List.of() : postings))
+        // 100 is Lever's per-request maximum, so this walks skip until a short page
+        // says the board is exhausted. It used to make one call and keep whatever
+        // came back, which capped every Lever board at 100 however large it was --
+        // lifestance lists 1,393 US roles and contributed 100 of them.
+        int pageSize = Math.min(100, Math.max(1, limit));
+        int pages = Math.max(1, (limit + pageSize - 1) / pageSize);
+
+        return Flux.range(0, Math.min(pages, 200))
+                .concatMap(page -> leverClient.listJobs(resolvedSite, pageSize, page * pageSize)
+                        .timeout(sourceTimeout())
+                        .map(postings -> postings == null ? List.<com.airral.dto.lever.LeverPostingResponse>of() : postings))
+                // A page shorter than the one asked for is the board ending. Without
+                // this the run makes every remaining call against an empty tail.
+                .takeUntil(page -> page.size() < pageSize)
+                .flatMapIterable(page -> page)
+                .take(limit)
                 .map(posting -> toLeverSummary(resolvedSite, posting));
     }
 
@@ -1647,7 +1679,12 @@ public class CandidateJobSearchService {
                 ? "us"
                 : null;
 
-        return Flux.range(0, Math.min(pages, 5))
+        // Was Math.min(pages, 5): a hard 500 whatever the caller asked for, which
+        // silently truncated the four boards that carry most of this source's US
+        // roles. The cap still exists -- an unbounded paginator on a board that
+        // keeps answering is how a sync run never ends -- but it now tracks the
+        // limit the caller actually chose.
+        return Flux.range(0, Math.min(pages, 200))
                 .concatMap(page -> smartRecruitersClient.listJobs(resolvedCompany, pageSize, page * pageSize, country)
                         .timeout(sourceTimeout())
                         .flatMapMany(response -> Flux.fromIterable(response.getContent() == null ? List.of() : response.getContent())))
@@ -1668,10 +1705,18 @@ public class CandidateJobSearchService {
 
     private Flux<CandidateJobSummaryResponse> workdaySummaries(String sourceToken, int limit) {
         WorkdayJobBoardClient.WorkdaySource source = WorkdayJobBoardClient.WorkdaySource.parse(sourceToken);
+        // 20 is Workday's own maximum, not a choice: its CxS endpoint answers 400
+        // Bad Request to limit=50 and limit=100. Verified against Lowe's board on
+        // 2026-09-21. Deep offsets do work, so the only way to a large board is a
+        // lot of small pages.
         int pageSize = Math.min(20, Math.max(1, limit));
         int pages = Math.max(1, (limit + pageSize - 1) / pageSize);
 
-        return Flux.range(0, Math.min(pages, 25))
+        // Was Math.min(pages, 25): 25 pages of 20 is 500, so Workday was pinned at
+        // 500 per board whatever the limit said, which is what held Lowe's (12,608
+        // postings) and Target to 499 each. The cap now tracks the limit, with 250
+        // pages as the runaway stop.
+        return Flux.range(0, Math.min(pages, 250))
                 .concatMap(page -> workdayClient.listJobs(source, pageSize, page * pageSize, "")
                         .timeout(sourceTimeout())
                         .flatMapMany(response -> Flux.fromIterable(response.getJobPostings() == null ? List.of() : response.getJobPostings())))
@@ -4722,11 +4767,15 @@ public class CandidateJobSearchService {
     }
 
     private int normalizeLimit(Integer limit) {
+        return normalizeLimit(limit, LIVE_SOURCE_LIMIT);
+    }
+
+    private int normalizeLimit(Integer limit, int ceiling) {
         if (limit == null) {
             return DEFAULT_LIMIT;
         }
 
-        return Math.max(1, Math.min(limit, LIVE_SOURCE_LIMIT));
+        return Math.max(1, Math.min(limit, Math.max(1, ceiling)));
     }
 
     private int normalizeOffset(Integer offset) {

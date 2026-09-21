@@ -45,6 +45,7 @@ class CandidateJobSearchServiceTest {
             "",
             "US",
             45,
+            2000,
             0,
             1
     );

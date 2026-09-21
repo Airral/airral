@@ -26,11 +26,25 @@ public class LeverJobBoardClient {
     }
 
     public Mono<List<LeverPostingResponse>> listJobs(String siteName, int limit) {
+        return listJobs(siteName, limit, 0);
+    }
+
+    /**
+     * One page of a Lever board.
+     *
+     * <p>100 is Lever's own per-request maximum, so a board larger than that can
+     * only be read by walking {@code skip}. Verified against the lifestance board
+     * on 2026-09-21: skip=0 and skip=100 each returned 100 postings with no id in
+     * common, and the final page came back short. Before this took a skip, every
+     * Lever board was truncated at its first 100 postings.
+     */
+    public Mono<List<LeverPostingResponse>> listJobs(String siteName, int limit, int skip) {
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/v0/postings/{siteName}")
                         .queryParam("mode", "json")
                         .queryParam("limit", Math.max(1, Math.min(limit, 100)))
+                        .queryParam("skip", Math.max(0, skip))
                         .build(normalizeSiteName(siteName)))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)

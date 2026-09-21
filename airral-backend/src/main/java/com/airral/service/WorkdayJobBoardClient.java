@@ -42,7 +42,10 @@ public class WorkdayJobBoardClient {
 
     public Mono<WorkdayJobSearchResponse> listJobs(WorkdaySource source, int limit, int offset, String searchText) {
         WorkdayJobSearchRequest request = WorkdayJobSearchRequest.builder()
-                .limit(Math.max(1, Math.min(limit, 100)))
+                // 20, not 100: Workday's CxS endpoint rejects anything larger with
+                // 400 Bad Request. The old 100 was never reachable -- the caller
+                // already asked for 20 -- so it read as headroom that does not exist.
+                .limit(Math.max(1, Math.min(limit, 20)))
                 .offset(Math.max(0, offset))
                 .searchText(searchText == null ? "" : searchText.trim())
                 .build();
