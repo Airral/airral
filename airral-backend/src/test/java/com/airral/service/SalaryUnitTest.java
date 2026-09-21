@@ -57,7 +57,7 @@ class SalaryUnitTest {
             mock(CandidateProfileRepository.class),
             mock(UserRepository.class),
             new ObjectMapper(),
-            "airbnb", "", "", "", "", "", "", "", "", "", "", "US", 45, 0, 1);
+            "airbnb", "", "", "", "", "", "", "", "", "", "", "US", 45, 2000, 0, 1);
 
     private GreenhouseJobBoardResponse.GreenhousePayRange greenhouse(String title, long minCents, long maxCents) {
         GreenhouseJobBoardResponse.GreenhousePayRange range = new GreenhouseJobBoardResponse.GreenhousePayRange();

@@ -36,10 +36,13 @@ airral:
       run-on-startup: true
       fixed-delay-ms: 14400000
       initial-delay-ms: 5000
-      limit-per-source: 500
+      # Kept in step with application.yml on purpose. When these drifted, a local
+      # sync run could not reproduce what production does, and the local gate
+      # could not have caught a regression that only appears above 500.
+      limit-per-source: 4000
       lease-minutes: 50
       source-concurrency: 6
-      max-sources-per-run: 500
+      max-sources-per-run: 1200
     greenhouse:
       default-board: airbnb
       # Verified working Greenhouse boards (last checked 2026-06-17)

@@ -46,7 +46,7 @@ class MatchScoreOnlyWhenEarnedTest {
             mock(WorkdayJobBoardClient.class), mock(BambooHrJobBoardClient.class),
             mock(CareerPageJobBoardClient.class), mock(CandidateProfileRepository.class),
             mock(UserRepository.class), new ObjectMapper(),
-            "airbnb", "", "", "", "", "", "", "", "", "", "", "US", 45, 0, 1);
+            "airbnb", "", "", "", "", "", "", "", "", "", "", "US", 45, 2000, 0, 1);
 
     private List<CandidateJobSummaryResponse> rank(CandidateProfile profile, CandidateJobSummaryResponse... jobs) {
         Object context = ReflectionTestUtils.invokeMethod(service, "toCandidateMatchContext", profile);
