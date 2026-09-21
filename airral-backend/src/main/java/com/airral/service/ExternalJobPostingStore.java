@@ -339,7 +339,19 @@ public class ExternalJobPostingStore {
         // no say at all, and the tiebreaker it replaces -- match_score -- is a
         // title keyword check with three possible values, computed without a
         // profile, so it was ordering the feed on almost nothing.
-        sql.append(" ORDER BY DATE_TRUNC('day', p.source_updated_at) DESC NULLS LAST,"
+        // The day bucket is pinned to UTC rather than written as
+        // DATE_TRUNC('day', ...) so that it can be indexed: DATE_TRUNC over a
+        // timestamptz is STABLE, because it answers in the session's TimeZone, and
+        // a STABLE expression cannot go in an index. At 45k rows the unindexable
+        // version sorted the whole active set on every request -- 11,755 buffers,
+        // and 16 seconds on production's shared-core instance. See V32.
+        //
+        // Production runs UTC, so this is the same function it was already
+        // computing and the feed order is unchanged; the top 50 ids matched
+        // exactly, checked under UTC and under a New York session. It also stops
+        // the local database bucketing into New York days while production buckets
+        // into UTC days, which it silently did before.
+        sql.append(" ORDER BY ((p.source_updated_at AT TIME ZONE 'UTC')::date) DESC NULLS LAST,"
                 + " p.job_quality_score DESC NULLS LAST,"
                 + " p.source_updated_at DESC NULLS LAST, p.last_seen_at DESC LIMIT :limit OFFSET :offset");
 
