@@ -237,6 +237,88 @@ public class ExternalJobPostingStore {
             String query,
             String company,
             ExplicitJobFilters filters) {
+        if (query == null || query.isBlank()) {
+            return findRecommendedJobs(source, boardToken, limit, offset, maxAgeDays, query, company, filters, false);
+        }
+        return estimateTextMatches(query)
+                .map(estimate -> estimate < INDEX_FIRST_TEXT_MATCH_CEILING)
+                // If the estimate cannot be had, behave exactly as before.
+                .onErrorReturn(false)
+                .defaultIfEmpty(false)
+                .flatMapMany(indexFirst -> findRecommendedJobs(
+                        source, boardToken, limit, offset, maxAgeDays, query, company, filters, indexFirst));
+    }
+
+    /**
+     * Below this many estimated text matches, a search collects its matches through
+     * the indexes first and sorts them; at or above it, it walks the feed in order.
+     *
+     * <p>The two shapes cost opposite things, and neither is safe for every term.
+     * Walking the feed index in order and testing each row stops after LIMIT
+     * matches, so it is cheap for a common word and ruinous for a rare one: every
+     * row it passes has its search_vector detoasted just to be rejected. Collecting
+     * matches through GIN costs in proportion to how many there are, so it is the
+     * mirror image. Measured on Postgres 16 with production's 128MB of shared
+     * buffers, 49,118 rows, buffers read for LIMIT 51:
+     *
+     * <pre>
+     *   term         matches   walk     index-first
+     *   pharmacist        53   98,476        427
+     *   nurse            681   15,939      2,887
+     *   warehouse        987   11,959      3,949
+     *   cashier        1,693    8,012      7,280
+     *   driver         2,962    5,297     11,482
+     *   engineer      18,986    1,391     67,567
+     * </pre>
+     *
+     * <p>They cross between 1,700 and 3,000 matches. The planner cannot make this
+     * choice itself even with every OR arm indexable -- it was tried -- because it
+     * does not cost the detoasting, so it prices the walk as nearly free and picks
+     * it for every term. Production's 38-second 'nurse' was that walk.
+     */
+    private static final long INDEX_FIRST_TEXT_MATCH_CEILING = 1_500;
+
+    private static final java.util.regex.Pattern PLAN_ROWS =
+            java.util.regex.Pattern.compile("\"Plan Rows\"\\s*:\\s*([0-9.]+)");
+
+    /**
+     * The planner's own estimate of how many active postings a search matches.
+     *
+     * <p>Costs well under a millisecond: EXPLAIN without ANALYZE runs nothing. It
+     * is only trustworthy because V34 raises the statistics target on
+     * search_vector; at the default of 100 'nurse' was estimated at 246 against 681
+     * real matches, and at 1,000 the estimates matched the real counts exactly for
+     * every term measured.
+     */
+    private Mono<Long> estimateTextMatches(String query) {
+        return databaseClient.sql("""
+                        EXPLAIN (FORMAT JSON)
+                        SELECT 1 FROM external_job_postings p
+                        WHERE p.is_active = true
+                          AND (p.search_vector @@ plainto_tsquery('english', :query)
+                               OR LOWER(p.title) LIKE :queryLike)
+                        """)
+                .bind("query", query.trim())
+                .bind("queryLike", like(query))
+                .map((row, metadata) -> String.valueOf(row.get(0)))
+                .all()
+                .collect(java.util.stream.Collectors.joining())
+                .flatMap(plan -> {
+                    java.util.regex.Matcher m = PLAN_ROWS.matcher(plan);
+                    return m.find() ? Mono.just((long) Double.parseDouble(m.group(1))) : Mono.empty();
+                });
+    }
+
+    private Flux<CandidateJobSummaryResponse> findRecommendedJobs(
+            String source,
+            String boardToken,
+            Integer limit,
+            Integer offset,
+            Integer maxAgeDays,
+            String query,
+            String company,
+            ExplicitJobFilters filters,
+            boolean indexFirstText) {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedOffset = normalizeOffset(offset);
         String normalizedSource = normalizeSource(source);
@@ -320,7 +402,32 @@ public class ExternalJobPostingStore {
         if (company != null && !company.isBlank()) {
             sql.append(" AND LOWER(c.name) LIKE :company");
         }
-        if (query != null && !query.isBlank()) {
+        if (query != null && !query.isBlank() && indexFirstText) {
+            // Same three conditions as the walk below, each answered by its own
+            // index -- GIN for the vector, the V34 trigram index for the title,
+            // idx_external_job_postings_company for the employer -- and unioned
+            // before the feed ordering is applied to what they found. MATERIALIZED
+            // is what stops the planner folding this back into the walk.
+            sql.insert(0, """
+                    WITH text_match AS MATERIALIZED (
+                        SELECT id FROM external_job_postings
+                        WHERE is_active = true
+                          AND search_vector @@ plainto_tsquery('english', :query)
+                        UNION
+                        SELECT id FROM external_job_postings
+                        WHERE is_active = true
+                          AND LOWER(title) LIKE :queryLike
+                        UNION
+                        SELECT id FROM external_job_postings
+                        WHERE is_active = true
+                          AND company_id IN (
+                              SELECT ec.id FROM external_companies ec
+                              WHERE LOWER(ec.name) LIKE :queryLike
+                          )
+                    )
+                    """);
+            sql.append(" AND p.id IN (SELECT id FROM text_match)");
+        } else if (query != null && !query.isBlank()) {
             sql.append("""
                      AND (
                         p.search_vector @@ plainto_tsquery('english', :query)

@@ -290,7 +290,8 @@ class ClientIpConfigTest {
         when(authService.register(any())).thenReturn(Mono.just(AuthResponse.builder().build()));
 
         AuthController controller = new AuthController(
-                authService, loginThrottle, mock(TokenVersionCache.class), mock(JwtTokenProvider.class));
+                authService, loginThrottle, mock(TokenVersionCache.class), mock(JwtTokenProvider.class),
+                mock(com.airral.service.PasswordResetService.class));
 
         // A leftover chain on the request must not outrank the stamp. In
         // production it is stripped before a handler runs; here it stands in for

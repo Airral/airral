@@ -58,7 +58,11 @@ jobs:
     # A scheduled run that waits for approval does not run -- it queues, and the
     # sync silently stops for as long as nobody notices.
     environment: prod-sync-unattended
-    timeout-minutes: 60
+    # Must stay above airral.jobs.sync.cli-timeout-minutes (100) plus the build,
+    # so a slow run is ended by the runner -- which logs and releases the lease --
+    # rather than killed by GitHub, which does neither. Runs take 51-54 minutes
+    # at 558 sources; this was 60.
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: airral-backend

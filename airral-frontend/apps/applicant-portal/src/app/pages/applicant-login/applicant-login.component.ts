@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, Inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
 import { AuthService, PORTAL_ID, PortalId, clearSessionEndReason, noticeForSessionEndReason, readSessionEndReason, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { AuthResponse, RegisterRequest } from '@airral/shared-types';
@@ -13,7 +13,7 @@ type AuthMode = 'login' | 'register';
 @Component({
   selector: 'app-applicant-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, GoogleAuthButtonComponent],
+  imports: [CommonModule, FormsModule, RouterLink, GoogleAuthButtonComponent],
   templateUrl: './applicant-login.component.html',
   styleUrl: './applicant-login.component.css',
 })

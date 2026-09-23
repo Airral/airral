@@ -23,6 +23,9 @@ airral:
       # so the run is not triggered twice in the same process.
       enabled: false
       run-on-startup: false
+      # See lease-minutes in application.yml for why these three numbers are
+      # ordered runner < lease < GitHub job.
+      cli-timeout-minutes: 100
     # The reconciler's startup listener is fire-and-forget; a one-shot run would exit
     # mid-flight. It is idempotent, so leave it to the long-running service.
     internal-reconcile:

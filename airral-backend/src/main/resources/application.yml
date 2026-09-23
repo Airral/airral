@@ -29,8 +29,10 @@ spring:
   
   # Mail Configuration
   mail:
-    host: smtp.gmail.com
-    port: 587
+    # Configurable so a transactional provider (SendGrid, Mailgun, SES, Resend)
+    # can be used instead of a Gmail account without a code change.
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     properties:
@@ -221,7 +223,22 @@ airral:
       # the reason a cap exists at all -- uncapped it would be a fifth of the
       # catalogue on its own.
       limit-per-source: ${AIRRAL_JOBS_SYNC_LIMIT_PER_SOURCE:4000}
-      lease-minutes: ${AIRRAL_JOBS_SYNC_LEASE_MINUTES:50}
+      # Three limits bound one sync run, and they only work in this order:
+      #
+      #   runner timeout (cli-timeout-minutes)  100  the process gives up here
+      #   lease-minutes                          110  > runner, so the lock never
+      #                                               lapses while a run is alive
+      #   GitHub job timeout-minutes             120  > runner + ~3 min of build,
+      #                                               so the runner, not GitHub,
+      #                                               ends a slow run cleanly
+      #
+      # The lease was 50 and the job 60. Both were set when a run took 5 minutes;
+      # at 558 sources it takes 51-54, so the lease was lapsing mid-run -- letting a
+      # second run take the lock while the first still wrote -- and GitHub was a few
+      # minutes from killing the job outright, which leaves the lease held and the
+      # run unlogged. The cron is every 240 minutes, so none of this can overlap
+      # the next scheduled run.
+      lease-minutes: ${AIRRAL_JOBS_SYNC_LEASE_MINUTES:110}
       source-concurrency: ${AIRRAL_JOBS_SYNC_SOURCE_CONCURRENCY:6}
       # Raised with V31, which took the source list from 128 to 508. At 500 the
       # run would have silently dropped the tail of the list every time -- the

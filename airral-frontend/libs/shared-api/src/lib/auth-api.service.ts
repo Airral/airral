@@ -22,6 +22,15 @@ export class AuthApiService {
     return this.apiClient.post<AuthResponse>('/auth/register', request);
   }
 
+  /** Always answers the same way, whether or not the address has an account. */
+  requestPasswordReset(email: string): Observable<{ message: string }> {
+    return this.apiClient.post<{ message: string }>('/auth/forgot-password', { email });
+  }
+
+  resetPassword(token: string, password: string): Observable<{ reset: boolean; message: string }> {
+    return this.apiClient.post<{ reset: boolean; message: string }>('/auth/reset-password', { token, password });
+  }
+
   logout(): Observable<{ message: string }> {
     return this.apiClient.delete<{ message: string }>('/auth/logout');
   }

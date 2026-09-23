@@ -32,6 +32,18 @@ export const appRoutes: Route[] = [
       import('./pages/unsubscribe/unsubscribe.component').then((m) => m.UnsubscribeComponent),
   },
   {
+    // Both outside the auth guard for the obvious reason: whoever needs them
+    // cannot sign in. The reset link's authorisation is the token in its fragment.
+    path: 'forgot-password',
+    loadComponent: () =>
+      import('./pages/forgot-password/forgot-password.component').then((m) => m.ForgotPasswordComponent),
+  },
+  {
+    path: 'reset-password',
+    loadComponent: () =>
+      import('./pages/reset-password/reset-password.component').then((m) => m.ResetPasswordComponent),
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./pages/applicant-login/applicant-login.component').then((m) => m.ApplicantLoginComponent),
