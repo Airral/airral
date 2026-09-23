@@ -1,0 +1,25 @@
+# Rendered by the nginx image's envsubst entrypoint; Cloud Run injects PORT.
+server {
+    listen       ${PORT};
+    server_name  _;
+    root   /usr/share/nginx/html;
+    index  index.html;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript image/svg+xml;
+
+    # add_header in a location discards inherited ones, so the headers live in
+    # one file and are included wherever a location sets its own.
+    include /etc/nginx/security-headers.conf;
+
+    location = /index.html {
+        include /etc/nginx/security-headers.conf;
+        add_header Cache-Control "no-cache";
+    }
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    error_page 404 /index.html;
+}
