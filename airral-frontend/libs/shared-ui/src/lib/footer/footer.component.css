@@ -118,6 +118,16 @@
   color: var(--ink-2, #55555f);
 }
 
+.footer-parent {
+  color: var(--ink, #14141c);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.footer-parent:hover {
+  text-decoration: underline;
+}
+
 .footer-note {
   color: var(--ink-2, #55555f);
 }

@@ -1,0 +1,87 @@
+name: GCP · Deploy cictus.com
+
+# The Cictus company site: static HTML behind nginx, one Cloud Run service.
+# It has no runtime config, API or build step, so it does not ride the
+# two-stage build/deploy pair the AIRRAL frontends use -- that pair's smoke test
+# asserts runtime-config.js, which this site does not have. Build and deploy
+# happen here in one go, from a tag, same as everything else.
+#
+# Manual only, by design.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Git tag to build and deploy (e.g. v1.5.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy cictus.com ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    environment: prod-frontend
+    env:
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/airral/cictus-website
+      SERVICE: cictus-website
+    steps:
+      - name: Validate version is usable as a container tag
+        run: |
+          if ! printf '%s' '${{ inputs.version }}' | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9._-]{0,126}$'; then
+            echo "::error::'${{ inputs.version }}' is not a valid container image tag."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Confirm the ref really is a tag
+        run: git rev-parse -q --verify 'refs/tags/${{ inputs.version }}' >/dev/null || { echo "::error::not a tag"; exit 1; }
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push
+        run: |
+          set -euo pipefail
+          gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+          docker build -t "$IMAGE:${{ inputs.version }}" cictus-website
+          docker push "$IMAGE:${{ inputs.version }}"
+
+      - name: Deploy to Cloud Run
+        env:
+          # Same no-roles identity as the AIRRAL frontends; never the default
+          # compute account, which holds Editor on the project.
+          FRONTEND_SA: ${{ vars.GCP_FRONTEND_SA || format('airral-frontend@{0}.iam.gserviceaccount.com', vars.GCP_PROJECT_ID) }}
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE:${{ inputs.version }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --service-account "$FRONTEND_SA" \
+            --allow-unauthenticated \
+            --port 8080 --cpu 1 --memory 128Mi \
+            --min-instances 0 --max-instances 2
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          URL=$(gcloud run services describe "$SERVICE" --region "${{ vars.GCP_REGION }}" --format='value(status.url)')
+          for i in $(seq 1 12); do
+            if curl -s "$URL/" | grep -q 'AIRRAL is a product of Cictus'; then
+              echo "cictus.com page served from $URL"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::$URL did not serve the Cictus page"
+          exit 1

@@ -90,6 +90,11 @@ export class SeoService {
       name: 'AIRRAL',
       url: this.siteUrl,
       logo: this.toAbsoluteUrl('/assets/brand/airral-logo.svg'),
+      parentOrganization: {
+        '@type': 'Organization',
+        name: 'Cictus',
+        url: 'https://cictus.com/',
+      },
       contactPoint: [
         {
           '@type': 'ContactPoint',
