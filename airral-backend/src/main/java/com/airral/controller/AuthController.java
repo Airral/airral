@@ -4,6 +4,9 @@ import com.airral.config.ClientIpConfig;
 import com.airral.dto.request.LoginRequest;
 import com.airral.dto.request.GoogleAuthRequest;
 import com.airral.dto.request.RegisterRequest;
+import com.airral.dto.request.ForgotPasswordRequest;
+import com.airral.dto.request.ResetPasswordRequest;
+import com.airral.service.PasswordResetService;
 import com.airral.dto.response.AuthResponse;
 import com.airral.exception.UnauthorizedException;
 import com.airral.security.JwtTokenProvider;
@@ -28,15 +31,68 @@ public class AuthController {
     private final LoginThrottle loginThrottle;
     private final TokenVersionCache tokenVersionCache;
     private final JwtTokenProvider jwtTokenProvider;
+    private final PasswordResetService passwordResetService;
 
     public AuthController(AuthService authService,
                           LoginThrottle loginThrottle,
                           TokenVersionCache tokenVersionCache,
-                          JwtTokenProvider jwtTokenProvider) {
+                          JwtTokenProvider jwtTokenProvider,
+                          PasswordResetService passwordResetService) {
         this.authService = authService;
         this.loginThrottle = loginThrottle;
         this.tokenVersionCache = tokenVersionCache;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.passwordResetService = passwordResetService;
+    }
+
+    /** One answer for every forgot-password request, whether or not the address has an account. */
+    static final String RESET_REQUESTED_MESSAGE =
+            "If an account exists for that email, a link to reset the password is on its way. "
+                    + "It expires in 30 minutes.";
+
+    /**
+     * Ask for a password reset link.
+     * POST /api/auth/forgot-password
+     *
+     * <p>Always 202 with the same body. Saying "no account with that email" would
+     * turn this into a free lookup of who has signed up. Throttled on the caller's
+     * address like /register; the per-account limit on how many links one inbox
+     * can be sent lives in PasswordResetService.
+     */
+    @PostMapping("/forgot-password")
+    public Mono<ResponseEntity<Map<String, Object>>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request,
+            ServerWebExchange exchange) {
+
+        String address = clientAddress(exchange);
+
+        return loginThrottle.checkAddress(address)
+                .then(loginThrottle.recordAddressAttempt(address))
+                .then(passwordResetService.requestReset(request.getEmail()))
+                .thenReturn(ResponseEntity.status(HttpStatus.ACCEPTED)
+                        .body(Map.<String, Object>of("message", RESET_REQUESTED_MESSAGE)));
+    }
+
+    /**
+     * Set a new password from the link in a reset email.
+     * POST /api/auth/reset-password
+     *
+     * <p>Signs the account out everywhere on success; the caller signs in again
+     * with the new password.
+     */
+    @PostMapping("/reset-password")
+    public Mono<ResponseEntity<Map<String, Object>>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request,
+            ServerWebExchange exchange) {
+
+        String address = clientAddress(exchange);
+
+        return loginThrottle.checkAddress(address)
+                .then(loginThrottle.recordAddressAttempt(address))
+                .then(passwordResetService.resetPassword(request.getToken(), request.getPassword()))
+                .thenReturn(ResponseEntity.ok(Map.<String, Object>of(
+                        "reset", true,
+                        "message", "Your password has been changed. Sign in with the new one.")));
     }
 
     /**

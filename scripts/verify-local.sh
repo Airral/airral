@@ -293,6 +293,81 @@ done
 [ "$LAST" = "429" ] && ok "login throttle returns 429 on the sixth failure" \
   || bad "login throttle returned $LAST, expected 429"
 
+# Password reset, end to end against the real database. The properties that
+# matter are the ones a unit test with a mocked DatabaseClient cannot see: that
+# the endpoints are reachable without a session, that an unknown address answers
+# exactly like a real one, that a link works once and never after expiry, and
+# that the old password stops working. The raw token only ever exists in the
+# email, which is not sent locally, so the test plants a token of its own and
+# stores its hash the way the service does.
+#
+# Earlier checks in this run share the localhost address bucket, and so do
+# repeated runs inside the 15-minute window; clear it first so these fail on
+# their own merits rather than on a 429 left by something else.
+psql -d airral_db -qtAc "DELETE FROM auth_attempt_windows WHERE bucket_key LIKE 'ip:%';" >/dev/null 2>&1
+post() { curl -s --max-time 20 -X POST "http://localhost:8080$1" -H 'Content-Type: application/json' -d "$2"; }
+postcode() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST "http://localhost:8080$1" -H 'Content-Type: application/json' -d "$2"; }
+
+# Every JSON body is built in a variable first. macOS ships bash 3.2, which
+# brace-expands a {...,...} sitting inside a nested command substitution even
+# when it is quoted -- the body was split in two and sent as two requests.
+json2() { printf '{"%s":"%s","%s":"%s"}' "$1" "$2" "$3" "$4"; }
+RESET_USER="reset-$RANDOM$RANDOM@local.test"
+
+BODY=$(json2 email "$RESET_USER" password Original1pass)
+[ "$(postcode /api/auth/register "$BODY")" = "201" ] \
+  && ok "a throwaway account for the reset checks was created" \
+  || bad "could not register $RESET_USER for the reset checks"
+
+BODY=$(printf '{"email":"%s"}' "nobody-$RANDOM@local.test"); UNKNOWN_BODY=$(post /api/auth/forgot-password "$BODY")
+BODY=$(printf '{"email":"%s"}' "$RESET_USER");               KNOWN_BODY=$(post /api/auth/forgot-password "$BODY")
+[ -n "$KNOWN_BODY" ] && [ "$UNKNOWN_BODY" = "$KNOWN_BODY" ] \
+  && ok "forgot-password answers an unknown address exactly like a real one" \
+  || bad "forgot-password bodies differ, so it reveals which emails have accounts: '$UNKNOWN_BODY' vs '$KNOWN_BODY'"
+
+[ "$(postcode /api/auth/forgot-password "$BODY")" = "202" ] \
+  && ok "forgot-password is reachable without signing in" \
+  || bad "POST /api/auth/forgot-password should be 202"
+
+BODY=$(json2 token not-a-real-token password Whatever1pass)
+[ "$(postcode /api/auth/reset-password "$BODY")" = "400" ] \
+  && ok "an unknown reset token is refused" \
+  || bad "an unknown reset token should be 400"
+
+RESET_UID=$(psql -d airral_db -qtAc "SELECT id FROM users WHERE email = '$RESET_USER';")
+TOKEN="smoke$RANDOM$RANDOM$RANDOM"
+TOKEN_HASH=$(printf '%s' "$TOKEN" | shasum -a 256 | cut -d' ' -f1)
+EXPIRED="expired$RANDOM$RANDOM"
+EXPIRED_HASH=$(printf '%s' "$EXPIRED" | shasum -a 256 | cut -d' ' -f1)
+psql -d airral_db -qtAc "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES
+  ($RESET_UID, '$TOKEN_HASH', now() + interval '30 minutes'),
+  ($RESET_UID, '$EXPIRED_HASH', now() - interval '1 minute');" >/dev/null
+
+BODY=$(json2 token "$EXPIRED" password Changed1pass)
+[ "$(postcode /api/auth/reset-password "$BODY")" = "400" ] \
+  && ok "an expired reset link is refused" \
+  || bad "an expired reset link should be 400"
+
+BODY=$(json2 token "$TOKEN" password Changed1pass)
+[ "$(postcode /api/auth/reset-password "$BODY")" = "200" ] \
+  && ok "a valid reset link sets a new password" \
+  || bad "a valid reset link should be 200"
+
+BODY=$(json2 email "$RESET_USER" password Original1pass)
+[ "$(postcode /api/auth/login "$BODY")" = "401" ] \
+  && ok "the old password stops working after a reset" \
+  || bad "the old password still signs in after a reset"
+
+BODY=$(json2 email "$RESET_USER" password Changed1pass)
+[ "$(postcode /api/auth/login "$BODY")" = "200" ] \
+  && ok "the new password signs in" \
+  || bad "the new password does not sign in"
+
+BODY=$(json2 token "$TOKEN" password Another1pass)
+[ "$(postcode /api/auth/reset-password "$BODY")" = "400" ] \
+  && ok "a reset link works only once" \
+  || bad "a used reset link was accepted a second time"
+
 step "Result"
 if [ $FAILED -eq 0 ]; then
   ok "safe to push"

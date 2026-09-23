@@ -96,6 +96,9 @@
         <p class="password-hint" *ngIf="isRegisterMode">
           Use at least 8 characters with uppercase, lowercase, and a number.
         </p>
+        <p class="forgot-link" *ngIf="!isRegisterMode">
+          <a routerLink="/forgot-password">Forgot password?</a>
+        </p>
       </div>
 
       <p class="session-notice" *ngIf="sessionNotice && !errorMessage">{{ sessionNotice }}</p>

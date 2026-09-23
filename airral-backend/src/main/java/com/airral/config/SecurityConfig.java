@@ -108,10 +108,11 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/google").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
-                        // forgot-password and reset-password were allow-listed
-                        // with nothing behind them -- no controller, no service,
-                        // and a dead href="#" on the login form. Removed rather
-                        // than left describing a surface that does not exist.
+                        // Unauthenticated by nature: the caller is someone who can
+                        // no longer sign in. Both answer the same way for an
+                        // address that has an account and one that does not.
+                        .pathMatchers(HttpMethod.POST, "/api/auth/forgot-password").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/auth/reset-password").permitAll()
                         //
                         // POST /api/applications was public too. It is the only
                         // write endpoint outside the auth flow that took no
