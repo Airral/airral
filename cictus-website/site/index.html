@@ -4,13 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Cictus</title>
-  <meta name="description" content="Cictus builds practical software products. Our first is AIRRAL, the job search that finds real roles and fixes your résumé for each one. More are coming." />
+  <meta name="description" content="Cictus is an independent software company. We build software that does the tedious part for you. Our first product is AIRRAL, with more in development." />
   <link rel="canonical" href="https://cictus.com/" />
+  <meta name="theme-color" content="#ffffff" />
   <meta property="og:title" content="Cictus" />
-  <meta property="og:description" content="The company behind AIRRAL. More products are coming." />
+  <meta property="og:description" content="The company behind AIRRAL. One product live, more in development." />
   <meta property="og:url" content="https://cictus.com/" />
   <meta property="og:type" content="website" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="/fonts/inter-tight-latin.woff2" as="font" type="font/woff2" crossorigin />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -18,6 +20,8 @@
     "name": "Cictus",
     "url": "https://cictus.com/",
     "logo": "https://cictus.com/favicon.svg",
+    "foundingDate": "2026",
+    "email": "business@cictus.com",
     "brand": { "@type": "Brand", "name": "AIRRAL", "url": "https://www.airral.com/" },
     "subOrganization": { "@type": "Organization", "name": "AIRRAL", "url": "https://www.airral.com/" }
   }
@@ -25,69 +29,70 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="top wrap">
-    <a class="logo" href="/" aria-label="Cictus home">
-      <span class="mark" aria-hidden="true"></span>
-      <span>Cictus</span>
-    </a>
-    <nav aria-label="Main">
-      <a href="#products">Products</a>
-      <a href="#contact">Contact</a>
-    </nav>
-  </header>
+  <div class="wrap">
+    <header class="top">
+      <a class="logo" href="/" aria-label="Cictus home">
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" /><path d="M21.6 10.4a8 8 0 1 0 0 11.2" /></svg>
+        <span>Cictus</span>
+      </a>
+      <nav aria-label="Main">
+        <a href="#products">Products</a>
+        <a href="#principles">Principles</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </header>
 
-  <main>
-    <section class="hero wrap">
-      <p class="kicker">Software company</p>
-      <h1>We build tools that do<br /><span class="soft">the tedious part for you.</span></h1>
-      <p class="lede">
-        Cictus makes focused, practical software. Our first product is AIRRAL.
-        More are on the way.
-      </p>
-    </section>
+    <main>
+      <section class="hero g">
+        <p class="lbl">(Cictus, est. 2026)</p>
+        <h1>We build software <span>that does the tedious part for you.</span></h1>
+        <p class="sub">An independent product company. <b>One product live, more in development.</b></p>
+      </section>
 
-    <section class="products wrap" id="products" aria-labelledby="products-h">
-      <h2 id="products-h" class="kicker">Products</h2>
+      <section class="stats g" aria-label="At a glance">
+        <div><span class="lbl">Products live</span><b>1</b></div>
+        <div><span class="lbl">In development</span><b>More</b></div>
+        <div><span class="lbl">Founded</span><b>2026</b></div>
+        <div><span class="lbl">Headquarters</span><b>Online</b></div>
+      </section>
 
-      <article class="product">
-        <div class="product__head">
-          <span class="product__mark airral" aria-hidden="true"></span>
-          <div>
+      <section class="sec g" id="products" aria-labelledby="products-h">
+        <h2 class="lbl" id="products-h">Products</h2>
+        <div class="body prow">
+          <a class="p" href="https://www.airral.com/">
+            <span class="top-row"><span>01</span><span class="live">Live</span></span>
             <h3>AIRRAL</h3>
-            <p class="status status--live">Live</p>
+            <p>The job search that finds real, active roles across every industry, tells you which are worth applying to, and fixes your résumé for each one.</p>
+            <span class="arrow" aria-hidden="true">↗</span>
+          </a>
+          <div class="p soon">
+            <span class="top-row"><span>02 — 03</span><span>In development</span></span>
+            <h3>Coming soon</h3>
+            <p>New products are being built now. They will be announced here first.</p>
           </div>
         </div>
-        <p>
-          The job search that finds real, active roles across industries, tells you which ones
-          are worth applying to, and reworks your résumé for each exact job.
-        </p>
-        <a class="btn" href="https://www.airral.com/">Visit airral.com <span aria-hidden="true">→</span></a>
-      </article>
+      </section>
 
-      <article class="product product--soon">
-        <div class="product__head">
-          <span class="product__mark soon" aria-hidden="true"></span>
-          <div>
-            <h3>More coming</h3>
-            <p class="status">In the works</p>
-          </div>
+      <section class="sec g" id="principles" aria-labelledby="principles-h">
+        <h2 class="lbl" id="principles-h">Principles</h2>
+        <div class="body principles">
+          <div><span class="n">01</span><h3>Useful first</h3><p>We ship when a product saves people real time, not before.</p></div>
+          <div><span class="n">02</span><h3>Honest data</h3><p>Nothing on the screen that we can't back up.</p></div>
+          <div><span class="n">03</span><h3>Built to last</h3><p>Small team, long horizon, products we keep improving.</p></div>
         </div>
-        <p>
-          We are building the next products now. They will be announced here first.
-        </p>
-      </article>
-    </section>
+      </section>
 
-    <section class="contact wrap" id="contact" aria-labelledby="contact-h">
-      <h2 id="contact-h">Get in touch</h2>
-      <p>Partnerships, press or anything else: <a href="mailto:business@cictus.com">business@cictus.com</a></p>
-    </section>
-  </main>
+      <section class="cta g" id="contact" aria-labelledby="contact-h">
+        <p class="lbl">Contact</p>
+        <h2 id="contact-h">Work with us —<br /><a href="mailto:business@cictus.com">business@cictus.com</a></h2>
+      </section>
+    </main>
 
-  <footer class="foot wrap">
-    <p>&copy; <span id="y">2026</span> Cictus. All rights reserved.</p>
-    <p>AIRRAL is a product of Cictus.</p>
-  </footer>
+    <footer class="foot">
+      <p>&copy; <span id="y">2026</span> Cictus. All rights reserved.</p>
+      <p>AIRRAL is a product of Cictus.</p>
+    </footer>
+  </div>
   <script src="/year.js" defer></script>
 </body>
 </html>
