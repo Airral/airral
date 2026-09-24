@@ -46,16 +46,6 @@
       ],
       "port": 4201,
       "cwd": "airral-frontend"
-    },
-    {
-      "name": "cictus-website",
-      "runtimeExecutable": "node",
-      "runtimeArgs": [
-        "-e",
-        "const h=require('http'),f=require('fs'),p=require('path'),t={'.html':'text/html','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml'};h.createServer((q,r)=>{let u=decodeURIComponent(q.url.split('?')[0]);if(u.endsWith('/'))u+='index.html';f.readFile(p.join('.',u),(e,b)=>{if(e){r.writeHead(404);return r.end()}r.writeHead(200,{'content-type':t[p.extname(u)]||'application/octet-stream'});r.end(b)})}).listen(4210)"
-      ],
-      "port": 4210,
-      "cwd": "cictus-website/site"
     }
   ]
 }
