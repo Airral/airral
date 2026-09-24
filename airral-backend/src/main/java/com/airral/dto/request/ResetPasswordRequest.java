@@ -12,9 +12,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ResetPasswordRequest {
 
-    @NotBlank(message = "Reset token is required")
-    @Size(max = 200, message = "Reset token is invalid")
-    private String token;
+    /** The Firebase ID token the browser holds after following the reset email's link. */
+    @NotBlank(message = "A verification token is required")
+    @Size(max = 4096, message = "Verification token is invalid")
+    private String idToken;
 
     // Same rule as RegisterRequest.password, so a reset cannot set a password
     // that sign-up would have refused.

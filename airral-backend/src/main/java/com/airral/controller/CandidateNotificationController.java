@@ -1,5 +1,7 @@
 package com.airral.controller;
 
+import com.airral.service.AccountVerificationService;
+
 import com.airral.dto.request.UpdateNotificationPreferencesRequest;
 import com.airral.dto.response.NotificationPreferencesResponse;
 import com.airral.dto.response.UnsubscribeResultResponse;
@@ -20,12 +22,15 @@ public class CandidateNotificationController {
 
     private final CandidateEmailService emailService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final AccountVerificationService accountVerificationService;
     private final boolean schedulerEnabled;
 
     public CandidateNotificationController(
             CandidateEmailService emailService,
             JwtTokenProvider jwtTokenProvider,
+            AccountVerificationService accountVerificationService,
             @Value("${airral.notifications.scheduler.enabled:false}") boolean schedulerEnabled) {
+        this.accountVerificationService = accountVerificationService;
         this.emailService = emailService;
         this.jwtTokenProvider = jwtTokenProvider;
         this.schedulerEnabled = schedulerEnabled;
@@ -73,8 +78,20 @@ public class CandidateNotificationController {
             @RequestBody UpdateNotificationPreferencesRequest request,
             @RequestHeader("Authorization") String authHeader) {
 
-        String email = jwtTokenProvider.getEmailFromToken(extractToken(authHeader));
-        return emailService.getOrCreatePreferences(email)
+        String token = extractToken(authHeader);
+        String email = jwtTokenProvider.getEmailFromToken(token);
+        // Turning an email ON needs a proven address -- otherwise AIRRAL mails
+        // whoever an unverified account typed in. Turning one OFF never does: an
+        // unverified account must always be able to stop mail.
+        boolean enablesSomething = Boolean.TRUE.equals(request.getJobAlertEnabled())
+                || Boolean.TRUE.equals(request.getFollowUpReminderEnabled())
+                || Boolean.TRUE.equals(request.getWeeklyDigestEnabled())
+                || Boolean.TRUE.equals(request.getResumeNudgeEnabled())
+                || Boolean.TRUE.equals(request.getSavedJobChangeEnabled());
+        Mono<Void> gate = enablesSomething
+                ? accountVerificationService.requireVerified(jwtTokenProvider.getUserIdFromToken(token), "turn on email notifications")
+                : Mono.empty();
+        return gate.then(emailService.getOrCreatePreferences(email))
                 .flatMap(pref -> {
                     if (request.getJobAlertEnabled() != null) pref.setJobAlertEnabled(request.getJobAlertEnabled());
                     if (request.getFollowUpReminderEnabled() != null) pref.setFollowUpReminderEnabled(request.getFollowUpReminderEnabled());

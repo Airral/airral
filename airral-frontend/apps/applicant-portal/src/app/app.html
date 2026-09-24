@@ -53,5 +53,8 @@
 </nav>
 
 <main class="app-main with-nav">
+  <!-- Inside <main>, not between it and the nav: the nav is fixed and only
+       <main> is padded for it, so anything placed above sits hidden behind it. -->
+  <airral-verify-email-banner *ngIf="isLoggedIn"></airral-verify-email-banner>
   <router-outlet></router-outlet>
 </main>

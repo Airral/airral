@@ -80,6 +80,23 @@ export const PORTAL_ROUTES = {
   ADMIN: portal(browserRuntimeConfig.adminUrl, 'https://admin.airral.com', 4203)
 };
 
+/**
+ * The Firebase web app AIRRAL uses for one job: emailing a one-time link to an
+ * address and confirming it was followed. Accounts, passwords and sessions stay
+ * in AIRRAL's own database; Firebase never sees a password.
+ *
+ * <p>Not secrets. A Firebase web config is shipped in every page that uses it by
+ * design; what protects it is that the API key only answers from AIRRAL's own
+ * origins and only for the two sign-in APIs (restricted in Google Cloud), and
+ * that the backend accepts only tokens minted for this project.
+ */
+export const FIREBASE_WEB_CONFIG = {
+  apiKey: 'AIzaSyBEVR_Zk-T_XDGPKSa_IIeJB-XubcMC21w',
+  authDomain: 'airral-a0e81.firebaseapp.com',
+  projectId: 'airral-a0e81',
+  appId: '1:965095345971:web:9a89e7f6a2fab97117f846',
+} as const;
+
 export const USER_ROLES = {
   ADMIN: 'ADMIN',
   HR_MANAGER: 'HR_MANAGER',

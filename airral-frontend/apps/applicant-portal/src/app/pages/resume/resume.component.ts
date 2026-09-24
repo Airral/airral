@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { CandidatePortalService } from '@airral/shared-api';
-import { AuthService } from '@airral/shared-auth';
+import { AuthService, isEmailNotVerifiedError } from '@airral/shared-auth';
 import {
   CandidateEducationEntry,
   CandidateExperienceEntry,
@@ -116,8 +116,10 @@ export class ResumeComponent implements OnInit {
         this.hydrateEditor();
         this.successMessage = 'Resume parsed. Review the extracted details before saving.';
       },
-      error: () => {
-        this.errorMessage = 'Could not upload this resume. Check the file and try again.';
+      error: (error) => {
+        this.errorMessage = isEmailNotVerifiedError(error)
+          ? 'Verify your email first. Open the link we sent you, then upload your resume here.'
+          : 'Could not upload this resume. Check the file and try again.';
       },
     });
   }

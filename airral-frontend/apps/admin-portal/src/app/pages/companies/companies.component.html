@@ -1,0 +1,52 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Company review</h1>
+      <p class="sub">
+        Companies verified by their own work-email domain are approved automatically. These need a person to look:
+        their jobs stay hidden from candidates until you approve them.
+      </p>
+    </div>
+    <nav class="links">
+      <a routerLink="/">Users</a>
+      <a routerLink="/api-keys">API keys</a>
+    </nav>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" [class.active]="status() === 'PENDING'" (click)="show('PENDING')">Waiting</button>
+    <button type="button" role="tab" [class.active]="status() === 'VERIFIED'" (click)="show('VERIFIED')">Approved</button>
+    <button type="button" role="tab" [class.active]="status() === 'REJECTED'" (click)="show('REJECTED')">Rejected</button>
+  </div>
+
+  <p class="error" role="alert" *ngIf="error()">{{ error() }}</p>
+  <p class="muted" *ngIf="loading()">Loading…</p>
+  <p class="muted" *ngIf="!loading() && companies().length === 0 && !error()">Nothing here.</p>
+
+  <article class="card" *ngFor="let c of companies()">
+    <div class="card-head">
+      <h2>{{ c.name }}</h2>
+      <span class="pill" [class.pill-warn]="!c.domain">{{ c.domain || 'personal email' }}</span>
+    </div>
+    <dl class="facts">
+      <dt>Signed up by</dt>
+      <dd>
+        {{ c.contactEmail || '—' }}
+        <span class="tag" [class.tag-ok]="c.contactVerified">{{ c.contactVerified ? 'email verified' : 'email not verified' }}</span>
+      </dd>
+      <dt>Open jobs waiting</dt><dd>{{ c.openJobs }}</dd>
+      <dt>Created</dt><dd>{{ c.createdAt | date: 'medium' }}</dd>
+      <ng-container *ngIf="c.verificationNote"><dt>Note</dt><dd>{{ c.verificationNote }}</dd></ng-container>
+    </dl>
+
+    <div class="actions" *ngIf="status() === 'PENDING'">
+      <input type="text" [(ngModel)]="notes[c.id]" placeholder="Note (why you approved or rejected)" />
+      <button type="button" class="approve" (click)="decide(c, 'approve')" [disabled]="busyId() !== null">Approve</button>
+      <button type="button" class="reject" (click)="decide(c, 'reject')" [disabled]="busyId() !== null">Reject</button>
+    </div>
+    <div class="actions" *ngIf="status() !== 'PENDING'">
+      <button type="button" class="approve" *ngIf="status() === 'REJECTED'" (click)="decide(c, 'approve')" [disabled]="busyId() !== null">Approve instead</button>
+      <button type="button" class="reject" *ngIf="status() === 'VERIFIED'" (click)="decide(c, 'reject')" [disabled]="busyId() !== null">Revoke approval</button>
+    </div>
+  </article>
+</div>

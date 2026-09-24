@@ -39,9 +39,18 @@ class NotificationPreferencesPersistenceTest {
 
     private final CandidateEmailService emailService = mock(CandidateEmailService.class);
     private final JwtTokenProvider jwtTokenProvider = mock(JwtTokenProvider.class);
+    /** Every account in these tests has proven its address; the gate is covered in EmailVerificationGateTest. */
+    private final com.airral.service.AccountVerificationService verified = verifiedAccounts();
+
+    private static com.airral.service.AccountVerificationService verifiedAccounts() {
+        com.airral.service.AccountVerificationService service = mock(com.airral.service.AccountVerificationService.class);
+        org.mockito.Mockito.when(service.requireVerified(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(reactor.core.publisher.Mono.empty());
+        return service;
+    }
     /** Delivery off, which is how the deployed service is configured today. */
     private final CandidateNotificationController controller =
-            new CandidateNotificationController(emailService, jwtTokenProvider, false);
+            new CandidateNotificationController(emailService, jwtTokenProvider, verified, false);
 
     private CandidateNotificationPreference allOn() {
         return CandidateNotificationPreference.builder()
@@ -161,7 +170,7 @@ class NotificationPreferencesPersistenceTest {
                 .isFalse();
 
         CandidateNotificationController withDelivery =
-                new CandidateNotificationController(emailService, jwtTokenProvider, true);
+                new CandidateNotificationController(emailService, jwtTokenProvider, verified, true);
         assertThat(withDelivery.getPreferences("Bearer tok").block().getBody().getEmailDeliveryActive())
                 .as("and it follows the property rather than being hardcoded")
                 .isTrue();

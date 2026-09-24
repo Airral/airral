@@ -1,5 +1,7 @@
 package com.airral.controller;
 
+import com.airral.service.AccountVerificationService;
+
 import com.airral.dto.request.UpdateCandidateProfileRequest;
 import com.airral.dto.response.CandidateProfileResponse;
 import com.airral.dto.response.ResumeHealthResponse;
@@ -25,10 +27,13 @@ public class CandidateProfileController {
     private final CandidateProfileService profileService;
     private final ResumeHealthScoreService resumeHealthScoreService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final AccountVerificationService accountVerificationService;
 
     public CandidateProfileController(CandidateProfileService profileService,
                                       ResumeHealthScoreService resumeHealthScoreService,
-                                      JwtTokenProvider jwtTokenProvider) {
+                                      JwtTokenProvider jwtTokenProvider,
+                                      AccountVerificationService accountVerificationService) {
+        this.accountVerificationService = accountVerificationService;
         this.profileService = profileService;
         this.resumeHealthScoreService = resumeHealthScoreService;
         this.jwtTokenProvider = jwtTokenProvider;
@@ -91,8 +96,12 @@ public class CandidateProfileController {
             @RequestPart("file") FilePart file,
             @RequestHeader("Authorization") String authHeader) {
 
-        String email = jwtTokenProvider.getEmailFromToken(extractToken(authHeader));
-        return profileService.uploadResume(email, file)
+        String token = extractToken(authHeader);
+        String email = jwtTokenProvider.getEmailFromToken(token);
+        // A resume is the most sensitive thing an applicant gives AIRRAL, so it is
+        // only accepted from an account that has proven its address.
+        return accountVerificationService.requireVerified(jwtTokenProvider.getUserIdFromToken(token), "upload a resume")
+                .then(profileService.uploadResume(email, file))
                 .map(ResponseEntity::ok);
     }
 

@@ -1,0 +1,52 @@
+/* White card, neutral border, near-black text; teal only for the action, per
+   the applicant portal design contract. */
+.verify-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 16px 0;
+  padding: 12px 14px;
+  background: #FFFFFF;
+  border: 1px solid #E1E5E9;
+  border-left: 4px solid #007C6D;
+  border-radius: 8px;
+  color: #1B2733;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.verify-banner-info { border-left-color: #8A6D00; }
+.verify-banner-warn { border-left-color: #B42318; }
+
+.verify-icon { color: #43536B; flex-shrink: 0; }
+
+.verify-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.verify-text span { color: #43536B; }
+.verify-error { color: #B42318 !important; }
+
+.verify-action {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #FFFFFF;
+  background: #007C6D;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.verify-action:disabled { opacity: 0.55; cursor: default; }
+
+@media (max-width: 600px) {
+  .verify-banner { flex-wrap: wrap; }
+  .verify-action { width: 100%; }
+}

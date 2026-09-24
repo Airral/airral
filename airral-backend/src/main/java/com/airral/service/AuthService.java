@@ -80,7 +80,7 @@ public class AuthService {
      * Login user
      */
     public Mono<AuthResponse> login(LoginRequest request) {
-        return userRepository.findByEmail(request.getEmail())
+        return userRepository.findByEmail(normalizeEmail(request.getEmail()))
                 .switchIfEmpty(Mono.error(new UnauthorizedException("Invalid email or password")))
                 .flatMap(user -> {
                     // Verify password
@@ -167,7 +167,18 @@ public class AuthService {
      * the address fallback are "refused" and "new account".
      */
     private boolean isSafeToLink(User user) {
-        return !StringUtils.hasText(user.getGoogleSubject()) && user.isEmailVerified();
+        // A verified address is not enough on its own any more, now that
+        // verification exists. The password on a row created by /register was
+        // typed before anyone proved the address, so it may be the password of
+        // whoever typed the address first -- and clicking an unsolicited
+        // "verify your account" email would verify that row for them. Adopting
+        // it into the real owner's Google sign-in would leave the first typist
+        // holding a working password to it. Only a password set after the
+        // address was proven -- through a reset link -- is known to be the
+        // owner's.
+        return !StringUtils.hasText(user.getGoogleSubject())
+                && user.isEmailVerified()
+                && user.getPasswordProvenAt() != null;
     }
 
     private Mono<AuthResponse> loginExistingGoogleUser(User user, GoogleIdentityService.GoogleProfile profile) {
@@ -248,6 +259,10 @@ public class AuthService {
      */
     @Transactional
     public Mono<AuthResponse> register(RegisterRequest request) {
+        // Lowercased before anything reads it. users.email is unique on
+        // lower(email) since V36, and Google sign-in already lowercases, so one
+        // person gets one account however they capitalise their address.
+        request.setEmail(normalizeEmail(request.getEmail()));
         boolean invitedFlow = StringUtils.hasText(request.getInvitationToken());
 
         // Names are required for employer/org signup, but applicant signup can collect profile details later.
@@ -265,7 +280,18 @@ public class AuthService {
 
                     // Self-registration (create new organization)
                     if (StringUtils.hasText(request.getCompanyName())) {
-                        return registerWithNewOrganization(request);
+                        // A company that has already proven this domain is where
+                        // this person belongs; a second, unverifiable copy of it
+                        // is not. Before V36 this was a 500 from the unique index.
+                        String domain = CompanyVerificationService.companyDomainFor(request.getEmail());
+                        if (domain == null) {
+                            return registerWithNewOrganization(request);
+                        }
+                        return organizationRepository.existsVerifiedDomainOtherThan(domain, -1L)
+                                .flatMap(taken -> taken
+                                        ? Mono.<AuthResponse>error(new ConflictException(
+                                                "Your company is already on AIRRAL. Ask a teammate there to invite you."))
+                                        : registerWithNewOrganization(request));
                     }
 
                     // Invited user (join existing organization)
@@ -322,16 +348,21 @@ public class AuthService {
      * Self-registration: Create new organization + HR Manager
      */
     private Mono<AuthResponse> registerWithNewOrganization(RegisterRequest request) {
-        return parseTier(request.getOrganizationTier())
+        // Tier, limits and domain are the server's to decide. They used to be
+        // taken from the request, so a public, unauthenticated POST could create
+        // an ENTERPRISE organization with whatever maxUsers it liked and claim
+        // any company domain. The domain is now the one the signup address is
+        // on -- and none for a free-mail address -- which is also what
+        // CompanyVerificationService compares against when that address is
+        // proven.
+        return Mono.just(OrganizationTier.QUICK_HIRE)
                 .flatMap(tier -> {
                     Organization organization = Organization.builder()
                             .name(request.getCompanyName())
-                            .domain(request.getCompanyDomain())
+                            .domain(CompanyVerificationService.companyDomainFor(request.getEmail()))
                             .tier(tier)
                             .subscriptionStatus(SubscriptionStatus.TRIAL)
-                            .maxUsers(request.getMaxUsers())
-                            .maxJobs(request.getMaxJobs())
-                            .maxApplicationsPerMonth(request.getMaxApplicationsPerMonth())
+                            .verificationStatus(CompanyVerificationService.PENDING)
                             .primaryContactEmail(request.getPrimaryContactEmail())
                             .primaryContactPhone(request.getPrimaryContactPhone())
                             .billingEmail(request.getBillingEmail())
@@ -379,16 +410,8 @@ public class AuthService {
                 });
     }
 
-    private Mono<OrganizationTier> parseTier(String requestedTier) {
-        if (!StringUtils.hasText(requestedTier)) {
-            return Mono.just(OrganizationTier.QUICK_HIRE);
-        }
-
-        try {
-            return Mono.just(OrganizationTier.valueOf(requestedTier.trim().toUpperCase()));
-        } catch (IllegalArgumentException ex) {
-            return Mono.error(new BadRequestException("Invalid organizationTier. Use QUICK_HIRE, PROFESSIONAL, or ENTERPRISE."));
-        }
+    static String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     private Json toJson(Map<String, Object> value, String fieldName) {

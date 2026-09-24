@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
 import { AuthService, PORTAL_ID, SessionExpiry, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { AuthResponse, User } from '@airral/shared-types';
@@ -11,7 +11,7 @@ import { PORTAL_ROUTES, USER_ROLES } from '@airral/shared-utils';
 @Component({
   selector: 'app-hr-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, GoogleAuthButtonComponent],
+  imports: [CommonModule, FormsModule, RouterLink, GoogleAuthButtonComponent],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
 })

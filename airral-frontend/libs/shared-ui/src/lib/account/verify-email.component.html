@@ -1,0 +1,42 @@
+<div class="reset-page">
+  <div class="reset-card">
+    <h1>Verify your email</h1>
+
+    <p *ngIf="state === 'checking' || state === 'working'" class="reset-note">Confirming your email…</p>
+
+    <ng-container *ngIf="state === 'needs-email'">
+      <p>You opened this link on a different device. Enter the email address it was sent to, to finish.</p>
+      <form (ngSubmit)="complete()" novalidate>
+        <label for="verify-email">Email</label>
+        <input id="verify-email" name="email" type="email" autocomplete="email" required [(ngModel)]="email" />
+        <p class="reset-error" role="alert" *ngIf="message">{{ message }}</p>
+        <button type="submit" class="reset-primary">Verify email</button>
+      </form>
+    </ng-container>
+
+    <ng-container *ngIf="state === 'verified'">
+      <p class="reset-done">Your email is verified.</p>
+      <p>You can now upload your resume, turn on job alerts, and publish jobs if you're hiring.</p>
+      <a [routerLink]="signedIn ? '/' : '/login'" class="reset-primary reset-primary-link">
+        {{ signedIn ? 'Continue' : 'Sign in' }}
+      </a>
+    </ng-container>
+
+    <ng-container *ngIf="state === 'no-account'">
+      <p class="reset-error">{{ message }}</p>
+      <a routerLink="/login" [queryParams]="{ mode: 'register' }" class="reset-primary reset-primary-link">Create an account</a>
+    </ng-container>
+
+    <ng-container *ngIf="state === 'error'">
+      <p class="reset-error">{{ message }}</p>
+      <p class="reset-note">Sign in and use "Resend link" at the top of the page to get a new one.</p>
+    </ng-container>
+
+    <ng-container *ngIf="state === 'no-link'">
+      <p>This page needs the link from your verification email, and it wasn't found or has already been used.</p>
+      <p class="reset-note">Sign in and use "Resend link" at the top of the page to get a new one.</p>
+    </ng-container>
+
+    <p class="reset-links"><a routerLink="/login">Back to sign in</a></p>
+  </div>
+</div>

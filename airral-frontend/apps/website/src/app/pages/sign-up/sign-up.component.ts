@@ -3,7 +3,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
+import { AuthService, EmailLinkService, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { RegisterRequest } from '@airral/shared-types';
 import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
@@ -32,7 +32,8 @@ export class SignUpComponent {
   constructor(
     private readonly authApi: AuthApiService,
     private readonly authService: AuthService,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly emailLink: EmailLinkService
   ) {}
 
   onSubmit(): void {
@@ -56,7 +57,17 @@ export class SignUpComponent {
     };
 
     this.authApi.register(payload).subscribe({
-      next: (res) => {
+      next: async (res) => {
+        // Send the verification link before leaving: routeAfterAuth hands off
+        // to the HR portal with a full page load, which would abort a request
+        // still in flight. Capped so a slow network cannot hang sign-up; if it
+        // does not go out, the HR portal's banner has "Resend link". The link
+        // lands on the HR portal, where this person is signed in after the
+        // handoff, so the page knows the address without asking.
+        await Promise.race([
+          this.emailLink.sendLink(this.workEmail, '/verify-email', PORTAL_ROUTES.HR).catch(() => undefined),
+          new Promise((resolve) => setTimeout(resolve, 4000)),
+        ]);
         const user = userFromAuthResponse(res, {
           email: this.workEmail,
           phone: this.phone,
@@ -79,8 +90,12 @@ export class SignUpComponent {
           authService: this.authService,
         });
       },
-      error: () => {
-        this.errorMessage = 'Unable to create employer account right now. Please try again.';
+      error: (error) => {
+        // A 409 carries a message worth showing as-is: "Email already
+        // registered", or that the company is already on AIRRAL.
+        this.errorMessage = error?.status === 409 && error?.error?.message
+          ? error.error.message
+          : 'Unable to create employer account right now. Please try again.';
         this.isLoading = false;
       },
     });

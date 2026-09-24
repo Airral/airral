@@ -108,10 +108,15 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/google").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
-                        // Unauthenticated by nature: the caller is someone who can
-                        // no longer sign in. Both answer the same way for an
-                        // address that has an account and one that does not.
-                        .pathMatchers(HttpMethod.POST, "/api/auth/forgot-password").permitAll()
+                        // Unauthenticated by nature: the person following an email
+                        // link is often on a different device from the one that
+                        // signed up, and someone resetting a password cannot sign
+                        // in. The Firebase ID token in the body is the proof, and
+                        // it names the address it proves. There is no
+                        // forgot-password endpoint: the portal asks Firebase to
+                        // send the link directly, so AIRRAL is never asked whether
+                        // an address has an account.
+                        .pathMatchers(HttpMethod.POST, "/api/auth/verify-email").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/reset-password").permitAll()
                         //
                         // POST /api/applications was public too. It is the only

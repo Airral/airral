@@ -1,3 +1,4 @@
+import { ForgotPasswordComponent, ResetPasswordComponent, VerifyEmailComponent } from '@airral/shared-ui';
 import { Route } from '@angular/router';
 import { authGuard, roleGuard } from '@airral/shared-auth';
 import { ROUTE_ACCESS } from './feature-config';
@@ -27,6 +28,20 @@ export const appRoutes: Route[] = [
     path: 'login',
     loadComponent: () =>
       import('./pages/login/login.component').then((m) => m.LoginComponent),
+  },
+  // Outside the guards: an email link is often opened on another device, and a
+  // person resetting a password cannot sign in. The Firebase link authorises them.
+  {
+    path: 'verify-email',
+    component: VerifyEmailComponent,
+  },
+  {
+    path: 'forgot-password',
+    component: ForgotPasswordComponent,
+  },
+  {
+    path: 'reset-password',
+    component: ResetPasswordComponent,
   },
   {
     path: '',

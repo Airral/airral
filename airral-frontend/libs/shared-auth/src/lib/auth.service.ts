@@ -93,6 +93,19 @@ export class AuthService {
     return this.currentUserSubject.value;
   }
 
+  /**
+   * Update facts about the signed-in user without a new session -- for instance
+   * that their address was verified on another device. The session token is
+   * untouched; the server reads verification from its database, not the token.
+   */
+  patchCurrentUser(changes: Partial<User>): void {
+    const current = this.currentUserSubject.value;
+    if (!current) return;
+    const updated = { ...current, ...changes };
+    this.tokenService.setUser(updated);
+    this.currentUserSubject.next(updated);
+  }
+
   isAuthenticated(): boolean {
     // Re-check, because a session can age out between page load and now.
     // "unexpired" is not "valid": the server also rejects a token inside its
