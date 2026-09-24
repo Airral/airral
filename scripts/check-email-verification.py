@@ -9,15 +9,22 @@ SDK does yields a genuine Google-signed ID token. So this proves the part no uni
 test can: that AIRRAL's backend accepts real Firebase tokens for this project, and
 what it does with them.
 
+The links a person actually receives are sent by the API itself, and only to
+accounts that exist. The local profile turns delivery off and logs each link
+instead, so with AIRRAL_API_LOG pointing at the running API's log this also
+redeems the very links the API produced -- sign-up, resend and forgot-password
+-- and checks that forgot-password looks the same for a stranger.
+
 Exit codes: 0 all passed, 1 a check failed, 2 skipped (no gcloud credentials or
 no network) -- the caller treats 2 as a skip, not a failure.
 """
-import json, random, subprocess, sys, urllib.error, urllib.parse, urllib.request
+import json, os, random, re, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
 
 PROJECT = "airral-a0e81"
 API_KEY = "AIzaSyBEVR_Zk-T_XDGPKSa_IIeJB-XubcMC21w"   # public web key, referrer-restricted
 REFERER = "http://localhost:4201/"
 API = "http://localhost:8080/api"
+API_LOG = os.environ.get("AIRRAL_API_LOG", "")
 failures = 0
 
 
@@ -52,14 +59,9 @@ ADMIN = {"Authorization": f"Bearer {oauth}", "x-goog-user-project": PROJECT}
 uids = []
 
 
-def link_token(email, path):
-    st, d = call(f"https://identitytoolkit.googleapis.com/v1/projects/{PROJECT}/accounts:sendOobCode",
-                 {"requestType": "EMAIL_SIGNIN", "email": email, "returnOobLink": True,
-                  "continueUrl": f"http://localhost:4201{path}", "canHandleCodeInApp": True}, ADMIN)
-    if st != 200:
-        print(f"  [SKIP] Firebase would not generate a link ({st}); check gcloud access to {PROJECT}")
-        sys.exit(2)
-    oob = urllib.parse.parse_qs(urllib.parse.urlparse(d["oobLink"]).query)["oobCode"][0]
+def redeem(email, link):
+    """Follow a link the way the browser SDK does, returning the ID token."""
+    oob = urllib.parse.parse_qs(urllib.parse.urlparse(link).query)["oobCode"][0]
     st, d = call(f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithEmailLink?key={API_KEY}",
                  {"email": email, "oobCode": oob}, {"Referer": REFERER})
     assert st == 200, (st, d)
@@ -67,9 +69,37 @@ def link_token(email, path):
     return d["idToken"]
 
 
+def link_token(email, path):
+    st, d = call(f"https://identitytoolkit.googleapis.com/v1/projects/{PROJECT}/accounts:sendOobCode",
+                 {"requestType": "EMAIL_SIGNIN", "email": email, "returnOobLink": True,
+                  "continueUrl": f"http://localhost:4201{path}", "canHandleCodeInApp": True}, ADMIN)
+    if st != 200:
+        print(f"  [SKIP] Firebase would not generate a link ({st}); check gcloud access to {PROJECT}")
+        sys.exit(2)
+    return redeem(email, d["oobLink"])
+
+
+def log_size():
+    return os.path.getsize(API_LOG) if API_LOG else 0
+
+
+def logged_links(since, purpose, user_id, wait=10):
+    """Links the API logged for this user since the given log offset."""
+    pattern = re.compile(rf"{purpose} link for user {user_id}: (\S+)")
+    deadline = time.time() + wait
+    while True:
+        with open(API_LOG, encoding="utf-8", errors="replace") as f:
+            f.seek(since)
+            found = pattern.findall(f.read())
+        if found or time.time() > deadline:
+            return found
+        time.sleep(0.5)
+
+
 try:
     n = random.randint(100000, 999999)
     email = f"gate-{n}@example.com"
+    mark = log_size()
     st, reg = call(f"{API}/auth/register", {"email": email, "password": "Original1pass"})
     check(st == 201 and reg.get("emailVerified") is False, "a password sign-up starts unverified")
     session = {"Authorization": f"Bearer {reg.get('token', '')}"}
@@ -79,14 +109,45 @@ try:
     st, _ = call(f"{API}/candidate/notifications/preferences", {"jobAlertEnabled": False}, session, "PUT")
     check(st == 200, "an unverified account can always turn email off")
 
-    st, d = call(f"{API}/auth/verify-email", {"idToken": link_token(email, "/verify-email")})
+    if API_LOG:
+        links = logged_links(mark, "verify", reg.get("userId"))
+        check(len(links) == 1 and links[0] != "null", "sign-up has the API send one verification link")
+        token = redeem(email, links[0]) if links else link_token(email, "/verify-email")
+    else:
+        print("  [SKIP] AIRRAL_API_LOG not set: using an admin-generated link instead of the API's")
+        token = link_token(email, "/verify-email")
+    st, d = call(f"{API}/auth/verify-email", {"idToken": token})
     check(st == 200 and d.get("verified") is True, "a real Firebase link verifies the address")
     st, d = call(f"{API}/auth/me", None, session, "GET")
     check(st == 200 and d.get("emailVerified") is True, "the same session sees it without signing in again")
     st, _ = call(f"{API}/candidate/notifications/preferences", {"jobAlertEnabled": True}, session, "PUT")
     check(st == 200, "a verified account can turn email on")
 
-    st, _ = call(f"{API}/auth/reset-password", {"idToken": link_token(email, "/reset-password"), "password": "Changed1pass"})
+    st, d = call(f"{API}/auth/send-verification", {}, session)
+    check(st == 200 and d.get("alreadyVerified") is True, "a verified account is not sent another link")
+
+    # Forgot-password: one answer, after one wait, whether or not there is an account.
+    mark = log_size()
+    started = time.time()
+    st_known, known = call(f"{API}/auth/forgot-password", {"email": email.upper()})
+    known_secs = time.time() - started
+    started = time.time()
+    st_stranger, stranger = call(f"{API}/auth/forgot-password", {"email": f"nobody-{n}@example.com"})
+    stranger_secs = time.time() - started
+    check(st_known == st_stranger == 202 and known == stranger,
+          "forgot-password answers a stranger exactly as it answers an account")
+    check(min(known_secs, stranger_secs) >= 2.4, f"both take the full wait ({known_secs:.1f}s, {stranger_secs:.1f}s)")
+    if API_LOG:
+        links = logged_links(mark, "reset", reg.get("userId"))
+        check(len(links) == 1, "the account is sent a reset link")
+        with open(API_LOG, encoding="utf-8", errors="replace") as f:
+            f.seek(mark)
+            every_reset = re.findall(r"reset link for user", f.read())
+        check(len(every_reset) == 1, "the stranger is sent nothing")
+        reset_token = redeem(email, links[0]) if links else link_token(email, "/reset-password")
+    else:
+        reset_token = link_token(email, "/reset-password")
+    st, _ = call(f"{API}/auth/reset-password", {"idToken": reset_token, "password": "Changed1pass"})
     check(st == 200, "a real Firebase link resets the password")
     st, _ = call(f"{API}/auth/login", {"email": email, "password": "Original1pass"})
     check(st == 401, "the old password stops working")
@@ -121,6 +182,11 @@ try:
     title2 = f"Gate Remote Data Entry {n}"
     call(f"{API}/jobs", {"title": title2, "description": "Real work.", "location": "Remote", "status": "OPEN"},
          {"Authorization": f"Bearer {reg2.get('token', '')}"})
+    free_session = {"Authorization": f"Bearer {reg2.get('token', '')}"}
+    # Sign-up already used one of the three links an account gets per 15 minutes.
+    sends = [call(f"{API}/auth/send-verification", {}, free_session) for _ in range(3)]
+    check([st for st, _ in sends] == [202, 202, 429] and sends[2][1].get("error") == "EMAIL_LINK_RATE_LIMITED",
+          "resend works, then stops at three links per account")
     call(f"{API}/auth/verify-email", {"idToken": link_token(free, "/verify-email")})
     check(not catalogue_has(title2), "a verified free-mail employer still waits for review")
 finally:

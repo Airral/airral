@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AccountStatus, AuthApiService } from '@airral/shared-api';
-import { AuthService, EmailLinkService, emailLinkErrorMessage } from '@airral/shared-auth';
-import { Subscription } from 'rxjs';
+import { AuthService } from '@airral/shared-auth';
+import { Subscription, firstValueFrom } from 'rxjs';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -25,7 +25,6 @@ const RESEND_COOLDOWN_SECONDS = 60;
 export class VerifyEmailBannerComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly authApi = inject(AuthApiService);
-  private readonly emailLink = inject(EmailLinkService);
   private readonly cdr = inject(ChangeDetectorRef);
   private userSub?: Subscription;
   private cooldownTimer?: ReturnType<typeof setInterval>;
@@ -91,11 +90,20 @@ export class VerifyEmailBannerComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     this.cdr.markForCheck();
     try {
-      await this.emailLink.sendLink(this.email, '/verify-email');
-      this.sentTo = this.email;
-      this.startCooldown();
+      // The API sends to the signed-in account's own address, not one typed here.
+      const result = await firstValueFrom(this.authApi.sendVerification());
+      if (result.alreadyVerified) {
+        this.auth.patchCurrentUser({ emailVerified: true });
+        if (this.status) this.status = { ...this.status, emailVerified: true };
+      } else {
+        this.sentTo = this.email;
+        this.startCooldown();
+      }
     } catch (error) {
-      this.errorMessage = emailLinkErrorMessage(error);
+      const failure = error as { status?: number; error?: { message?: string } };
+      this.errorMessage = failure?.status === 429
+        ? failure.error?.message || 'Several links were sent recently. Check spam, or try again in 15 minutes.'
+        : 'Could not send the link. Try again in a moment.';
     } finally {
       this.sending = false;
       this.cdr.markForCheck();

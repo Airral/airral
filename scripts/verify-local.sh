@@ -293,11 +293,11 @@ done
 [ "$LAST" = "429" ] && ok "login throttle returns 429 on the sixth failure" \
   || bad "login throttle returned $LAST, expected 429"
 
-step "Email verification (real Firebase links, no inbox)"
+step "Email verification (real Firebase links, sent by the API, no inbox)"
 # The address-throttle bucket is shared with the checks above and with repeated
 # runs inside its 15-minute window; clear it so these fail on their own merits.
 psql -d airral_db -qtAc "DELETE FROM auth_attempt_windows WHERE bucket_key LIKE 'ip:%';" >/dev/null 2>&1
-python3 "$ROOT/scripts/check-email-verification.py"
+AIRRAL_API_LOG="$BOOT_LOG" python3 "$ROOT/scripts/check-email-verification.py"
 case $? in
   0) ok "sign-up, verification, reset and employer publishing hold end to end" ;;
   2) ok "skipped: needs gcloud credentials for the Firebase project" ;;

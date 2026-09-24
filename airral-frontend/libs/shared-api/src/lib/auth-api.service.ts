@@ -33,6 +33,19 @@ export class AuthApiService {
     return this.apiClient.post<AuthResponse>('/auth/register', request);
   }
 
+  /**
+   * Ask for a reset link. AIRRAL sends one only if the address has an account,
+   * and answers the same way -- after the same short wait -- either way.
+   */
+  forgotPassword(email: string): Observable<{ message: string }> {
+    return this.apiClient.post<{ message: string }>('/auth/forgot-password', { email });
+  }
+
+  /** Email the signed-in account a new verification link, to its own address. */
+  sendVerification(): Observable<{ sent: boolean; alreadyVerified: boolean }> {
+    return this.apiClient.post<{ sent: boolean; alreadyVerified: boolean }>('/auth/send-verification', {});
+  }
+
   /** Hand AIRRAL the Firebase ID token proving the address was followed from its link. */
   verifyEmail(idToken: string): Observable<{ verified: boolean; email: string; message: string }> {
     return this.apiClient.post<{ verified: boolean; email: string; message: string }>('/auth/verify-email', { idToken });

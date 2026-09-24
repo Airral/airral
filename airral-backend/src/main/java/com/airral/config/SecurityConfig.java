@@ -112,10 +112,12 @@ public class SecurityConfig {
                         // link is often on a different device from the one that
                         // signed up, and someone resetting a password cannot sign
                         // in. The Firebase ID token in the body is the proof, and
-                        // it names the address it proves. There is no
-                        // forgot-password endpoint: the portal asks Firebase to
-                        // send the link directly, so AIRRAL is never asked whether
-                        // an address has an account.
+                        // it names the address it proves. forgot-password is public
+                        // for the same reason, and answers identically whether or
+                        // not the address has an account. send-verification is not
+                        // listed: it only ever mails the signed-in account's own
+                        // address.
+                        .pathMatchers(HttpMethod.POST, "/api/auth/forgot-password").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/verify-email").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/reset-password").permitAll()
                         //

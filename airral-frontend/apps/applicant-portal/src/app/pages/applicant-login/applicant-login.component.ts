@@ -164,10 +164,9 @@ export class ApplicantLoginComponent {
 
     this.authApi.register(payload).subscribe({
       next: (response) => {
-        // Sign-up no longer proves the address on its own: send the link now,
-        // while the person is still looking at their inbox. Never allowed to
-        // block the sign-up -- if it fails, the banner's "Resend link" is there.
-        void this.emailLink.sendLink(payload.email, '/verify-email').catch(() => undefined);
+        // The API emailed the verification link as part of sign-up; remember
+        // the address so the page the link opens need not ask for it.
+        this.emailLink.rememberEmail(payload.email);
         this.handleAuthSuccess(response);
       },
       error: () => {

@@ -21,6 +21,16 @@ springdoc:
     enabled: true
 
 airral:
+  auth:
+    email-link:
+      applicant-url: http://localhost:4201
+      hr-url: http://localhost:4202
+      # Local machines rarely have application-default credentials, so borrow
+      # the developer's gcloud login to ask Firebase to send links. Local only:
+      # on Cloud Run the API's own service account is used.
+      local-gcloud-token: true
+      # Never mail the throwaway addresses local runs sign up; log the link.
+      deliver: false
   company-logos:
     brandfetch-client-id: ${BRANDFETCH_CLIENT_ID:}
   jobs:

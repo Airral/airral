@@ -7,30 +7,32 @@ const PENDING_EMAIL_KEY = 'airral.emailLink.pendingEmail';
 /**
  * Proves someone owns an email address, using a link Firebase emails.
  *
- * <p>This is the only thing AIRRAL uses Firebase for. It asks Firebase to email a
- * one-time link; when the person follows it, Firebase hands this page an ID token
+ * <p>This is the only thing AIRRAL uses Firebase for. AIRRAL's API asks Firebase
+ * to email a one-time link -- only to addresses that have accounts; when the
+ * person follows it, Firebase hands this page an ID token
  * signed by Google saying the address was confirmed, and that token goes to
  * AIRRAL's own API, which checks it and updates AIRRAL's own account. No password
  * ever reaches Firebase, and the Firebase-side record the link creates is deleted
  * again once AIRRAL has what it needs.
  *
- * <p>The Firebase SDK is loaded on demand, so pages that never send or receive a
- * link do not pay for it.
+ * <p>The Firebase SDK is loaded on demand, so pages that never receive a link do
+ * not pay for it.
  */
 @Injectable({ providedIn: 'root' })
 export class EmailLinkService {
   private authPromise: Promise<import('firebase/auth').Auth> | null = null;
 
-  /** Email a verification link. `path` is where on this portal the link lands. */
-  async sendLink(email: string, path: '/verify-email' | '/reset-password', origin?: string): Promise<void> {
-    const address = email.trim().toLowerCase();
-    const { sendSignInLinkToEmail } = await import('firebase/auth');
-    const auth = await this.auth();
-    await sendSignInLinkToEmail(auth, address, {
-      url: `${origin ?? window.location.origin}${path}`,
-      handleCodeInApp: true,
-    });
-    this.rememberEmail(address);
+  /**
+   * Remember the address this device just asked a link for, so the page the
+   * link lands on does not have to ask for it again. Sending itself is AIRRAL's
+   * API's job, not this page's: it sends only to addresses that have accounts.
+   */
+  rememberEmail(email: string): void {
+    try {
+      localStorage.setItem(PENDING_EMAIL_KEY, email.trim().toLowerCase());
+    } catch {
+      /* private mode: the landing page will ask for the address instead */
+    }
   }
 
   /** Whether the current URL is a link Firebase sent. */
@@ -87,14 +89,6 @@ export class EmailLinkService {
       } catch {
         /* storage unavailable: nothing to clear */
       }
-    }
-  }
-
-  private rememberEmail(email: string): void {
-    try {
-      localStorage.setItem(PENDING_EMAIL_KEY, email);
-    } catch {
-      /* private mode: the landing page will ask for the address instead */
     }
   }
 

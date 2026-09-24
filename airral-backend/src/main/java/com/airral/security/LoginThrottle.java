@@ -151,6 +151,28 @@ public class LoginThrottle {
     }
 
     /** Housekeeping: a window is only interesting while it is open. */
+    /**
+     * Email links one account may be sent per window -- verification and reset
+     * together. Without a cap, "Resend link" and "Forgot password" become a way
+     * to fill someone's inbox from AIRRAL's sender, which costs them their
+     * patience and AIRRAL its sender reputation.
+     */
+    public static final int MAX_EMAIL_LINKS_PER_ACCOUNT = 3;
+
+    /** Whether another email link may be sent to this account in the current window. */
+    public Mono<Boolean> emailLinkAllowed(Long userId) {
+        return attempts(emailLinkKey(userId)).map(used -> used < MAX_EMAIL_LINKS_PER_ACCOUNT);
+    }
+
+    /** Count one email link sent to this account. */
+    public Mono<Void> recordEmailLink(Long userId) {
+        return increment(emailLinkKey(userId));
+    }
+
+    private static String emailLinkKey(Long userId) {
+        return "link:" + userId;
+    }
+
     public Mono<Long> purgeBefore(LocalDateTime cutoff) {
         return databaseClient.sql("DELETE FROM auth_attempt_windows WHERE window_start < :cutoff")
                 .bind("cutoff", cutoff)
