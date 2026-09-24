@@ -2,6 +2,7 @@ package com.airral.service;
 
 import com.airral.domain.User;
 import com.airral.exception.BadRequestException;
+import com.airral.exception.EmailLinkRateLimitedException;
 import com.airral.exception.EmailNotVerifiedException;
 import com.airral.exception.UnauthorizedException;
 import com.airral.repository.UserRepository;
@@ -13,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 /**
@@ -40,13 +42,24 @@ public class AccountVerificationService {
     private final TokenVersionCache tokenVersionCache;
     private final LoginThrottle loginThrottle;
     private final CompanyVerificationService companyVerificationService;
+    private final FirebaseEmailLinkSender linkSender;
+
+    /**
+     * Every forgot-password answer takes at least this long, whether or not a
+     * link was sent. Sending takes a network round trip to Firebase and not
+     * sending takes nothing, so without a floor the delay alone would say which
+     * addresses have accounts. The portal shows a loader over it.
+     */
+    static final Duration FORGOT_PASSWORD_MIN_RESPONSE = Duration.ofMillis(2500);
 
     public AccountVerificationService(FirebaseIdentityService firebaseIdentityService,
                                       UserRepository userRepository,
                                       PasswordEncoder passwordEncoder,
                                       TokenVersionCache tokenVersionCache,
                                       LoginThrottle loginThrottle,
-                                      CompanyVerificationService companyVerificationService) {
+                                      CompanyVerificationService companyVerificationService,
+                                      FirebaseEmailLinkSender linkSender) {
+        this.linkSender = linkSender;
         this.firebaseIdentityService = firebaseIdentityService;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -110,6 +123,75 @@ public class AccountVerificationService {
                         .then(companyVerificationService.onEmailProven(user))
                         .doOnSuccess(ignored -> log.info("Password reset completed for user {}", user.getId())))
                 .then();
+    }
+
+    /**
+     * Send a reset link if, and only if, the address has an active account.
+     *
+     * <p>Completes the same way either way, after the same delay: the caller may
+     * be anyone, and "no account" must not be something they can learn. Nothing
+     * that goes wrong here reaches them either -- an error only real accounts can
+     * produce would be the same leak by another route.
+     */
+    public Mono<Void> requestPasswordReset(String email) {
+        String address = email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT);
+        Mono<Void> work = userRepository.findByEmail(address)
+                .filter(User::isActive)
+                .flatMap(user -> sendWithinLimit(user, FirebaseEmailLinkSender.Purpose.RESET))
+                .onErrorResume(error -> {
+                    log.warn("Password reset link not sent: {}", error.toString());
+                    return Mono.empty();
+                })
+                .then();
+        return Mono.when(work, Mono.delay(FORGOT_PASSWORD_MIN_RESPONSE));
+    }
+
+    public enum VerificationSend { SENT, ALREADY_VERIFIED }
+
+    /**
+     * Send a verification link to the signed-in account's own address. The owner
+     * is asking about their own account, so unlike forgot-password this can say
+     * plainly what happened -- including that they have hit the limit.
+     */
+    public Mono<VerificationSend> sendVerification(Long userId) {
+        return userRepository.findById(userId)
+                .switchIfEmpty(Mono.error(new UnauthorizedException("Account not found")))
+                .flatMap(user -> {
+                    if (user.isEmailVerified()) {
+                        return Mono.just(VerificationSend.ALREADY_VERIFIED);
+                    }
+                    return loginThrottle.emailLinkAllowed(user.getId())
+                            .flatMap(allowed -> allowed
+                                    ? loginThrottle.recordEmailLink(user.getId())
+                                            .then(linkSender.send(user, FirebaseEmailLinkSender.Purpose.VERIFY))
+                                            .thenReturn(VerificationSend.SENT)
+                                    : Mono.<VerificationSend>error(new EmailLinkRateLimitedException()));
+                });
+    }
+
+    /**
+     * The link every new password account gets straight after signing up. Never
+     * allowed to fail the sign-up: if it does not go out, the banner's "Resend
+     * link" is there.
+     */
+    public Mono<Void> sendVerificationAfterSignup(Long userId) {
+        return sendVerification(userId)
+                .onErrorResume(error -> {
+                    log.warn("Verification link after sign-up not sent for user {}: {}", userId, error.toString());
+                    return Mono.empty();
+                })
+                .then();
+    }
+
+    private Mono<Void> sendWithinLimit(User user, FirebaseEmailLinkSender.Purpose purpose) {
+        return loginThrottle.emailLinkAllowed(user.getId())
+                .flatMap(allowed -> {
+                    if (!allowed) {
+                        log.info("{} link for user {} not sent: limit reached", purpose, user.getId());
+                        return Mono.<Void>empty();
+                    }
+                    return loginThrottle.recordEmailLink(user.getId()).then(linkSender.send(user, purpose));
+                });
     }
 
     /** Fails with 403 EMAIL_NOT_VERIFIED unless the account has proven its address. */

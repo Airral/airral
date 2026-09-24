@@ -289,9 +289,11 @@ class ClientIpConfigTest {
         when(loginThrottle.recordAddressAttempt(anyString())).thenReturn(Mono.empty());
         when(authService.register(any())).thenReturn(Mono.just(AuthResponse.builder().build()));
 
+        com.airral.service.AccountVerificationService verification = mock(com.airral.service.AccountVerificationService.class);
+        when(verification.sendVerificationAfterSignup(any())).thenReturn(Mono.empty());
         AuthController controller = new AuthController(
                 authService, loginThrottle, mock(TokenVersionCache.class), mock(JwtTokenProvider.class),
-                mock(com.airral.service.AccountVerificationService.class),
+                verification,
                 mock(com.airral.repository.UserRepository.class),
                 mock(com.airral.repository.OrganizationRepository.class));
 

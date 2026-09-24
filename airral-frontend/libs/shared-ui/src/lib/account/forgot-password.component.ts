@@ -2,15 +2,17 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { EmailLinkService, emailLinkErrorMessage } from '@airral/shared-auth';
+import { firstValueFrom } from 'rxjs';
+import { AuthApiService } from '@airral/shared-api';
+import { EmailLinkService } from '@airral/shared-auth';
 
 /**
  * Ask for a password reset link.
  *
- * <p>The link is sent by Firebase, straight from this page, to whatever address
- * is typed. AIRRAL's API is not asked anything here, so nothing about the answer
- * can reveal whether an account exists -- and the confirmation below says the
- * same thing either way.
+ * <p>AIRRAL's API checks the address and has Firebase send a link only if it
+ * belongs to an account. It answers the same way, after the same short wait,
+ * either way, so this page shows "Checking…" and then one confirmation for
+ * everyone: nothing on screen says whether the address has an account.
  */
 @Component({
   selector: 'airral-forgot-password',
@@ -21,6 +23,7 @@ import { EmailLinkService, emailLinkErrorMessage } from '@airral/shared-auth';
   styleUrls: ['./account-pages.css'],
 })
 export class ForgotPasswordComponent {
+  private readonly authApi = inject(AuthApiService);
   private readonly emailLink = inject(EmailLinkService);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -41,10 +44,19 @@ export class ForgotPasswordComponent {
     this.errorMessage = '';
     this.cdr.markForCheck();
     try {
-      await this.emailLink.sendLink(email, '/reset-password');
+      await firstValueFrom(this.authApi.forgotPassword(email));
+      // So the reset page, opened from the email on this device, need not ask.
+      this.emailLink.rememberEmail(email);
       this.sent = true;
     } catch (error) {
-      this.errorMessage = emailLinkErrorMessage(error);
+      // Only ever about this device or this address being too busy -- never
+      // about whether an account exists, which the API does not say.
+      const status = (error as { status?: number })?.status;
+      this.errorMessage = status === 429
+        ? 'Too many requests. Wait a few minutes, then try again.'
+        : status === 400
+          ? 'Enter a valid email address.'
+          : 'Could not reach AIRRAL. Check your connection and try again.';
     } finally {
       this.working = false;
       // Zoneless: nothing repaints off an awaited promise on its own.

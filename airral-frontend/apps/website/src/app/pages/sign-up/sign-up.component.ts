@@ -3,7 +3,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService, EmailLinkService, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
+import { AuthService, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { RegisterRequest } from '@airral/shared-types';
 import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
@@ -32,8 +32,7 @@ export class SignUpComponent {
   constructor(
     private readonly authApi: AuthApiService,
     private readonly authService: AuthService,
-    private readonly router: Router,
-    private readonly emailLink: EmailLinkService
+    private readonly router: Router
   ) {}
 
   onSubmit(): void {
@@ -57,17 +56,9 @@ export class SignUpComponent {
     };
 
     this.authApi.register(payload).subscribe({
-      next: async (res) => {
-        // Send the verification link before leaving: routeAfterAuth hands off
-        // to the HR portal with a full page load, which would abort a request
-        // still in flight. Capped so a slow network cannot hang sign-up; if it
-        // does not go out, the HR portal's banner has "Resend link". The link
-        // lands on the HR portal, where this person is signed in after the
-        // handoff, so the page knows the address without asking.
-        await Promise.race([
-          this.emailLink.sendLink(this.workEmail, '/verify-email', PORTAL_ROUTES.HR).catch(() => undefined),
-          new Promise((resolve) => setTimeout(resolve, 4000)),
-        ]);
+      next: (res) => {
+        // The API has already emailed the verification link, to the HR portal
+        // where this person is signed in after the handoff.
         const user = userFromAuthResponse(res, {
           email: this.workEmail,
           phone: this.phone,

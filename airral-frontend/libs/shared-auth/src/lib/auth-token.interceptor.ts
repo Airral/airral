@@ -40,6 +40,7 @@ const CREDENTIAL_ENDPOINTS = [
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/google',
+  '/api/auth/forgot-password',
   '/api/auth/verify-email',
   '/api/auth/reset-password',
 ];

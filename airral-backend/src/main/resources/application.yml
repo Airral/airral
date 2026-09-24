@@ -136,6 +136,11 @@ airral:
       # such token names, and it is in the portals' page source. Firebase is
       # used for that proof only -- accounts, passwords and sessions stay here.
       project-id: ${FIREBASE_PROJECT_ID:airral-a0e81}
+    email-link:
+      # Where verification and reset links land: the portal the account signs in
+      # to. Applicants on apply, everyone else on the HR portal.
+      applicant-url: ${AIRRAL_APPLICANT_URL:https://apply.airral.com}
+      hr-url: ${AIRRAL_HR_URL:https://app.airral.com}
     google:
       client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
       jwk-url: ${GOOGLE_OAUTH_JWK_URL:https://www.googleapis.com/oauth2/v3/certs}

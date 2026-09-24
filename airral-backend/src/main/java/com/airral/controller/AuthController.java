@@ -5,6 +5,7 @@ import com.airral.dto.request.LoginRequest;
 import com.airral.dto.request.GoogleAuthRequest;
 import com.airral.dto.request.RegisterRequest;
 import com.airral.dto.request.VerifyEmailRequest;
+import com.airral.dto.request.ForgotPasswordRequest;
 import com.airral.dto.request.ResetPasswordRequest;
 import com.airral.service.AccountVerificationService;
 import com.airral.repository.UserRepository;
@@ -51,6 +52,54 @@ public class AuthController {
         this.accountVerificationService = accountVerificationService;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
+    }
+
+    /** One answer for every forgot-password request, whether or not the address has an account. */
+    static final String RESET_REQUESTED_MESSAGE =
+            "If an account exists for that email, a link to reset the password is on its way.";
+
+    /**
+     * Ask for a password reset link.
+     * POST /api/auth/forgot-password
+     *
+     * <p>Always 202 with the same body, after the same delay. A link is sent only
+     * if the address has an active account -- the portal used to ask Firebase
+     * directly, which mailed any address anyone typed -- but the caller is never
+     * told which happened. Throttled on the caller's address like /register, and
+     * limited per account inside AccountVerificationService.
+     */
+    @PostMapping("/forgot-password")
+    public Mono<ResponseEntity<Map<String, Object>>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request,
+            ServerWebExchange exchange) {
+
+        String address = clientAddress(exchange);
+
+        return loginThrottle.checkAddress(address)
+                .then(loginThrottle.recordAddressAttempt(address))
+                .then(accountVerificationService.requestPasswordReset(request.getEmail()))
+                .thenReturn(ResponseEntity.status(HttpStatus.ACCEPTED)
+                        .body(Map.<String, Object>of("message", RESET_REQUESTED_MESSAGE)));
+    }
+
+    /**
+     * Send the signed-in account a verification link to its own address.
+     * POST /api/auth/send-verification
+     *
+     * <p>Only ever to the address on the session's account, never one the caller
+     * names, and at most LoginThrottle.MAX_EMAIL_LINKS_PER_ACCOUNT per window.
+     */
+    @PostMapping("/send-verification")
+    public Mono<ResponseEntity<Map<String, Object>>> sendVerification(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
+
+        Long userId = jwtTokenProvider.getUserIdFromToken(extractToken(authHeader));
+
+        return accountVerificationService.sendVerification(userId)
+                .map(result -> result == AccountVerificationService.VerificationSend.ALREADY_VERIFIED
+                        ? ResponseEntity.ok(Map.<String, Object>of("sent", false, "alreadyVerified", true))
+                        : ResponseEntity.status(HttpStatus.ACCEPTED)
+                                .body(Map.<String, Object>of("sent", true, "alreadyVerified", false)));
     }
 
     /**
@@ -207,6 +256,12 @@ public class AuthController {
         return loginThrottle.checkAddress(address)
                 .then(loginThrottle.recordAddressAttempt(address))
                 .then(authService.register(request))
+                // Sign-up does not prove the address, so the link goes out now,
+                // while the person is looking at their inbox. It cannot fail the
+                // sign-up; the portal banner has "Resend link".
+                .flatMap(response -> Boolean.TRUE.equals(response.getEmailVerified())
+                        ? Mono.just(response)
+                        : accountVerificationService.sendVerificationAfterSignup(response.getUserId()).thenReturn(response))
                 .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
     }
 
