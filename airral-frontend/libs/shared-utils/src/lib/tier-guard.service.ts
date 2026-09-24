@@ -67,6 +67,6 @@ export class TierGuardService {
    */
   showUpgradePrompt(gate: FeatureGate): void {
     const message = this.getUpgradeMessage(gate);
-    alert(`🔒 ${message}\n\nContact sales@airral.com to upgrade your plan.`);
+    alert(`🔒 ${message}\n\nContact contact@airral.com to upgrade your plan.`);
   }
 }

@@ -52,14 +52,14 @@ export class ContactComponent {
     {
       icon: 'mail',
       title: 'Support',
-      detail: 'hello@airral.com',
-      href: 'mailto:hello@airral.com',
+      detail: 'contact@airral.com',
+      href: 'mailto:contact@airral.com',
     },
     {
       icon: 'sales',
       title: 'Hiring with us',
-      detail: 'sales@airral.com',
-      href: 'mailto:sales@airral.com',
+      detail: 'contact@airral.com',
+      href: 'mailto:contact@airral.com',
     },
     {
       icon: 'help',
@@ -78,12 +78,12 @@ export class ContactComponent {
     {
       question: 'Can we talk on the phone?',
       answer:
-        'Phone support comes with the Professional and Enterprise plans. Email hello@airral.com and we will book a time.',
+        'Phone support comes with the Professional and Enterprise plans. Email contact@airral.com and we will book a time.',
     },
     {
       question: 'Can I see it before I buy it?',
       answer:
-        'Yes. Email sales@airral.com and we will walk you through the parts of Airral your team would actually use.',
+        'Yes. Email contact@airral.com and we will walk you through the parts of Airral your team would actually use.',
     },
   ];
 
