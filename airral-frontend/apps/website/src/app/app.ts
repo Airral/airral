@@ -4,7 +4,7 @@ import { ActivatedRoute, NavigationEnd, Router, RouterModule } from '@angular/ro
 import { filter } from 'rxjs/operators';
 import { DEFAULT_SEO } from './shared/seo-pages';
 import { SeoConfig, SeoService } from './shared/seo.service';
-import { VisitorSignalService } from '@airral/shared-utils';
+import { GoogleAnalyticsService, VisitorSignalService } from '@airral/shared-utils';
 
 /**
  * If the reveal animation has not engaged within this window, give up and show
@@ -28,6 +28,7 @@ export class App implements OnInit, OnDestroy {
 
   constructor(
     private visitorSignals: VisitorSignalService,
+    private analytics: GoogleAnalyticsService,
     private router: Router,
     private route: ActivatedRoute,
     private seo: SeoService,
@@ -35,9 +36,11 @@ export class App implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    // First-party, so the engineers this site is aimed at do not block it, and
-    // no cookie is set so there is nothing to consent to.
+    // First-party, so ad blockers do not hide it: the admin Launch page counts
+    // from this. Google Analytics adds traffic sources and devices on top, and
+    // is described on /cookies.
     this.visitorSignals.trackPageViews('website');
+    this.analytics.start('website');
 
     this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))

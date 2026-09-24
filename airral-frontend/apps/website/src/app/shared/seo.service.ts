@@ -99,12 +99,12 @@ export class SeoService {
         {
           '@type': 'ContactPoint',
           contactType: 'customer support',
-          email: 'hello@airral.com',
+          email: 'contact@airral.com',
         },
         {
           '@type': 'ContactPoint',
           contactType: 'sales',
-          email: 'sales@airral.com',
+          email: 'contact@airral.com',
         },
       ],
     };

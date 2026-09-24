@@ -6,7 +6,7 @@ import { CandidatePortalService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
 import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, ResumeHealthScore } from '@airral/shared-types';
 import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
-import { VisitorSignalService } from '@airral/shared-utils';
+import { GoogleAnalyticsService, VisitorSignalService } from '@airral/shared-utils';
 import { getOnboardingJobSearchSeed, OnboardingJobSearchSeed } from '../../utils/job-search-seed';
 
 interface JobDescriptionSection {
@@ -140,7 +140,8 @@ export class JobsComponent implements OnInit, OnDestroy {
     private readonly route: ActivatedRoute,
     private readonly auth: AuthService,
     private readonly changeDetectorRef: ChangeDetectorRef,
-    private readonly visitorSignals: VisitorSignalService
+    private readonly visitorSignals: VisitorSignalService,
+    private readonly analytics: GoogleAnalyticsService
   ) {}
 
   ngOnInit(): void {
@@ -504,6 +505,7 @@ export class JobsComponent implements OnInit, OnDestroy {
    */
   trackApplyClick(): void {
     this.visitorSignals.track('apply_click', '/jobs', 'applicant');
+    this.analytics.event('apply_click');
   }
 
   saveSelectedJob(): void {

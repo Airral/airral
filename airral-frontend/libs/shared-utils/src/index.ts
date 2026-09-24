@@ -4,3 +4,4 @@ export * from './lib/constants';
 export * from './lib/organization.service';
 export * from './lib/tier-guard.service';
 export * from './lib/visitor-signal.service';
+export * from './lib/google-analytics.service';
