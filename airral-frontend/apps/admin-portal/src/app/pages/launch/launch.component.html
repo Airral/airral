@@ -1,0 +1,221 @@
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Launch</h1>
+      <p class="sub">Are people coming, signing up, and getting as far as a job? Real accounts only.</p>
+    </div>
+    <div class="range" role="group" aria-label="Time range">
+      <button type="button" *ngFor="let w of windows" [class.active]="days() === w.days"
+              [attr.aria-pressed]="days() === w.days" (click)="choose(w.days)">{{ w.label }}</button>
+    </div>
+  </header>
+
+  <p class="error" role="alert" *ngIf="error()">
+    {{ error() }} <button type="button" class="link" (click)="load()">Retry</button>
+  </p>
+  <p class="muted" *ngIf="loading() && !metrics()">Loading…</p>
+
+  <ng-container *ngIf="metrics() as m">
+    <div [class.stale]="loading()">
+      <!-- Headline numbers -->
+      <section class="tiles" aria-label="Headline numbers">
+        <div class="tile">
+          <p class="tile-label">Visitors</p>
+          <p class="tile-value">{{ m.traffic.visitorDays | number }}</p>
+          <p class="tile-note">apply {{ m.traffic.applicantVisitorDays | number }} · www {{ m.traffic.websiteVisitorDays | number }}</p>
+        </div>
+        <div class="tile">
+          <p class="tile-label">Sign-ups</p>
+          <p class="tile-value">{{ m.funnel.signedUp | number }}</p>
+          <p class="tile-note">{{ percent(m.funnel.signedUp, m.traffic.applicantVisitorDays) }} of apply visitors</p>
+        </div>
+        <div class="tile">
+          <p class="tile-label">Verified email</p>
+          <p class="tile-value">{{ m.funnel.verified | number }}</p>
+          <p class="tile-note">{{ percent(m.funnel.verified, m.funnel.signedUp) }} of sign-ups</p>
+        </div>
+        <div class="tile">
+          <p class="tile-label">Uploaded resume</p>
+          <p class="tile-value">{{ m.funnel.uploadedResume | number }}</p>
+          <p class="tile-note">{{ percent(m.funnel.uploadedResume, m.funnel.signedUp) }} of sign-ups</p>
+        </div>
+        <div class="tile">
+          <p class="tile-label">Ran match score</p>
+          <p class="tile-value">{{ m.funnel.ranMatch | number }}</p>
+          <p class="tile-note">{{ percent(m.funnel.ranMatch, m.funnel.signedUp) }} of sign-ups</p>
+        </div>
+        <div class="tile">
+          <p class="tile-label">Apply clicks</p>
+          <p class="tile-value">{{ m.traffic.applyClicks | number }}</p>
+          <p class="tile-note">{{ m.funnel.clickedApply | number }} signed-in {{ m.funnel.clickedApply === 1 ? 'person' : 'people' }}</p>
+        </div>
+      </section>
+
+      <!-- Funnel -->
+      <section class="card">
+        <div class="card-head">
+          <h2>From sign-up to applying</h2>
+          <p class="card-sub">People who signed up {{ m.windowDays === 1 ? 'today' : 'in the last ' + m.windowDays + ' days' }}, and how far they have got.</p>
+        </div>
+
+        <p class="empty" *ngIf="m.funnel.signedUp === 0">No applicant sign-ups in this range yet.</p>
+
+        <ng-container *ngIf="m.funnel.signedUp > 0">
+          <p class="callout" *ngIf="biggestDrop() as drop">
+            <strong>Biggest drop:</strong> {{ drop.from }} → {{ drop.to }}.
+            {{ drop.people }} {{ drop.people === 1 ? 'person stopped' : 'people stopped' }} here.
+          </p>
+          <ol class="funnel">
+            <li *ngFor="let s of steps(); let first = first">
+              <div class="step-text">
+                <span class="step-label">{{ s.label }}</span>
+                <span class="step-hint">{{ s.hint }}</span>
+              </div>
+              <div class="step-bar" [attr.aria-hidden]="true">
+                <span [style.width.%]="s.ofSignups" [class.zero]="s.count === 0"></span>
+              </div>
+              <div class="step-num">
+                <strong>{{ s.count | number }}</strong>
+                <span>{{ s.ofSignups }}%</span>
+                <span class="step-drop" *ngIf="!first && s.dropped > 0">−{{ s.dropped }}</span>
+              </div>
+            </li>
+          </ol>
+        </ng-container>
+        <p class="footnote" *ngIf="m.funnel.testAccountsHidden > 0">
+          {{ m.funnel.testAccountsHidden }} test {{ m.funnel.testAccountsHidden === 1 ? 'account' : 'accounts' }}
+          (example.com and similar) left out.
+        </p>
+      </section>
+
+      <!-- Daily -->
+      <section class="card">
+        <div class="card-head row">
+          <div>
+            <h2>Day by day</h2>
+            <p class="card-sub">Days are UTC.</p>
+          </div>
+          <button type="button" class="link" (click)="showTable.set(!showTable())">
+            {{ showTable() ? 'Show charts' : 'Show as table' }}
+          </button>
+        </div>
+
+        <div class="charts" *ngIf="!showTable()">
+          <figure class="chart">
+            <figcaption>Visitors per day <span>peak {{ peak(visitorBars()) }}</span></figcaption>
+            <div class="bars" [class.dense]="visitorBars().length > 31" (mouseleave)="hover('visitors', null)">
+              <div class="bar-slot" *ngFor="let b of visitorBars(); let i = index"
+                   (mouseenter)="hover('visitors', i)" (focus)="hover('visitors', i)" (blur)="hover('visitors', null)"
+                   tabindex="0" [attr.aria-label]="(b.day.day | date: 'EEE MMM d': 'UTC') + ': ' + b.label">
+                <span class="bar" [style.height.%]="b.height"></span>
+                <span class="tip" *ngIf="hovered()?.chart === 'visitors' && hovered()?.index === i">
+                  <strong>{{ b.day.day | date: 'EEE MMM d': 'UTC' }}</strong>{{ b.label }}
+                </span>
+              </div>
+            </div>
+            <div class="axis"><span>{{ m.daily[0]?.day | date: 'MMM d': 'UTC' }}</span><span>{{ m.daily[m.daily.length - 1]?.day | date: 'MMM d': 'UTC' }}</span></div>
+          </figure>
+          <figure class="chart">
+            <figcaption>Applicant sign-ups per day <span>peak {{ peak(signupBars()) }}</span></figcaption>
+            <div class="bars" [class.dense]="signupBars().length > 31" (mouseleave)="hover('signups', null)">
+              <div class="bar-slot" *ngFor="let b of signupBars(); let i = index"
+                   (mouseenter)="hover('signups', i)" (focus)="hover('signups', i)" (blur)="hover('signups', null)"
+                   tabindex="0" [attr.aria-label]="(b.day.day | date: 'EEE MMM d': 'UTC') + ': ' + b.label">
+                <span class="bar" [style.height.%]="b.height"></span>
+                <span class="tip" *ngIf="hovered()?.chart === 'signups' && hovered()?.index === i">
+                  <strong>{{ b.day.day | date: 'EEE MMM d': 'UTC' }}</strong>{{ b.label }}
+                </span>
+              </div>
+            </div>
+            <div class="axis"><span>{{ m.daily[0]?.day | date: 'MMM d': 'UTC' }}</span><span>{{ m.daily[m.daily.length - 1]?.day | date: 'MMM d': 'UTC' }}</span></div>
+          </figure>
+        </div>
+
+        <div class="table-wrap" *ngIf="showTable()">
+          <table>
+            <thead><tr><th>Day</th><th class="num">Visitors</th><th class="num">Sign-ups</th><th class="num">Apply clicks</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let d of m.daily.slice().reverse()">
+                <td>{{ d.day | date: 'EEE MMM d': 'UTC' }}</td>
+                <td class="num">{{ d.visitors | number }}</td>
+                <td class="num">{{ d.signups | number }}</td>
+                <td class="num">{{ d.applyClicks | number }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="split">
+        <!-- Employers -->
+        <section class="card">
+          <div class="card-head"><h2>Employers</h2></div>
+          <dl class="facts">
+            <dt>Sign-ups in range</dt><dd>{{ m.employers.signedUp | number }}</dd>
+            <dt>Waiting for your review</dt>
+            <dd>
+              <a routerLink="/companies" class="review-link" [class.warn]="m.employers.companiesWaitingForReview > 0">
+                {{ m.employers.companiesWaitingForReview | number }}
+                <span *ngIf="m.employers.companiesWaitingForReview > 0">· review now</span>
+              </a>
+            </dd>
+            <dt>Verified companies</dt><dd>{{ m.employers.verifiedCompanies | number }}</dd>
+            <dt>Open employer jobs</dt><dd>{{ m.employers.openEmployerJobs | number }}</dd>
+          </dl>
+        </section>
+
+        <!-- Referrers -->
+        <section class="card">
+          <div class="card-head"><h2>Where visitors came from</h2></div>
+          <p class="empty" *ngIf="m.topReferrers.length === 0">No outside links yet: visitors typed the address or came from a bookmark.</p>
+          <ul class="referrers" *ngIf="m.topReferrers.length > 0">
+            <li *ngFor="let r of m.topReferrers">
+              <span class="ref-host">{{ r.host }}</span>
+              <span class="ref-bar" aria-hidden="true"><span [style.width.%]="(r.visits / maxReferrer()) * 100"></span></span>
+              <span class="ref-num">{{ r.visits | number }}</span>
+            </li>
+          </ul>
+        </section>
+      </div>
+
+      <!-- People -->
+      <section class="card">
+        <div class="card-head">
+          <h2>Newest applicants</h2>
+          <p class="card-sub">Who signed up, and where each person stopped. Worth an email if they are stuck.</p>
+        </div>
+        <p class="empty" *ngIf="m.recentApplicants.length === 0">Nobody yet in this range.</p>
+        <div class="table-wrap" *ngIf="m.recentApplicants.length > 0">
+          <table class="people">
+            <thead>
+              <tr><th>Person</th><th>Signed up</th><th>Progress</th><th>Next step</th><th>Last active</th></tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let a of m.recentApplicants">
+                <td>
+                  <span class="who">{{ a.name || a.email }}</span>
+                  <span class="who-sub" *ngIf="a.name">{{ a.email }}</span>
+                </td>
+                <td class="nowrap">{{ utc(a.signedUpAt) | date: 'MMM d, h:mm a' }}</td>
+                <td>
+                  <span class="chips">
+                    <span class="chip" [class.done]="a.verified">{{ a.verified ? '✓' : '·' }} Verified</span>
+                    <span class="chip" [class.done]="a.resumes > 0">{{ a.resumes > 0 ? '✓' : '·' }} Resume</span>
+                    <span class="chip" [class.done]="a.matches > 0">{{ a.matches > 0 ? '✓' : '·' }} Match{{ a.matches > 1 ? ' ×' + a.matches : '' }}</span>
+                    <span class="chip" [class.done]="a.savedJobs > 0">{{ a.savedJobs > 0 ? '✓' : '·' }} Saved{{ a.savedJobs > 1 ? ' ×' + a.savedJobs : '' }}</span>
+                    <span class="chip" [class.done]="a.applyClicks > 0">{{ a.applyClicks > 0 ? '✓' : '·' }} Apply{{ a.applyClicks > 1 ? ' ×' + a.applyClicks : '' }}</span>
+                  </span>
+                </td>
+                <td class="nowrap">
+                  <span class="stuck" *ngIf="stuckAt(a) as next">{{ next }}</span>
+                  <span class="all-done" *ngIf="!stuckAt(a)">Reached Apply</span>
+                </td>
+                <td class="nowrap muted-cell">{{ lastActive(a) | date: 'MMM d, h:mm a' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </ng-container>
+</div>

@@ -1,0 +1,11 @@
+
+.admin-nav {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 10px 16px; background: #ffffff; border-bottom: 1px solid rgba(20, 20, 28, 0.1);
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; font-size: 14px;
+}
+.admin-nav .brand { font-weight: 700; color: #14141c; margin-right: 12px; }
+.admin-nav .brand span { font-weight: 500; color: #8a8a95; }
+.admin-nav a { color: #55555f; text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+.admin-nav a:hover { background: #f6f6f8; }
+.admin-nav a.active { color: #14141c; background: #f0f0f3; font-weight: 600; }

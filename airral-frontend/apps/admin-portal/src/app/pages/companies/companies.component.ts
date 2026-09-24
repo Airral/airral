@@ -1,7 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { CompanyForReview, CompanyReviewService, CompanyReviewStatus } from '../../services/company-review.service';
 
 /**
@@ -16,7 +15,7 @@ import { CompanyForReview, CompanyReviewService, CompanyReviewStatus } from '../
 @Component({
   selector: 'app-companies',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule],
   templateUrl: './companies.component.html',
   styleUrls: ['./companies.component.css'],
 })

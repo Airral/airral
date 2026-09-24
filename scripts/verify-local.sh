@@ -304,6 +304,11 @@ case $? in
   *) bad "email verification checks failed (see above)" ;;
 esac
 
+step "Admin launch numbers"
+python3 "$ROOT/scripts/check-launch-metrics.py" \
+  && ok "the launch funnel counts real people and hides test accounts" \
+  || bad "launch metrics checks failed (see above)"
+
 step "Result"
 if [ $FAILED -eq 0 ]; then
   ok "safe to push"

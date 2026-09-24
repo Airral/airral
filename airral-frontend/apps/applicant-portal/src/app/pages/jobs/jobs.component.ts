@@ -6,6 +6,7 @@ import { CandidatePortalService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
 import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, ResumeHealthScore } from '@airral/shared-types';
 import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
+import { VisitorSignalService } from '@airral/shared-utils';
 import { getOnboardingJobSearchSeed, OnboardingJobSearchSeed } from '../../utils/job-search-seed';
 
 interface JobDescriptionSection {
@@ -138,7 +139,8 @@ export class JobsComponent implements OnInit, OnDestroy {
     private readonly candidateApi: CandidatePortalService,
     private readonly route: ActivatedRoute,
     private readonly auth: AuthService,
-    private readonly changeDetectorRef: ChangeDetectorRef
+    private readonly changeDetectorRef: ChangeDetectorRef,
+    private readonly visitorSignals: VisitorSignalService
   ) {}
 
   ngOnInit(): void {
@@ -493,6 +495,15 @@ export class JobsComponent implements OnInit, OnDestroy {
       this.searchQuery = seededQuery;
     }
     this.loadJobs();
+  }
+
+  /**
+   * The last step AIRRAL can see: the person leaves for the employer's own
+   * application page. Signed in, it is tied to their account for the admin
+   * launch funnel; otherwise it is an anonymous count.
+   */
+  trackApplyClick(): void {
+    this.visitorSignals.track('apply_click', '/jobs', 'applicant');
   }
 
   saveSelectedJob(): void {
