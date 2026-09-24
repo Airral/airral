@@ -43,6 +43,21 @@
   max-width: 62ch;
 }
 
+.doc ul {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  max-width: 62ch;
+}
+
+.doc li + li {
+  margin-top: 8px;
+}
+
+.doc code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.92em;
+}
+
 .doc a {
   text-decoration: underline;
   text-decoration-thickness: 1px;

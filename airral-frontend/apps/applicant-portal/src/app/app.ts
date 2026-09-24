@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '@airral/shared-auth';
 import { CandidatePortalService } from '@airral/shared-api';
-import { VisitorSignalService } from '@airral/shared-utils';
+import { GoogleAnalyticsService, VisitorSignalService } from '@airral/shared-utils';
 import { VerifyEmailBannerComponent } from '@airral/shared-ui';
 import { catchError, of } from 'rxjs';
 
@@ -21,11 +21,13 @@ export class App implements OnInit {
     protected readonly auth: AuthService,
     private readonly router: Router,
     private readonly candidateApi: CandidatePortalService,
-    private readonly visitorSignals: VisitorSignalService
+    private readonly visitorSignals: VisitorSignalService,
+    private readonly analytics: GoogleAnalyticsService
   ) {}
 
   ngOnInit(): void {
     this.visitorSignals.trackPageViews('applicant');
+    this.analytics.start('applicant');
 
     // Not on a page that works without signing in.
     //

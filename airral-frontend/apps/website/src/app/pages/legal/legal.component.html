@@ -6,24 +6,151 @@
   <!-- ── which document you are reading ── -->
   <header class="container legal-head">
     <p class="kicker">Legal</p>
-    <h1 class="h2 legal-head__h1">Terms of service</h1>
-    <p class="lede legal-head__lede">
-      Last updated January 2026. These terms cover your use of the Airral website and the
-      services we offer through it.
-    </p>
+    <ng-container [ngSwitch]="doc">
+      <ng-container *ngSwitchCase="'privacy'">
+        <h1 class="h2 legal-head__h1">Privacy policy</h1>
+        <p class="lede legal-head__lede">
+          Last updated September 2026. What Airral collects about you, why, who else handles it,
+          and how to have it removed.
+        </p>
+      </ng-container>
+      <ng-container *ngSwitchCase="'cookies'">
+        <h1 class="h2 legal-head__h1">Cookie policy</h1>
+        <p class="lede legal-head__lede">
+          Last updated September 2026. The cookies and browser storage Airral uses, and how to turn
+          the optional ones off.
+        </p>
+      </ng-container>
+      <ng-container *ngSwitchDefault>
+        <h1 class="h2 legal-head__h1">Terms of service</h1>
+        <p class="lede legal-head__lede">
+          Last updated January 2026. These terms cover your use of the Airral website and the
+          services we offer through it.
+        </p>
+      </ng-container>
+    </ng-container>
 
     <nav class="cta-row legal-nav" aria-label="Legal documents">
-      <a class="btn btn--glass btn--sm" routerLink="/terms" aria-current="page">
+      <a class="btn btn--glass btn--sm" routerLink="/terms" [attr.aria-current]="doc === 'terms' ? 'page' : null">
         Terms of service
       </a>
-      <a class="btn btn--glass btn--sm" routerLink="/privacy">Privacy policy</a>
-      <a class="btn btn--glass btn--sm" routerLink="/cookies">Cookie policy</a>
+      <a class="btn btn--glass btn--sm" routerLink="/privacy" [attr.aria-current]="doc === 'privacy' ? 'page' : null">Privacy policy</a>
+      <a class="btn btn--glass btn--sm" routerLink="/cookies" [attr.aria-current]="doc === 'cookies' ? 'page' : null">Cookie policy</a>
     </nav>
   </header>
 
   <!-- ── the document ── -->
   <section class="section--tight container">
-    <article class="pane glass doc rise">
+    <article class="pane glass doc rise" *ngIf="doc === 'privacy'">
+      <h2 class="h3">Who we are</h2>
+      <p class="body-2">
+        Airral is a job search service at airral.com, apply.airral.com and app.airral.com, and a
+        Cictus product. "We" below means Airral. Questions or requests about your data:
+        <a href="mailto:support&#64;airral.com">support&#64;airral.com</a>.
+      </p>
+
+      <h2 class="h3">What we collect</h2>
+      <ul class="body-2">
+        <li><strong>Your account:</strong> name, email address and a password (stored only as a
+          one-way hash). If you sign in with Google, we receive your name, email address and your
+          Google account ID.</li>
+        <li><strong>Your resume:</strong> the file you upload, and what we read from it, such as
+          skills, work history and education.</li>
+        <li><strong>Your job search:</strong> jobs you save, where each one is in your tracker, your
+          notes, and the match results we produce for your resume against a job.</li>
+        <li><strong>Employer accounts:</strong> company name and web domain, and the jobs you post.</li>
+        <li><strong>How the site is used:</strong> the pages you visit, the site you came from, and
+          clicks on "Apply now". If you are signed in, these are linked to your account. To count
+          visitors we keep a code made by scrambling your network address and browser together with
+          the date. It changes every day, and we do not store the address itself.</li>
+        <li><strong>Email updates:</strong> your address, if you ask us to keep you posted.</li>
+        <li><strong>Google Analytics:</strong> see the <a routerLink="/cookies">cookie policy</a>.</li>
+      </ul>
+
+      <h2 class="h3">How we use it</h2>
+      <ul class="body-2">
+        <li>To run the service: find jobs, score your resume against them, and keep your tracker.</li>
+        <li>To send account emails: confirming your address and resetting your password.</li>
+        <li>To keep accounts safe, for example by limiting repeated sign-in attempts.</li>
+        <li>To understand which parts of Airral help people, so we can improve them.</li>
+      </ul>
+      <p class="body-2">We do not sell your personal information, and we do not show ads.</p>
+
+      <h2 class="h3">Who else handles it</h2>
+      <ul class="body-2">
+        <li><strong>Google Cloud</strong> hosts Airral, its database and uploaded resumes, in the
+          United States.</li>
+        <li><strong>Google Firebase Authentication</strong> sends our verification and
+          password-reset emails, and confirms you opened them.</li>
+        <li><strong>Google Analytics</strong> measures traffic to our websites.</li>
+      </ul>
+      <p class="body-2">
+        Jobs on Airral link to employers' own sites. When you click "Apply now" you leave Airral,
+        and that employer's privacy policy covers what you send them.
+      </p>
+
+      <h2 class="h3">How long we keep it</h2>
+      <p class="body-2">
+        Account, resume and job-search data stay while your account is open. Google Analytics data
+        is kept for 14 months. To have your account and everything in it deleted, email
+        <a href="mailto:support&#64;airral.com">support&#64;airral.com</a> from the address on the
+        account.
+      </p>
+
+      <h2 class="h3">Your choices</h2>
+      <ul class="body-2">
+        <li>Ask to see, correct or delete your data by emailing us.</li>
+        <li>Turn off job-alert emails in your settings, or with the link in any alert.</li>
+        <li>Opt out of Google Analytics as described in the <a routerLink="/cookies">cookie policy</a>.</li>
+      </ul>
+
+      <h2 class="h3">Children</h2>
+      <p class="body-2">Airral is not meant for anyone under 16, and we do not knowingly collect their data.</p>
+
+      <h2 class="h3">Changes</h2>
+      <p class="body-2">If we change this policy we will update the date above, and tell account holders by email about anything significant.</p>
+    </article>
+
+    <article class="pane glass doc rise" *ngIf="doc === 'cookies'">
+      <h2 class="h3">Needed to work</h2>
+      <p class="body-2">
+        When you sign in, your browser stores your session so you stay signed in. While you verify
+        your email or reset your password, it briefly remembers the address you typed. This is
+        browser storage rather than cookies. Your session is removed when you sign out.
+      </p>
+
+      <h2 class="h3">Our own visitor count</h2>
+      <p class="body-2">
+        We count visits without cookies. Each visit sends the page and the referring site to our
+        servers, with a code that changes every day and cannot be used to follow you from one day to
+        the next.
+      </p>
+
+      <h2 class="h3">Google Analytics</h2>
+      <p class="body-2">
+        On airral.com and apply.airral.com, Google Analytics sets cookies named <code>_ga</code> and
+        <code>_ga_*</code> to count visitors and to see where they come from and what devices they
+        use. We send it only the page address, without search terms or anything after it, and we
+        never load it on the email-verification, password-reset or unsubscribe pages. Google signals
+        and ad personalisation are off. Google's own use of this data is described in
+        <a href="https://policies.google.com/technologies/partner-sites" rel="noopener" target="_blank">how Google uses information from sites that use its services</a>.
+      </p>
+
+      <h2 class="h3">Turning Google Analytics off</h2>
+      <ul class="body-2">
+        <li>Turn on Global Privacy Control or "Do Not Track" in your browser, and Airral will not load
+          Google Analytics at all.</li>
+        <li>Or install Google's
+          <a href="https://tools.google.com/dlpage/gaoptout" rel="noopener" target="_blank">opt-out browser add-on</a>.</li>
+        <li>Clearing or blocking cookies for airral.com also works, and the site still works without
+          them.</li>
+      </ul>
+      <p class="fine rule doc__note">
+        Questions: <a href="mailto:support&#64;airral.com">support&#64;airral.com</a>.
+      </p>
+    </article>
+
+    <article class="pane glass doc rise" *ngIf="doc === 'terms'">
       <h2 class="h3">1. Agreement to terms</h2>
       <p class="body-2">
         By using the Airral website and services you agree to be bound by these terms. If you do
@@ -47,7 +174,7 @@
 
       <p class="fine rule doc__note">
         This page is a summary. For the full terms and conditions, write to
-        <a href="mailto:support&#64;airral.io">support&#64;airral.io</a>.
+        <a href="mailto:support&#64;airral.com">support&#64;airral.com</a>.
       </p>
     </article>
   </section>

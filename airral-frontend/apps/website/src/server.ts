@@ -65,11 +65,12 @@ function setSecurityHeaders(res: ServerResponse): void {
   res.setHeader(
     'Content-Security-Policy-Report-Only',
     "default-src 'self'; " +
-      "script-src 'self' https://accounts.google.com https://apis.google.com; " +
+      "script-src 'self' https://accounts.google.com https://apis.google.com https://www.googletagmanager.com; " +
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
       "font-src 'self' https://fonts.gstatic.com data:; " +
       "img-src 'self' data: https:; " +
-      "connect-src 'self' https://api.airral.com https://accounts.google.com; " +
+      "connect-src 'self' https://api.airral.com https://accounts.google.com " +
+        "https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; " +
       "frame-src https://accounts.google.com; frame-ancestors 'none'; " +
       "base-uri 'self'; form-action 'self'"
   );
