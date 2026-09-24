@@ -1,5 +1,7 @@
 package com.airral.controller;
 
+import com.airral.service.AccountVerificationService;
+
 import com.airral.dto.request.CandidateJobFitRequest;
 import com.airral.dto.request.SaveCandidateJobRequest;
 import com.airral.dto.request.UpdateCandidateSavedJobRequest;
@@ -30,10 +32,14 @@ public class CandidateJobWorkspaceController {
 
     private final CandidateJobWorkspaceService workspaceService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final AccountVerificationService accountVerificationService;
 
-    public CandidateJobWorkspaceController(CandidateJobWorkspaceService workspaceService, JwtTokenProvider jwtTokenProvider) {
+    public CandidateJobWorkspaceController(CandidateJobWorkspaceService workspaceService,
+                                           JwtTokenProvider jwtTokenProvider,
+                                           AccountVerificationService accountVerificationService) {
         this.workspaceService = workspaceService;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.accountVerificationService = accountVerificationService;
     }
 
     @GetMapping("/saved-jobs")
@@ -71,8 +77,20 @@ public class CandidateJobWorkspaceController {
     public Mono<ResponseEntity<CandidateJobFitResponse>> runJobFit(
             @RequestBody CandidateJobFitRequest request,
             @RequestHeader("Authorization") String authHeader) {
-        return workspaceService.runFit(email(authHeader), request)
+        // Runs on the applicant's resume, which only a verified account can have
+        // uploaded; checked here too so the answer is "verify first" rather than
+        // a confusing empty fit.
+        Long userId = userId(authHeader);
+        return accountVerificationService.requireVerified(userId, "check your fit against a job")
+                .then(workspaceService.runFit(email(authHeader), request))
                 .map(ResponseEntity::ok);
+    }
+
+    private Long userId(String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return jwtTokenProvider.getUserIdFromToken(authHeader.substring(7));
+        }
+        throw new BadRequestException("Invalid authorization header");
     }
 
     private String email(String authHeader) {

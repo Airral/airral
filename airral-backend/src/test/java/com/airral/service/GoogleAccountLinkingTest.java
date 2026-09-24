@@ -219,14 +219,13 @@ class GoogleAccountLinkingTest {
     }
 
     @Test
-    @DisplayName("a verified account is linked on first Google sign-in")
-    void linksAnAlreadyVerifiedAccount() {
-        // No such row exists yet -- registerWithInvitation is the only other
-        // writer of emailVerified true and it is unreachable, because it matches
-        // on users.invitation_token and nothing writes that column. So this is
-        // the shape of a row created here through Google on an earlier deploy,
-        // and the case is what stops the rule from locking those out later.
+    @DisplayName("an account whose password was set by the proven owner is linked on first Google sign-in")
+    void linksAnAccountWhosePasswordIsProven() {
+        // The row a password reset leaves behind: the address was proven by
+        // following the link, and the password on it was set after that, so it
+        // is the owner's. Safe to adopt into their Google sign-in.
         User verified = applicantRow(51L, VICTIM_EMAIL, null, true);
+        verified.setPasswordProvenAt(java.time.LocalDateTime.now().minusDays(1));
         when(userRepository.findByGoogleSubject(GOOGLE_SUB)).thenReturn(Mono.empty());
         when(userRepository.findByEmail(VICTIM_EMAIL)).thenReturn(Mono.just(verified));
 
@@ -239,6 +238,26 @@ class GoogleAccountLinkingTest {
         // The link is written on the way through, so the second sign-in matches
         // on the sub and never consults the address again.
         assertThat(saved.getValue().getGoogleSubject()).isEqualTo(GOOGLE_SUB);
+    }
+
+    @Test
+    @DisplayName("a verified address with a password typed at sign-up is still not linked")
+    void refusesAVerifiedAccountWhosePasswordWasTypedBeforeProof() {
+        // The pre-hijack. Someone registers the victim's address with a password
+        // of their choosing; the victim later clicks the unsolicited "verify your
+        // account" mail, which marks the row verified. The address is proven, but
+        // the password is still the first typist's. Linking now would put the
+        // victim's Google sign-in on an account a stranger can also open.
+        User preRegistered = applicantRow(52L, VICTIM_EMAIL, null, true);
+        preRegistered.setPasswordProvenAt(null);
+        when(userRepository.findByGoogleSubject(GOOGLE_SUB)).thenReturn(Mono.empty());
+        when(userRepository.findByEmail(VICTIM_EMAIL)).thenReturn(Mono.just(preRegistered));
+
+        StepVerifier.create(authService.loginWithGoogle(new GoogleAuthRequest(CREDENTIAL)))
+                .expectError(com.airral.exception.UnauthorizedException.class)
+                .verify();
+
+        verify(userRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     private User applicantRow(Long id, String email, String googleSubject, boolean emailVerified) {

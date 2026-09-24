@@ -59,7 +59,9 @@ class AuthGoogleRouteTest {
                 loginThrottle,
                 mock(TokenVersionCache.class),
                 mock(JwtTokenProvider.class),
-                mock(com.airral.service.PasswordResetService.class));
+                mock(com.airral.service.AccountVerificationService.class),
+                mock(com.airral.repository.UserRepository.class),
+                mock(com.airral.repository.OrganizationRepository.class));
     }
 
     private ServerWebExchange exchangeFrom(String forwardedFor) {

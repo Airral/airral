@@ -27,9 +27,26 @@ function isPublicReadRequest(url: string, method: string): boolean {
   );
 }
 
+/**
+ * The auth endpoints a session is established or recovered through, which must
+ * never be sent an existing token.
+ *
+ * <p>Was every path under /api/auth/, which also stripped the token from the two
+ * that need one: /auth/me answered 401 and the handler below signed the person
+ * out -- straight after sign-up. /auth/revoke-sessions had the same problem
+ * waiting for the first button that calls it.
+ */
+const CREDENTIAL_ENDPOINTS = [
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/google',
+  '/api/auth/verify-email',
+  '/api/auth/reset-password',
+];
+
 function isAuthEndpoint(url: string): boolean {
   const path = parseRequestPath(url);
-  return path.startsWith('/api/auth/');
+  return CREDENTIAL_ENDPOINTS.some((endpoint) => path === endpoint || path.startsWith(endpoint + '/'));
 }
 
 function isEncryptedBackendToken(token: string): boolean {

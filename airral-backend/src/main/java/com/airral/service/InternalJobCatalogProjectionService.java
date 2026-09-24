@@ -59,7 +59,17 @@ public class InternalJobCatalogProjectionService {
 
         return organizationRepository.findById(job.getOrganizationId())
                 .switchIfEmpty(Mono.error(new NotFoundException("Organization not found for job")))
-                .flatMap(organization -> projectOpenJob(job, organization));
+                // The one place a job enters the public catalogue, so the one place
+                // this has to be checked. Before it, an employer account created a
+                // minute ago -- with a company name and domain it typed and an
+                // address nobody had proven -- could put a job in front of every
+                // candidate by saving it as OPEN. An unverified company's OPEN job
+                // stays OPEN in its own ATS; it is simply not shown to candidates
+                // until CompanyVerificationService verifies the company, which
+                // re-runs this for its open jobs.
+                .flatMap(organization -> CompanyVerificationService.isPublishable(organization)
+                        ? projectOpenJob(job, organization)
+                        : externalJobPostingStore.deactivateInternalJob(job.getId()).then());
     }
 
     public Mono<Void> deactivate(Long jobId) {

@@ -4,10 +4,11 @@ import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '@airral/shared-auth';
 import { CandidatePortalService } from '@airral/shared-api';
 import { VisitorSignalService } from '@airral/shared-utils';
+import { VerifyEmailBannerComponent } from '@airral/shared-ui';
 import { catchError, of } from 'rxjs';
 
 @Component({
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, VerifyEmailBannerComponent],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.css',

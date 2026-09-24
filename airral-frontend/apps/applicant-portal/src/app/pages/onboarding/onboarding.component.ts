@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { CandidatePortalService } from '@airral/shared-api';
-import { AuthService } from '@airral/shared-auth';
+import { AuthService, isEmailNotVerifiedError } from '@airral/shared-auth';
 import { UpdateCandidateProfileRequest, ResumeHealthScore } from '@airral/shared-types';
 import { timeout } from 'rxjs';
 import { markUserOnboarded } from '../../guards/onboarding.guard';
@@ -346,8 +346,12 @@ export class OnboardingComponent implements OnInit {
         this.changeDetectorRef.markForCheck();
         this.fetchResumeHealth();
       },
-      error: () => {
-        this.resumeError = 'Upload failed. Try a PDF or DOCX under 5 MB.';
+      error: (error) => {
+        // New accounts reach this step before they have had a chance to open
+        // the verification email, so this is the likeliest refusal here.
+        this.resumeError = isEmailNotVerifiedError(error)
+          ? 'Verify your email first: open the link we just sent you, then add your resume. You can skip this step for now.'
+          : 'Upload failed. Try a PDF or DOCX under 5 MB.';
         this.resumeUploading = false;
         this.changeDetectorRef.markForCheck();
       },

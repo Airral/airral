@@ -19,6 +19,15 @@ export const appRoutes: Route[] = [
       import('./pages/api-keys/api-keys.component').then((m) => m.ApiKeysComponent),
   },
   {
+    // Employers whose jobs are held back from candidates until a person
+    // approves them. Admin-only here and again on /api/admin/**.
+    path: 'companies',
+    canActivate: [authGuard, roleGuard],
+    data: { roles: ['ADMIN'] },
+    loadComponent: () =>
+      import('./pages/companies/companies.component').then((m) => m.CompaniesComponent),
+  },
+  {
     path: 'statistics',
     loadComponent: () =>
       import('./pages/statistics/public-statistics.component').then((m) => m.PublicStatisticsComponent),

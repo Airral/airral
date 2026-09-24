@@ -1,0 +1,28 @@
+<div class="verify-banner" role="status" *ngIf="needsEmailVerification">
+  <span class="material-icons verify-icon" aria-hidden="true">mark_email_unread</span>
+  <div class="verify-text">
+    <strong>Verify your email to finish setting up.</strong>
+    <span *ngIf="!sentTo">We sent a link to {{ email }}. You'll need it to upload a resume, turn on alerts, or publish jobs.</span>
+    <span *ngIf="sentTo">New link sent to {{ sentTo }}. Check spam if it's not there in a minute.</span>
+    <span class="verify-error" *ngIf="errorMessage">{{ errorMessage }}</span>
+  </div>
+  <button type="button" class="verify-action" (click)="resend()" [disabled]="sending || cooldown > 0">
+    {{ sending ? 'Sending…' : cooldown > 0 ? 'Resend in ' + cooldown + 's' : 'Resend link' }}
+  </button>
+</div>
+
+<div class="verify-banner verify-banner-info" role="status" *ngIf="!needsEmailVerification && companyPending">
+  <span class="material-icons verify-icon" aria-hidden="true">hourglass_top</span>
+  <div class="verify-text">
+    <strong>Your company is waiting for review.</strong>
+    <span>You can set everything up and draft jobs now. Open jobs become visible to candidates once an AIRRAL admin has approved your company — this protects job seekers from fake postings.</span>
+  </div>
+</div>
+
+<div class="verify-banner verify-banner-warn" role="status" *ngIf="companyRejected">
+  <span class="material-icons verify-icon" aria-hidden="true">block</span>
+  <div class="verify-text">
+    <strong>Your company wasn't approved.</strong>
+    <span>Your jobs aren't visible to candidates. Contact AIRRAL support if you think this is a mistake.</span>
+  </div>
+</div>

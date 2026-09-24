@@ -130,6 +130,12 @@ airral:
     # create an admin, so the first one has to come from somewhere; the
     # alternative was hand-run SQL against production. Blank disables it.
     bootstrap-admin-email: ${AIRRAL_BOOTSTRAP_ADMIN_EMAIL:}
+    firebase:
+      # The Firebase project whose ID tokens prove an email address was
+      # followed from a link it sent. Not a secret: it is the audience every
+      # such token names, and it is in the portals' page source. Firebase is
+      # used for that proof only -- accounts, passwords and sessions stay here.
+      project-id: ${FIREBASE_PROJECT_ID:airral-a0e81}
     google:
       client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
       jwk-url: ${GOOGLE_OAUTH_JWK_URL:https://www.googleapis.com/oauth2/v3/certs}

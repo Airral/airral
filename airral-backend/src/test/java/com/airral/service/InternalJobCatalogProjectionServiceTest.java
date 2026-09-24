@@ -44,12 +44,49 @@ class InternalJobCatalogProjectionServiceTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("an unverified company's open job is kept out of the candidate catalogue")
+    void unverifiedCompanyIsNotPublished() {
+        // The hole this closes: an employer account created a minute ago, with a
+        // company name it typed and an address nobody proved, put a job in front
+        // of every candidate by saving it OPEN. Its job stays OPEN in its own
+        // ATS; it just is not projected until the company is verified.
+        for (String status : new String[] {"PENDING", "REJECTED", null}) {
+            org.mockito.Mockito.reset(externalJobPostingStore, organizationRepository);
+            Organization pending = Organization.builder()
+                    .id(7L).name("Stripe").domain(null).isActive(true).verificationStatus(status).build();
+            when(organizationRepository.findById(7L)).thenReturn(Mono.just(pending));
+            when(externalJobPostingStore.deactivateInternalJob(19L)).thenReturn(Mono.just(0L));
+
+            StepVerifier.create(service.sync(openJob())).verifyComplete();
+
+            verify(externalJobPostingStore).deactivateInternalJob(19L);
+            verify(externalJobPostingStore, org.mockito.Mockito.never()).upsertJob(any(), any(), anyInt());
+            verify(externalJobPostingStore, org.mockito.Mockito.never()).ensureInternalSource(any());
+        }
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("a verified but deactivated company is not published either")
+    void inactiveCompanyIsNotPublished() {
+        Organization inactive = Organization.builder()
+                .id(7L).name("Acme").isActive(false).verificationStatus("VERIFIED").build();
+        when(organizationRepository.findById(7L)).thenReturn(Mono.just(inactive));
+        when(externalJobPostingStore.deactivateInternalJob(19L)).thenReturn(Mono.just(0L));
+
+        StepVerifier.create(service.sync(openJob())).verifyComplete();
+
+        verify(externalJobPostingStore, org.mockito.Mockito.never()).upsertJob(any(), any(), anyInt());
+    }
+
+    @Test
     void publishesOpenEmployerJobIntoCachedApplicantCatalog() {
         Organization organization = Organization.builder()
                 .id(7L)
                 .name("Acme Health")
                 .domain("acme.example")
                 .logoUrl("https://acme.example/logo.png")
+                .isActive(true)
+                .verificationStatus("VERIFIED")
                 .build();
         Job job = openJob();
         ExternalJobSourceRecord source = new ExternalJobSourceRecord(

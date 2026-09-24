@@ -4,9 +4,11 @@ import com.airral.config.ClientIpConfig;
 import com.airral.dto.request.LoginRequest;
 import com.airral.dto.request.GoogleAuthRequest;
 import com.airral.dto.request.RegisterRequest;
-import com.airral.dto.request.ForgotPasswordRequest;
+import com.airral.dto.request.VerifyEmailRequest;
 import com.airral.dto.request.ResetPasswordRequest;
-import com.airral.service.PasswordResetService;
+import com.airral.service.AccountVerificationService;
+import com.airral.repository.UserRepository;
+import com.airral.repository.OrganizationRepository;
 import com.airral.dto.response.AuthResponse;
 import com.airral.exception.UnauthorizedException;
 import com.airral.security.JwtTokenProvider;
@@ -31,51 +33,96 @@ public class AuthController {
     private final LoginThrottle loginThrottle;
     private final TokenVersionCache tokenVersionCache;
     private final JwtTokenProvider jwtTokenProvider;
-    private final PasswordResetService passwordResetService;
+    private final AccountVerificationService accountVerificationService;
+    private final UserRepository userRepository;
+    private final OrganizationRepository organizationRepository;
 
     public AuthController(AuthService authService,
                           LoginThrottle loginThrottle,
                           TokenVersionCache tokenVersionCache,
                           JwtTokenProvider jwtTokenProvider,
-                          PasswordResetService passwordResetService) {
+                          AccountVerificationService accountVerificationService,
+                          UserRepository userRepository,
+                          OrganizationRepository organizationRepository) {
         this.authService = authService;
         this.loginThrottle = loginThrottle;
         this.tokenVersionCache = tokenVersionCache;
         this.jwtTokenProvider = jwtTokenProvider;
-        this.passwordResetService = passwordResetService;
+        this.accountVerificationService = accountVerificationService;
+        this.userRepository = userRepository;
+        this.organizationRepository = organizationRepository;
     }
 
-    /** One answer for every forgot-password request, whether or not the address has an account. */
-    static final String RESET_REQUESTED_MESSAGE =
-            "If an account exists for that email, a link to reset the password is on its way. "
-                    + "It expires in 30 minutes.";
-
     /**
-     * Ask for a password reset link.
-     * POST /api/auth/forgot-password
+     * Mark the caller's address as verified.
+     * POST /api/auth/verify-email
      *
-     * <p>Always 202 with the same body. Saying "no account with that email" would
-     * turn this into a free lookup of who has signed up. Throttled on the caller's
-     * address like /register; the per-account limit on how many links one inbox
-     * can be sent lives in PasswordResetService.
+     * <p>The body is the Firebase ID token the browser holds after following the
+     * link Firebase emailed. No session is needed -- the link is often opened on
+     * a different device from the one that signed up -- because the token is
+     * itself the proof, and it names the address.
      */
-    @PostMapping("/forgot-password")
-    public Mono<ResponseEntity<Map<String, Object>>> forgotPassword(
-            @Valid @RequestBody ForgotPasswordRequest request,
+    @PostMapping("/verify-email")
+    public Mono<ResponseEntity<Map<String, Object>>> verifyEmail(
+            @Valid @RequestBody VerifyEmailRequest request,
             ServerWebExchange exchange) {
 
         String address = clientAddress(exchange);
 
         return loginThrottle.checkAddress(address)
                 .then(loginThrottle.recordAddressAttempt(address))
-                .then(passwordResetService.requestReset(request.getEmail()))
-                .thenReturn(ResponseEntity.status(HttpStatus.ACCEPTED)
-                        .body(Map.<String, Object>of("message", RESET_REQUESTED_MESSAGE)));
+                .then(accountVerificationService.verifyEmail(request.getIdToken()))
+                .map(result -> ResponseEntity.ok(Map.<String, Object>of(
+                        "verified", result.verified(),
+                        "email", result.email(),
+                        "message", result.message())));
+    }
+
+    /**
+     * Who the caller is, read from the database rather than the session token.
+     * GET /api/auth/me
+     *
+     * <p>The token is minted at sign-in and says nothing about what has happened
+     * since. The portals call this to learn that an address was verified on
+     * another device, or that a company has been approved, without making anyone
+     * sign in again.
+     */
+    @GetMapping("/me")
+    public Mono<ResponseEntity<Map<String, Object>>> me(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
+
+        Long userId = jwtTokenProvider.getUserIdFromToken(extractToken(authHeader));
+
+        return userRepository.findById(userId)
+                .switchIfEmpty(Mono.error(new com.airral.exception.UnauthorizedException("Account not found")))
+                .flatMap(user -> {
+                    Map<String, Object> body = new java.util.LinkedHashMap<>();
+                    body.put("userId", user.getId());
+                    body.put("email", user.getEmail());
+                    body.put("role", user.getRole() == null ? null : user.getRole().name());
+                    body.put("emailVerified", user.isEmailVerified());
+                    body.put("organizationId", user.getOrganizationId());
+                    if (user.getOrganizationId() == null) {
+                        return Mono.just(ResponseEntity.ok(body));
+                    }
+                    return organizationRepository.findById(user.getOrganizationId())
+                            .map(org -> {
+                                body.put("organizationName", org.getName());
+                                body.put("organizationVerificationStatus", org.getVerificationStatus());
+                                return ResponseEntity.ok(body);
+                            })
+                            .defaultIfEmpty(ResponseEntity.ok(body));
+                });
     }
 
     /**
      * Set a new password from the link in a reset email.
      * POST /api/auth/reset-password
+     *
+     * <p>The link is sent by Firebase, from the portal, to whatever address the
+     * person typed -- AIRRAL takes no part in that step, so it has nothing to say
+     * about whether the address has an account and cannot leak it. What arrives
+     * here is the Firebase ID token proving the link was followed.
      *
      * <p>Signs the account out everywhere on success; the caller signs in again
      * with the new password.
@@ -89,7 +136,7 @@ public class AuthController {
 
         return loginThrottle.checkAddress(address)
                 .then(loginThrottle.recordAddressAttempt(address))
-                .then(passwordResetService.resetPassword(request.getToken(), request.getPassword()))
+                .then(accountVerificationService.resetPassword(request.getIdToken(), request.getPassword()))
                 .thenReturn(ResponseEntity.ok(Map.<String, Object>of(
                         "reset", true,
                         "message", "Your password has been changed. Sign in with the new one.")));

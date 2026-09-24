@@ -291,7 +291,9 @@ class ClientIpConfigTest {
 
         AuthController controller = new AuthController(
                 authService, loginThrottle, mock(TokenVersionCache.class), mock(JwtTokenProvider.class),
-                mock(com.airral.service.PasswordResetService.class));
+                mock(com.airral.service.AccountVerificationService.class),
+                mock(com.airral.repository.UserRepository.class),
+                mock(com.airral.repository.OrganizationRepository.class));
 
         // A leftover chain on the request must not outrank the stamp. In
         // production it is stripped before a handler runs; here it stands in for

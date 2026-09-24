@@ -10,3 +10,4 @@ export * from './lib/session-expiry';
 export * from './lib/portal-id';
 export * from './lib/post-auth-routing';
 export * from './lib/user-from-auth-response';
+export * from './lib/email-link.service';

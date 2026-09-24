@@ -66,8 +66,29 @@ public class Organization {
     // Status
     private Boolean isActive;
 
+    /**
+     * PENDING, VERIFIED or REJECTED. A company's jobs reach candidates only when
+     * VERIFIED -- see InternalJobCatalogProjectionService. Set explicitly at
+     * sign-up so the rule is stated in code rather than left to the column
+     * default. Updates write every field, so it must never be null on an entity
+     * that is saved back.
+     */
+    private String verificationStatus;
+
+    /** DOMAIN (an HR manager proved an address on the company's domain) or ADMIN. */
+    private String verificationMethod;
+
+    private LocalDateTime verifiedAt;
+
+    private String verificationNote;
+
     // Timestamps
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    // Not a column: organizations has no created_by_id. Inserts skip null
+    // fields, so this went unnoticed for as long as nothing updated a company;
+    // the first update (CompanyVerificationService) failed with "column
+    // created_by_id does not exist". Nothing reads it.
+    @org.springframework.data.annotation.Transient
     private Long createdById;
 }

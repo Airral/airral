@@ -57,6 +57,16 @@ public class User {
     private Boolean isActive;
     private Boolean emailVerified;
 
+    /** When ownership of {@link #email} was shown. See V36. */
+    private LocalDateTime emailVerifiedAt;
+
+    /**
+     * When the current password was set by someone who had already proven the
+     * address -- through a reset link. Null for a password typed at sign-up, which
+     * may predate the real owner. Gates Google adopting an existing account.
+     */
+    private LocalDateTime passwordProvenAt;
+
     /**
      * Session generation. Incrementing it invalidates every token already
      * issued to this user, which is what makes a stateless session revocable.

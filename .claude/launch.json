@@ -46,6 +46,18 @@
       ],
       "port": 4201,
       "cwd": "airral-frontend"
+    },
+    {
+      "name": "hr-portal",
+      "runtimeExecutable": "node_modules/.bin/nx",
+      "runtimeArgs": [
+        "serve",
+        "hr-portal",
+        "--host=localhost",
+        "--port=4202"
+      ],
+      "port": 4202,
+      "cwd": "airral-frontend"
     }
   ]
 }

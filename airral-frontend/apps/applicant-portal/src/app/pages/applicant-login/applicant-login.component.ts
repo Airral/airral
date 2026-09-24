@@ -3,7 +3,7 @@ import { Component, Inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService, PORTAL_ID, PortalId, clearSessionEndReason, noticeForSessionEndReason, readSessionEndReason, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
+import { AuthService, EmailLinkService, PORTAL_ID, PortalId, clearSessionEndReason, noticeForSessionEndReason, readSessionEndReason, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { AuthResponse, RegisterRequest } from '@airral/shared-types';
 import { USER_ROLES } from '@airral/shared-utils';
 import { GoogleAuthButtonComponent } from '@airral/shared-ui';
@@ -44,6 +44,7 @@ export class ApplicantLoginComponent {
     private readonly router: Router,
     private readonly authApi: AuthApiService,
     private readonly authService: AuthService,
+    private readonly emailLink: EmailLinkService,
     @Inject(PORTAL_ID) private readonly portal: PortalId
   ) {
     this.mode = this.route.snapshot.queryParamMap.get('mode') === 'register' ? 'register' : 'login';
@@ -162,7 +163,13 @@ export class ApplicantLoginComponent {
     };
 
     this.authApi.register(payload).subscribe({
-      next: (response) => this.handleAuthSuccess(response),
+      next: (response) => {
+        // Sign-up no longer proves the address on its own: send the link now,
+        // while the person is still looking at their inbox. Never allowed to
+        // block the sign-up -- if it fails, the banner's "Resend link" is there.
+        void this.emailLink.sendLink(payload.email, '/verify-email').catch(() => undefined);
+        this.handleAuthSuccess(response);
+      },
       error: () => {
         this.errorMessage = 'Unable to create your account right now. Try again or sign in if you already have one.';
         this.loading = false;

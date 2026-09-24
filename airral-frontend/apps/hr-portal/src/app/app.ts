@@ -12,8 +12,10 @@ import {
   filterNavByTier,
 } from './feature-config';
 
+import { VerifyEmailBannerComponent } from '@airral/shared-ui';
+
 @Component({
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, VerifyEmailBannerComponent],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -74,7 +76,10 @@ export class App {
   }
 
   get isAuthRoute(): boolean {
-    return this.router.url.startsWith('/login');
+    // The account pages render without the workspace shell: the person on them
+    // may not be signed in at all.
+    const url = this.router.url;
+    return ['/login', '/verify-email', '/forgot-password', '/reset-password'].some((p) => url.startsWith(p));
   }
 
   private get primaryRole(): string {

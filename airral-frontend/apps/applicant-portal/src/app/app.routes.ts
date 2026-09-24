@@ -1,3 +1,4 @@
+import { ForgotPasswordComponent, ResetPasswordComponent, VerifyEmailComponent } from '@airral/shared-ui';
 import { Route } from '@angular/router';
 import { authGuard, roleGuard } from '@airral/shared-auth';
 import { onboardingGuard, onboardingPageGuard } from './guards/onboarding.guard';
@@ -32,16 +33,19 @@ export const appRoutes: Route[] = [
       import('./pages/unsubscribe/unsubscribe.component').then((m) => m.UnsubscribeComponent),
   },
   {
-    // Both outside the auth guard for the obvious reason: whoever needs them
-    // cannot sign in. The reset link's authorisation is the token in its fragment.
+    // All three outside the auth guard: whoever opens an email link is often on
+    // another device, and whoever resets a password cannot sign in. What
+    // authorises them is the Firebase link itself, checked by the API.
+    path: 'verify-email',
+    component: VerifyEmailComponent,
+  },
+  {
     path: 'forgot-password',
-    loadComponent: () =>
-      import('./pages/forgot-password/forgot-password.component').then((m) => m.ForgotPasswordComponent),
+    component: ForgotPasswordComponent,
   },
   {
     path: 'reset-password',
-    loadComponent: () =>
-      import('./pages/reset-password/reset-password.component').then((m) => m.ResetPasswordComponent),
+    component: ResetPasswordComponent,
   },
   {
     path: 'login',
