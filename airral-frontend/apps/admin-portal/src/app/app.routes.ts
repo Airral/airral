@@ -3,7 +3,15 @@ import { authGuard, roleGuard } from '@airral/shared-auth';
 
 export const appRoutes: Route[] = [
   {
+    // Home: is launch working -- visits, sign-ups, and how far people get.
     path: '',
+    canActivate: [authGuard, roleGuard],
+    data: { roles: ['ADMIN'] },
+    loadComponent: () =>
+      import('./pages/launch/launch.component').then((m) => m.LaunchComponent),
+  },
+  {
+    path: 'users',
     canActivate: [authGuard, roleGuard],
     data: { roles: ['ADMIN'] },
     loadComponent: () =>

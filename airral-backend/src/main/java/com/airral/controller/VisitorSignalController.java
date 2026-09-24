@@ -59,14 +59,20 @@ public class VisitorSignalController {
 
         Map<String, String> payload = body == null ? Map.of() : body;
 
-        return visitorSignalService.record(
+        // The route is public; a session is used only if one came along, and a
+        // missing or stale one simply leaves the event anonymous.
+        return signedInUserId()
+                .map(java.util.Optional::of)
+                .defaultIfEmpty(java.util.Optional.empty())
+                .flatMap(userId -> visitorSignalService.record(
                         payload.get("event"),
                         payload.get("path"),
                         firstNonBlank(payload.get("referrer"),
                                 exchange.getRequest().getHeaders().getFirst(HttpHeaders.REFERER)),
                         payload.get("app"),
                         clientAddress(exchange),
-                        exchange.getRequest().getHeaders().getFirst(HttpHeaders.USER_AGENT))
+                        exchange.getRequest().getHeaders().getFirst(HttpHeaders.USER_AGENT),
+                        userId.orElse(null)))
                 .thenReturn(ResponseEntity.noContent().<Void>build())
                 .onErrorReturn(ResponseEntity.noContent().build());
     }
@@ -134,6 +140,14 @@ public class VisitorSignalController {
         return visitorSignalService.listEmailSignups(limit)
                 .collectList()
                 .map(ResponseEntity::ok);
+    }
+
+    private Mono<Long> signedInUserId() {
+        return org.springframework.security.core.context.ReactiveSecurityContextHolder.getContext()
+                .mapNotNull(context -> context.getAuthentication())
+                .mapNotNull(auth -> auth.getDetails() instanceof
+                        com.airral.security.AuthenticationManager.AuthenticationDetails details
+                        ? details.getUserId() : null);
     }
 
     private String firstNonBlank(String preferred, String fallback) {

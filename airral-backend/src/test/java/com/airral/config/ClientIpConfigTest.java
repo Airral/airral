@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -316,7 +317,7 @@ class ClientIpConfigTest {
     @DisplayName("VisitorSignalController counts the stamped address, so visits cannot be forged apart")
     void visitorControllerUsesTheResolvedAddress() {
         VisitorSignalService service = mock(VisitorSignalService.class);
-        when(service.record(any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(service.record(any(), any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         VisitorSignalController controller = new VisitorSignalController(service);
 
@@ -331,6 +332,6 @@ class ClientIpConfigTest {
         // The salted daily visitor key is built from this. With the old
         // left-most read, one visitor could be counted as as many people as they
         // cared to invent.
-        verify(service).record(eq("page_view"), any(), any(), any(), eq(REAL), any());
+        verify(service).record(eq("page_view"), any(), any(), any(), eq(REAL), any(), isNull());
     }
 }

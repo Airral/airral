@@ -1,1 +1,8 @@
+<nav class="admin-nav" *ngIf="signedIn()" aria-label="Admin">
+  <span class="brand">AIRRAL <span>admin</span></span>
+  <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Launch</a>
+  <a routerLink="/companies" routerLinkActive="active">Companies</a>
+  <a routerLink="/users" routerLinkActive="active">Users</a>
+  <a routerLink="/api-keys" routerLinkActive="active">API keys</a>
+</nav>
 <router-outlet></router-outlet>

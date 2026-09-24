@@ -82,6 +82,16 @@ public class VisitorSignalService {
      */
     public Mono<Void> record(String eventName, String path, String referrer,
                              String app, String address, String userAgent) {
+        return record(eventName, path, referrer, app, address, userAgent, null);
+    }
+
+    /**
+     * As above, attributed to the signed-in account that sent it, if any. Only
+     * the launch funnel reads the account: it is how "clicked Apply" is tied to
+     * a sign-up rather than counted anonymously.
+     */
+    public Mono<Void> record(String eventName, String path, String referrer,
+                             String app, String address, String userAgent, Long userId) {
         String name = eventName == null ? "" : eventName.trim().toLowerCase(Locale.US);
         if (!ALLOWED_EVENTS.contains(name)) {
             return Mono.empty();
@@ -89,11 +99,13 @@ public class VisitorSignalService {
 
         DatabaseClient.GenericExecuteSpec spec = databaseClient.sql("""
                         INSERT INTO analytics_events
-                            (event_name, path, referrer_host, visitor_key, app)
-                        VALUES (:name, :path, :referrer, :visitor, :app)
+                            (event_name, path, referrer_host, visitor_key, app, user_id)
+                        VALUES (:name, :path, :referrer, :visitor, :app, :user)
                         """)
                 .bind("name", name)
                 .bind("visitor", visitorKey(address, userAgent));
+
+        spec = userId == null ? spec.bindNull("user", Long.class) : spec.bind("user", userId);
 
         spec = bindText(spec, "path", truncate(path, 500));
         spec = bindText(spec, "referrer", truncate(referrerHost(referrer), 255));

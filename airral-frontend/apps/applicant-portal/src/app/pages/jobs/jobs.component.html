@@ -376,7 +376,8 @@
           </section>
 
           <div class="detail-actions">
-            <a class="btn-apply" [href]="selectedJob.applyUrl" target="_blank" rel="noopener" *ngIf="selectedJob.applyUrl">
+            <a class="btn-apply" [href]="selectedJob.applyUrl" target="_blank" rel="noopener" *ngIf="selectedJob.applyUrl"
+               (click)="trackApplyClick()">
               Apply now
               <span class="material-icons">open_in_new</span>
             </a>
