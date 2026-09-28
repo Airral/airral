@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ApplicationApiService, AuthApiService, HrEncounterApiService, JobApiService, UserApiService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
-import { Application, ApplicationStatus, CreateEncounterRequest, HrEncounter, Job, User } from '@airral/shared-types';
+import { Application, ApplicationStatus, CreateEncounterRequest, HrEncounter, Job, Recommendation, Scorecard, User } from '@airral/shared-types';
 import { browserTimeZone, wallTimeToDate } from '@airral/shared-utils';
 import { catchError, combineLatest, finalize, of } from 'rxjs';
 import { getPrimaryRole } from '../../feature-config';
@@ -62,6 +62,7 @@ export class CandidatesComponent implements OnInit {
   applications: Application[] = [];
   jobs: Job[] = [];
   encounters: HrEncounter[] = [];
+  scorecards: Scorecard[] = [];
   selectedApplication: Application | null = null;
   selectedInterviewId: number | null = null;
 
@@ -203,6 +204,7 @@ export class CandidatesComponent implements OnInit {
     this.error = '';
     this.success = '';
     this.encounters = [];
+    this.scorecards = [];
     this.selectedInterviewId = null;
 
     combineLatest({
@@ -212,9 +214,13 @@ export class CandidatesComponent implements OnInit {
       interviews: this.applicationApi
         .getInterviewsByApplication(application.id)
         .pipe(catchError(() => of([]))),
+      scorecards: this.applicationApi
+        .getScorecards(application.id)
+        .pipe(catchError(() => of([] as Scorecard[]))),
     })
       .pipe(finalize(() => (this.detailLoading = false)))
-      .subscribe(({ encounters, interviews }) => {
+      .subscribe(({ encounters, interviews, scorecards }) => {
+        this.scorecards = scorecards;
         this.encounters = [...encounters].sort(
           (a, b) => new Date(b.encounteredAt).getTime() - new Date(a.encounteredAt).getTime(),
         );
@@ -362,6 +368,16 @@ export class CandidatesComponent implements OnInit {
   confirmReject(application: Application): void {
     this.confirmingReject = false;
     this.updateStatus(application, ApplicationStatus.REJECTED, this.emailOnReject);
+  }
+
+  recommendationLabel(value?: Recommendation | null): string {
+    const labels: Record<Recommendation, string> = {
+      STRONG_HIRE: 'Strong hire',
+      HIRE: 'Hire',
+      NO_HIRE: 'No hire',
+      STRONG_NO_HIRE: 'Strong no hire',
+    };
+    return value ? labels[value] : 'No recommendation';
   }
 
   firstName(application: Application): string {

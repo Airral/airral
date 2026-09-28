@@ -5,10 +5,12 @@ import com.airral.domain.enums.UserRole;
 import com.airral.dto.request.SubmitApplicationRequest;
 import com.airral.dto.response.ApplicationResponse;
 import com.airral.dto.response.MyApplicationResponse;
+import com.airral.dto.response.ScorecardResponse;
 import com.airral.exception.BadRequestException;
 import com.airral.security.JwtTokenProvider;
 import com.airral.service.ApplicationService;
 import com.airral.service.CandidateProfileService;
+import com.airral.service.ScorecardService;
 import com.airral.service.JobScope;
 import com.airral.service.HiringScope;
 import jakarta.validation.Valid;
@@ -28,11 +30,14 @@ public class ApplicationController {
     private final ApplicationService applicationService;
     private final HiringScope hiringScope;
     private final CandidateProfileService candidateProfileService;
+    private final ScorecardService scorecardService;
     private final JwtTokenProvider jwtTokenProvider;
 
     public ApplicationController(ApplicationService applicationService, JwtTokenProvider jwtTokenProvider,
                                  HiringScope hiringScope,
-                                 CandidateProfileService candidateProfileService) {
+                                 CandidateProfileService candidateProfileService,
+                                 ScorecardService scorecardService) {
+        this.scorecardService = scorecardService;
         this.hiringScope = hiringScope;
         this.candidateProfileService = candidateProfileService;
         this.applicationService = applicationService;
@@ -212,6 +217,22 @@ public class ApplicationController {
                         .contentType(download.mediaType())
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + download.fileName() + "\"")
                         .body(download.resource()));
+    }
+
+    /**
+     * The submitted interview scorecards for an application.
+     * GET /api/applications/{id}/scorecards
+     */
+    @GetMapping("/{id}/scorecards")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<Flux<ScorecardResponse>>> getScorecards(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+        return Mono.just(ResponseEntity.ok(scopeFor(token).flatMapMany(scope ->
+                scorecardService.submittedForApplication(id, organizationId, scope))));
     }
 
     /** The jobs this caller may work on: all of the company's, or a hiring manager's own. */

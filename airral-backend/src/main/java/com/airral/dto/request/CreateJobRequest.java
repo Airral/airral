@@ -28,6 +28,9 @@ public class CreateJobRequest {
     private String department;
     /** A manager or HR manager in the company, responsible for filling the job. */
     private Long hiringManagerId;
+
+    /** One of the company's interview kits, or null for the standard criteria. */
+    private Long interviewKitId;
     private String location;
     private String employmentType;
 

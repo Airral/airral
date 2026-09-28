@@ -1,161 +1,114 @@
 <div class="settings-container">
   <div class="settings-header">
-    <div>
-      <h1>Interview Kits</h1>
-      <p>Pre-configured interview question sets organized by role and competency</p>
-    </div>
-    <button class="btn-primary">+ Create New Kit</button>
+    <h1>Interview kits</h1>
+    <p>What interviewers ask and rate. Pick a kit for each job in the job form. A job without one uses the standard criteria.</p>
   </div>
 
-  <!-- Kits Grid -->
-  <div class="kits-grid">
-    <div *ngFor="let kit of kits" class="kit-card" [class.inactive]="!kit.isActive">
-      <div class="kit-header">
-        <div class="kit-title">
-          <h3>{{ kit.name }}</h3>
-          <span *ngIf="!kit.isActive" class="badge inactive-badge">Inactive</span>
-        </div>
-        <label class="toggle-switch">
-          <input
-            type="checkbox"
-            [checked]="kit.isActive"
-            (change)="toggleKit(kit)">
-          <span class="slider"></span>
-        </label>
-      </div>
+  <p class="message message--ok" *ngIf="message" role="status">{{ message }}</p>
 
-      <div class="kit-meta">
-        <span class="meta-tag">{{ kit.role }}</span>
-        <span class="meta-item">⏱️ {{ kit.duration }} min</span>
-        <span class="meta-item">❓ {{ kit.questions.length }} questions</span>
-      </div>
-
-      <p class="kit-description">{{ kit.description }}</p>
-
-      <div class="kit-actions">
-        <button class="btn-secondary" (click)="viewKit(kit)">View Questions</button>
-        <button class="btn-icon" (click)="editKit(kit)">✏️</button>
-      </div>
+  <section class="card" aria-labelledby="kits-heading" *ngIf="!draft">
+    <div class="card-head">
+      <h2 id="kits-heading">Your kits <span class="count" *ngIf="kits.length">{{ kits.length }}</span></h2>
+      <button type="button" class="btn-primary" (click)="newKit()">New kit</button>
     </div>
-  </div>
 
-  <!-- View Kit Modal -->
-  <div *ngIf="selectedKit" class="modal-overlay" (click)="closeView()">
-    <div class="modal-content large" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <div>
-          <h2>{{ selectedKit.name }}</h2>
-          <p class="modal-subtitle">{{ selectedKit.role }} • {{ selectedKit.duration }} minutes</p>
-        </div>
-        <button class="btn-close" (click)="closeView()">×</button>
-      </div>
+    <p class="message message--error" *ngIf="loadError">{{ loadError }}</p>
+    <p class="hint" *ngIf="loading">Loading…</p>
 
-      <div class="modal-body">
-        <div class="questions-list">
-          <div *ngFor="let q of selectedKit.questions; let i = index" class="question-item">
-            <div class="question-number">{{ i + 1 }}</div>
-            <div class="question-content">
-              <p class="question-text">{{ q.question }}</p>
-              <div class="question-meta">
-                <span class="category-badge">{{ q.category }}</span>
-                <span [class]="getDifficultyClass(q.difficulty)" class="difficulty-badge">
-                  {{ q.difficulty }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn-secondary" (click)="closeView()">Close</button>
-        <button class="btn-primary" (click)="editKit(selectedKit); closeView()">Edit Kit</button>
-      </div>
+    <div class="empty" *ngIf="!loading && !loadError && kits.length === 0">
+      <strong>No kits yet</strong>
+      <p>Interviews are rated on the standard criteria below until you make one.</p>
     </div>
-  </div>
 
-  <!-- Edit Kit Modal -->
-  <div *ngIf="editMode && editingKit" class="modal-overlay" (click)="cancelEdit()">
-    <div class="modal-content large" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <h2>Edit Interview Kit</h2>
-        <button class="btn-close" (click)="cancelEdit()">×</button>
+    <ul class="rows" *ngIf="kits.length">
+      <li class="row" *ngFor="let kit of kits">
+        <div class="who">
+          <strong>{{ kit.name }}</strong>
+          <span class="sub">{{ kit.durationMinutes }} min · {{ kit.questions.length }} {{ kit.questions.length === 1 ? 'question' : 'questions' }} · {{ criteriaSummary(kit) }}</span>
+          <span class="sub" *ngIf="kit.description">{{ kit.description }}</span>
+          <span class="row-message" *ngIf="rowMessage[kit.id]">{{ rowMessage[kit.id] }}</span>
+        </div>
+        <div class="row-actions">
+          <ng-container *ngIf="confirmingRemove !== kit.id; else confirmRemove">
+            <button type="button" class="btn-quiet" (click)="edit(kit)">Edit</button>
+            <button type="button" class="btn-quiet" (click)="confirmingRemove = kit.id">Remove</button>
+          </ng-container>
+          <ng-template #confirmRemove>
+            <span class="sub">Remove this kit?</span>
+            <button type="button" class="btn-quiet btn-danger" [disabled]="removing === kit.id" (click)="remove(kit)">
+              {{ removing === kit.id ? 'Removing…' : 'Remove' }}
+            </button>
+            <button type="button" class="btn-quiet" (click)="confirmingRemove = null">Keep</button>
+          </ng-template>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <section class="card" aria-labelledby="standard-heading" *ngIf="!draft">
+    <h2 id="standard-heading">Standard criteria</h2>
+    <p class="hint">Interviews for a job without a kit are rated on these, from 1 to 5.</p>
+    <ul class="criteria-list">
+      <li *ngFor="let criterion of standardCriteria">
+        <strong>{{ criterion.name }}</strong>
+        <span class="sub">{{ criterion.category }} · {{ weights[criterion.weight - 1].label.toLowerCase() }}</span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="card" aria-labelledby="edit-heading" *ngIf="draft as kit">
+    <h2 id="edit-heading">{{ editingId ? 'Edit kit' : 'New kit' }}</h2>
+    <form class="kit-form" (ngSubmit)="save()" novalidate>
+      <div class="field field--wide">
+        <label for="kit-name">Name</label>
+        <input id="kit-name" name="name" maxlength="120" required [(ngModel)]="kit.name" placeholder="e.g. Store manager loop" />
+      </div>
+      <div class="field">
+        <label for="kit-length">Length</label>
+        <select id="kit-length" name="durationMinutes" [(ngModel)]="kit.durationMinutes">
+          <option *ngFor="let minutes of durations" [ngValue]="minutes">{{ minutes }} minutes</option>
+        </select>
+      </div>
+      <div class="field field--wide">
+        <label for="kit-description">Description <span class="optional">optional</span></label>
+        <textarea id="kit-description" name="description" rows="2" maxlength="2000" [(ngModel)]="kit.description"
+                  placeholder="What this interview is for, and who runs it"></textarea>
       </div>
 
-      <div class="modal-body">
-        <div class="form-group">
-          <label>Kit Name</label>
-          <input
-            type="text"
-            [(ngModel)]="editingKit.name"
-            class="form-input"
-            placeholder="e.g., Frontend Engineer Loop">
+      <fieldset class="list-editor field--wide">
+        <legend>Questions to ask</legend>
+        <div class="list-row" *ngFor="let question of kit.questions; let i = index; trackBy: trackIndex">
+          <input [name]="'question-' + i" maxlength="500" [(ngModel)]="question.text" placeholder="Question"
+                 [attr.aria-label]="'Question ' + (i + 1)" />
+          <input [name]="'question-category-' + i" class="narrow" maxlength="60" [(ngModel)]="question.category"
+                 placeholder="Topic (optional)" [attr.aria-label]="'Topic for question ' + (i + 1)" />
+          <button type="button" class="btn-quiet" (click)="removeQuestion(i)" [attr.aria-label]="'Remove question ' + (i + 1)">Remove</button>
         </div>
+        <button type="button" class="btn-quiet" (click)="addQuestion()" [disabled]="kit.questions.length >= 40">Add a question</button>
+      </fieldset>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label>Role</label>
-            <input
-              type="text"
-              [(ngModel)]="editingKit.role"
-              class="form-input"
-              placeholder="e.g., Software Engineer">
-          </div>
-
-          <div class="form-group">
-            <label>Duration (minutes)</label>
-            <input
-              type="number"
-              [(ngModel)]="editingKit.duration"
-              class="form-input"
-              min="15"
-              max="120"
-              step="15">
-          </div>
+      <fieldset class="list-editor field--wide">
+        <legend>What interviewers rate</legend>
+        <p class="hint">Each is rated 1 to 5. Leave the list empty to use the standard criteria.</p>
+        <div class="list-row" *ngFor="let criterion of kit.criteria; let i = index; trackBy: trackIndex">
+          <input [name]="'criterion-' + i" maxlength="120" [(ngModel)]="criterion.name" placeholder="Criterion"
+                 [attr.aria-label]="'Criterion ' + (i + 1)" />
+          <input [name]="'criterion-category-' + i" class="narrow" maxlength="60" [(ngModel)]="criterion.category"
+                 placeholder="Group (optional)" [attr.aria-label]="'Group for criterion ' + (i + 1)" />
+          <select [name]="'criterion-weight-' + i" class="narrow" [(ngModel)]="criterion.weight"
+                  [attr.aria-label]="'How much criterion ' + (i + 1) + ' counts'">
+            <option *ngFor="let weight of weights" [ngValue]="weight.value">{{ weight.label }}</option>
+          </select>
+          <button type="button" class="btn-quiet" (click)="removeCriterion(i)" [attr.aria-label]="'Remove criterion ' + (i + 1)">Remove</button>
         </div>
+        <button type="button" class="btn-quiet" (click)="addCriterion()" [disabled]="kit.criteria.length >= 20">Add a criterion</button>
+      </fieldset>
 
-        <div class="form-group">
-          <label>Description</label>
-          <textarea
-            [(ngModel)]="editingKit.description"
-            class="form-textarea"
-            rows="2"
-            placeholder="Brief description of this interview kit"></textarea>
-        </div>
-
-        <div class="form-group">
-          <label>Questions ({{ editingKit.questions.length }})</label>
-          <div class="questions-edit-list">
-            <div *ngFor="let q of editingKit.questions; let i = index" class="question-edit-item">
-              <span class="question-index">{{ i + 1 }}</span>
-              <div class="question-edit-content">
-                <input
-                  type="text"
-                  [(ngModel)]="q.question"
-                  class="form-input"
-                  placeholder="Enter question">
-                <div class="question-edit-meta">
-                  <input
-                    type="text"
-                    [(ngModel)]="q.category"
-                    class="form-input small"
-                    placeholder="Category">
-                  <select [(ngModel)]="q.difficulty" class="form-select small">
-                    <option value="Easy">Easy</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Hard">Hard</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <p class="message message--error" *ngIf="formError">{{ formError }}</p>
+      <div class="actions">
+        <button type="submit" class="btn-primary" [disabled]="saving">{{ saving ? 'Saving…' : 'Save kit' }}</button>
+        <button type="button" class="btn-quiet" (click)="cancel()" [disabled]="saving">Cancel</button>
       </div>
-
-      <div class="modal-footer">
-        <button class="btn-cancel" (click)="cancelEdit()">Cancel</button>
-        <button class="btn-primary" (click)="saveKit()">Save Changes</button>
-      </div>
-    </div>
-  </div>
+    </form>
+  </section>
 </div>

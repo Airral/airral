@@ -55,7 +55,7 @@ class DepartmentByIdTest {
 
     @BeforeEach
     void setUp() {
-        jobService = new JobService(jobs, users, organizations, mock(ExternalJobPostingStore.class), catalogue, departments);
+        jobService = new JobService(jobs, users, organizations, mock(ExternalJobPostingStore.class), catalogue, departments, mock(com.airral.repository.InterviewKitRepository.class));
         userService = new UserService(users, invitations, organizations, departments, linkSender, throttle,
                 mock(TokenVersionCache.class));
 

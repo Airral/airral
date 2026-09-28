@@ -40,7 +40,7 @@ class JobServiceCatalogLifecycleTest {
                 organizationRepository,
                 mock(ExternalJobPostingStore.class),
                 projectionService,
-                mock(com.airral.repository.DepartmentRepository.class));
+                mock(com.airral.repository.DepartmentRepository.class), mock(com.airral.repository.InterviewKitRepository.class));
     }
 
     @Test

@@ -10,6 +10,8 @@ export interface Job {
   departmentId?: number;
   department?: string;
   hiringManagerId?: number | null;
+  /** One of the company's interview kits, or none for the standard criteria. */
+  interviewKitId?: number | null;
   hiringManagerName?: string | null;
   location?: string;               // e.g., "San Francisco, CA (Remote)"
   employmentType?: string;         // "Full-time", "Part-time", "Contract", "Internship"
@@ -124,6 +126,8 @@ export interface CreateJobRequest {
   departmentId?: number;
   department?: string;
   hiringManagerId?: number | null;
+  /** One of the company's interview kits, or none for the standard criteria. */
+  interviewKitId?: number | null;
   location?: string;
   employmentType?: string;
   salaryMin?: number;
@@ -254,6 +258,8 @@ export interface Interview {
   interviewers?: InterviewerSummary[];
   scheduledBy?: string;
   notes?: string;
+  /** On My interviews only: the viewer's own scorecard, DRAFT or SUBMITTED, or absent before they start one. */
+  myScorecardStatus?: 'DRAFT' | 'SUBMITTED' | null;
   interviewType?: string;
   status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
   feedback?: string;
@@ -262,6 +268,77 @@ export interface Interview {
   scheduledByName?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface KitQuestion {
+  text: string;
+  category?: string | null;
+}
+
+/** Something interviewers rate a candidate on; weight 1 to 3 is how much it counts. */
+export interface KitCriterion {
+  name: string;
+  category?: string | null;
+  weight: number;
+}
+
+export interface InterviewKit {
+  id: number;
+  name: string;
+  description?: string | null;
+  durationMinutes: number;
+  questions: KitQuestion[];
+  /** Empty means the standard criteria. */
+  criteria: KitCriterion[];
+  updatedAt?: string;
+}
+
+export interface InterviewKitRequest {
+  name: string;
+  description?: string;
+  durationMinutes?: number;
+  questions: KitQuestion[];
+  criteria: KitCriterion[];
+}
+
+export type Recommendation = 'STRONG_HIRE' | 'HIRE' | 'NO_HIRE' | 'STRONG_NO_HIRE';
+
+export interface ScoreRating {
+  criterion: string;
+  category?: string | null;
+  weight?: number | null;
+  /** 1 to 5, or null before it is rated. */
+  rating?: number | null;
+  notes?: string | null;
+}
+
+/** One interviewer's scorecard, with what it is about. */
+export interface Scorecard {
+  id?: number | null;
+  interviewId: number;
+  applicationId: number;
+  interviewerId: number;
+  interviewerName: string;
+  candidateName?: string;
+  jobTitle?: string;
+  interviewDate?: string;
+  durationMinutes?: number;
+  timeZone?: string | null;
+  kitName?: string | null;
+  questions: KitQuestion[];
+  ratings: ScoreRating[];
+  overallNotes?: string | null;
+  recommendation?: Recommendation | null;
+  status: 'DRAFT' | 'SUBMITTED';
+  submittedAt?: string | null;
+  weightedScore?: number | null;
+}
+
+export interface ScorecardRequest {
+  ratings: { criterion: string; rating?: number | null; notes?: string | null }[];
+  overallNotes?: string;
+  recommendation?: Recommendation | null;
+  submit: boolean;
 }
 
 export interface ScheduleInterviewRequest {

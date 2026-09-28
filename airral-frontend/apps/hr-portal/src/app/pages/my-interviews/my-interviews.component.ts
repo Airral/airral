@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { ApplicationApiService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
 import { Interview } from '@airral/shared-types';
@@ -13,7 +14,7 @@ import { finalize } from 'rxjs';
 @Component({
   selector: 'app-my-interviews',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   templateUrl: './my-interviews.component.html',
   styleUrl: './my-interviews.component.css',
 })

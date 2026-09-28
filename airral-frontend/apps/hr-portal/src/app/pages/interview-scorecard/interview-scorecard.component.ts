@@ -1,165 +1,172 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ApplicationApiService } from '@airral/shared-api';
+import { Recommendation, Scorecard, ScoreRating } from '@airral/shared-types';
+import { wallTimeToDate } from '@airral/shared-utils';
+import { finalize } from 'rxjs';
 
-interface ScorecardCriterion {
-  id: number;
-  category: string;
-  criterion: string;
-  rating: number;
-  notes: string;
-  weight: number;
+interface RatingOption {
+  value: number;
+  label: string;
 }
 
-interface InterviewScorecard {
-  candidateName: string;
-  position: string;
-  interviewer: string;
-  date: string;
-  interviewType: string;
-  criteria: ScorecardCriterion[];
-  overallNotes: string;
-  recommendation: 'Strong Hire' | 'Hire' | 'No Hire' | 'Strong No Hire' | '';
-}
-
+/**
+ * An interviewer's scorecard for one interview. It stays a draft, seen only by
+ * them, until they submit it; then the hiring team reads it and it no longer
+ * changes.
+ */
 @Component({
   selector: 'app-interview-scorecard',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './interview-scorecard.component.html',
   styleUrl: './interview-scorecard.component.css',
 })
 export class InterviewScorecardComponent implements OnInit {
-  scorecard: InterviewScorecard = {
-    candidateName: '',
-    position: '',
-    interviewer: '',
-    date: new Date().toISOString().split('T')[0],
-    interviewType: 'Technical',
-    criteria: [],
-    overallNotes: '',
-    recommendation: ''
-  };
+  private readonly route = inject(ActivatedRoute);
+  private readonly applicationApi = inject(ApplicationApiService);
 
-  readonly interviewTypes = ['Technical', 'Behavioral', 'System Design', 'Cultural Fit', 'Panel'];
-  readonly recommendations = ['Strong Hire', 'Hire', 'No Hire', 'Strong No Hire'];
+  readonly ratingOptions: RatingOption[] = [
+    { value: 1, label: 'Poor' },
+    { value: 2, label: 'Below the bar' },
+    { value: 3, label: 'Meets the bar' },
+    { value: 4, label: 'Strong' },
+    { value: 5, label: 'Excellent' },
+  ];
+  readonly recommendations: { value: Recommendation; label: string }[] = [
+    { value: 'STRONG_HIRE', label: 'Strong hire' },
+    { value: 'HIRE', label: 'Hire' },
+    { value: 'NO_HIRE', label: 'No hire' },
+    { value: 'STRONG_NO_HIRE', label: 'Strong no hire' },
+  ];
 
-  constructor(
-    private route: ActivatedRoute,
-    private router: Router
-  ) {}
+  interviewId: number | null = null;
+  scorecard: Scorecard | null = null;
+  ratings: ScoreRating[] = [];
+  overallNotes = '';
+  recommendation: Recommendation | null = null;
+
+  loading = true;
+  saving = false;
+  error = '';
+  message = '';
 
   ngOnInit(): void {
-    // Get candidate info from route params
-    this.route.queryParams.subscribe(params => {
-      if (params['candidateId']) {
-        this.loadCandidateInfo(params['candidateId']);
-      }
-    });
-
-    this.initializeCriteria();
-  }
-
-  loadCandidateInfo(candidateId: string): void {
-    // TODO: Load from API
-    this.scorecard.candidateName = 'Sarah Johnson';
-    this.scorecard.position = 'Senior Frontend Engineer';
-    this.scorecard.interviewer = 'John Doe (You)';
-  }
-
-  initializeCriteria(): void {
-    this.scorecard.criteria = [
-      // Technical Skills
-      { id: 1, category: 'Technical Skills', criterion: 'Coding proficiency', rating: 0, notes: '', weight: 3 },
-      { id: 2, category: 'Technical Skills', criterion: 'Problem-solving ability', rating: 0, notes: '', weight: 3 },
-      { id: 3, category: 'Technical Skills', criterion: 'System design knowledge', rating: 0, notes: '', weight: 2 },
-      { id: 4, category: 'Technical Skills', criterion: 'Technology stack expertise', rating: 0, notes: '', weight: 2 },
-
-      // Communication
-      { id: 5, category: 'Communication', criterion: 'Clarity of explanation', rating: 0, notes: '', weight: 2 },
-      { id: 6, category: 'Communication', criterion: 'Listening and comprehension', rating: 0, notes: '', weight: 1 },
-      { id: 7, category: 'Communication', criterion: 'Asking clarifying questions', rating: 0, notes: '', weight: 1 },
-
-      // Culture Fit
-      { id: 8, category: 'Culture Fit', criterion: 'Team collaboration mindset', rating: 0, notes: '', weight: 2 },
-      { id: 9, category: 'Culture Fit', criterion: 'Growth mindset and learning', rating: 0, notes: '', weight: 2 },
-      { id: 10, category: 'Culture Fit', criterion: 'Alignment with company values', rating: 0, notes: '', weight: 2 },
-
-      // Experience
-      { id: 11, category: 'Experience', criterion: 'Relevant experience depth', rating: 0, notes: '', weight: 2 },
-      { id: 12, category: 'Experience', criterion: 'Project complexity handled', rating: 0, notes: '', weight: 2 },
-    ];
-  }
-
-  get groupedCriteria(): { category: string; items: ScorecardCriterion[] }[] {
-    const groups = this.scorecard.criteria.reduce((acc, criterion) => {
-      if (!acc[criterion.category]) {
-        acc[criterion.category] = [];
-      }
-      acc[criterion.category].push(criterion);
-      return acc;
-    }, {} as Record<string, ScorecardCriterion[]>);
-
-    return Object.entries(groups).map(([category, items]) => ({ category, items }));
-  }
-
-  get weightedScore(): number {
-    const totalWeight = this.scorecard.criteria.reduce((sum, c) => sum + c.weight, 0);
-    const weightedSum = this.scorecard.criteria.reduce((sum, c) => sum + (c.rating * c.weight), 0);
-    return totalWeight > 0 ? (weightedSum / totalWeight) : 0;
-  }
-
-  get completionPercentage(): number {
-    const ratedCriteria = this.scorecard.criteria.filter(c => c.rating > 0).length;
-    return (ratedCriteria / this.scorecard.criteria.length) * 100;
-  }
-
-  get isComplete(): boolean {
-    return this.completionPercentage === 100 &&
-           this.scorecard.recommendation !== '' &&
-           this.scorecard.overallNotes.trim() !== '';
-  }
-
-  getRatingLabel(rating: number): string {
-    const labels: Record<number, string> = {
-      1: 'Poor',
-      2: 'Below Average',
-      3: 'Average',
-      4: 'Good',
-      5: 'Excellent'
-    };
-    return labels[rating] || 'Not Rated';
-  }
-
-  getRatingClass(rating: number): string {
-    if (rating >= 4) return 'rating-high';
-    if (rating >= 3) return 'rating-medium';
-    if (rating > 0) return 'rating-low';
-    return '';
-  }
-
-  saveDraft(): void {
-    // TODO: Save to API as draft
-    console.log('Saving draft:', this.scorecard);
-    alert('Scorecard saved as draft');
-  }
-
-  submitScorecard(): void {
-    if (!this.isComplete) {
-      alert('Please complete all ratings, add overall notes, and select a recommendation before submitting.');
+    const id = Number(this.route.snapshot.queryParamMap.get('interviewId'));
+    if (!Number.isInteger(id) || id <= 0) {
+      this.loading = false;
       return;
     }
-
-    // TODO: Submit to API
-    console.log('Submitting scorecard:', this.scorecard);
-    alert('Scorecard submitted successfully!');
-    this.router.navigate(['/interviews']);
+    this.interviewId = id;
+    this.applicationApi
+      .getMyScorecard(id)
+      .pipe(finalize(() => (this.loading = false)))
+      .subscribe({
+        next: (scorecard) => this.show(scorecard),
+        error: (error: { status?: number; message?: string }) => {
+          this.error = error?.status === 404
+            ? 'This interview is not one of yours. Scorecards are for the interviewers on it.'
+            : error?.message || 'The scorecard could not be loaded. Try again.';
+        },
+      });
   }
 
-  cancel(): void {
-    if (confirm('Are you sure you want to cancel? Unsaved changes will be lost.')) {
-      this.router.navigate(['/interviews']);
+  get submitted(): boolean {
+    return this.scorecard?.status === 'SUBMITTED';
+  }
+
+  get complete(): boolean {
+    return this.ratings.length > 0 && this.ratings.every((rating) => !!rating.rating) && !!this.recommendation;
+  }
+
+  get ratedCount(): number {
+    return this.ratings.filter((rating) => !!rating.rating).length;
+  }
+
+  startsAt(scorecard: Scorecard): Date | null {
+    return scorecard.interviewDate ? wallTimeToDate(scorecard.interviewDate, scorecard.timeZone) : null;
+  }
+
+  weightLabel(weight?: number | null): string {
+    return weight === 3 ? 'Counts a lot' : weight === 1 ? 'Counts a little' : 'Counts';
+  }
+
+  ratingLabel(value?: number | null): string {
+    return this.ratingOptions.find((option) => option.value === value)?.label ?? 'Not rated';
+  }
+
+  recommendationLabel(value?: Recommendation | null): string {
+    return this.recommendations.find((option) => option.value === value)?.label ?? '';
+  }
+
+  rate(rating: ScoreRating, value: number): void {
+    if (this.submitted) return;
+    rating.rating = value;
+  }
+
+  save(submit: boolean): void {
+    if (!this.interviewId || this.saving || this.submitted) return;
+    if (submit && !this.complete) {
+      this.error = 'Rate every criterion and choose a recommendation before you submit.';
+      return;
     }
+    this.saving = true;
+    this.error = '';
+    this.message = '';
+    this.applicationApi
+      .saveMyScorecard(this.interviewId, {
+        ratings: this.ratings.map((rating) => ({
+          criterion: rating.criterion,
+          rating: rating.rating ?? null,
+          notes: rating.notes?.trim() || null,
+        })),
+        overallNotes: this.overallNotes.trim() || undefined,
+        recommendation: this.recommendation,
+        submit,
+      })
+      .pipe(finalize(() => (this.saving = false)))
+      .subscribe({
+        next: (scorecard) => {
+          this.show(scorecard);
+          this.message = submit
+            ? 'Submitted. The hiring team can read it now.'
+            : 'Draft saved. Only you can see it until you submit.';
+        },
+        error: (error: { message?: string }) => {
+          this.error = error?.message || 'The scorecard could not be saved. Try again.';
+        },
+      });
+  }
+
+  openResume(): void {
+    if (!this.interviewId) return;
+    // The tab opens inside the click, so the browser does not block it.
+    const tab = window.open('', '_blank');
+    this.applicationApi.downloadInterviewResume(this.interviewId).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        if (tab) {
+          tab.location.href = url;
+        } else {
+          window.open(url, '_blank');
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      },
+      error: (error: { status?: number }) => {
+        tab?.close();
+        this.error = error?.status === 404
+          ? 'No resume is attached to this application.'
+          : 'The resume could not be opened. Try again.';
+      },
+    });
+  }
+
+  private show(scorecard: Scorecard): void {
+    this.scorecard = scorecard;
+    this.ratings = scorecard.ratings.map((rating) => ({ ...rating }));
+    this.overallNotes = scorecard.overallNotes ?? '';
+    this.recommendation = scorecard.recommendation ?? null;
   }
 }

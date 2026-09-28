@@ -13,6 +13,7 @@ import com.airral.repository.JobRepository;
 import com.airral.exception.BadRequestException;
 import com.airral.exception.NotFoundException;
 import com.airral.repository.DepartmentRepository;
+import com.airral.repository.InterviewKitRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.repository.UserRepository;
 import io.r2dbc.postgresql.codec.Json;
@@ -34,6 +35,7 @@ public class JobService {
     private final ExternalJobPostingStore externalJobPostingStore;
     private final InternalJobCatalogProjectionService internalJobCatalogProjectionService;
     private final DepartmentRepository departmentRepository;
+    private final InterviewKitRepository interviewKitRepository;
 
     public JobService(
             JobRepository jobRepository,
@@ -41,13 +43,15 @@ public class JobService {
             OrganizationRepository organizationRepository,
             ExternalJobPostingStore externalJobPostingStore,
             InternalJobCatalogProjectionService internalJobCatalogProjectionService,
-            DepartmentRepository departmentRepository) {
+            DepartmentRepository departmentRepository,
+            InterviewKitRepository interviewKitRepository) {
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
         this.externalJobPostingStore = externalJobPostingStore;
         this.internalJobCatalogProjectionService = internalJobCatalogProjectionService;
         this.departmentRepository = departmentRepository;
+        this.interviewKitRepository = interviewKitRepository;
     }
 
     /**
@@ -56,6 +60,7 @@ public class JobService {
     @Transactional
     public Mono<JobResponse> createJob(CreateJobRequest request, Long organizationId, Long userId) {
         return hiringManagerCheck(request.getHiringManagerId(), organizationId)
+                .then(interviewKitCheck(request.getInterviewKitId(), organizationId))
                 .then(companyDepartment(request.getDepartmentId(), organizationId))
                 .flatMap(department -> jobRepository.save(newJob(request, organizationId, userId, department)))
                 .flatMap(savedJob -> internalJobCatalogProjectionService.sync(savedJob).thenReturn(savedJob))
@@ -71,6 +76,7 @@ public class JobService {
                 .departmentId(department.map(Department::getId).orElse(null))
                 .department(department.map(Department::getName).orElse(null))
                 .hiringManagerId(request.getHiringManagerId())
+                .interviewKitId(request.getInterviewKitId())
                 .location(request.getLocation())
                 .employmentType(request.getEmploymentType())
                 .salaryMin(request.getSalaryMin())
@@ -153,10 +159,6 @@ public class JobService {
     }
 
     /**
-     * Update a job
-     */
-    @Transactional
-    /**
      * A job's hiring manager must be an active manager or HR manager in the
      * same company: they will see every candidate for it.
      */
@@ -170,6 +172,16 @@ public class JobService {
                         && (user.getRole() == UserRole.MANAGER || user.getRole() == UserRole.HR_MANAGER))
                 .switchIfEmpty(Mono.error(new BadRequestException(
                         "The hiring manager must be an active manager or HR manager in your company")))
+                .then();
+    }
+
+    /** A job's interview kit must be one of the company's own. */
+    private Mono<Void> interviewKitCheck(Long interviewKitId, Long organizationId) {
+        if (interviewKitId == null) {
+            return Mono.empty();
+        }
+        return interviewKitRepository.findByIdAndOrganizationId(interviewKitId, organizationId)
+                .switchIfEmpty(Mono.error(new BadRequestException("The interview kit must be one of your company's")))
                 .then();
     }
 
@@ -205,10 +217,15 @@ public class JobService {
                 .flatMap(this::toJobResponse);
     }
 
+    /**
+     * Update a job
+     */
+    @Transactional
     public Mono<JobResponse> updateJob(Long id, CreateJobRequest request, Long organizationId) {
         return jobRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
                 .zipWith(hiringManagerCheck(request.getHiringManagerId(), organizationId)
+                        .then(interviewKitCheck(request.getInterviewKitId(), organizationId))
                         .then(companyDepartment(request.getDepartmentId(), organizationId)))
                 .flatMap(found -> {
                     Job job = found.getT1();
@@ -219,6 +236,7 @@ public class JobService {
                     job.setDepartmentId(department.map(Department::getId).orElse(null));
                     job.setDepartment(department.map(Department::getName).orElse(null));
                     job.setHiringManagerId(request.getHiringManagerId());
+                    job.setInterviewKitId(request.getInterviewKitId());
                     job.setLocation(request.getLocation());
                     job.setEmploymentType(request.getEmploymentType());
                     job.setSalaryMin(request.getSalaryMin());
@@ -285,6 +303,7 @@ public class JobService {
                 .zipWith(hiringManagerName, (response, name) -> {
                     response.setHiringManagerId(job.getHiringManagerId());
                     response.setHiringManagerName(name.isBlank() ? null : name);
+                    response.setInterviewKitId(job.getInterviewKitId());
                     return response;
                 });
     }

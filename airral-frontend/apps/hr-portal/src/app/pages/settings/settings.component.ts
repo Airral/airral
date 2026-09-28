@@ -29,13 +29,13 @@ export class SettingsComponent {
       route: '/settings/departments'
     },
     {
-      title: 'Hiring stages and scorecards',
-      description: 'Define custom hiring stages and evaluation scorecards for your workflow.',
+      title: 'Hiring stages',
+      description: 'Define custom hiring stages for your workflow.',
       route: '/settings/hiring-stages'
     },
     {
-      title: 'Panel templates and interview kits',
-      description: 'Create reusable interview templates and question banks.',
+      title: 'Interview kits',
+      description: 'The questions interviewers ask and what they rate, for each job.',
       route: '/settings/interview-kits'
     },
     {

@@ -11,6 +11,8 @@ import {
   Interview,
   MyApplication,
   ScheduleInterviewRequest,
+  Scorecard,
+  ScorecardRequest,
 } from '@airral/shared-types';
 import { ApiClientService } from './api-client.service';
 
@@ -72,6 +74,25 @@ export class ApplicationApiService {
   /** The interviews the signed-in teammate is on as an interviewer. */
   getMyInterviews(): Observable<Interview[]> {
     return this.apiClient.get<Interview[]>('/interviews/mine');
+  }
+
+  /** The signed-in interviewer's own scorecard for an interview: saved, or blank. */
+  getMyScorecard(interviewId: number): Observable<Scorecard> {
+    return this.apiClient.get<Scorecard>(`/interviews/${interviewId}/scorecard`);
+  }
+
+  saveMyScorecard(interviewId: number, request: ScorecardRequest): Observable<Scorecard> {
+    return this.apiClient.put<Scorecard>(`/interviews/${interviewId}/scorecard`, request);
+  }
+
+  /** The resume of the candidate in an interview the signed-in teammate is on. */
+  downloadInterviewResume(interviewId: number): Observable<Blob> {
+    return this.apiClient.getBlob(`/interviews/${interviewId}/resume`);
+  }
+
+  /** The submitted scorecards for an application. */
+  getScorecards(applicationId: number): Observable<Scorecard[]> {
+    return this.apiClient.get<Scorecard[]>(`/applications/${applicationId}/scorecards`);
   }
 
   getInterviewsByApplication(applicationId: number): Observable<Interview[]> {

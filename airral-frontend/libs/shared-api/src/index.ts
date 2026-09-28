@@ -10,3 +10,4 @@ export * from './lib/analytics-api.service';
 export * from './lib/hr-encounter-api.service';
 export * from './lib/contact-api.service';
 export * from './lib/department-api.service';
+export * from './lib/interview-kit-api.service';

@@ -41,7 +41,13 @@
                     <span class="with">With {{ others }}</span>
                   }
                 </div>
-                <span class="status" [attr.data-status]="interview.status">{{ interview.status === 'COMPLETED' ? 'Done' : interview.status === 'CANCELLED' ? 'Cancelled' : 'Scheduled' }}</span>
+                <div class="row-end">
+                  <span class="status" [attr.data-status]="interview.status">{{ interview.status === 'COMPLETED' ? 'Done' : interview.status === 'CANCELLED' ? 'Cancelled' : 'Scheduled' }}</span>
+                  <a class="scorecard-link" [routerLink]="['/interviews/scorecard']" [queryParams]="{ interviewId: interview.id }"
+                     [attr.data-scorecard]="interview.myScorecardStatus || 'NONE'">
+                    {{ interview.myScorecardStatus === 'SUBMITTED' ? 'Scorecard submitted' : interview.myScorecardStatus === 'DRAFT' ? 'Finish scorecard' : 'Scorecard' }}
+                  </a>
+                </div>
               </li>
             }
           </ul>

@@ -1,163 +1,112 @@
-<div class="scorecard-container">
-  <!-- Header -->
-  <div class="scorecard-header">
-    <div class="header-content">
-      <h1>Interview Scorecard</h1>
-      <div class="candidate-info">
-        <div class="info-row">
-          <span class="label">Candidate:</span>
-          <strong>{{ scorecard.candidateName }}</strong>
-        </div>
-        <div class="info-row">
-          <span class="label">Position:</span>
-          <strong>{{ scorecard.position }}</strong>
-        </div>
-        <div class="info-row">
-          <span class="label">Interviewer:</span>
-          <span>{{ scorecard.interviewer }}</span>
-        </div>
-        <div class="info-row">
-          <span class="label">Date:</span>
-          <span>{{ scorecard.date }}</span>
-        </div>
+<main class="scorecard-page">
+  <a routerLink="/my-interviews" class="back-link"><span class="material-icons" aria-hidden="true">arrow_back</span>My interviews</a>
+
+  @if (loading) {
+    <p class="state"><span class="spinner"></span>Loading the scorecard</p>
+  } @else if (!interviewId) {
+    <section class="empty">
+      <strong>Open a scorecard from My interviews</strong>
+      <p>Each interview you are on has its own scorecard.</p>
+      <a routerLink="/my-interviews" class="primary-button">Go to My interviews</a>
+    </section>
+  } @else if (scorecard; as card) {
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">Scorecard · {{ card.kitName || 'Standard criteria' }}</p>
+        <h1>{{ card.candidateName || 'Candidate' }}</h1>
+        <p class="page-copy">
+          {{ card.jobTitle }}
+          @if (startsAt(card); as start) { · {{ start | date: 'EEE d MMM, h:mm a' }} · {{ card.durationMinutes || 60 }} min }
+        </p>
       </div>
-    </div>
+      <div class="header-actions">
+        <button type="button" class="secondary-button" (click)="openResume()">
+          <span class="material-icons" aria-hidden="true">description</span>Resume
+        </button>
+        <span class="status" [attr.data-status]="card.status">{{ submitted ? 'Submitted' : 'Draft' }}</span>
+      </div>
+    </header>
 
-    <div class="header-actions">
-      <button class="btn-cancel" (click)="cancel()">Cancel</button>
-      <button class="btn-draft" (click)="saveDraft()">Save Draft</button>
-      <button class="btn-submit" (click)="submitScorecard()" [disabled]="!isComplete">
-        Submit Scorecard
-      </button>
-    </div>
-  </div>
+    @if (error) { <div class="notice error" role="alert">{{ error }}</div> }
+    @if (message) { <div class="notice ok" role="status">{{ message }}</div> }
 
-  <!-- Progress Bar -->
-  <div class="progress-section">
-    <div class="progress-info">
-      <span>Completion: {{ completionPercentage.toFixed(0) }}%</span>
-      <span class="weighted-score">
-        Weighted Score: <strong [class]="getRatingClass(weightedScore)">{{ weightedScore.toFixed(1) }}/5.0</strong>
-      </span>
-    </div>
-    <div class="progress-bar">
-      <div class="progress-fill" [style.width.%]="completionPercentage"></div>
-    </div>
-  </div>
+    @if (card.questions.length) {
+      <section class="panel" aria-labelledby="questions-heading">
+        <h2 id="questions-heading">Questions to ask</h2>
+        <ol class="questions">
+          @for (question of card.questions; track $index) {
+            <li>{{ question.text }} @if (question.category) { <span class="muted">{{ question.category }}</span> }</li>
+          }
+        </ol>
+      </section>
+    }
 
-  <!-- Interview Type -->
-  <div class="form-section">
-    <label>Interview Type</label>
-    <select [(ngModel)]="scorecard.interviewType" class="form-select">
-      <option *ngFor="let type of interviewTypes" [value]="type">{{ type }}</option>
-    </select>
-  </div>
-
-  <!-- Evaluation Criteria -->
-  <div class="criteria-section">
-    <h2>Evaluation Criteria</h2>
-    <p class="section-subtitle">Rate each criterion on a scale of 1-5 and provide supporting notes</p>
-
-    <div *ngFor="let group of groupedCriteria" class="criteria-group">
-      <h3 class="category-title">{{ group.category }}</h3>
-
-      <div class="criteria-list">
-        <div *ngFor="let criterion of group.items" class="criterion-card">
-          <div class="criterion-header">
-            <div class="criterion-name">
-              <span class="criterion-label">{{ criterion.criterion }}</span>
-              <span class="weight-badge">Weight: {{ criterion.weight }}x</span>
-            </div>
-            <div class="rating-display" [class]="getRatingClass(criterion.rating)">
-              {{ criterion.rating > 0 ? criterion.rating + '/5 - ' + getRatingLabel(criterion.rating) : 'Not Rated' }}
-            </div>
+    <section class="panel" aria-labelledby="ratings-heading">
+      <div class="panel-head">
+        <h2 id="ratings-heading">Ratings</h2>
+        <span class="muted">{{ ratedCount }} of {{ ratings.length }} rated</span>
+      </div>
+      @for (rating of ratings; track rating.criterion) {
+        <div class="criterion">
+          <div class="criterion-name">
+            <strong>{{ rating.criterion }}</strong>
+            <span class="muted">{{ rating.category ? rating.category + ' · ' : '' }}{{ weightLabel(rating.weight) }}</span>
           </div>
-
-          <!-- Rating Buttons -->
-          <div class="rating-buttons">
-            <button
-              *ngFor="let rating of [1, 2, 3, 4, 5]"
-              class="rating-btn"
-              [class.selected]="criterion.rating === rating"
-              [class]="getRatingClass(rating)"
-              (click)="criterion.rating = rating">
-              {{ rating }}
-            </button>
+          <div class="scale" role="radiogroup" [attr.aria-label]="rating.criterion">
+            @for (option of ratingOptions; track option.value) {
+              <button
+                type="button"
+                role="radio"
+                [attr.aria-checked]="rating.rating === option.value"
+                [class.selected]="rating.rating === option.value"
+                [disabled]="submitted"
+                [title]="option.label"
+                (click)="rate(rating, option.value)"
+              >{{ option.value }}</button>
+            }
+            <span class="scale-label">{{ ratingLabel(rating.rating) }}</span>
           </div>
-
-          <!-- Notes -->
-          <textarea
-            [(ngModel)]="criterion.notes"
-            class="criterion-notes"
-            placeholder="Add notes to support your rating..."
-            rows="2"></textarea>
+          @if (!submitted) {
+            <input class="criterion-notes" [(ngModel)]="rating.notes" maxlength="2000" placeholder="Evidence (optional)"
+                   [attr.aria-label]="'Evidence for ' + rating.criterion" />
+          } @else if (rating.notes) {
+            <p class="criterion-notes-text">{{ rating.notes }}</p>
+          }
         </div>
-      </div>
-    </div>
-  </div>
+      }
+    </section>
 
-  <!-- Overall Assessment -->
-  <div class="overall-section">
-    <h2>Overall Assessment</h2>
-
-    <div class="form-group">
-      <label>Overall Notes</label>
-      <textarea
-        [(ngModel)]="scorecard.overallNotes"
-        class="form-textarea"
-        placeholder="Summarize the candidate's performance, key strengths, areas of concern, and any additional observations..."
-        rows="6"></textarea>
-    </div>
-
-    <div class="form-group">
-      <label>Recommendation</label>
-      <div class="recommendation-buttons">
-        <button
-          class="recommendation-btn"
-          [class.selected]="scorecard.recommendation === 'Strong Hire'"
-          [class.strong-hire]="scorecard.recommendation === 'Strong Hire'"
-          (click)="scorecard.recommendation = 'Strong Hire'">
-          Strong Hire
-        </button>
-        <button
-          class="recommendation-btn"
-          [class.selected]="scorecard.recommendation === 'Hire'"
-          [class.hire]="scorecard.recommendation === 'Hire'"
-          (click)="scorecard.recommendation = 'Hire'">
-          Hire
-        </button>
-        <button
-          class="recommendation-btn"
-          [class.selected]="scorecard.recommendation === 'No Hire'"
-          [class.no-hire]="scorecard.recommendation === 'No Hire'"
-          (click)="scorecard.recommendation = 'No Hire'">
-          No Hire
-        </button>
-        <button
-          class="recommendation-btn"
-          [class.selected]="scorecard.recommendation === 'Strong No Hire'"
-          [class.strong-no-hire]="scorecard.recommendation === 'Strong No Hire'"
-          (click)="scorecard.recommendation = 'Strong No Hire'">
-          Strong No Hire
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Footer Actions -->
-  <div class="scorecard-footer">
-    <div class="completion-warning" *ngIf="!isComplete">
-      ⚠️ Please complete all ratings, add overall notes, and select a recommendation before submitting
-    </div>
-    <div class="completion-success" *ngIf="isComplete">
-      ✓ Scorecard is complete and ready to submit
-    </div>
-    <div class="footer-actions">
-      <button class="btn-cancel" (click)="cancel()">Cancel</button>
-      <button class="btn-draft" (click)="saveDraft()">Save Draft</button>
-      <button class="btn-submit" (click)="submitScorecard()" [disabled]="!isComplete">
-        Submit Scorecard
-      </button>
-    </div>
-  </div>
-</div>
+    <section class="panel" aria-labelledby="overall-heading">
+      <h2 id="overall-heading">Overall</h2>
+      @if (!submitted) {
+        <label class="block-label" for="overall-notes">Summary for the team</label>
+        <textarea id="overall-notes" rows="4" maxlength="10000" [(ngModel)]="overallNotes"
+                  placeholder="What you saw, what worries you, and what you would do next"></textarea>
+        <fieldset class="recommendation">
+          <legend>Recommendation</legend>
+          @for (option of recommendations; track option.value) {
+            <label [class.selected]="recommendation === option.value">
+              <input type="radio" name="recommendation" [value]="option.value" [(ngModel)]="recommendation" />
+              {{ option.label }}
+            </label>
+          }
+        </fieldset>
+        <div class="actions">
+          <button type="button" class="primary-button" [disabled]="saving || !complete" (click)="save(true)">
+            {{ saving ? 'Saving…' : 'Submit scorecard' }}
+          </button>
+          <button type="button" class="secondary-button" [disabled]="saving" (click)="save(false)">Save draft</button>
+          @if (!complete) { <span class="muted">Rate every criterion and choose a recommendation to submit.</span> }
+        </div>
+      } @else {
+        <p class="summary">{{ overallNotes || 'No summary.' }}</p>
+        <p><strong>{{ recommendationLabel(recommendation) }}</strong>
+          @if (card.weightedScore) { <span class="muted"> · weighted score {{ card.weightedScore }} of 5</span> }
+          @if (card.submittedAt) { <span class="muted"> · submitted {{ card.submittedAt | date: 'd MMM, h:mm a' }}</span> }
+        </p>
+      }
+    </section>
+  } @else {
+    <div class="notice error" role="alert">{{ error }}</div>
+  }
+</main>

@@ -277,6 +277,30 @@
               </section>
             }
 
+            <section class="detail-section" aria-labelledby="scorecards-heading">
+              <div class="section-heading">
+                <div><p class="eyebrow">Interview team</p><h3 id="scorecards-heading">Scorecards</h3></div>
+                <span class="evidence-note">Only submitted scorecards show here</span>
+              </div>
+              @for (card of scorecards; track card.id) {
+                <div class="scorecard-summary">
+                  <div class="scorecard-top">
+                    <strong>{{ card.interviewerName }}</strong>
+                    <span class="recommendation" [attr.data-recommendation]="card.recommendation">{{ recommendationLabel(card.recommendation) }}</span>
+                    @if (card.weightedScore) { <span class="muted">{{ card.weightedScore }} of 5</span> }
+                  </div>
+                  <div class="keyword-list">
+                    @for (rating of card.ratings; track rating.criterion) {
+                      <span class="keyword">{{ rating.criterion }} · {{ rating.rating || '–' }}</span>
+                    }
+                  </div>
+                  @if (card.overallNotes) { <p>{{ card.overallNotes }}</p> }
+                </div>
+              } @empty {
+                <span class="muted">No scorecards yet. Interviewers submit theirs from My interviews.</span>
+              }
+            </section>
+
             <section class="detail-section history-section">
               <div class="section-heading"><div><p class="eyebrow">Team context</p><h3>Notes and activity</h3></div></div>
               <div class="note-composer">

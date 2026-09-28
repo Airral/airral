@@ -32,6 +32,9 @@ public class InterviewResponse {
 
     /** The teammates interviewing. */
     private List<InterviewerSummary> interviewers;
+
+    /** On My interviews only: the viewer's own scorecard, DRAFT or SUBMITTED, or null before they start one. */
+    private String myScorecardStatus;
     
     // Feedback
     private String feedback;

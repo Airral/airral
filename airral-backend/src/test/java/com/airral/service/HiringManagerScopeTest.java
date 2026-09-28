@@ -184,7 +184,7 @@ class HiringManagerScopeTest {
         InternalJobCatalogProjectionService catalogue = mock(InternalJobCatalogProjectionService.class);
         when(catalogue.sync(any(Job.class))).thenReturn(Mono.empty());
         JobService service = new JobService(jobs, users, organizations, mock(ExternalJobPostingStore.class),
-                catalogue, mock(DepartmentRepository.class));
+                catalogue, mock(DepartmentRepository.class), mock(com.airral.repository.InterviewKitRepository.class));
         when(users.findById(candidateHiringManager.getId())).thenReturn(Mono.just(candidateHiringManager));
         return service;
     }
