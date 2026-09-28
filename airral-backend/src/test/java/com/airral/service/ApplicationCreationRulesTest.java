@@ -2,12 +2,16 @@ package com.airral.service;
 
 import com.airral.controller.ApplicationController;
 import com.airral.domain.Application;
+import com.airral.domain.CandidateProfile;
 import com.airral.domain.Job;
 import com.airral.domain.Organization;
 import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.SubmitApplicationRequest;
+import com.airral.exception.BadRequestException;
+import com.airral.exception.ConflictException;
 import com.airral.exception.NotFoundException;
 import com.airral.repository.ApplicationRepository;
+import com.airral.repository.CandidateProfileRepository;
 import com.airral.repository.JobRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.repository.UserRepository;
@@ -46,12 +50,16 @@ class ApplicationCreationRulesTest {
     private final ApplicationRepository applications = mock(ApplicationRepository.class);
     private final JobRepository jobs = mock(JobRepository.class);
     private final OrganizationRepository organizations = mock(OrganizationRepository.class);
+    private final CandidateProfileRepository profiles = mock(CandidateProfileRepository.class);
     private ApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new ApplicationService(applications, jobs, mock(UserRepository.class), organizations);
+        service = new ApplicationService(applications, jobs, mock(UserRepository.class), organizations, profiles);
         when(applications.save(any(Application.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        // Amy, applicant 7, has a resume on file and has not applied yet.
+        when(profiles.findByUserId(7L)).thenReturn(Mono.just(CandidateProfile.builder().userId(7L).activeResumeDocumentId(70L).build()));
+        when(applications.existsByJobIdAndApplicantId(JOB, 7L)).thenReturn(Mono.just(false));
     }
 
     private void jobIs(JobStatus status, long companyId, String companyStatus) {
@@ -89,6 +97,52 @@ class ApplicationCreationRulesTest {
         Application saved = saved();
         assertThat(saved.getApplicantId()).isEqualTo(7L);
         assertThat(saved.getApplicantEmail()).isEqualTo("amy@example.com");
+        // The resume on file is attached, and a link the request names is not.
+        assertThat(saved.getResumeDocumentId()).isEqualTo(70L);
+        assertThat(saved.getResumeUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("an applicant applies to a job once")
+    void applicantAppliesOnce() {
+        jobIs(JobStatus.OPEN, OUR_COMPANY, CompanyVerificationService.VERIFIED);
+        when(applications.existsByJobIdAndApplicantId(JOB, 7L)).thenReturn(Mono.just(true));
+
+        StepVerifier.create(service.applyAsApplicant(request(), 7L, "amy@example.com"))
+                .expectError(ConflictException.class)
+                .verify();
+        verify(applications, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("an applicant without a resume on file is asked to upload one")
+    void applicantNeedsAResume() {
+        jobIs(JobStatus.OPEN, OUR_COMPANY, CompanyVerificationService.VERIFIED);
+        when(profiles.findByUserId(7L)).thenReturn(Mono.just(CandidateProfile.builder().userId(7L).build()));
+
+        StepVerifier.create(service.applyAsApplicant(request(), 7L, "amy@example.com"))
+                .expectErrorSatisfies(error -> assertThat(error)
+                        .isInstanceOf(BadRequestException.class)
+                        .hasMessageContaining("resume"))
+                .verify();
+        verify(applications, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("HR opens an attached resume only for its own company's jobs in scope")
+    void resumeFollowsTheApplication() {
+        Application attached = Application.builder().id(55L).jobId(JOB).applicantId(7L).resumeDocumentId(70L).build();
+        when(applications.findByIdAndOrganizationId(55L, OUR_COMPANY)).thenReturn(Mono.just(attached));
+        Application typedLink = Application.builder().id(56L).jobId(JOB).resumeUrl("https://example.com/cv.pdf").build();
+        when(applications.findByIdAndOrganizationId(56L, OUR_COMPANY)).thenReturn(Mono.just(typedLink));
+
+        StepVerifier.create(service.applicationWithResume(55L, OUR_COMPANY, JobScope.wholeCompany()))
+                .assertNext(found -> assertThat(found.getResumeDocumentId()).isEqualTo(70L))
+                .verifyComplete();
+        StepVerifier.create(service.applicationWithResume(55L, OUR_COMPANY, JobScope.only(java.util.Set.of(99L))))
+                .expectError(NotFoundException.class).verify();
+        StepVerifier.create(service.applicationWithResume(56L, OUR_COMPANY, JobScope.wholeCompany()))
+                .expectError(NotFoundException.class).verify();
     }
 
     @Test
@@ -150,7 +204,7 @@ class ApplicationCreationRulesTest {
         when(jwt.getEmailFromToken("tok")).thenReturn("amy@example.com");
         when(stub.applyAsApplicant(any(), any(), any())).thenReturn(Mono.empty());
 
-        new ApplicationController(stub, jwt, mock(HiringScope.class)).submitApplication(request(), "Bearer tok").block();
+        new ApplicationController(stub, jwt, mock(HiringScope.class), mock(CandidateProfileService.class)).submitApplication(request(), "Bearer tok").block();
 
         verify(stub).applyAsApplicant(any(), eq(7L), eq("amy@example.com"));
     }
@@ -162,7 +216,7 @@ class ApplicationCreationRulesTest {
         JwtTokenProvider jwt = mock(JwtTokenProvider.class);
         when(jwt.getRoleFromToken("tok")).thenReturn("EMPLOYEE");
 
-        StepVerifier.create(new ApplicationController(stub, jwt, mock(HiringScope.class)).submitApplication(request(), "Bearer tok"))
+        StepVerifier.create(new ApplicationController(stub, jwt, mock(HiringScope.class), mock(CandidateProfileService.class)).submitApplication(request(), "Bearer tok"))
                 .assertNext(response -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN))
                 .verifyComplete();
         verifyNoInteractions(stub);

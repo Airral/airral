@@ -6,7 +6,10 @@ import com.airral.domain.enums.ApplicationStatus;
 import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.SubmitApplicationRequest;
 import com.airral.dto.response.ApplicationResponse;
+import com.airral.exception.BadRequestException;
+import com.airral.exception.ConflictException;
 import com.airral.repository.ApplicationRepository;
+import com.airral.repository.CandidateProfileRepository;
 import com.airral.repository.JobRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.exception.NotFoundException;
@@ -27,15 +30,18 @@ public class ApplicationService {
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
     private final OrganizationRepository organizationRepository;
+    private final CandidateProfileRepository candidateProfileRepository;
 
     public ApplicationService(ApplicationRepository applicationRepository,
                             JobRepository jobRepository,
                             UserRepository userRepository,
-                            OrganizationRepository organizationRepository) {
+                            OrganizationRepository organizationRepository,
+                            CandidateProfileRepository candidateProfileRepository) {
         this.applicationRepository = applicationRepository;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
+        this.candidateProfileRepository = candidateProfileRepository;
     }
 
     /**
@@ -44,7 +50,9 @@ public class ApplicationService {
      * <p>The application is filed under the caller's own account and address,
      * whatever the request names, and only against a job candidates can see:
      * OPEN, at a company AIRRAL has verified. Any other job answers "Job not
-     * found", the same as one that does not exist.
+     * found", the same as one that does not exist. It carries the resume the
+     * applicant has on file, never a link the request names, and one person
+     * applies to a job once.
      */
     public Mono<ApplicationResponse> applyAsApplicant(SubmitApplicationRequest request,
                                                       Long applicantId, String applicantEmail) {
@@ -53,8 +61,21 @@ public class ApplicationService {
                 .filterWhen(found -> organizationRepository.findById(found.getOrganizationId())
                         .map(CompanyVerificationService::isPublishable)
                         .defaultIfEmpty(false))
-                .switchIfEmpty(Mono.error(new NotFoundException("Job not found")));
-        return create(job, request, applicantId, applicantEmail);
+                .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
+                .flatMap(found -> applicationRepository.existsByJobIdAndApplicantId(found.getId(), applicantId)
+                        .flatMap(applied -> applied
+                                ? Mono.<Job>error(new ConflictException("You have already applied to this job"))
+                                : Mono.just(found)));
+        return job.zipWith(resumeOnFile(applicantId))
+                .flatMap(found -> create(Mono.just(found.getT1()), request, applicantId, applicantEmail,
+                        null, found.getT2()));
+    }
+
+    /** The applicant's active resume. Applying needs one: the company reviews it. */
+    private Mono<Long> resumeOnFile(Long applicantId) {
+        return candidateProfileRepository.findByUserId(applicantId)
+                .mapNotNull(profile -> profile.getActiveResumeDocumentId())
+                .switchIfEmpty(Mono.error(new BadRequestException("Upload your resume before you apply")));
     }
 
     /**
@@ -67,11 +88,25 @@ public class ApplicationService {
         Mono<Job> job = jobRepository.findById(request.getJobId())
                 .filter(found -> organizationId != null && organizationId.equals(found.getOrganizationId()))
                 .switchIfEmpty(Mono.error(new NotFoundException("Job not found")));
-        return create(job, request, null, request.getApplicantEmail());
+        return create(job, request, null, request.getApplicantEmail(), request.getResumeUrl(), null);
+    }
+
+    /**
+     * The applicant and resume document behind an application, for the company
+     * reviewing it: only in the caller's company and jobs, and only when a resume
+     * was attached.
+     */
+    public Mono<Application> applicationWithResume(Long id, Long organizationId, JobScope scope) {
+        return applicationRepository.findByIdAndOrganizationId(id, organizationId)
+                .filter(application -> scope.allows(application.getJobId()))
+                .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
+                .filter(application -> application.getResumeDocumentId() != null && application.getApplicantId() != null)
+                .switchIfEmpty(Mono.error(new NotFoundException("No resume is attached to this application")));
     }
 
     private Mono<ApplicationResponse> create(Mono<Job> jobLookup, SubmitApplicationRequest request,
-                                             Long applicantId, String applicantEmail) {
+                                             Long applicantId, String applicantEmail,
+                                             String resumeUrl, Long resumeDocumentId) {
         return jobLookup
                 .flatMap(job -> {
                     // Calculate ATS score
@@ -83,7 +118,8 @@ public class ApplicationService {
                             .applicantName(request.getApplicantName())
                             .applicantEmail(applicantEmail)
                             .applicantPhone(request.getApplicantPhone())
-                            .resumeUrl(request.getResumeUrl())
+                            .resumeUrl(resumeUrl)
+                            .resumeDocumentId(resumeDocumentId)
                             .coverLetter(request.getCoverLetter())
                             .status(ApplicationStatus.SUBMITTED)
                             .atsScore(atsScore)
@@ -222,6 +258,7 @@ public class ApplicationService {
                                     .applicantEmail(application.getApplicantEmail())
                                     .applicantPhone(application.getApplicantPhone())
                                     .resumeUrl(application.getResumeUrl())
+                                    .resumeOnFile(application.getResumeDocumentId() != null)
                                     .coverLetter(application.getCoverLetter())
                                     .status(application.getStatus())
                                     .atsScore(application.getAtsScore())

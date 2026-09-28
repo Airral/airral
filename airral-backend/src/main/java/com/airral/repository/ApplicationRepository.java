@@ -61,4 +61,7 @@ public interface ApplicationRepository extends R2dbcRepository<Application, Long
            "JOIN jobs j ON a.job_id = j.id " +
            "WHERE j.organization_id = :organizationId AND a.status = 'SUBMITTED'")
     Mono<Long> countNewApplicationsByOrganizationId(Long organizationId);
+
+    @Query("SELECT COUNT(*) > 0 FROM applications WHERE job_id = :jobId AND applicant_id = :applicantId")
+    Mono<Boolean> existsByJobIdAndApplicantId(Long jobId, Long applicantId);
 }

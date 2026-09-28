@@ -7,9 +7,12 @@ import com.airral.dto.response.ApplicationResponse;
 import com.airral.exception.BadRequestException;
 import com.airral.security.JwtTokenProvider;
 import com.airral.service.ApplicationService;
+import com.airral.service.CandidateProfileService;
 import com.airral.service.JobScope;
 import com.airral.service.HiringScope;
 import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,11 +26,14 @@ public class ApplicationController {
 
     private final ApplicationService applicationService;
     private final HiringScope hiringScope;
+    private final CandidateProfileService candidateProfileService;
     private final JwtTokenProvider jwtTokenProvider;
 
     public ApplicationController(ApplicationService applicationService, JwtTokenProvider jwtTokenProvider,
-                                 HiringScope hiringScope) {
+                                 HiringScope hiringScope,
+                                 CandidateProfileService candidateProfileService) {
         this.hiringScope = hiringScope;
+        this.candidateProfileService = candidateProfileService;
         this.applicationService = applicationService;
         this.jwtTokenProvider = jwtTokenProvider;
     }
@@ -174,6 +180,33 @@ public class ApplicationController {
             return authHeader.substring(7);
         }
         throw new BadRequestException("Invalid authorization header");
+    }
+
+    /**
+     * Open the resume attached to an application
+     * GET /api/applications/{id}/resume
+     *
+     * <p>For the company reviewing the application: HR, or the job's hiring
+     * manager. The applicant's own resume endpoints only ever serve the
+     * applicant.
+     */
+    @GetMapping("/{id}/resume")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<Resource>> getApplicationResume(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+
+        return scopeFor(token)
+                .flatMap(scope -> applicationService.applicationWithResume(id, organizationId, scope))
+                .flatMap(application -> candidateProfileService.getApplicationResume(
+                        application.getApplicantId(), application.getResumeDocumentId()))
+                .map(download -> ResponseEntity.ok()
+                        .contentType(download.mediaType())
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + download.fileName() + "\"")
+                        .body(download.resource()));
     }
 
     /** The jobs this caller may work on: all of the company's, or a hiring manager's own. */

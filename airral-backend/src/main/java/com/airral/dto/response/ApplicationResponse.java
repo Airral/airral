@@ -25,6 +25,8 @@ public class ApplicationResponse {
     private String applicantPhone;
     
     private String resumeUrl;
+    /** Whether the applicant's resume is attached, for the company to open. */
+    private Boolean resumeOnFile;
     private String coverLetter;
     
     private ApplicationStatus status;

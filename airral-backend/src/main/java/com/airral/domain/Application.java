@@ -28,6 +28,8 @@ public class Application {
     private Long applicantId; // Reference to users table (can be null for external applicants)
     private String applicantName;
     private String applicantEmail;
+    /** The applicant's resume on file when they applied on apply.airral.com. */
+    private Long resumeDocumentId;
     private String applicantPhone;
 
     // Application materials

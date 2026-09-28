@@ -179,6 +179,22 @@ public class CandidateProfileService {
                 );
     }
 
+    /**
+     * The resume an applicant attached to an application, for the company
+     * reviewing it. The caller has already checked the application is theirs
+     * to see; the document must still belong to that applicant.
+     */
+    public Mono<ResumeDownload> getApplicationResume(Long applicantId, Long documentId) {
+        return resumeDocumentRepository.findByIdAndUserId(documentId, applicantId)
+                .switchIfEmpty(Mono.error(new NotFoundException("Resume not found")))
+                .flatMap(document -> resumeStorageService.load(applicantId, document)
+                        .map(resource -> new ResumeDownload(
+                                resource,
+                                downloadFileName(document),
+                                mediaTypeForResume(document.getFileExtension())
+                        )));
+    }
+
     public Mono<ResumeDownload> getResume(String email, Long documentId) {
         return userRepository.findByEmail(email)
                 .switchIfEmpty(Mono.error(new NotFoundException("User not found")))

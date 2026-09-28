@@ -26,7 +26,7 @@ public class SubmitApplicationRequest {
 
     private String applicantPhone;
 
-    @NotBlank(message = "Resume URL is required")
+    /** A link to the resume, for a candidate HR adds by hand. An applicant's own resume is attached from their profile. */
     private String resumeUrl;
 
     private String coverLetter;

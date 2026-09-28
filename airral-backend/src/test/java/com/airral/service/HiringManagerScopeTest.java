@@ -67,7 +67,8 @@ class HiringManagerScopeTest {
 
     @BeforeEach
     void setUp() {
-        applicationService = new ApplicationService(applications, jobs, users, organizations);
+        applicationService = new ApplicationService(applications, jobs, users, organizations,
+                mock(com.airral.repository.CandidateProfileRepository.class));
         interviewService = new InterviewService(interviews, applications, jobs, users);
         encounterService = new HrEncounterService(encounters, applications, jobs, users);
 
