@@ -41,6 +41,10 @@ to check before applying, and what to do next.
 - **Run it against a specific job** to see which requirements you match and which
   you don't.
 - **Save jobs to a tracker** with six columns, from Saved through to Rejected.
+- **Apply to jobs companies post on AIRRAL** with the resume on your profile, and
+  follow each application's stage on the tracker: applied, in review,
+  interviewing, offer, hired or not moving forward.
+- **Answer an offer** a company sends you, right on the tracker.
 - **Get ranked results** once your profile knows your target roles, skills and
   location.
 
@@ -53,32 +57,36 @@ to check before applying, and what to do next.
 
 ## Side two — if you're the one hiring
 
-**[app.airral.com](https://app.airral.com)** is the employer's workspace. Write up a
-role, publish it, and it appears on the public board alongside everything else. From
-there you work the pipeline.
+**[app.airral.com](https://app.airral.com)** is the employer's workspace. Sign your
+company up at [airral.com/sign-up](https://airral.com/sign-up). AIRRAL reviews every new
+company, usually within a business day, and once it's verified your published jobs
+appear on the public board alongside everything else. A checklist on the home page
+walks you through the first steps.
 
 | What you can do | State |
 | --- | --- |
-| Write and publish a job, then close or reopen it | works |
-| See every applicant, with counters per role | works |
-| Move someone through review, shortlist, interview, offer, hired or rejected | works |
-| Book interviews on a calendar and record feedback with a rating | works |
-| Keep notes and a shared timeline on each candidate | works |
-| Draft an offer | works |
-| Send that offer to the candidate | **broken** |
-| Hiring analytics | partial |
-| Interview scorecards, hiring stages, interview kits, integrations | not wired up |
+| Sign your company up and invite your team by email: HR managers, hiring managers and interviewers | works |
+| Keep a company profile that shows on your jobs: logo, website, industry, size, a few lines about you | works |
+| Write and publish a job with a department, a hiring manager and an interview kit; close, reopen, or mark it filled | works |
+| Get applications inside AIRRAL, with the applicant's resume, or add a candidate by hand | works |
+| Move someone through review, shortlist, interview, offer, hired or rejected, with notes and a shared timeline | works |
+| Book interviews with teammates on them, shown in everyone's own time zone, with calendar invites | works |
+| Interviewers score each interview against the job's kit; drafts stay private until submitted | works |
+| Send an offer, which the candidate accepts or declines on AIRRAL | works |
+| Close out a job after a hire: mark it filled and turn down the rest | works |
+| Emails to candidates and the team: application received, interview booked, offers, decisions | once SMTP is set up in production |
+| Hiring analytics | partial, and not in the menu yet |
+| Custom hiring stages, integrations, plans and billing | not built yet |
 
-The core loop is real — everything marked *works* writes to a database and is still
-there when you reload. The settings screens look finished but mostly aren't connected
-to anything yet.
+Everything marked *works* writes to a database and is still there when you reload,
+and one automated test runs the whole loop, from signup to hire, on every change.
+Hiring managers see only the jobs they hire for, and interviewers only the interviews
+they're on. Settings only shows screens that save.
 
-> **Before you try this side.** You can't sign yourself up. There's no working
-> registration on any of the portals, and Google sign-in takes you through the account
-> picker and then fails, so an account has to be created for you. And nothing in the
-> product yet creates an application — so a freshly published job shows an empty
-> Candidates page until someone adds one directly. If you want to look around this
-> side, ask Harjit to set you up first.
+> **Worth knowing.** Sign-in links already arrive by email, through Firebase. The
+> other emails need the API's SMTP settings, which production doesn't have yet: until
+> it does, nobody is emailed about interviews, offers or decisions, so tell candidates
+> yourself.
 
 ---
 
