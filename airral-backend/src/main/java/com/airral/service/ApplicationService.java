@@ -3,10 +3,12 @@ package com.airral.service;
 import com.airral.domain.Application;
 import com.airral.domain.Job;
 import com.airral.domain.enums.ApplicationStatus;
+import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.SubmitApplicationRequest;
 import com.airral.dto.response.ApplicationResponse;
 import com.airral.repository.ApplicationRepository;
 import com.airral.repository.JobRepository;
+import com.airral.repository.OrganizationRepository;
 import com.airral.exception.NotFoundException;
 import com.airral.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -24,30 +26,62 @@ public class ApplicationService {
     private final ApplicationRepository applicationRepository;
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
+    private final OrganizationRepository organizationRepository;
 
     public ApplicationService(ApplicationRepository applicationRepository,
                             JobRepository jobRepository,
-                            UserRepository userRepository) {
+                            UserRepository userRepository,
+                            OrganizationRepository organizationRepository) {
         this.applicationRepository = applicationRepository;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
+        this.organizationRepository = organizationRepository;
     }
 
     /**
-     * Submit a new application
+     * An applicant applying for themselves.
+     *
+     * <p>The application is filed under the caller's own account and address,
+     * whatever the request names, and only against a job candidates can see:
+     * OPEN, at a company AIRRAL has verified. Any other job answers "Job not
+     * found", the same as one that does not exist.
      */
-    public Mono<ApplicationResponse> submitApplication(SubmitApplicationRequest request) {
-        return jobRepository.findById(request.getJobId())
-                .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
+    public Mono<ApplicationResponse> applyAsApplicant(SubmitApplicationRequest request,
+                                                      Long applicantId, String applicantEmail) {
+        Mono<Job> job = jobRepository.findById(request.getJobId())
+                .filter(found -> found.getStatus() == JobStatus.OPEN)
+                .filterWhen(found -> organizationRepository.findById(found.getOrganizationId())
+                        .map(CompanyVerificationService::isPublishable)
+                        .defaultIfEmpty(false))
+                .switchIfEmpty(Mono.error(new NotFoundException("Job not found")));
+        return create(job, request, applicantId, applicantEmail);
+    }
+
+    /**
+     * HR adding a candidate by hand, to one of its own company's jobs.
+     *
+     * <p>The application is linked to no AIRRAL account: HR can name a
+     * candidate, but cannot file an application under somebody's account.
+     */
+    public Mono<ApplicationResponse> addCandidate(SubmitApplicationRequest request, Long organizationId) {
+        Mono<Job> job = jobRepository.findById(request.getJobId())
+                .filter(found -> organizationId != null && organizationId.equals(found.getOrganizationId()))
+                .switchIfEmpty(Mono.error(new NotFoundException("Job not found")));
+        return create(job, request, null, request.getApplicantEmail());
+    }
+
+    private Mono<ApplicationResponse> create(Mono<Job> jobLookup, SubmitApplicationRequest request,
+                                             Long applicantId, String applicantEmail) {
+        return jobLookup
                 .flatMap(job -> {
                     // Calculate ATS score
                     int atsScore = calculateAtsScore(job, request.getCoverLetter());
                     
                     Application application = Application.builder()
                             .jobId(request.getJobId())
-                            .applicantId(request.getApplicantId())
+                            .applicantId(applicantId)
                             .applicantName(request.getApplicantName())
-                            .applicantEmail(request.getApplicantEmail())
+                            .applicantEmail(applicantEmail)
                             .applicantPhone(request.getApplicantPhone())
                             .resumeUrl(request.getResumeUrl())
                             .coverLetter(request.getCoverLetter())

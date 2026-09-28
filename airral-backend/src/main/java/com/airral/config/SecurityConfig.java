@@ -124,9 +124,12 @@ public class SecurityConfig {
                         // POST /api/applications was public too. It is the only
                         // write endpoint outside the auth flow that took no
                         // credential, so an employer's pipeline could be filled
-                        // with fabricated applications by anyone. Nothing needed
-                        // it: the only caller is the HR portal, which is signed
-                        // in, so it now falls through to authenticated() below.
+                        // with fabricated applications by anyone. It now falls
+                        // through to authenticated() below, which alone is not
+                        // enough when anyone can register, so
+                        // ApplicationController decides the rest: an applicant
+                        // applies as themselves, and HR adds candidates only to
+                        // its own company's jobs.
                         
                         // Swagger/OpenAPI
                         .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**", "/webjars/**").permitAll()

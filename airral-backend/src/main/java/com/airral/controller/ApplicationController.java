@@ -1,6 +1,7 @@
 package com.airral.controller;
 
 import com.airral.domain.enums.ApplicationStatus;
+import com.airral.domain.enums.UserRole;
 import com.airral.dto.request.SubmitApplicationRequest;
 import com.airral.dto.response.ApplicationResponse;
 import com.airral.exception.BadRequestException;
@@ -27,15 +28,37 @@ public class ApplicationController {
     }
 
     /**
-     * Submit a new application (public - no auth required)
+     * Create an application
      * POST /api/applications
+     *
+     * <p>An applicant applies for themselves, and HR adds a candidate to one
+     * of its own company's jobs. Nobody else creates applications, and nobody
+     * files one under another person's account.
      */
     @PostMapping
+    @PreAuthorize("hasAnyAuthority('APPLICANT', 'HR_MANAGER', 'ADMIN')")
     public Mono<ResponseEntity<ApplicationResponse>> submitApplication(
-            @Valid @RequestBody SubmitApplicationRequest request) {
-        
-        return applicationService.submitApplication(request)
-                .map(application -> ResponseEntity.status(HttpStatus.CREATED).body(application));
+            @Valid @RequestBody SubmitApplicationRequest request,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        String role = jwtTokenProvider.getRoleFromToken(token);
+
+        Mono<ApplicationResponse> created;
+        if (UserRole.APPLICANT.name().equals(role)) {
+            created = applicationService.applyAsApplicant(request,
+                    jwtTokenProvider.getUserIdFromToken(token),
+                    jwtTokenProvider.getEmailFromToken(token));
+        } else if (UserRole.HR_MANAGER.name().equals(role) || UserRole.ADMIN.name().equals(role)) {
+            created = applicationService.addCandidate(request,
+                    jwtTokenProvider.getOrganizationIdFromToken(token));
+        } else {
+            // @PreAuthorize already turns these away; this keeps the rule true
+            // if the annotation is ever dropped.
+            return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).build());
+        }
+
+        return created.map(application -> ResponseEntity.status(HttpStatus.CREATED).body(application));
     }
 
     /**
