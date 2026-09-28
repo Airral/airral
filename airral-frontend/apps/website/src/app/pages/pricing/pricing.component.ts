@@ -39,7 +39,6 @@ export class PricingComponent {
   readonly headerCtas = WEBSITE_HEADER_CTAS;
 
   readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
-  readonly hrRegisterUrl = `${PORTAL_ROUTES.HR}/login?mode=register`;
 
   /**
    * Plans are for companies hiring on Airral. Candidates never pay —
@@ -60,7 +59,7 @@ export class PricingComponent {
         'Email support',
       ],
       cta: 'Start free',
-      href: this.hrRegisterUrl,
+      route: '/sign-up',
     },
     {
       name: 'Professional',
@@ -78,7 +77,7 @@ export class PricingComponent {
         'Priority support',
       ],
       cta: 'Start a trial',
-      href: this.hrRegisterUrl,
+      route: '/sign-up',
     },
     {
       name: 'Enterprise',
