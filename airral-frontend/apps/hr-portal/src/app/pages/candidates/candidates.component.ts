@@ -87,6 +87,8 @@ export class CandidatesComponent implements OnInit {
   newCandidate: CandidateDraft = { ...EMPTY_DRAFT };
   confirmingReject = false;
   emailOnReject = true;
+  closeOut = { markFilled: true, turnDownOthers: true, notifyCandidates: true };
+  closingOut = false;
 
   loading = true;
   detailLoading = false;
@@ -379,6 +381,62 @@ export class CandidatesComponent implements OnInit {
       STRONG_NO_HIRE: 'Strong no hire',
     };
     return value ? labels[value] : 'No recommendation';
+  }
+
+  /** Candidates on the same job still being considered, whom a close-out would turn down. */
+  othersInProgress(application: Application): number {
+    const inProgress: string[] = [
+      ApplicationStatus.SUBMITTED,
+      ApplicationStatus.UNDER_REVIEW,
+      ApplicationStatus.SHORTLISTED,
+      ApplicationStatus.INTERVIEW_SCHEDULED,
+      ApplicationStatus.INTERVIEWED,
+    ];
+    return this.applications.filter(
+      (other) => other.jobId === application.jobId && other.id !== application.id && inProgress.includes(other.status),
+    ).length;
+  }
+
+  offersOut(application: Application): number {
+    return this.applications.filter(
+      (other) => other.jobId === application.jobId && other.id !== application.id && other.status === ApplicationStatus.OFFER_EXTENDED,
+    ).length;
+  }
+
+  jobFilled(application: Application): boolean {
+    return this.jobs.find((job) => job.id === application.jobId)?.status === 'FILLED';
+  }
+
+  canCloseOut(application: Application): boolean {
+    return application.status === ApplicationStatus.HIRED
+      && (!this.jobFilled(application) || this.othersInProgress(application) > 0);
+  }
+
+  runCloseOut(application: Application): void {
+    if (this.closingOut) return;
+    const request = {
+      markFilled: this.closeOut.markFilled && !this.jobFilled(application),
+      turnDownOthers: this.closeOut.turnDownOthers,
+      notifyCandidates: this.closeOut.turnDownOthers && this.closeOut.notifyCandidates,
+    };
+    if (!request.markFilled && !request.turnDownOthers) return;
+    this.closingOut = true;
+    this.clearMessages();
+    this.jobApi
+      .closeOut(application.jobId, request)
+      .pipe(finalize(() => (this.closingOut = false)))
+      .subscribe({
+        next: (result) => {
+          const done: string[] = [];
+          if (result.markedFilled) done.push('the job is marked filled');
+          if (result.turnedDown) done.push(`${result.turnedDown} other candidate${result.turnedDown === 1 ? ' was' : 's were'} turned down`);
+          this.load();
+          this.success = done.length ? `Done: ${done.join(', and ')}.` : 'Nothing needed closing out.';
+        },
+        error: (error: Error) => {
+          this.error = error.message || 'The job could not be closed out.';
+        },
+      });
   }
 
   firstName(application: Application): string {

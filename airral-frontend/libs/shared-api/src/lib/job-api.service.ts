@@ -1,7 +1,7 @@
 // libs/shared-api/src/lib/job-api.service.ts
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Job, JobStatus, CreateJobRequest } from '@airral/shared-types';
+import { CloseOutRequest, CloseOutResult, Job, JobStatus, CreateJobRequest } from '@airral/shared-types';
 import { ApiClientService } from './api-client.service';
 
 interface OpenJobsParams {
@@ -51,6 +51,11 @@ export class JobApiService {
   /** Open, close or fill a job without touching anything else about it. */
   updateJobStatus(id: number, status: string): Observable<Job> {
     return this.apiClient.put<Job>(`/jobs/${id}/status`, { status });
+  }
+
+  /** Wrap up a job after a hire: mark it filled and turn down the candidates still in progress. */
+  closeOut(id: number, request: CloseOutRequest): Observable<CloseOutResult> {
+    return this.apiClient.post<CloseOutResult>(`/jobs/${id}/close-out`, request);
   }
 
   deleteJob(id: number): Observable<any> {

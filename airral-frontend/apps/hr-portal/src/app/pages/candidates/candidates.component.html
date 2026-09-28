@@ -227,6 +227,33 @@
               </div>
             </section>
 
+            @if (canCloseOut(application)) {
+              <section class="detail-section action-section close-out" aria-labelledby="close-out-heading">
+                <div class="section-heading"><div><p class="eyebrow">Hired</p><h3 id="close-out-heading">Close out {{ jobTitle(application) }}</h3></div></div>
+                @if (!jobFilled(application)) {
+                  <label class="check"><input type="checkbox" [(ngModel)]="closeOut.markFilled" /> Mark the job filled, so it stops taking applications</label>
+                }
+                @if (othersInProgress(application) > 0) {
+                  <label class="check">
+                    <input type="checkbox" [(ngModel)]="closeOut.turnDownOthers" />
+                    Turn down the {{ othersInProgress(application) }} other candidate{{ othersInProgress(application) === 1 ? '' : 's' }} still in progress
+                  </label>
+                  @if (closeOut.turnDownOthers) {
+                    <label class="check indent"><input type="checkbox" [(ngModel)]="closeOut.notifyCandidates" /> Email them that you are not moving forward</label>
+                    @if (closeOut.notifyCandidates && companyVerified === false) {
+                      <p class="field-help">Emails to candidates start once AIRRAL has verified your company.</p>
+                    }
+                  }
+                }
+                @if (offersOut(application) > 0) {
+                  <p class="field-help">{{ offersOut(application) }} candidate{{ offersOut(application) === 1 ? ' has' : 's have' }} an offer out and {{ offersOut(application) === 1 ? 'is' : 'are' }} left as they are. Withdraw the offer on the Offers page first.</p>
+                }
+                <button type="button" class="primary-button" [disabled]="closingOut || (!(closeOut.markFilled && !jobFilled(application)) && !(closeOut.turnDownOthers && othersInProgress(application) > 0))" (click)="runCloseOut(application)">
+                  <span class="material-icons" aria-hidden="true">task_alt</span>{{ closingOut ? 'Closing out…' : 'Close out' }}
+                </button>
+              </section>
+            }
+
             @if (application.status === statuses.SHORTLISTED) {
               <section class="detail-section action-section">
                 <div class="section-heading"><div><p class="eyebrow">Next step</p><h3>Schedule interview</h3></div></div>

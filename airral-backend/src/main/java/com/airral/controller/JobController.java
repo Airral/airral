@@ -1,5 +1,9 @@
 package com.airral.controller;
 
+import com.airral.dto.request.CloseOutRequest;
+import com.airral.dto.response.CloseOutResponse;
+import com.airral.service.HiringScope;
+import com.airral.service.JobCloseOutService;
 import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.CreateJobRequest;
 import com.airral.dto.request.UpdateJobStatusRequest;
@@ -22,10 +26,15 @@ public class JobController {
 
     private final JobService jobService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final JobCloseOutService closeOutService;
+    private final HiringScope hiringScope;
 
-    public JobController(JobService jobService, JwtTokenProvider jwtTokenProvider) {
+    public JobController(JobService jobService, JwtTokenProvider jwtTokenProvider,
+                         JobCloseOutService closeOutService, HiringScope hiringScope) {
         this.jobService = jobService;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.closeOutService = closeOutService;
+        this.hiringScope = hiringScope;
     }
 
     /**
@@ -129,6 +138,26 @@ public class JobController {
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
         return jobService.updateJobStatus(id, request.getStatus(), organizationId)
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * Wrap up a job after a hire: mark it filled, and turn down the candidates
+     * still in progress, emailing them when asked. A hiring manager can do this
+     * for their own jobs.
+     * POST /api/jobs/{id}/close-out
+     */
+    @PostMapping("/{id}/close-out")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<CloseOutResponse>> closeOut(
+            @PathVariable Long id,
+            @RequestBody CloseOutRequest request,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+        return hiringScope.of(organizationId, jwtTokenProvider.getUserIdFromToken(token), jwtTokenProvider.getRoleFromToken(token))
+                .flatMap(scope -> closeOutService.closeOut(id, organizationId, scope, request))
                 .map(ResponseEntity::ok);
     }
 

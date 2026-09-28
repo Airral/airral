@@ -139,6 +139,9 @@ label.check input { accent-color: #087f70; }
 .recommendation { padding: 3px 7px; border: 1px solid #d9dfde; border-radius: 5px; color: #596461; background: #f7f9f8; font-size: 11px; font-weight: 800; }
 .recommendation[data-recommendation='STRONG_HIRE'], .recommendation[data-recommendation='HIRE'] { border-color: #acd6ce; color: #087467; background: #eff9f7; }
 .recommendation[data-recommendation='NO_HIRE'], .recommendation[data-recommendation='STRONG_NO_HIRE'] { border-color: #efc7c3; color: #9d2c24; background: #fff7f6; }
+.close-out { display: grid; gap: 10px; }
+.close-out .primary-button { justify-self: start; margin-top: 4px; }
+label.check.indent { margin-left: 24px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 980px) {
   .pipeline-page { padding: 22px 20px 40px; }

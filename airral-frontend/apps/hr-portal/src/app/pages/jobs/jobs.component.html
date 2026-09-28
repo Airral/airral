@@ -43,7 +43,7 @@
           <h3>{{ job.title }}</h3>
           <span
             [class.paused]="job.status === jobStatus.DRAFT"
-            [class.closed]="job.status === jobStatus.CLOSED"
+            [class.closed]="job.status === jobStatus.CLOSED || job.status === jobStatus.FILLED"
           >
             {{ job.status }}
           </span>
@@ -60,6 +60,10 @@
         <div>
           <span>{{ interviewCount(job.id) }}</span>
           <small>Interviews</small>
+        </div>
+        <div>
+          <span>{{ hiredCount(job.id) }}</span>
+          <small>Hired</small>
         </div>
         <div>
           <span>{{ daysOpen(job.createdAt) }}</span>
@@ -87,7 +91,7 @@
         </button>
         <button
           type="button"
-          *ngIf="job.status === jobStatus.CLOSED"
+          *ngIf="job.status === jobStatus.CLOSED || job.status === jobStatus.FILLED"
           (click)="changeJobStatus(job, jobStatus.OPEN)"
           [disabled]="saving"
         >

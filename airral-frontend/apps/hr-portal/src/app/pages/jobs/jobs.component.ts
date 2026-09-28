@@ -246,6 +246,12 @@ export class JobsComponent implements OnInit {
     return this.applications.filter((application) => application.jobId === jobId).length;
   }
 
+  hiredCount(jobId: number): number {
+    return this.applications.filter(
+      (application) => application.jobId === jobId && application.status === ApplicationStatus.HIRED
+    ).length;
+  }
+
   interviewCount(jobId: number): number {
     const interviewLikeStatuses = new Set<ApplicationStatus>([
       ApplicationStatus.INTERVIEW_SCHEDULED,

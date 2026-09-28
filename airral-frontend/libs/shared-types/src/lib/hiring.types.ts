@@ -341,6 +341,20 @@ export interface ScorecardRequest {
   submit: boolean;
 }
 
+/** Wrapping up a job once someone is hired. Each step is optional. */
+export interface CloseOutRequest {
+  markFilled?: boolean;
+  /** Turn down the candidates still in progress. Anyone with an offer out is left alone. */
+  turnDownOthers?: boolean;
+  notifyCandidates?: boolean;
+}
+
+export interface CloseOutResult {
+  markedFilled: boolean;
+  turnedDown: number;
+  withOpenOffers: number;
+}
+
 export interface ScheduleInterviewRequest {
   applicationId: number;
   /** Wall-clock time in timeZone. */
