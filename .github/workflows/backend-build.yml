@@ -101,6 +101,23 @@ jobs:
           AIRRAL_DB: airral_test_db
         run: ./scripts/check-sync-writes.sh
 
+      # The hiring loop end to end, through the API, on a database of its own:
+      # the application migrates it on startup, so it cannot share the one the
+      # migrations were just applied to. Firebase and email are stubbed inside
+      # the test; everything else runs as in production.
+      - name: Hiring loop, end to end
+        working-directory: airral-backend
+        env:
+          PGHOST: localhost
+          PGUSER: test_user
+          PGPASSWORD: test_password
+          AIRRAL_E2E_DATABASE: airral_e2e_db
+          AIRRAL_E2E_DB_USER: test_user
+          AIRRAL_E2E_DB_PASSWORD: test_password
+        run: |
+          createdb airral_e2e_db
+          ./gradlew test --tests 'com.airral.e2e.HiringLoopEndToEndTest' --rerun
+
       - name: Generate test report
         if: always() && hashFiles('airral-backend/build/test-results/test/*.xml') != ''
         uses: dorny/test-reporter@v1
