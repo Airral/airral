@@ -261,3 +261,21 @@ export function detectRecommendedTier(
 
   return OrganizationTier.ENTERPRISE;
 }
+
+/** What a company says about itself on its public jobs. */
+export interface CompanyProfile {
+  id: number;
+  /** Set at signup. AIRRAL reviewed the company under this name, so it changes through AIRRAL. */
+  name: string;
+  domain?: string | null;
+  website?: string | null;
+  logoUrl?: string | null;
+  industry?: string | null;
+  companySizeRange?: string | null;
+  timezone?: string | null;
+  country?: string | null;
+  about?: string | null;
+  verificationStatus?: 'PENDING' | 'VERIFIED' | 'REJECTED' | string;
+}
+
+export type UpdateCompanyProfileRequest = Omit<CompanyProfile, 'id' | 'name' | 'domain' | 'verificationStatus'>;

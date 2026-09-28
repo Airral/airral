@@ -131,7 +131,7 @@ public class InternalJobCatalogProjectionService {
             Job job,
             Organization organization,
             CandidateJobSummaryResponse summary) {
-        String description = fullDescription(job);
+        String description = fullDescription(job, organization);
 
         return CandidateJobDetailResponse.builder()
                 .jobId(summary.getJobId())
@@ -178,12 +178,40 @@ public class InternalJobCatalogProjectionService {
         return SOURCE_TYPE.toLowerCase(Locale.US) + ":" + boardToken(job) + ":" + job.getId();
     }
 
-    private String fullDescription(Job job) {
+    private String fullDescription(Job job, Organization organization) {
         StringJoiner sections = new StringJoiner("\n\n");
         addSection(sections, null, job.getDescription());
         addSection(sections, "Requirements", job.getRequirements());
         addSection(sections, "Nice to have", job.getNiceToHave());
+        if (organization != null) {
+            addSection(sections, "About " + organization.getName(), aboutCompany(organization));
+        }
         return sections.toString();
+    }
+
+    /**
+     * What the company says about itself in its profile, and the facts it gave:
+     * industry, size and website. Null when it has said nothing yet.
+     */
+    static String aboutCompany(Organization organization) {
+        List<String> facts = new ArrayList<>();
+        if (organization.getIndustry() != null && !organization.getIndustry().isBlank()) {
+            facts.add(organization.getIndustry().trim());
+        }
+        if (organization.getCompanySizeRange() != null && !organization.getCompanySizeRange().isBlank()) {
+            facts.add(organization.getCompanySizeRange().trim() + " people");
+        }
+        if (organization.getWebsite() != null && !organization.getWebsite().isBlank()) {
+            facts.add(organization.getWebsite().trim());
+        }
+        StringJoiner about = new StringJoiner("\n");
+        if (organization.getAbout() != null && !organization.getAbout().isBlank()) {
+            about.add(organization.getAbout().trim());
+        }
+        if (!facts.isEmpty()) {
+            about.add(String.join(" · ", facts));
+        }
+        return about.length() == 0 ? null : about.toString();
     }
 
     private void addSection(StringJoiner sections, String heading, String value) {

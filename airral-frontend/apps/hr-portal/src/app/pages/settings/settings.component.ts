@@ -19,6 +19,11 @@ interface SettingSection {
 export class SettingsComponent {
   readonly sections: SettingSection[] = [
     {
+      title: 'Company profile',
+      description: 'What candidates see about you on your jobs: logo, website, industry and size.',
+      route: '/settings/company'
+    },
+    {
       title: 'Team',
       description: 'Invite the people who hire with you, and see who has access.',
       route: '/settings/team'

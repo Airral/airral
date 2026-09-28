@@ -115,6 +115,12 @@ export const appRoutes: Route[] = [
       import('./pages/settings/settings.component').then((m) => m.SettingsComponent),
   },
   {
+    path: 'settings/company',
+    ...hrAccess,
+    loadComponent: () =>
+      import('./pages/settings/company/company.component').then((m) => m.CompanyComponent),
+  },
+  {
     path: 'settings/team',
     ...hrAccess,
     loadComponent: () =>

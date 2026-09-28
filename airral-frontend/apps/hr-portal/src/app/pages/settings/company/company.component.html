@@ -1,0 +1,71 @@
+<div class="settings-container">
+  <div class="settings-header">
+    <h1>Company profile</h1>
+    <p>What candidates see about you on your jobs at apply.airral.com.</p>
+  </div>
+
+  <p class="message message--error" *ngIf="loadError">{{ loadError }}</p>
+  <p class="hint" *ngIf="loading">Loading…</p>
+
+  <section class="card" aria-labelledby="company-heading" *ngIf="profile">
+    <div class="identity">
+      <div class="logo-preview" aria-hidden="true">
+        <img *ngIf="draft.logoUrl && !logoBroken" [src]="draft.logoUrl" alt="" (error)="logoBroken = true" />
+        <span *ngIf="!draft.logoUrl || logoBroken">{{ profile.name.charAt(0) }}</span>
+      </div>
+      <div>
+        <h2 id="company-heading">{{ profile.name }}</h2>
+        <p class="hint">{{ profile.domain }} · To change your company's name, email contact&#64;airral.com.</p>
+      </div>
+    </div>
+
+    <form class="profile-form" (ngSubmit)="save()" novalidate>
+      <div class="field">
+        <label for="company-website">Website</label>
+        <input id="company-website" name="website" type="url" maxlength="255" placeholder="https://" [(ngModel)]="draft.website" />
+      </div>
+      <div class="field">
+        <label for="company-logo">Logo link <span class="optional">optional</span></label>
+        <input id="company-logo" name="logoUrl" type="url" maxlength="1000" placeholder="https://…/logo.png"
+               [(ngModel)]="draft.logoUrl" (ngModelChange)="logoBroken = false" />
+        <p class="hint" *ngIf="logoBroken">That link does not load as an image.</p>
+      </div>
+      <div class="field">
+        <label for="company-industry">Industry</label>
+        <input id="company-industry" name="industry" maxlength="100" placeholder="e.g. Retail, Healthcare, Software"
+               [(ngModel)]="draft.industry" />
+      </div>
+      <div class="field">
+        <label for="company-size">Size</label>
+        <select id="company-size" name="companySizeRange" [(ngModel)]="draft.companySizeRange">
+          <option value="">Not given</option>
+          <option *ngFor="let size of sizes" [value]="size">{{ size }} people</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="company-zone">Time zone</label>
+        <select id="company-zone" name="timezone" [(ngModel)]="draft.timezone">
+          <option value="">Not given</option>
+          <option *ngFor="let zone of timeZones" [value]="zone">{{ zone }}</option>
+        </select>
+        <p class="hint">Names interview times in emails when a booking has no zone of its own.</p>
+      </div>
+      <div class="field">
+        <label for="company-country">Country <span class="optional">optional</span></label>
+        <input id="company-country" name="country" maxlength="100" [(ngModel)]="draft.country" />
+      </div>
+      <div class="field field--wide">
+        <label for="company-about">About the company</label>
+        <textarea id="company-about" name="about" rows="4" maxlength="2000" [(ngModel)]="draft.about"
+                  placeholder="What you do, who you serve, and what it is like to work with you"></textarea>
+        <p class="hint">Shown under "About {{ profile.name }}" on each open job, with your industry, size and website.</p>
+      </div>
+
+      <p class="message message--ok" *ngIf="message" role="status">{{ message }}</p>
+      <p class="message message--error" *ngIf="error" role="alert">{{ error }}</p>
+      <div class="actions">
+        <button type="submit" class="btn-primary" [disabled]="saving">{{ saving ? 'Saving…' : 'Save profile' }}</button>
+      </div>
+    </form>
+  </section>
+</div>
