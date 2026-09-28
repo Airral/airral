@@ -108,6 +108,10 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/google").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
+                        // The website's contact form. Throttled per address in
+                        // ContactController, and it only ever posts to AIRRAL's
+                        // own Slack channel.
+                        .pathMatchers(HttpMethod.POST, "/api/contact").permitAll()
                         // Unauthenticated by nature: the person following an email
                         // link is often on a different device from the one that
                         // signed up, and someone resetting a password cannot sign

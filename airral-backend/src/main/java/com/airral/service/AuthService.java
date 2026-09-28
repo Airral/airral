@@ -59,6 +59,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
     private final GoogleIdentityService googleIdentityService;
+    private final TeamAlerts teamAlerts;
 
     public AuthService(UserRepository userRepository,
                       OrganizationRepository organizationRepository,
@@ -66,7 +67,8 @@ public class AuthService {
                       PasswordEncoder passwordEncoder,
                       JwtTokenProvider jwtTokenProvider,
                       ObjectMapper objectMapper,
-                      GoogleIdentityService googleIdentityService) {
+                      GoogleIdentityService googleIdentityService,
+                      TeamAlerts teamAlerts) {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
         this.candidateProfileRepository = candidateProfileRepository;
@@ -74,6 +76,7 @@ public class AuthService {
         this.jwtTokenProvider = jwtTokenProvider;
         this.objectMapper = objectMapper;
         this.googleIdentityService = googleIdentityService;
+        this.teamAlerts = teamAlerts;
     }
 
     /**
@@ -405,6 +408,9 @@ public class AuthService {
                                         .build();
 
                                 return userRepository.save(user)
+                                        // Every new company waits for review, so someone at
+                                        // AIRRAL has to hear about it.
+                                        .doOnNext(savedUser -> teamAlerts.newCompany(savedOrg, savedUser))
                                         .flatMap(savedUser -> buildAuthResponse(savedUser, "Organization and account created successfully", true));
                             });
                 });

@@ -7,6 +7,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { ContactApiService } from '@airral/shared-api';
 import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 
@@ -44,6 +45,8 @@ export class ContactComponent {
   };
 
   submitted = false;
+  sending = false;
+  errorMessage = '';
 
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
@@ -87,16 +90,38 @@ export class ContactComponent {
     },
   ];
 
-  constructor(@Inject(PLATFORM_ID) private readonly platformId: object) {}
+  constructor(
+    @Inject(PLATFORM_ID) private readonly platformId: object,
+    private readonly contactApi: ContactApiService
+  ) {}
 
   onSubmit() {
-    if (this.formData.name && this.formData.email && this.formData.message) {
-      // In a real app, you'd send this to a backend API
-      console.log('Form submitted:', this.formData);
-      this.submitted = true;
-      this.formData = { name: '', email: '', subject: '', message: '' };
-      setTimeout(() => (this.submitted = false), 3000);
+    if (!this.formData.name || !this.formData.email || !this.formData.message || this.sending) {
+      return;
     }
+
+    this.sending = true;
+    this.submitted = false;
+    this.errorMessage = '';
+
+    // Thanks only for a message the team received: the API answers 202 once
+    // it is in the team's Slack channel, and an error when it is not.
+    this.contactApi.send({ ...this.formData }).subscribe({
+      next: () => {
+        this.sending = false;
+        this.submitted = true;
+        this.formData = { name: '', email: '', subject: '', message: '' };
+      },
+      error: (error: { status?: number }) => {
+        this.sending = false;
+        this.errorMessage =
+          error?.status === 429
+            ? 'Too many messages from this network. Wait a few minutes, or email contact@airral.com.'
+            : error?.status === 400
+              ? 'A name, a valid email address and a message are needed.'
+              : 'Your message could not be sent. Email contact@airral.com instead.';
+      },
+    });
   }
 
 }

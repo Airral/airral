@@ -71,7 +71,8 @@ class GoogleAccountLinkingTest {
                 mock(PasswordEncoder.class),
                 mock(JwtTokenProvider.class),
                 new ObjectMapper(),
-                googleIdentityService);
+                googleIdentityService,
+                mock(TeamAlerts.class));
 
         // Google has already checked the signature, the audience, the expiry and
         // email_verified by the time AuthService sees this. Everything under test
