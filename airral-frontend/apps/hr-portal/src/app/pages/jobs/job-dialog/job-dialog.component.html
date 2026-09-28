@@ -32,6 +32,16 @@
           <span class="label-hint" *ngIf="departments.length === 0">Add departments in Settings, Departments.</span>
         </label>
         <label>
+          <span class="label-text">Hiring manager</span>
+          <select [(ngModel)]="formData.hiringManagerId">
+            <option [ngValue]="null">None yet</option>
+            <option *ngFor="let person of hiringManagers" [ngValue]="person.id">
+              {{ (person.firstName || '') + ' ' + (person.lastName || '') | slice: 0 : 60 }} ({{ person.email }})
+            </option>
+          </select>
+          <span class="label-hint">Sees and interviews this job's candidates, and no other job's.</span>
+        </label>
+        <label>
           <span class="label-text">Location</span>
           <input [(ngModel)]="formData.location" placeholder="e.g., San Francisco, CA (Remote)" />
         </label>

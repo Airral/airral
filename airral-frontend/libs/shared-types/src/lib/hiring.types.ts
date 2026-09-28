@@ -9,6 +9,8 @@ export interface Job {
   description: string;
   departmentId?: number;
   department?: string;
+  hiringManagerId?: number | null;
+  hiringManagerName?: string | null;
   location?: string;               // e.g., "San Francisco, CA (Remote)"
   employmentType?: string;         // "Full-time", "Part-time", "Contract", "Internship"
   salaryMin?: number;              // Minimum salary
@@ -119,6 +121,7 @@ export interface CreateJobRequest {
   description: string;
   departmentId?: number;
   department?: string;
+  hiringManagerId?: number | null;
   location?: string;
   employmentType?: string;
   salaryMin?: number;

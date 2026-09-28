@@ -2,11 +2,14 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Department } from '@airral/shared-api';
+import { User } from '@airral/shared-types';
 
 export interface JobFormData {
   title: string;
   /** One of the company's departments, or none. */
   departmentId: number | null;
+  /** A manager or HR manager who sees and interviews this job's candidates. */
+  hiringManagerId: number | null;
   location: string;
   employmentType: string;
   salaryMin: string;
@@ -30,10 +33,13 @@ export class JobDialogComponent {
   @Input() editMode = false;
   @Input() saving = false;
   @Input() departments: Department[] = [];
+  /** Active managers and HR managers in the company. */
+  @Input() hiringManagers: User[] = [];
   @Input() linkedInConnected = false;  // Is LinkedIn integration active?
   @Input() formData: JobFormData = {
     title: '',
     departmentId: null,
+    hiringManagerId: null,
     location: '',
     employmentType: 'Full-time',
     salaryMin: '',

@@ -48,7 +48,7 @@
             {{ job.status }}
           </span>
         </div>
-        <p>{{ job.department || 'No department' }} • Owned by {{ job.createdBy }}</p>
+        <p>{{ job.department || 'No department' }} • Owned by {{ job.createdBy }}<ng-container *ngIf="job.hiringManagerName"> • Hiring manager {{ job.hiringManagerName }}</ng-container></p>
         <small>Created {{ job.createdAt | date: 'mediumDate' }}</small>
       </div>
 
@@ -141,6 +141,7 @@
     [editMode]="editingJobId !== null"
     [saving]="saving"
     [departments]="departments"
+    [hiringManagers]="hiringManagers"
     [linkedInConnected]="linkedInConnected"
     [formData]="form"
     (dismiss)="cancelForm()"

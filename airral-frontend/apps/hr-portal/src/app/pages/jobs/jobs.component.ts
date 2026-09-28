@@ -3,8 +3,8 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { finalize, timeout } from 'rxjs/operators';
-import { ApplicationApiService, Department, DepartmentApiService, JobApiService } from '@airral/shared-api';
-import { Application, ApplicationStatus, CreateJobRequest, Job, JobStatus } from '@airral/shared-types';
+import { ApplicationApiService, Department, DepartmentApiService, JobApiService, UserApiService } from '@airral/shared-api';
+import { Application, ApplicationStatus, CreateJobRequest, Job, JobStatus, User } from '@airral/shared-types';
 import { JobDialogComponent, JobFormData } from './job-dialog/job-dialog.component';
 
 @Component({
@@ -19,6 +19,7 @@ export class JobsComponent implements OnInit {
 
   jobs: Job[] = [];
   departments: Department[] = [];
+  hiringManagers: User[] = [];
   applications: Application[] = [];
 
   loading = false;
@@ -38,6 +39,7 @@ export class JobsComponent implements OnInit {
   form: JobFormData = {
     title: '',
     departmentId: null,
+    hiringManagerId: null,
     location: '',
     employmentType: 'Full-time',
     salaryMin: '',
@@ -52,7 +54,8 @@ export class JobsComponent implements OnInit {
   constructor(
     private readonly jobApi: JobApiService,
     private readonly applicationApi: ApplicationApiService,
-    private readonly departmentApi: DepartmentApiService
+    private readonly departmentApi: DepartmentApiService,
+    private readonly userApi: UserApiService
   ) {}
 
   ngOnInit(): void {
@@ -64,6 +67,16 @@ export class JobsComponent implements OnInit {
       },
       error: () => {
         this.departments = [];
+      },
+    });
+    this.userApi.getAllUsers().subscribe({
+      next: (people) => {
+        this.hiringManagers = people.filter(
+          (person) => person.isActive !== false && (person.role === 'MANAGER' || person.role === 'HR_MANAGER')
+        );
+      },
+      error: () => {
+        this.hiringManagers = [];
       },
     });
   }
@@ -99,6 +112,7 @@ export class JobsComponent implements OnInit {
     this.form = {
       title: '',
       departmentId: null,
+      hiringManagerId: null,
       location: '',
       employmentType: 'Full-time',
       salaryMin: '',
@@ -117,6 +131,7 @@ export class JobsComponent implements OnInit {
     this.form = {
       title: job.title,
       departmentId: job.departmentId ?? null,
+      hiringManagerId: job.hiringManagerId ?? null,
       location: job.location || '',
       employmentType: job.employmentType || 'Full-time',
       salaryMin: job.salaryMin?.toString() || '',
@@ -135,6 +150,7 @@ export class JobsComponent implements OnInit {
     this.form = {
       title: '',
       departmentId: null,
+      hiringManagerId: null,
       location: '',
       employmentType: 'Full-time',
       salaryMin: '',
@@ -264,6 +280,7 @@ export class JobsComponent implements OnInit {
     const payload: CreateJobRequest = {
       title: this.form.title.trim(),
       departmentId: this.form.departmentId ?? undefined,
+      hiringManagerId: this.form.hiringManagerId ?? undefined,
       location: this.form.location.trim() || undefined,
       employmentType: this.form.employmentType || undefined,
       salaryMin: this.form.salaryMin ? parseInt(this.form.salaryMin, 10) : undefined,

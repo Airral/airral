@@ -35,8 +35,9 @@ const NAV_BY_SEGMENT: Record<RoleSegment, HrNavItem[]> = {
   // referrals and benefits stay out of the menus until they are built out.
   MANAGER: [
     { label: 'Home', path: '/', icon: 'home' },
-    { label: 'My Team Reviews', path: '/team-review', icon: 'fact_check' },
+    { label: 'Candidates', path: '/candidates', icon: 'group' },
     { label: 'Interviews', path: '/interviews', icon: 'event' },
+    { label: 'My Team Reviews', path: '/team-review', icon: 'fact_check' },
     { label: 'My Profile', path: '/profile', icon: 'person_outline' }
   ],
   EMPLOYEE: [

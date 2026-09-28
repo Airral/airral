@@ -77,8 +77,10 @@ export const appRoutes: Route[] = [
       import('./pages/offers/offers.component').then((m) => m.OffersComponent),
   },
   {
+    // Managers see only the candidates for jobs they are hiring manager on;
+    // the API scopes every list and action on this page.
     path: 'candidates',
-    ...hrAccess,
+    ...managerAccess,
     loadComponent: () =>
       import('./pages/candidates/candidates.component').then((m) => m.CandidatesComponent),
   },
