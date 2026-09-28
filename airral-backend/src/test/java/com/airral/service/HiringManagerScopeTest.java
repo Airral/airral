@@ -81,6 +81,7 @@ class HiringManagerScopeTest {
         }
         when(applications.findAllByOrganizationId(ACME)).thenReturn(Flux.just(onMiasJob, onOtherJob));
         when(applications.save(any(Application.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(interviews.findInterviewerIds(any())).thenReturn(Flux.empty());
     }
 
     private static Application application(long id, long jobId) {

@@ -70,6 +70,21 @@ public class InterviewController {
     }
 
     /**
+     * The interviews the caller is on as an interviewer.
+     * GET /api/interviews/mine
+     */
+    @GetMapping("/mine")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'MANAGER', 'EMPLOYEE', 'ADMIN')")
+    public Mono<ResponseEntity<Flux<InterviewResponse>>> getMyInterviews(
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        return Mono.just(ResponseEntity.ok(interviewService.getMyInterviews(
+                jwtTokenProvider.getUserIdFromToken(token),
+                jwtTokenProvider.getOrganizationIdFromToken(token))));
+    }
+
+    /**
      * Get interviews by application
      * GET /api/interviews/application/{applicationId}
      */

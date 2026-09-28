@@ -10,6 +10,7 @@ import {
   SendOfferRequest,
   Interview,
   MyApplication,
+  ScheduleInterviewRequest,
 } from '@airral/shared-types';
 import { ApiClientService } from './api-client.service';
 
@@ -64,8 +65,13 @@ export class ApplicationApiService {
   }
 
   /** With notifyCandidate, the candidate is emailed the day and time. */
-  scheduleInterview(applicationId: number, interviewDate: string, notes?: string, notifyCandidate = false): Observable<Interview> {
-    return this.apiClient.post<Interview>('/interviews', { applicationId, interviewDate, notes, notifyCandidate });
+  scheduleInterview(request: ScheduleInterviewRequest): Observable<Interview> {
+    return this.apiClient.post<Interview>('/interviews', request);
+  }
+
+  /** The interviews the signed-in teammate is on as an interviewer. */
+  getMyInterviews(): Observable<Interview[]> {
+    return this.apiClient.get<Interview[]>('/interviews/mine');
   }
 
   getInterviewsByApplication(applicationId: number): Observable<Interview[]> {

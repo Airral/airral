@@ -234,13 +234,26 @@ export interface CreateEncounterRequest {
   metadata?: string;
 }
 
+/** A teammate on an interview. */
+export interface InterviewerSummary {
+  id: number;
+  name: string;
+}
+
 export interface Interview {
   id: number;
   applicationId: number;
+  jobId?: number;
   candidateName?: string;
   candidateEmail?: string;
   jobTitle?: string;
+  /** Wall-clock time in timeZone, when there is one. See wallTimeToDate. */
   interviewDate: string;
+  durationMinutes?: number;
+  timeZone?: string;
+  interviewers?: InterviewerSummary[];
+  scheduledBy?: string;
+  notes?: string;
   interviewType?: string;
   status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
   feedback?: string;
@@ -249,6 +262,19 @@ export interface Interview {
   scheduledByName?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ScheduleInterviewRequest {
+  applicationId: number;
+  /** Wall-clock time in timeZone. */
+  interviewDate: string;
+  notes?: string;
+  /** Email the candidate the day and time. */
+  notifyCandidate?: boolean;
+  interviewerIds?: number[];
+  durationMinutes?: number;
+  /** The booker's IANA time zone. */
+  timeZone?: string;
 }
 
 export interface ActivityFeedItem {

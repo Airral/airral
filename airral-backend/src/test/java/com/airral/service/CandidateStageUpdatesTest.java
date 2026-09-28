@@ -62,6 +62,7 @@ class CandidateStageUpdatesTest {
         when(organizations.findById(ACME)).thenReturn(Mono.just(Organization.builder().id(ACME).name("Acme").build()));
         when(users.findById(any(Long.class))).thenReturn(Mono.just(User.builder().id(HANA).firstName("Hana").build()));
         when(applications.save(any(Application.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(interviews.findInterviewerIds(any())).thenReturn(Flux.empty());
         when(interviews.save(any(Interview.class))).thenAnswer(inv -> {
             Interview interview = inv.getArgument(0);
             interview.setId(900L);

@@ -29,6 +29,7 @@ const NAV_BY_SEGMENT: Record<RoleSegment, HrNavItem[]> = {
     { label: 'Jobs', path: '/jobs', icon: 'work_outline' },
     { label: 'Candidates', path: '/candidates', icon: 'group' },
     { label: 'Interviews', path: '/interviews', icon: 'event' },
+    { label: 'My interviews', path: '/my-interviews', icon: 'rate_review' },
     { label: 'Offers', path: '/offers', icon: 'description' },
     { label: 'Settings', path: '/settings', icon: 'settings' }
   ],
@@ -39,11 +40,13 @@ const NAV_BY_SEGMENT: Record<RoleSegment, HrNavItem[]> = {
     { label: 'Home', path: '/', icon: 'home' },
     { label: 'Candidates', path: '/candidates', icon: 'group' },
     { label: 'Interviews', path: '/interviews', icon: 'event' },
+    { label: 'My interviews', path: '/my-interviews', icon: 'rate_review' },
     { label: 'My Team Reviews', path: '/team-review', icon: 'fact_check' },
     { label: 'My Profile', path: '/profile', icon: 'person_outline' }
   ],
   EMPLOYEE: [
     { label: 'Home', path: '/', icon: 'home' },
+    { label: 'My interviews', path: '/my-interviews', icon: 'rate_review' },
     { label: 'My Profile', path: '/profile', icon: 'person_outline' }
   ],
   APPLICANT: [{ label: 'Home', path: '/', icon: 'home' }],

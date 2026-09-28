@@ -1,10 +1,14 @@
 package com.airral.service;
 
 import com.airral.domain.Interview;
+import com.airral.domain.User;
 import com.airral.domain.enums.ApplicationStatus;
+import com.airral.domain.enums.UserRole;
 import com.airral.dto.request.InterviewFeedbackRequest;
 import com.airral.dto.request.ScheduleInterviewRequest;
 import com.airral.dto.response.InterviewResponse;
+import com.airral.dto.response.InterviewerSummary;
+import com.airral.exception.BadRequestException;
 import com.airral.repository.ApplicationRepository;
 import com.airral.repository.InterviewRepository;
 import com.airral.repository.JobRepository;
@@ -15,10 +19,22 @@ import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.DateTimeException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class InterviewService {
+
+    /** Who can be on an interview: the company's hiring team. */
+    static final Set<UserRole> INTERVIEWER_ROLES = EnumSet.of(UserRole.HR_MANAGER, UserRole.MANAGER, UserRole.EMPLOYEE);
+    static final int DEFAULT_DURATION_MINUTES = 60;
 
     private final InterviewRepository interviewRepository;
     private final ApplicationRepository applicationRepository;
@@ -45,15 +61,22 @@ public class InterviewService {
         @Transactional
     public Mono<InterviewResponse> scheduleInterview(ScheduleInterviewRequest request,
                                                      Long organizationId, Long userId, JobScope scope) {
+        List<Long> interviewerIds = request.getInterviewerIds() == null ? List.of()
+                : request.getInterviewerIds().stream().filter(Objects::nonNull).distinct().toList();
         // Verify the application belongs to this organization, and to the caller's jobs
-        return applicationRepository.findByIdAndOrganizationId(request.getApplicationId(), organizationId)
+        return timeZoneOf(request.getTimeZone()).flatMap(timeZone -> applicationRepository
+                .findByIdAndOrganizationId(request.getApplicationId(), organizationId)
                 .filter(application -> scope.allows(application.getJobId()))
                 .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
+                .flatMap(application -> checkInterviewers(interviewerIds, organizationId).thenReturn(application))
                 .flatMap(application -> {
                     Interview interview = Interview.builder()
                             .applicationId(request.getApplicationId())
                             .scheduledById(userId)
                             .interviewDate(request.getInterviewDate())
+                            .durationMinutes(request.getDurationMinutes() != null
+                                    ? request.getDurationMinutes() : DEFAULT_DURATION_MINUTES)
+                            .timeZone(timeZone.isEmpty() ? null : timeZone)
                             .status("SCHEDULED")
                             .notes(request.getNotes())
                             .createdAt(LocalDateTime.now())
@@ -66,13 +89,49 @@ public class InterviewService {
 
                     return applicationRepository.save(application)
                             .then(interviewRepository.save(interview))
+                            .flatMap(saved -> Flux.fromIterable(interviewerIds)
+                                    .concatMap(interviewerId -> interviewRepository.addInterviewer(saved.getId(), interviewerId))
+                                    .then(Mono.just(saved)))
                             .doOnNext(saved -> {
                                 if (Boolean.TRUE.equals(request.getNotifyCandidate())) {
                                     candidateEmails.interviewBooked(application, saved);
                                 }
                             });
-                })
+                }))
                 .flatMap(this::toInterviewResponse);
+    }
+
+    /**
+     * The interviews the caller is on as an interviewer, in their own company,
+     * soonest first. Every role on the hiring team can be an interviewer, so
+     * this is not limited to the jobs a hiring manager owns.
+     */
+    public Flux<InterviewResponse> getMyInterviews(Long userId, Long organizationId) {
+        return interviewRepository.findByInterviewer(userId, organizationId)
+                .concatMap(this::toInterviewResponse);
+    }
+
+    /** Interviewers must be active members of the company's hiring team. */
+    private Mono<Void> checkInterviewers(List<Long> interviewerIds, Long organizationId) {
+        return Flux.fromIterable(interviewerIds)
+                .concatMap(interviewerId -> userRepository.findById(interviewerId)
+                        .filter(user -> organizationId != null
+                                && organizationId.equals(user.getOrganizationId())
+                                && Boolean.TRUE.equals(user.getIsActive())
+                                && INTERVIEWER_ROLES.contains(user.getRole()))
+                        .switchIfEmpty(Mono.error(new BadRequestException(
+                                "Choose interviewers from your company's team"))))
+                .then();
+    }
+
+    /** The booking's time zone, checked. Empty when none was given. */
+    private static Mono<String> timeZoneOf(String requested) {
+        if (requested == null || requested.isBlank()) return Mono.just("");
+        try {
+            return Mono.just(ZoneId.of(requested.trim()).getId());
+        } catch (DateTimeException e) {
+            return Mono.error(new BadRequestException("Unknown time zone: " + requested));
+        }
     }
 
     /**
@@ -128,7 +187,10 @@ public class InterviewService {
                 .flatMap(interview -> {
                     interview.setFeedback(request.getFeedback());
                     interview.setRating(request.getRating());
-                    interview.setNotes(request.getNotes());
+                    // Feedback without notes keeps the notes from booking.
+                    if (request.getNotes() != null) {
+                        interview.setNotes(request.getNotes());
+                    }
                     interview.setStatus("COMPLETED");
                     interview.setUpdatedAt(LocalDateTime.now());
 
@@ -152,19 +214,26 @@ public class InterviewService {
                 .flatMap(application -> 
                     jobRepository.findById(application.getJobId())
                             .flatMap(job -> {
-                                Mono<String> scheduledByMono = userRepository.findById(interview.getScheduledById())
-                                        .map(user -> user.getFullName())
-                                        .defaultIfEmpty("Unknown");
+                                // An interview whose booker was removed keeps no booker.
+                                Mono<String> scheduledByMono = interview.getScheduledById() == null
+                                        ? Mono.just("Unknown")
+                                        : userRepository.findById(interview.getScheduledById())
+                                                .map(InterviewService::displayName)
+                                                .defaultIfEmpty("Unknown");
 
-                                return scheduledByMono.map(scheduledBy ->
+                                return Mono.zip(scheduledByMono, interviewersOf(interview)).map(found ->
                                         InterviewResponse.builder()
                                                 .id(interview.getId())
                                                 .applicationId(interview.getApplicationId())
+                                                .jobId(application.getJobId())
                                                 .candidateName(application.getApplicantName())
                                                 .candidateEmail(application.getApplicantEmail())
                                                 .jobTitle(job.getTitle())
-                                                .scheduledBy(scheduledBy)
+                                                .scheduledBy(found.getT1())
                                                 .interviewDate(interview.getInterviewDate())
+                                                .durationMinutes(interview.getDurationMinutes())
+                                                .timeZone(interview.getTimeZone())
+                                                .interviewers(found.getT2())
                                                 .status(interview.getStatus())
                                                 .feedback(interview.getFeedback())
                                                 .rating(interview.getRating())
@@ -175,6 +244,23 @@ public class InterviewService {
                                 );
                             })
                 );
+    }
+
+    private Mono<List<InterviewerSummary>> interviewersOf(Interview interview) {
+        if (interview.getId() == null) return Mono.just(List.of());
+        return interviewRepository.findInterviewerIds(interview.getId())
+                .concatMap(userRepository::findById)
+                .map(user -> InterviewerSummary.builder().id(user.getId()).name(displayName(user)).build())
+                .collectList();
+    }
+
+    /** A teammate's name, or their email when they have not given one. */
+    static String displayName(User user) {
+        String name = Stream.of(user.getFirstName(), user.getLastName())
+                .filter(part -> part != null && !part.isBlank())
+                .map(String::trim)
+                .collect(Collectors.joining(" "));
+        return name.isEmpty() ? user.getEmail() : name;
     }
 
     /** An interview belongs to the caller's jobs when its application does. */

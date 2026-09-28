@@ -232,6 +232,24 @@
                 <div class="section-heading"><div><p class="eyebrow">Next step</p><h3>Schedule interview</h3></div></div>
                 <div class="form-grid">
                   <label>Date and time<input type="datetime-local" [(ngModel)]="interviewDate" /></label>
+                  <label>Length
+                    <select [(ngModel)]="interviewDuration">
+                      @for (minutes of durations; track minutes) {
+                        <option [ngValue]="minutes">{{ minutes }} minutes</option>
+                      }
+                    </select>
+                  </label>
+                  <fieldset class="interviewer-picker">
+                    <legend>Interviewers</legend>
+                    @for (teammate of teammates; track teammate.id) {
+                      <label class="check">
+                        <input type="checkbox" [checked]="interviewerIds.has(teammate.id)" (change)="toggleInterviewer(teammate.id)" />
+                        {{ teammateName(teammate) }} <span class="muted">{{ teammateRole(teammate) }}</span>
+                      </label>
+                    } @empty {
+                      <p class="field-help">Invite teammates in Settings, then add them here.</p>
+                    }
+                  </fieldset>
                   <label class="wide">Panel notes<textarea rows="3" [(ngModel)]="interviewNotes" placeholder="Focus areas, panel, or meeting link. The candidate does not see these."></textarea></label>
                   <label class="check">
                     <input type="checkbox" [(ngModel)]="emailInterview" />

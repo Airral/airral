@@ -2,11 +2,13 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { ApplicationApiService, AuthApiService, HrEncounterApiService, JobApiService } from '@airral/shared-api';
+import { ApplicationApiService, AuthApiService, HrEncounterApiService, JobApiService, UserApiService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
-import { Application, ApplicationStatus, CreateEncounterRequest, HrEncounter, Job } from '@airral/shared-types';
+import { Application, ApplicationStatus, CreateEncounterRequest, HrEncounter, Job, User } from '@airral/shared-types';
+import { browserTimeZone, wallTimeToDate } from '@airral/shared-utils';
 import { catchError, combineLatest, finalize, of } from 'rxjs';
 import { getPrimaryRole } from '../../feature-config';
+import { interviewersFrom, teammateName, teammateRole } from '../interviews/teammates';
 
 interface CandidateDraft {
   jobId: string;
@@ -37,6 +39,7 @@ export class CandidatesComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
   private readonly authApi = inject(AuthApiService);
+  private readonly userApi = inject(UserApiService);
 
   /** HR adds candidates by hand. Hiring managers work the ones on their jobs. */
   readonly canAddCandidates = getPrimaryRole(this.auth.getCurrentUser()?.roles) === 'HR_MANAGER';
@@ -71,6 +74,12 @@ export class CandidatesComponent implements OnInit {
   feedback = '';
   rating = 3;
   emailInterview = true;
+  interviewDuration = 60;
+  interviewerIds = new Set<number>();
+  teammates: User[] = [];
+  readonly durations = [30, 45, 60, 90, 120];
+  readonly teammateName = teammateName;
+  readonly teammateRole = teammateRole;
 
   addingCandidate = false;
   newCandidate: CandidateDraft = { ...EMPTY_DRAFT };
@@ -95,6 +104,20 @@ export class CandidatesComponent implements OnInit {
       .subscribe((status) => {
         this.companyVerified = status ? status.organizationVerificationStatus === 'VERIFIED' : null;
       });
+    this.userApi
+      .getAllUsers()
+      .pipe(catchError(() => of([] as User[])))
+      .subscribe((users) => (this.teammates = interviewersFrom(users)));
+  }
+
+  toggleInterviewer(userId: number): void {
+    const next = new Set(this.interviewerIds);
+    if (next.has(userId)) {
+      next.delete(userId);
+    } else {
+      next.add(userId);
+    }
+    this.interviewerIds = next;
   }
 
   load(): void {
@@ -402,7 +425,15 @@ export class CandidatesComponent implements OnInit {
     this.clearMessages();
 
     this.applicationApi
-      .scheduleInterview(application.id, this.interviewDate, notes, this.emailInterview)
+      .scheduleInterview({
+        applicationId: application.id,
+        interviewDate: this.interviewDate,
+        notes,
+        notifyCandidate: this.emailInterview,
+        interviewerIds: [...this.interviewerIds],
+        durationMinutes: this.interviewDuration,
+        timeZone: browserTimeZone(),
+      })
       .pipe(finalize(() => (this.saving = false)))
       .subscribe({
         next: (interview) => {
@@ -410,11 +441,12 @@ export class CandidatesComponent implements OnInit {
           this.selectedInterviewId = interview.id;
           this.interviewDate = '';
           this.interviewNotes = '';
+          this.interviewerIds = new Set<number>();
           this.success = 'Interview scheduled.';
           this.recordEncounter({
             encounterType: 'INTERVIEW_SCHEDULED',
             title: 'Interview scheduled',
-            description: new Date(interview.interviewDate).toLocaleString(),
+            description: wallTimeToDate(interview.interviewDate, interview.timeZone).toLocaleString(),
             notes,
             applicationId: application.id,
             jobId: application.jobId,

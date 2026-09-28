@@ -25,6 +25,9 @@ public class Interview {
     // Scheduling
     private Long scheduledById;
     private LocalDateTime interviewDate;
+    private Integer durationMinutes;
+    /** The IANA time zone interviewDate was booked in, e.g. America/New_York. */
+    private String timeZone;
     
     // Status: SCHEDULED, COMPLETED, CANCELLED, RESCHEDULED
     private String status;

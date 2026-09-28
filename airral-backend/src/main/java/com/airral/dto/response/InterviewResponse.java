@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -15,6 +16,7 @@ public class InterviewResponse {
 
     private Long id;
     private Long applicationId;
+    private Long jobId;
     
     // Candidate info (from application)
     private String candidateName;
@@ -24,7 +26,12 @@ public class InterviewResponse {
     // Scheduling
     private String scheduledBy;
     private LocalDateTime interviewDate;
+    private Integer durationMinutes;
+    private String timeZone;
     private String status;
+
+    /** The teammates interviewing. */
+    private List<InterviewerSummary> interviewers;
     
     // Feedback
     private String feedback;

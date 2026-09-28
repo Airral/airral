@@ -91,6 +91,12 @@ export const appRoutes: Route[] = [
       import('./pages/interviews/interviews.component').then((m) => m.InterviewsComponent),
   },
   {
+    path: 'my-interviews',
+    ...internalAccess,
+    loadComponent: () =>
+      import('./pages/my-interviews/my-interviews.component').then((m) => m.MyInterviewsComponent),
+  },
+  {
     path: 'interviews/scorecard',
     ...internalAccess,
     loadComponent: () =>
