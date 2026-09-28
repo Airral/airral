@@ -193,7 +193,7 @@ class CandidateUpdateEmailsTest {
     void transactionalTemplate() {
         CandidateEmailService real = new CandidateEmailService(mock(JavaMailSender.class),
                 mock(CandidateNotificationPreferenceRepository.class), mock(UserRepository.class),
-                "notifications@airral.com", "AIRRAL", "https://apply.airral.com", false);
+                "notifications@airral.com", "AIRRAL", "https://apply.airral.com", false, "");
 
         String html = real.wrapTransactional("Interview with <Acme>", "<p>Body</p>", "you & we");
 

@@ -47,14 +47,22 @@ public class CandidateEmailService {
             @Value("${airral.notifications.email.from-address:notifications@airral.com}") String fromAddress,
             @Value("${airral.notifications.email.from-name:AIRRAL}") String fromName,
             @Value("${airral.notifications.email.app-base-url:https://apply.airral.com}") String appBaseUrl,
-            @Value("${airral.notifications.email.enabled:true}") boolean emailEnabled) {
+            @Value("${airral.notifications.email.enabled:true}") boolean emailEnabled,
+            @Value("${spring.mail.username:}") String mailUsername) {
         this.mailSender = mailSender;
         this.preferenceRepository = preferenceRepository;
         this.userRepository = userRepository;
         this.fromAddress = fromAddress;
         this.fromName = fromName;
         this.appBaseUrl = appBaseUrl;
-        this.emailEnabled = emailEnabled;
+        // The SMTP settings ask for authentication, so without an account every
+        // send would fail, one slow connection at a time. Say so once instead.
+        boolean smtpConfigured = mailUsername != null && !mailUsername.isBlank();
+        this.emailEnabled = emailEnabled && smtpConfigured;
+        if (emailEnabled && !smtpConfigured) {
+            log.warn("Notification emails are off: MAIL_USERNAME is not set. Set MAIL_HOST, MAIL_USERNAME and "
+                    + "MAIL_PASSWORD to send candidate and team emails.");
+        }
     }
 
     /**
