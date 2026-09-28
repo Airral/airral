@@ -5,11 +5,12 @@ import { ApplicationApiService, JobApiService } from '@airral/shared-api';
 import { Application, ApplicationStatus } from '@airral/shared-types';
 import { OrganizationService } from '@airral/shared-utils';
 import { combineLatest, finalize } from 'rxjs';
+import { SetupChecklistComponent } from './setup-checklist.component';
 
 @Component({
   selector: 'app-quick-hire-home',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, SetupChecklistComponent],
   template: `
     <main class="hiring-home">
       <header class="home-header">
@@ -22,6 +23,8 @@ import { combineLatest, finalize } from 'rxjs';
           <span class="material-icons" aria-hidden="true">add</span>Post a job
         </a>
       </header>
+
+      <app-setup-checklist></app-setup-checklist>
 
       <section class="summary" aria-label="Hiring summary">
         <a routerLink="/jobs"><span>Open jobs</span><strong>{{ openJobs }}</strong><small>Manage roles</small></a>
