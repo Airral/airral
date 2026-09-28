@@ -7,8 +7,10 @@ export interface HrNavItem {
 
 export type RoleSegment = 'HR' | 'MANAGER' | 'EMPLOYEE' | 'APPLICANT';
 
+// ADMIN is AIRRAL's own staff role, and AIRRAL admins use the admin portal.
+// It is not a company role, so it is not an HR manager here.
 export const ROLE_GROUPS = {
-  HR: ['ADMIN', 'HR_MANAGER'],
+  HR: ['HR_MANAGER'],
   MANAGER: ['MANAGER'],
   EMPLOYEE: ['EMPLOYEE'],
   APPLICANT: ['APPLICANT']

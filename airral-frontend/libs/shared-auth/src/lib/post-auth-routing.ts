@@ -36,7 +36,9 @@ export function portalForRole(
     return 'admin';
   }
   switch ((role ?? '').toUpperCase()) {
+    // AIRRAL's own admins work in the admin portal, flag or no flag.
     case USER_ROLES.ADMIN:
+      return 'admin';
     case USER_ROLES.HR_MANAGER:
     case USER_ROLES.MANAGER:
     case USER_ROLES.EMPLOYEE:
