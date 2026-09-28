@@ -38,7 +38,6 @@ export class JobDialogComponent {
   /** Active managers and HR managers in the company. */
   @Input() hiringManagers: User[] = [];
   @Input() interviewKits: InterviewKit[] = [];
-  @Input() linkedInConnected = false;  // Is LinkedIn integration active?
   @Input() formData: JobFormData = {
     title: '',
     departmentId: null,
@@ -58,7 +57,6 @@ export class JobDialogComponent {
   @Output() dismiss = new EventEmitter<void>();
   @Output() saveDraft = new EventEmitter<void>();
   @Output() publish = new EventEmitter<void>();
-  @Output() connectLinkedIn = new EventEmitter<void>();
 
   onCancel(): void {
     this.dismiss.emit();

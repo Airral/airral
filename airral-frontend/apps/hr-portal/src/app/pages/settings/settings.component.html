@@ -1,19 +1,16 @@
 <section class="panel">
-  <h1>Workspace Settings</h1>
-  <p>Configure hiring workflows, permissions, and integrations for your HR team.</p>
-
-  <div class="settings-section">
-    <app-tier-settings></app-tier-settings>
-  </div>
+  <h1>Settings</h1>
+  <p>Your company, your team, and how you interview.</p>
 
   <div class="stack">
-    <h2>Advanced Configuration</h2>
     <article *ngFor="let section of sections">
       <div>
         <h3>{{ section.title }}</h3>
         <p>{{ section.description }}</p>
       </div>
-      <button type="button" (click)="configure(section)">Configure</button>
+      <a class="configure" [routerLink]="section.route">Open</a>
     </article>
   </div>
+
+  <p class="plan">Plan: {{ planName }}. To change it, email contact&#64;airral.com.</p>
 </section>

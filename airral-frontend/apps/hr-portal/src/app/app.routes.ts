@@ -133,18 +133,6 @@ export const appRoutes: Route[] = [
       import('./pages/settings/departments/departments.component').then((m) => m.DepartmentsComponent),
   },
   {
-    path: 'settings/integrations',
-    ...hrAccess,
-    loadComponent: () =>
-      import('./pages/settings/integrations/integrations.component').then((m) => m.IntegrationsComponent),
-  },
-  {
-    path: 'settings/hiring-stages',
-    ...hrAccess,
-    loadComponent: () =>
-      import('./pages/settings/hiring-stages/hiring-stages.component').then((m) => m.HiringStagesComponent),
-  },
-  {
     path: 'settings/interview-kits',
     ...hrAccess,
     loadComponent: () =>

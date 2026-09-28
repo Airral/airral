@@ -30,8 +30,6 @@ export class JobsComponent implements OnInit {
   showForm = false;
   editingJobId: number | null = null;
 
-  // LinkedIn Integration (mock for now - will come from organization settings)
-  linkedInConnected = true;  // Simulating LinkedIn is connected
 
   // Pagination
   currentPage = 1;
@@ -129,7 +127,7 @@ export class JobsComponent implements OnInit {
       requirements: '',
       niceToHave: '',
       atsKeywords: '',
-      linkedInEnabled: this.linkedInConnected,  // Auto-enable if connected
+      linkedInEnabled: false,
     };
   }
 
@@ -330,13 +328,4 @@ export class JobsComponent implements OnInit {
     });
   }
 
-  connectLinkedIn(): void {
-    // TODO: Implement OAuth LinkedIn connection flow
-    // For now, simulate connection
-    alert('LinkedIn OAuth flow would start here. In production:\n\n1. Redirect to LinkedIn OAuth\n2. User authorizes company page access\n3. Store access token\n4. Enable job posting');
-
-    // Simulate successful connection
-    this.linkedInConnected = true;
-    this.form.linkedInEnabled = true;
-  }
 }
