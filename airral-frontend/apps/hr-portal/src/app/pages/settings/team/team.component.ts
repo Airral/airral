@@ -6,6 +6,7 @@ import { InviteRole, Invitation, UserApiService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
 import { User } from '@airral/shared-types';
 import { ROLE_LABELS } from '@airral/shared-utils';
+import { messageFrom } from '../api-message';
 
 interface RoleOption {
   value: InviteRole;
@@ -22,7 +23,7 @@ interface RoleOption {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './team.component.html',
-  styleUrl: './team.component.css',
+  styleUrl: '../settings-page.css',
 })
 export class TeamComponent implements OnInit {
   private readonly userApi = inject(UserApiService);
@@ -205,17 +206,4 @@ export class TeamComponent implements OnInit {
       },
     });
   }
-}
-
-/** The server's own explanation when it gave one, otherwise the fallback. */
-function messageFrom(error: unknown, fallback: string): string {
-  const failure = error as { status?: number; error?: { message?: string; validationErrors?: Record<string, string> } };
-  const validation = failure?.error?.validationErrors;
-  if (validation && Object.keys(validation).length) {
-    return Object.values(validation)[0];
-  }
-  if (failure?.status && failure.status < 500 && failure.error?.message) {
-    return failure.error.message;
-  }
-  return fallback;
 }

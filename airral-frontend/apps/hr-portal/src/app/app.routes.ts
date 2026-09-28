@@ -113,6 +113,12 @@ export const appRoutes: Route[] = [
       import('./pages/settings/team/team.component').then((m) => m.TeamComponent),
   },
   {
+    path: 'settings/departments',
+    ...hrAccess,
+    loadComponent: () =>
+      import('./pages/settings/departments/departments.component').then((m) => m.DepartmentsComponent),
+  },
+  {
     path: 'settings/integrations',
     ...hrAccess,
     loadComponent: () =>

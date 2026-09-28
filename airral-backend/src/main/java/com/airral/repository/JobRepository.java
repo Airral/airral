@@ -2,6 +2,7 @@ package com.airral.repository;
 
 import com.airral.domain.Job;
 import com.airral.domain.enums.JobStatus;
+import org.springframework.data.r2dbc.repository.Modifying;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.stereotype.Repository;
@@ -86,4 +87,14 @@ public interface JobRepository extends R2dbcRepository<Job, Long> {
     // Count total open jobs (public - for statistics)
     @Query("SELECT COUNT(*) FROM jobs WHERE status = 'OPEN'")
     Mono<Long> countOpenJobs();
+
+    /** Keeps the department name copied on jobs in step with a renamed department. */
+    @Modifying
+    @Query("UPDATE jobs SET department = :name WHERE department_id = :departmentId")
+    Mono<Long> setDepartmentName(Long departmentId, String name);
+
+    /** Takes a deleted department off jobs, name and all. */
+    @Modifying
+    @Query("UPDATE jobs SET department = NULL, department_id = NULL WHERE department_id = :departmentId")
+    Mono<Long> clearDepartment(Long departmentId);
 }

@@ -1,6 +1,7 @@
 package com.airral.repository;
 
 import com.airral.domain.UserInvitation;
+import org.springframework.data.r2dbc.repository.Modifying;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.stereotype.Repository;
@@ -30,4 +31,14 @@ public interface UserInvitationRepository extends R2dbcRepository<UserInvitation
            "AND accepted_at IS NULL AND expires_at > CURRENT_TIMESTAMP " +
            "ORDER BY created_at DESC")
     Flux<UserInvitation> findPendingByOrganizationId(Long organizationId);
+
+    /** Keeps the department name copied on user_invitations in step with a renamed department. */
+    @Modifying
+    @Query("UPDATE user_invitations SET department = :name WHERE department_id = :departmentId")
+    Mono<Long> setDepartmentName(Long departmentId, String name);
+
+    /** Takes a deleted department off user_invitations, name and all. */
+    @Modifying
+    @Query("UPDATE user_invitations SET department = NULL, department_id = NULL WHERE department_id = :departmentId")
+    Mono<Long> clearDepartment(Long departmentId);
 }

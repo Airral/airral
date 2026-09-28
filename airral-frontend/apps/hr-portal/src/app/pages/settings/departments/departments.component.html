@@ -1,0 +1,70 @@
+<div class="settings-container">
+  <div class="settings-header">
+    <h1>Departments</h1>
+    <p>The teams your jobs and people belong to.</p>
+  </div>
+
+  <section class="card" aria-labelledby="add-heading">
+    <h2 id="add-heading">Add a department</h2>
+    <form class="invite-form" (ngSubmit)="add()" novalidate>
+      <div class="field">
+        <label for="department-name">Name</label>
+        <input id="department-name" name="name" maxlength="100" required [(ngModel)]="newName" [disabled]="adding" />
+      </div>
+      <div class="field">
+        <label for="department-description">Description <span class="optional">optional</span></label>
+        <input id="department-description" name="description" maxlength="500" [(ngModel)]="newDescription" [disabled]="adding" />
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn-primary" [disabled]="adding">{{ adding ? 'Adding…' : 'Add department' }}</button>
+      </div>
+      <p class="message message--ok" role="status" *ngIf="addMessage">{{ addMessage }}</p>
+      <p class="message message--error" role="alert" *ngIf="addError">{{ addError }}</p>
+    </form>
+  </section>
+
+  <p class="message message--error" role="alert" *ngIf="loadError">{{ loadError }}</p>
+  <p class="hint" *ngIf="loading">Loading your departments…</p>
+
+  <section class="card" *ngIf="!loading && !loadError" aria-labelledby="list-heading">
+    <h2 id="list-heading">Departments <span class="count">{{ departments.length }}</span></h2>
+    <p class="empty" *ngIf="departments.length === 0">No departments yet.</p>
+    <ul class="rows" *ngIf="departments.length">
+      <li class="row" *ngFor="let department of departments">
+        <ng-container *ngIf="editingId === department.id; else showRow">
+          <form class="edit-form" (ngSubmit)="saveEdit(department)" novalidate>
+            <label class="sr-only" [attr.for]="'edit-name-' + department.id">Name</label>
+            <input [id]="'edit-name-' + department.id" name="editName" maxlength="100" [(ngModel)]="editName" [disabled]="busy.has(department.id)" />
+            <label class="sr-only" [attr.for]="'edit-description-' + department.id">Description</label>
+            <input [id]="'edit-description-' + department.id" name="editDescription" maxlength="500" placeholder="Description"
+                   [(ngModel)]="editDescription" [disabled]="busy.has(department.id)" />
+            <div class="row-actions">
+              <button type="submit" class="btn-primary" [disabled]="busy.has(department.id)">Save</button>
+              <button type="button" class="btn-quiet" (click)="cancelEdit()" [disabled]="busy.has(department.id)">Cancel</button>
+            </div>
+          </form>
+        </ng-container>
+        <ng-template #showRow>
+          <div class="who">
+            <strong>{{ department.name }}</strong>
+            <span class="sub" *ngIf="department.description">{{ department.description }}</span>
+            <span class="sub row-message" role="status" *ngIf="rowMessage[department.id]">{{ rowMessage[department.id] }}</span>
+            <span class="sub row-message" *ngIf="confirmingRemoveId === department.id">
+              Remove {{ department.name }}? Its jobs and people will have no department.
+            </span>
+          </div>
+          <div class="row-actions" *ngIf="confirmingRemoveId !== department.id; else confirmRemove">
+            <button type="button" class="btn-quiet" (click)="startEdit(department)">Rename</button>
+            <button type="button" class="btn-quiet btn-danger" (click)="askRemove(department)">Remove</button>
+          </div>
+          <ng-template #confirmRemove>
+            <div class="row-actions">
+              <button type="button" class="btn-quiet btn-danger" (click)="remove(department)" [disabled]="busy.has(department.id)">Remove</button>
+              <button type="button" class="btn-quiet" (click)="keep()" [disabled]="busy.has(department.id)">Keep</button>
+            </div>
+          </ng-template>
+        </ng-template>
+      </li>
+    </ul>
+  </section>
+</div>

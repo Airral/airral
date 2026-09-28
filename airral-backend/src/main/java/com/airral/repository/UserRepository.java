@@ -2,6 +2,7 @@ package com.airral.repository;
 
 import com.airral.domain.User;
 import com.airral.domain.enums.UserRole;
+import org.springframework.data.r2dbc.repository.Modifying;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import org.springframework.stereotype.Repository;
@@ -41,4 +42,14 @@ public interface UserRepository extends R2dbcRepository<User, Long> {
     @Query("SELECT COUNT(*) FROM users WHERE organization_id = :organizationId AND role = 'HR_MANAGER' AND is_active = true")
     Mono<Long> countActiveHrManagers(Long organizationId);
 
+
+    /** Keeps the department name copied on users in step with a renamed department. */
+    @Modifying
+    @Query("UPDATE users SET department = :name WHERE department_id = :departmentId")
+    Mono<Long> setDepartmentName(Long departmentId, String name);
+
+    /** Takes a deleted department off users, name and all. */
+    @Modifying
+    @Query("UPDATE users SET department = NULL, department_id = NULL WHERE department_id = :departmentId")
+    Mono<Long> clearDepartment(Long departmentId);
 }

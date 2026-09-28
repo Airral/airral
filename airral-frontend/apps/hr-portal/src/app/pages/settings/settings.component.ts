@@ -24,6 +24,11 @@ export class SettingsComponent {
       route: '/settings/team'
     },
     {
+      title: 'Departments',
+      description: 'The teams your jobs and people belong to.',
+      route: '/settings/departments'
+    },
+    {
       title: 'Hiring stages and scorecards',
       description: 'Define custom hiring stages and evaluation scorecards for your workflow.',
       route: '/settings/hiring-stages'
