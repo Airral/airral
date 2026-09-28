@@ -99,4 +99,15 @@ class TeamAlertsTest {
 
         assertThat(posts).hasValue(0);
     }
+
+    @Test
+    @DisplayName("a server error alert names the failure, and escapes what could be markup")
+    void serverErrorText() {
+        TeamAlerts alerts = new TeamAlerts(WebClient.builder(), "", "https://admin.airral.com");
+
+        assertThat(alerts.serverErrorText("POST", "/api/auth/<login>", 500, "NullPointerException", "ab12cd34", 2))
+                .isEqualTo(":rotating_light: 500 on POST /api/auth/&lt;login&gt;: NullPointerException (ref ab12cd34)\n"
+                        + "2 more like it since the last alert.\n"
+                        + "The API log has the details under the same reference.");
+    }
 }

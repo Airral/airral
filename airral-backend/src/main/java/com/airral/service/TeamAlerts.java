@@ -78,6 +78,43 @@ public class TeamAlerts {
         return Mono.defer(() -> post(contactText(message)));
     }
 
+    /**
+     * Tells the team a watched route failed on the server. Fire and forget, and
+     * only what identifies the failure: never who was affected or what they sent.
+     */
+    public void serverError(String method, String route, int status, String errorType, String reference,
+                            int moreSinceLastAlert) {
+        if (!isConfigured()) {
+            return;
+        }
+        try {
+            post(serverErrorText(method, route, status, errorType, reference, moreSinceLastAlert)).subscribe(
+                    null,
+                    error -> log.warn("Could not post a server error alert to Slack: {}", error.getMessage()));
+        } catch (RuntimeException error) {
+            log.warn("Could not post a server error alert to Slack: {}", error.getMessage());
+        }
+    }
+
+    String serverErrorText(String method, String route, int status, String errorType, String reference,
+                           int moreSinceLastAlert) {
+        StringBuilder text = new StringBuilder()
+                .append(":rotating_light: ").append(status).append(" on ")
+                .append(escape(method)).append(' ').append(escape(route));
+        if (StringUtils.hasText(errorType)) {
+            text.append(": ").append(escape(errorType));
+        }
+        if (StringUtils.hasText(reference)) {
+            text.append(" (ref ").append(escape(reference)).append(')');
+        }
+        if (moreSinceLastAlert > 0) {
+            text.append("\n").append(moreSinceLastAlert)
+                    .append(" more like it")
+                    .append(" since the last alert.");
+        }
+        return text.append("\nThe API log has the details under the same reference.").toString();
+    }
+
     String newCompanyText(Organization organization, User hrManager) {
         String domain = StringUtils.hasText(organization.getDomain()) ? organization.getDomain() : "no company domain";
         StringBuilder text = new StringBuilder()
