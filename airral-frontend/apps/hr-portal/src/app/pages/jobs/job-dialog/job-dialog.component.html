@@ -24,8 +24,12 @@
           <input [(ngModel)]="formData.title" placeholder="e.g., Senior Backend Engineer" />
         </label>
         <label>
-          <span class="label-text">Department <span class="required">*</span></span>
-          <input [(ngModel)]="formData.department" placeholder="e.g., Engineering" />
+          <span class="label-text">Department</span>
+          <select [(ngModel)]="formData.departmentId">
+            <option [ngValue]="null">No department</option>
+            <option *ngFor="let department of departments" [ngValue]="department.id">{{ department.name }}</option>
+          </select>
+          <span class="label-hint" *ngIf="departments.length === 0">Add departments in Settings, Departments.</span>
         </label>
         <label>
           <span class="label-text">Location</span>

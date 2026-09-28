@@ -3,7 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { finalize, timeout } from 'rxjs/operators';
-import { ApplicationApiService, JobApiService } from '@airral/shared-api';
+import { ApplicationApiService, Department, DepartmentApiService, JobApiService } from '@airral/shared-api';
 import { Application, ApplicationStatus, CreateJobRequest, Job, JobStatus } from '@airral/shared-types';
 import { JobDialogComponent, JobFormData } from './job-dialog/job-dialog.component';
 
@@ -18,6 +18,7 @@ export class JobsComponent implements OnInit {
   readonly jobStatus = JobStatus;
 
   jobs: Job[] = [];
+  departments: Department[] = [];
   applications: Application[] = [];
 
   loading = false;
@@ -36,7 +37,7 @@ export class JobsComponent implements OnInit {
 
   form: JobFormData = {
     title: '',
-    department: '',
+    departmentId: null,
     location: '',
     employmentType: 'Full-time',
     salaryMin: '',
@@ -50,11 +51,21 @@ export class JobsComponent implements OnInit {
 
   constructor(
     private readonly jobApi: JobApiService,
-    private readonly applicationApi: ApplicationApiService
+    private readonly applicationApi: ApplicationApiService,
+    private readonly departmentApi: DepartmentApiService
   ) {}
 
   ngOnInit(): void {
     this.loadData();
+    // Apart from the jobs load, so a job list still shows if this fails.
+    this.departmentApi.list().subscribe({
+      next: (departments) => {
+        this.departments = [...departments].sort((a, b) => a.name.localeCompare(b.name));
+      },
+      error: () => {
+        this.departments = [];
+      },
+    });
   }
 
   loadData(): void {
@@ -87,7 +98,7 @@ export class JobsComponent implements OnInit {
     this.editingJobId = null;
     this.form = {
       title: '',
-      department: '',
+      departmentId: null,
       location: '',
       employmentType: 'Full-time',
       salaryMin: '',
@@ -105,7 +116,7 @@ export class JobsComponent implements OnInit {
     this.editingJobId = job.id;
     this.form = {
       title: job.title,
-      department: job.department || '',
+      departmentId: job.departmentId ?? null,
       location: job.location || '',
       employmentType: job.employmentType || 'Full-time',
       salaryMin: job.salaryMin?.toString() || '',
@@ -123,7 +134,7 @@ export class JobsComponent implements OnInit {
     this.editingJobId = null;
     this.form = {
       title: '',
-      department: '',
+      departmentId: null,
       location: '',
       employmentType: 'Full-time',
       salaryMin: '',
@@ -240,8 +251,8 @@ export class JobsComponent implements OnInit {
   }
 
   private upsertJob(status: JobStatus): void {
-    if (!this.form.title.trim() || !this.form.department.trim() || !this.form.description.trim()) {
-      this.error = 'Title, department, and description are required.';
+    if (!this.form.title.trim() || !this.form.description.trim()) {
+      this.error = 'Title and description are required.';
       return;
     }
 
@@ -252,7 +263,7 @@ export class JobsComponent implements OnInit {
 
     const payload: CreateJobRequest = {
       title: this.form.title.trim(),
-      department: this.form.department.trim(),
+      departmentId: this.form.departmentId ?? undefined,
       location: this.form.location.trim() || undefined,
       employmentType: this.form.employmentType || undefined,
       salaryMin: this.form.salaryMin ? parseInt(this.form.salaryMin, 10) : undefined,

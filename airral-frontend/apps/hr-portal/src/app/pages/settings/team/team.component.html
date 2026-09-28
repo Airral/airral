@@ -20,7 +20,14 @@
         <label for="invite-last">Last name <span class="optional">optional</span></label>
         <input id="invite-last" name="lastName" maxlength="100" [(ngModel)]="form.lastName" [disabled]="inviting" />
       </div>
-      <div class="field field--wide">
+      <div class="field">
+        <label for="invite-department">Department <span class="optional">optional</span></label>
+        <select id="invite-department" name="departmentId" [(ngModel)]="form.departmentId" [disabled]="inviting">
+          <option [ngValue]="null">No department</option>
+          <option *ngFor="let department of departments" [ngValue]="department.id">{{ department.name }}</option>
+        </select>
+      </div>
+      <div class="field">
         <label for="invite-role">Role</label>
         <select id="invite-role" name="role" [(ngModel)]="form.role" [disabled]="inviting">
           <option *ngFor="let option of roleOptions" [ngValue]="option.value">{{ option.label }}</option>
@@ -64,7 +71,7 @@
         <li class="row" *ngFor="let member of members" [class.row--inactive]="member.isActive === false">
           <div class="who">
             <strong>{{ displayName(member.firstName, member.lastName, member.email) }}</strong>
-            <span class="sub">{{ member.email }}<ng-container *ngIf="member.isActive === false"> · Deactivated</ng-container></span>
+            <span class="sub">{{ member.email }}<ng-container *ngIf="member.department"> · {{ member.department }}</ng-container><ng-container *ngIf="member.isActive === false"> · Deactivated</ng-container></span>
             <span class="sub row-message" role="status" *ngIf="memberMessage[member.id]">{{ memberMessage[member.id] }}</span>
           </div>
           <div class="row-actions" *ngIf="canManage(member); else fixedRole">
@@ -72,6 +79,13 @@
             <select [id]="'member-role-' + member.id" [ngModel]="member.role" (ngModelChange)="changeRole(member, $event)"
                     [disabled]="memberBusy.has(member.id) || member.isActive === false">
               <option *ngFor="let option of roleOptions" [ngValue]="option.value">{{ option.label }}</option>
+            </select>
+            <label class="sr-only" [attr.for]="'member-department-' + member.id">Department for {{ member.email }}</label>
+            <select [id]="'member-department-' + member.id" [ngModel]="member.departmentId ?? null"
+                    (ngModelChange)="changeDepartment(member, $event)"
+                    [disabled]="memberBusy.has(member.id) || member.isActive === false">
+              <option [ngValue]="null">No department</option>
+              <option *ngFor="let department of departments" [ngValue]="department.id">{{ department.name }}</option>
             </select>
             <button type="button" class="btn-quiet" [class.btn-danger]="member.isActive !== false"
                     (click)="toggleActive(member)" [disabled]="memberBusy.has(member.id)">

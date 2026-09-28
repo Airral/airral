@@ -1,5 +1,6 @@
 package com.airral.service;
 
+import com.airral.domain.Department;
 import com.airral.domain.User;
 import com.airral.domain.UserInvitation;
 import com.airral.domain.enums.UserRole;
@@ -112,7 +113,8 @@ public class UserService {
         if (!hr && !id.equals(callerId)) {
             return Mono.error(new AccessDeniedException("You can only edit your own profile"));
         }
-        if (!hr && (request.getManagerId() != null || request.getDepartmentId() != null)) {
+        if (!hr && (request.getManagerId() != null || request.getDepartmentId() != null
+                || Boolean.TRUE.equals(request.getClearDepartment()))) {
             return Mono.error(new AccessDeniedException("Only HR can change someone's manager or department"));
         }
 
@@ -120,15 +122,25 @@ public class UserService {
                 .filter(user -> sameCompany(user, organizationId))
                 .switchIfEmpty(Mono.error(new NotFoundException("User not found")))
                 .flatMap(user -> checkManager(request.getManagerId(), user, organizationId)
-                        .then(checkDepartment(request.getDepartmentId(), organizationId))
-                        .thenReturn(user))
+                        .then(companyDepartment(request.getDepartmentId(), organizationId))
+                        .map(department -> {
+                            // The department's name is copied from the department,
+                            // never typed: people are filed under the company's own.
+                            department.ifPresent(found -> {
+                                user.setDepartmentId(found.getId());
+                                user.setDepartment(found.getName());
+                            });
+                            if (Boolean.TRUE.equals(request.getClearDepartment())) {
+                                user.setDepartmentId(null);
+                                user.setDepartment(null);
+                            }
+                            return user;
+                        }))
                 .flatMap(user -> {
                     if (request.getFirstName() != null) user.setFirstName(request.getFirstName());
                     if (request.getLastName() != null) user.setLastName(request.getLastName());
                     if (request.getPhone() != null) user.setPhone(request.getPhone());
-                    if (request.getDepartment() != null) user.setDepartment(request.getDepartment());
                     if (request.getJobTitle() != null) user.setJobTitle(request.getJobTitle());
-                    if (request.getDepartmentId() != null) user.setDepartmentId(request.getDepartmentId());
                     if (request.getManagerId() != null) user.setManagerId(request.getManagerId());
                     user.setUpdatedAt(LocalDateTime.now());
 
@@ -216,17 +228,19 @@ public class UserService {
                             .flatMap(existing -> Mono.<UserInvitation>error(new ConflictException("Invitation already sent")))
                             .switchIfEmpty(
                                 // Create new invitation, within the company's email budget
-                                Mono.defer(() -> withinInvitationBudget(organizationId)).then(Mono.defer(() -> {
+                                Mono.defer(() -> withinInvitationBudget(organizationId))
+                                        .then(Mono.defer(() -> companyDepartment(request.getDepartmentId(), organizationId)))
+                                        .flatMap(department -> {
                                     String token = UUID.randomUUID().toString();
                                     UserInvitation invitation = UserInvitation.builder()
                                             .invitedById(invitedById)
                                             .organizationId(organizationId)
                                             .email(email)
                                             .role(request.getRole())
-                                            .departmentId(request.getDepartmentId())
+                                            .departmentId(department.map(Department::getId).orElse(null))
                                             .firstName(request.getFirstName())
                                             .lastName(request.getLastName())
-                                            .department(request.getDepartment())
+                                            .department(department.map(Department::getName).orElse(null))
                                             .invitationToken(token)
                                             .expiresAt(LocalDateTime.now().plusDays(INVITATION_DAYS))
                                             .isAccepted(false)
@@ -234,7 +248,7 @@ public class UserService {
                                             .build();
 
                                     return invitationRepository.save(invitation);
-                                }))
+                                })
                             )
                 )
                 .flatMap(this::sendInvitationEmail);
@@ -390,13 +404,13 @@ public class UserService {
                 .then();
     }
 
-    private Mono<Void> checkDepartment(Long departmentId, Long organizationId) {
+    private Mono<Optional<Department>> companyDepartment(Long departmentId, Long organizationId) {
         if (departmentId == null) {
-            return Mono.empty();
+            return Mono.just(Optional.empty());
         }
         return departmentRepository.findByIdAndOrganizationId(departmentId, organizationId)
-                .switchIfEmpty(Mono.error(new BadRequestException("The department must be one of your company's")))
-                .then();
+                .map(Optional::of)
+                .switchIfEmpty(Mono.error(new BadRequestException("The department must be one of your company's")));
     }
 
     /**

@@ -2,6 +2,7 @@ package com.airral.service;
 
 import com.airral.domain.CandidateProfile;
 import com.airral.domain.Organization;
+import com.airral.domain.Department;
 import com.airral.domain.User;
 import com.airral.domain.enums.OrganizationTier;
 import com.airral.domain.enums.SubscriptionStatus;
@@ -15,6 +16,7 @@ import com.airral.exception.ConflictException;
 import com.airral.exception.NotFoundException;
 import com.airral.exception.UnauthorizedException;
 import com.airral.repository.CandidateProfileRepository;
+import com.airral.repository.DepartmentRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.repository.UserRepository;
 import com.airral.security.JwtTokenProvider;
@@ -60,6 +62,7 @@ public class AuthService {
     private final ObjectMapper objectMapper;
     private final GoogleIdentityService googleIdentityService;
     private final TeamAlerts teamAlerts;
+    private final DepartmentRepository departmentRepository;
 
     public AuthService(UserRepository userRepository,
                       OrganizationRepository organizationRepository,
@@ -68,7 +71,8 @@ public class AuthService {
                       JwtTokenProvider jwtTokenProvider,
                       ObjectMapper objectMapper,
                       GoogleIdentityService googleIdentityService,
-                      TeamAlerts teamAlerts) {
+                      TeamAlerts teamAlerts,
+                      DepartmentRepository departmentRepository) {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
         this.candidateProfileRepository = candidateProfileRepository;
@@ -77,6 +81,7 @@ public class AuthService {
         this.objectMapper = objectMapper;
         this.googleIdentityService = googleIdentityService;
         this.teamAlerts = teamAlerts;
+        this.departmentRepository = departmentRepository;
     }
 
     /**
@@ -405,7 +410,14 @@ public class AuthService {
                                         .updatedAt(LocalDateTime.now())
                                         .build();
 
-                                return userRepository.save(user)
+                                // The first HR manager is filed under a real
+                                // department, so the company's department list
+                                // starts with the one its first person is in.
+                                return departmentRepository.save(humanResources(savedOrg))
+                                        .flatMap(department -> {
+                                            user.setDepartmentId(department.getId());
+                                            return userRepository.save(user);
+                                        })
                                         // Every new company waits for review, so someone at
                                         // AIRRAL has to hear about it.
                                         .doOnNext(savedUser -> teamAlerts.newCompany(savedOrg, savedUser))
@@ -428,6 +440,16 @@ public class AuthService {
         } catch (JsonProcessingException ex) {
             throw new BadRequestException("Invalid JSON payload for " + fieldName);
         }
+    }
+
+    private static Department humanResources(Organization organization) {
+        return Department.builder()
+                .organizationId(organization.getId())
+                .name(DEFAULT_DEPARTMENT)
+                .isActive(true)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
     }
 
     /**

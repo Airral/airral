@@ -1,10 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Department } from '@airral/shared-api';
 
 export interface JobFormData {
   title: string;
-  department: string;
+  /** One of the company's departments, or none. */
+  departmentId: number | null;
   location: string;
   employmentType: string;
   salaryMin: string;
@@ -27,10 +29,11 @@ export class JobDialogComponent {
   @Input() visible = false;
   @Input() editMode = false;
   @Input() saving = false;
+  @Input() departments: Department[] = [];
   @Input() linkedInConnected = false;  // Is LinkedIn integration active?
   @Input() formData: JobFormData = {
     title: '',
-    department: '',
+    departmentId: null,
     location: '',
     employmentType: 'Full-time',
     salaryMin: '',

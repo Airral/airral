@@ -12,6 +12,8 @@ export interface UpdateUserRequest {
   jobTitle?: string;
   departmentId?: number;
   managerId?: number;
+  /** HR only: take the person out of their department. */
+  clearDepartment?: boolean;
 }
 
 /** The roles an invitation can give. */
@@ -22,7 +24,7 @@ export interface InviteUserRequest {
   role: InviteRole;
   firstName?: string;
   lastName?: string;
-  department?: string;
+  departmentId?: number;
 }
 
 /** An invitation as HR sees it. The link's token never comes back from the API. */

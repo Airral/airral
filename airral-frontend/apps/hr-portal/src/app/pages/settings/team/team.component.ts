@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { forkJoin } from 'rxjs';
-import { InviteRole, Invitation, UserApiService } from '@airral/shared-api';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { Department, DepartmentApiService, InviteRole, Invitation, UserApiService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
 import { User } from '@airral/shared-types';
 import { ROLE_LABELS } from '@airral/shared-utils';
@@ -27,6 +28,7 @@ interface RoleOption {
 })
 export class TeamComponent implements OnInit {
   private readonly userApi = inject(UserApiService);
+  private readonly departmentApi = inject(DepartmentApiService);
   private readonly meId = inject(AuthService).getCurrentUser()?.id ?? null;
 
   readonly roleOptions: RoleOption[] = [
@@ -36,15 +38,17 @@ export class TeamComponent implements OnInit {
   ];
 
   members: User[] = [];
+  departments: Department[] = [];
   invitations: Invitation[] = [];
   loading = true;
   loadError = '';
 
-  form: { email: string; firstName: string; lastName: string; role: InviteRole } = {
+  form: { email: string; firstName: string; lastName: string; role: InviteRole; departmentId: number | null } = {
     email: '',
     firstName: '',
     lastName: '',
     role: 'MANAGER',
+    departmentId: null,
   };
   inviting = false;
   inviteMessage = '';
@@ -62,10 +66,16 @@ export class TeamComponent implements OnInit {
   load(): void {
     this.loading = true;
     this.loadError = '';
-    forkJoin({ members: this.userApi.getAllUsers(), invitations: this.userApi.getPendingInvitations() }).subscribe({
-      next: ({ members, invitations }) => {
+    forkJoin({
+      members: this.userApi.getAllUsers(),
+      invitations: this.userApi.getPendingInvitations(),
+      // Optional: the page still works without the department list.
+      departments: this.departmentApi.list().pipe(catchError(() => of([] as Department[]))),
+    }).subscribe({
+      next: ({ members, invitations, departments }) => {
         this.members = members;
         this.invitations = invitations;
+        this.departments = [...departments].sort((a, b) => a.name.localeCompare(b.name));
         this.loading = false;
       },
       error: () => {
@@ -105,6 +115,7 @@ export class TeamComponent implements OnInit {
         role: this.form.role,
         firstName: this.form.firstName.trim() || undefined,
         lastName: this.form.lastName.trim() || undefined,
+        departmentId: this.form.departmentId ?? undefined,
       })
       .subscribe({
         next: (invitation) => {
@@ -114,7 +125,7 @@ export class TeamComponent implements OnInit {
             invitation.emailSent === false
               ? `Invitation saved for ${invitation.email}, but the email didn't go out. Use Resend below.`
               : `Invitation sent to ${invitation.email}.`;
-          this.form = { email: '', firstName: '', lastName: '', role: this.form.role };
+          this.form = { email: '', firstName: '', lastName: '', role: this.form.role, departmentId: this.form.departmentId };
         },
         error: (error) => {
           this.inviting = false;
@@ -165,6 +176,25 @@ export class TeamComponent implements OnInit {
         // A copy re-renders the picker with the role the member still has.
         this.replaceMember({ ...member });
         this.memberMessage[member.id] = messageFrom(error, 'We could not change the role. Try again.');
+      },
+    });
+  }
+
+  changeDepartment(member: User, departmentId: number | null): void {
+    if (this.memberBusy.has(member.id) || departmentId === (member.departmentId ?? null)) return;
+    this.memberBusy.add(member.id);
+    delete this.memberMessage[member.id];
+    const request = departmentId === null ? { clearDepartment: true } : { departmentId };
+    this.userApi.updateUser(member.id, request).subscribe({
+      next: (updated) => {
+        this.memberBusy.delete(member.id);
+        this.replaceMember(updated);
+        this.memberMessage[member.id] = updated.department ? `Now in ${updated.department}.` : 'No department now.';
+      },
+      error: (error) => {
+        this.memberBusy.delete(member.id);
+        this.replaceMember({ ...member });
+        this.memberMessage[member.id] = messageFrom(error, 'We could not change the department. Try again.');
       },
     });
   }

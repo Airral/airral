@@ -1,5 +1,6 @@
 package com.airral.service;
 
+import com.airral.domain.Department;
 import com.airral.domain.Job;
 import com.airral.domain.Organization;
 import com.airral.domain.enums.JobStatus;
@@ -7,7 +8,9 @@ import com.airral.dto.request.CreateJobRequest;
 import com.airral.dto.response.JobResponse;
 import com.airral.dto.response.PublicStatisticsResponse;
 import com.airral.repository.JobRepository;
+import com.airral.exception.BadRequestException;
 import com.airral.exception.NotFoundException;
+import com.airral.repository.DepartmentRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.repository.UserRepository;
 import io.r2dbc.postgresql.codec.Json;
@@ -17,6 +20,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.Arrays;
 
 @Service
@@ -27,18 +31,21 @@ public class JobService {
     private final OrganizationRepository organizationRepository;
     private final ExternalJobPostingStore externalJobPostingStore;
     private final InternalJobCatalogProjectionService internalJobCatalogProjectionService;
+    private final DepartmentRepository departmentRepository;
 
     public JobService(
             JobRepository jobRepository,
             UserRepository userRepository,
             OrganizationRepository organizationRepository,
             ExternalJobPostingStore externalJobPostingStore,
-            InternalJobCatalogProjectionService internalJobCatalogProjectionService) {
+            InternalJobCatalogProjectionService internalJobCatalogProjectionService,
+            DepartmentRepository departmentRepository) {
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
         this.externalJobPostingStore = externalJobPostingStore;
         this.internalJobCatalogProjectionService = internalJobCatalogProjectionService;
+        this.departmentRepository = departmentRepository;
     }
 
     /**
@@ -46,13 +53,20 @@ public class JobService {
      */
     @Transactional
     public Mono<JobResponse> createJob(CreateJobRequest request, Long organizationId, Long userId) {
-        Job job = Job.builder()
+        return companyDepartment(request.getDepartmentId(), organizationId)
+                .flatMap(department -> jobRepository.save(newJob(request, organizationId, userId, department)))
+                .flatMap(savedJob -> internalJobCatalogProjectionService.sync(savedJob).thenReturn(savedJob))
+                .flatMap(this::toJobResponse);
+    }
+
+    private Job newJob(CreateJobRequest request, Long organizationId, Long userId, Optional<Department> department) {
+        return Job.builder()
                 .organizationId(organizationId)
                 .createdById(userId)
                 .title(request.getTitle())
                 .description(request.getDescription())
-                .departmentId(request.getDepartmentId())
-                .department(request.getDepartment())
+                .departmentId(department.map(Department::getId).orElse(null))
+                .department(department.map(Department::getName).orElse(null))
                 .location(request.getLocation())
                 .employmentType(request.getEmploymentType())
                 .salaryMin(request.getSalaryMin())
@@ -70,10 +84,6 @@ public class JobService {
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-
-        return jobRepository.save(job)
-                .flatMap(savedJob -> internalJobCatalogProjectionService.sync(savedJob).thenReturn(savedJob))
-                .flatMap(this::toJobResponse);
     }
 
     /**
@@ -143,6 +153,20 @@ public class JobService {
      */
     @Transactional
     /**
+     * The company department a job is filed under. Its name is copied onto the
+     * job from the department, never taken from the request, so a job's
+     * department is always one of the company's own.
+     */
+    private Mono<Optional<Department>> companyDepartment(Long departmentId, Long organizationId) {
+        if (departmentId == null) {
+            return Mono.just(Optional.empty());
+        }
+        return departmentRepository.findByIdAndOrganizationId(departmentId, organizationId)
+                .map(Optional::of)
+                .switchIfEmpty(Mono.error(new BadRequestException("The department must be one of your company's")));
+    }
+
+    /**
      * Change only a job's status. Closing or reopening a job used to go through
      * updateJob with little more than a title and a status, and updateJob
      * replaces every field, so it wiped the job's location, pay, requirements
@@ -163,12 +187,15 @@ public class JobService {
     public Mono<JobResponse> updateJob(Long id, CreateJobRequest request, Long organizationId) {
         return jobRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
-                .flatMap(job -> {
+                .zipWith(companyDepartment(request.getDepartmentId(), organizationId))
+                .flatMap(found -> {
+                    Job job = found.getT1();
+                    Optional<Department> department = found.getT2();
                     // Update fields
                     job.setTitle(request.getTitle());
                     job.setDescription(request.getDescription());
-                    job.setDepartmentId(request.getDepartmentId());
-                    job.setDepartment(request.getDepartment());
+                    job.setDepartmentId(department.map(Department::getId).orElse(null));
+                    job.setDepartment(department.map(Department::getName).orElse(null));
                     job.setLocation(request.getLocation());
                     job.setEmploymentType(request.getEmploymentType());
                     job.setSalaryMin(request.getSalaryMin());

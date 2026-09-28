@@ -42,7 +42,7 @@ class JobStatusChangeTest {
     @BeforeEach
     void setUp() {
         service = new JobService(jobs, users, organizations,
-                mock(ExternalJobPostingStore.class), catalogue);
+                mock(ExternalJobPostingStore.class), catalogue, mock(com.airral.repository.DepartmentRepository.class));
         job = Job.builder().id(10L).organizationId(ACME).createdById(7L).title("Backend engineer")
                 .description("Build the API").location("Remote").employmentType("Full-time")
                 .salaryMin(new BigDecimal("150000")).salaryMax(new BigDecimal("190000")).currency("USD")
