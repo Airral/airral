@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit, signal } from '@angula
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { CandidatePortalService } from '@airral/shared-api';
+import { ApplicationApiService, CandidatePortalService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
 import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, ResumeHealthScore } from '@airral/shared-types';
 import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
@@ -88,6 +88,11 @@ export class JobsComponent implements OnInit, OnDestroy {
   fittingJob = false;
   actionMessage = '';
   actionError = '';
+  applying = false;
+  /** Set when applying needs a resume first, to show the upload link. */
+  applyNeedsResume = false;
+  /** Internal ids of the HR-posted jobs this applicant has applied to. */
+  readonly appliedJobIds = signal<Set<number>>(new Set());
   fitResult: CandidateJobFitResult | null = null;
   descriptionView: JobDescriptionView = this.emptyDescriptionView();
   savedJobKeys = new Set<string>();
@@ -141,7 +146,8 @@ export class JobsComponent implements OnInit, OnDestroy {
     private readonly auth: AuthService,
     private readonly changeDetectorRef: ChangeDetectorRef,
     private readonly visitorSignals: VisitorSignalService,
-    private readonly analytics: GoogleAnalyticsService
+    private readonly analytics: GoogleAnalyticsService,
+    private readonly applicationApi: ApplicationApiService
   ) {}
 
   ngOnInit(): void {
@@ -153,6 +159,7 @@ export class JobsComponent implements OnInit, OnDestroy {
 
     this.signedIn.set(this.auth.isAuthenticated());
     this.loadJobs();
+    this.loadMyApplications();
     this.loadResumeHealth();
     this.loadMatchProfile();
     this.checkProfileUpdate();
@@ -503,6 +510,82 @@ export class JobsComponent implements OnInit, OnDestroy {
    * application page. Signed in, it is tied to their account for the admin
    * launch funnel; otherwise it is an anonymous count.
    */
+  /** A job a company posted on AIRRAL: applied to here, not on another site. */
+  isAirralJob(job: CandidateJobSummary | CandidateJobDetail | null): boolean {
+    return job?.sourceType === 'AIRRAL_INTERNAL';
+  }
+
+  hasApplied(job: CandidateJobSummary | CandidateJobDetail | null): boolean {
+    const jobId = this.internalJobId(job);
+    return jobId !== null && this.appliedJobIds().has(jobId);
+  }
+
+  applyInAirral(): void {
+    const job = this.selectedJob;
+    const jobId = this.internalJobId(job);
+    if (!job || jobId === null || this.applying || this.hasApplied(job)) return;
+    if (!this.requireAccount('apply to this job')) return;
+    const user = this.auth.getCurrentUser();
+    if (!user?.email) return;
+
+    this.applying = true;
+    this.actionMessage = '';
+    this.actionError = '';
+    this.applyNeedsResume = false;
+    const name = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email;
+
+    this.applicationApi
+      .submitApplication({ jobId, applicantName: name, applicantEmail: user.email })
+      .pipe(finalize(() => {
+        this.applying = false;
+        this.changeDetectorRef.markForCheck();
+      }))
+      .subscribe({
+        next: () => {
+          this.markApplied(jobId);
+          this.actionMessage = `Applied. ${job.companyName || 'The company'} can see your resume and profile now.`;
+          this.visitorSignals.track('apply_in_airral', '/jobs', 'applicant');
+          this.analytics.event('apply_in_airral');
+        },
+        error: (error: { status?: number; message?: string }) => {
+          if (error?.status === 409) {
+            this.markApplied(jobId);
+            this.actionMessage = "You've already applied to this job.";
+          } else if (error?.status === 400 && /resume/i.test(error?.message ?? '')) {
+            this.applyNeedsResume = true;
+            this.actionError = 'Upload your resume first. The company reviews it with your application.';
+          } else if (error?.status === 404) {
+            this.actionError = 'This job is no longer taking applications.';
+          } else {
+            this.actionError = 'Your application did not go through. Try again in a minute.';
+          }
+        },
+      });
+  }
+
+  /** Which HR-posted jobs this applicant has applied to, so those show as Applied. */
+  private loadMyApplications(): void {
+    const user = this.auth.getCurrentUser();
+    if (!this.signedIn() || !user?.id) return;
+    this.applicationApi.getMyApplications(user.id).pipe(catchError(() => of([]))).subscribe((applications) => {
+      this.appliedJobIds.set(new Set(applications.map((application) => application.jobId)));
+      this.changeDetectorRef.markForCheck();
+    });
+  }
+
+  private markApplied(jobId: number): void {
+    const next = new Set(this.appliedJobIds());
+    next.add(jobId);
+    this.appliedJobIds.set(next);
+  }
+
+  /** An HR-posted job's AIRRAL job id, carried in the catalogue as its external id. */
+  private internalJobId(job: CandidateJobSummary | CandidateJobDetail | null): number | null {
+    if (!this.isAirralJob(job)) return null;
+    const id = Number(job?.externalJobId);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
   trackApplyClick(): void {
     this.visitorSignals.track('apply_click', '/jobs', 'applicant');
     this.analytics.event('apply_click');

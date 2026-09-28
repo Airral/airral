@@ -51,6 +51,8 @@ export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
 export interface Application {
   id: number;
   jobId: number;
+  /** Whether the applicant's resume is attached, for the company to open. */
+  resumeOnFile?: boolean;
   jobTitle?: string;               // Denormalized job title
   job?: Job;
   applicantId?: number;            // Applicant user ID (if registered)
@@ -142,8 +144,12 @@ export interface UpdateJobRequest extends Partial<CreateJobRequest> {
 // For submitting applications (applicant-side)
 export interface SubmitApplicationRequest {
   jobId: number;
-  coverLetter: string;
-  resumeUrl: string;
+  applicantName: string;
+  applicantEmail: string;
+  applicantPhone?: string;
+  coverLetter?: string;
+  /** Only for a candidate HR adds by hand. An applicant's own resume is attached from their profile. */
+  resumeUrl?: string;
 }
 
 // For HR viewing applicants with ATS filters

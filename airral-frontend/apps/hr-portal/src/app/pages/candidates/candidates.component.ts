@@ -215,6 +215,7 @@ export class CandidatesComponent implements OnInit {
   }
 
   canOpenResume(application: Application): boolean {
+    if (application.resumeOnFile) return true;
     try {
       const url = new URL(application.resumeUrl);
       return url.protocol === 'https:' || url.protocol === 'http:';
@@ -224,6 +225,28 @@ export class CandidatesComponent implements OnInit {
   }
 
   openResume(application: Application): void {
+    if (application.resumeOnFile) {
+      // An applicant's own resume comes from the API with this session, so it is
+      // fetched and shown from memory. The tab opens first, inside the click, so
+      // the browser does not block it as a pop-up.
+      const tab = window.open('', '_blank');
+      this.applicationApi.downloadResume(application.id).subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          if (tab) {
+            tab.location.href = url;
+          } else {
+            window.open(url, '_blank');
+          }
+          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        },
+        error: () => {
+          tab?.close();
+          this.error = 'We could not open this resume. Try again.';
+        },
+      });
+      return;
+    }
     if (!this.canOpenResume(application)) {
       this.error = 'This resume is not available from the company workspace yet.';
       return;

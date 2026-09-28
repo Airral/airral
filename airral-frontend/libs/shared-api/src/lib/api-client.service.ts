@@ -39,6 +39,13 @@ export class ApiClientService {
     );
   }
 
+  /** A file the API serves, such as a resume, as a Blob. */
+  getBlob(url: string): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}${url}`, { responseType: 'blob' }).pipe(
+      catchError(this.handleError)
+    );
+  }
+
   delete<T>(url: string): Observable<T> {
     return this.http.delete<T>(`${this.baseUrl}${url}`).pipe(
       catchError(this.handleError)

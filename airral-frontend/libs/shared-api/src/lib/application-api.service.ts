@@ -26,6 +26,11 @@ export class ApplicationApiService {
     return this.apiClient.get<Application>(`/applications/${id}`);
   }
 
+  /** The resume attached to an application, for the company reviewing it. */
+  downloadResume(applicationId: number): Observable<Blob> {
+    return this.apiClient.getBlob(`/applications/${applicationId}/resume`);
+  }
+
   getMyApplications(applicantId: number): Observable<Application[]> {
     return this.apiClient.get<Application[]>(`/applications/applicant/${applicantId}`);
   }
