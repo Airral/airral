@@ -27,6 +27,13 @@
 #   sweep    : retire only what was not seen this run, never a fresh row,
 #              and never an employer's own posting
 #
+# The fourth covers the quality rescore, which owns job_quality_score. The
+# upsert used to overwrite it on every run, so the rescore rewrote ~40k rows
+# back, both writes non-HOT because the score is indexed.
+#
+#   rescore  : after a rescore, re-syncing an unchanged posting keeps the
+#              rescored score, and the next rescore leaves the row alone
+#
 # Requires a migrated local database. Run scripts/verify-local.sh, which boots
 # the jar (and so runs Flyway) before calling this.
 set -uo pipefail
@@ -155,6 +162,12 @@ sweep_sql = (sweep_sql
              .replace(":sourceId", "(SELECT id FROM external_job_sources LIMIT 1)")
              .replace(":seenSince", "now() - interval '1 hour'"))
 
+rescore = re.search(r'public Mono<Long> recomputeJobQuality\(\).*?sql\("""(.*?)"""\)', src, re.S)
+if not rescore:
+    sys.stderr.write("could not extract the rescore SQL -- did recomputeJobQuality change?\n")
+    sys.exit(1)
+rescore_sql = rescore.group(1)
+
 C = "WHERE source_board_token='__guardtest__'"
 print("BEGIN;")
 print(f"DELETE FROM external_job_postings {C};")
@@ -178,7 +191,7 @@ print(f"""SELECT 'update' AS direction,
   CASE WHEN salary_label='$200k-$260k' AND salary_period='YEAR'
         AND sponsorship_language='SPONSORS'
         AND visa_confidence_score=90 AND experience_years=9 AND seniority_label='Staff+'
-        AND job_quality_score=95 AND h1b_transfer_fit IS TRUE
+        AND job_quality_score=92 AND h1b_transfer_fit IS TRUE
         AND total_comp_label='Base + extras listed'
         AND description_text LIKE 'Updated%'
         AND search_vector @@ to_tsquery('english','sponsor')
@@ -211,6 +224,22 @@ print(f"""SELECT 'sweep' AS direction,
         AND (SELECT is_active FROM external_job_postings {C} AND external_job_id='SWEEP-internal') IS TRUE
        THEN 'PASS' ELSE 'FAIL' END AS result;""")
 
+# --- rescore ------------------------------------------------------------
+# ctid moves on every new row version, HOT or not, so an unchanged ctid across a
+# statement proves the statement did not write the row.
+print(f"DELETE FROM external_job_postings {C};")
+print(rich + ";")
+print(rescore_sql + ";")
+print(f"CREATE TEMP TABLE rescored AS SELECT job_quality_score AS score FROM external_job_postings {C};")
+print(rich + ";")
+print(f"CREATE TEMP TABLE resynced AS SELECT ctid AS row_version, job_quality_score AS score FROM external_job_postings {C};")
+print(rescore_sql + ";")
+print(f"""SELECT 'rescore' AS direction,
+  CASE WHEN (SELECT score FROM resynced) = (SELECT score FROM rescored)
+        AND (SELECT score FROM rescored) <> 92
+        AND (SELECT ctid FROM external_job_postings {C}) = (SELECT row_version FROM resynced)
+       THEN 'PASS' ELSE 'FAIL' END AS result;""")
+
 print("ROLLBACK;")
 PY
 ) || { echo "  [FAIL] could not build the check"; exit 1; }
@@ -219,7 +248,7 @@ OUT=$(printf '%s' "$SQL" | psql -d "$DB" -tA -F'|' -v ON_ERROR_STOP=1 2>&1) || {
   echo "  [FAIL] the upsert did not execute:"; printf '%s\n' "$OUT" | sed 's/^/         /'; exit 1; }
 
 RC=0
-for d in preserve update sweep; do
+for d in preserve update sweep rescore; do
   line=$(printf '%s\n' "$OUT" | grep "^$d|" || true)
   case "$line" in
     "$d|PASS")
@@ -227,6 +256,7 @@ for d in preserve update sweep; do
         preserve) echo "  [ok]   preserve — a re-sync without a body keeps derived values" ;;
         update)   echo "  [ok]   update — a re-sync with a body refreshes derived values" ;;
         sweep)    echo "  [ok]   sweep — retires only unseen rows, sparing fresh and employer postings" ;;
+        rescore)  echo "  [ok]   rescore — a re-sync keeps the rescored score, and an unchanged row is not rewritten" ;;
       esac ;;
     "$d|FAIL") echo "  [FAIL] $d — the guard took the wrong arm"; RC=1 ;;
     *)         echo "  [FAIL] $d — no result (got: ${line:-none})"; RC=1 ;;

@@ -1,7 +1,6 @@
 package com.airral.service;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -39,6 +38,16 @@ public class LaunchMetricsService {
             lower(split_part(u.email, '@', 2)) NOT IN
                 ('example.com', 'example.org', 'example.net', 'local.test', 'test.com')""";
 
+    /**
+     * users.created_at and last_login_at as instants. They are plain TIMESTAMPs
+     * written by CURRENT_TIMESTAMP in the database session's zone, so reading
+     * them back through that same zone is what makes them comparable with the
+     * UTC window below -- on a database not running in UTC, comparing them raw
+     * put an evening sign-up on the wrong day and out of "Today".
+     */
+    static final String USER_CREATED = "(u.created_at AT TIME ZONE current_setting('TimeZone'))";
+    static final String USER_LAST_LOGIN = "(u.last_login_at AT TIME ZONE current_setting('TimeZone'))";
+
     private final DatabaseClient databaseClient;
 
     public LaunchMetricsService(DatabaseClient databaseClient) {
@@ -57,8 +66,8 @@ public class LaunchMetricsService {
 
     public record Day(LocalDate day, long visitors, long signups, long applyClicks) {}
 
-    public record Applicant(Long id, String email, String name, LocalDateTime signedUpAt,
-                            LocalDateTime lastLoginAt, OffsetDateTime lastSeenAt, boolean verified,
+    public record Applicant(Long id, String email, String name, OffsetDateTime signedUpAt,
+                            OffsetDateTime lastLoginAt, OffsetDateTime lastSeenAt, boolean verified,
                             long resumes, long matches, long savedJobs, long applyClicks) {}
 
     public record Referrer(String host, long visits) {}
@@ -69,12 +78,10 @@ public class LaunchMetricsService {
 
     public Mono<LaunchMetrics> summarize(int days) {
         int windowDays = Math.max(1, Math.min(days, MAX_WINDOW_DAYS));
-        // Midnight UTC, so the first day is whole. users.created_at is a plain
-        // TIMESTAMP written in the database's zone, which is UTC on Cloud SQL.
+        // Midnight UTC, so the first day is whole.
         OffsetDateTime since = OffsetDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(ChronoUnit.DAYS)
                 .minusDays(windowDays - 1L);
-        LocalDateTime sinceLocal = since.toLocalDateTime();
 
         Mono<Traffic> traffic = databaseClient.sql("""
                         SELECT COUNT(DISTINCT visitor_key) AS visitors,
@@ -94,7 +101,7 @@ public class LaunchMetricsService {
                         WITH cohort AS (
                             SELECT u.id, COALESCE(u.email_verified, false) AS verified
                             FROM users u
-                            WHERE u.role = 'APPLICANT' AND u.created_at >= :since AND %s
+                            WHERE u.role = 'APPLICANT' AND %s >= :since AND %s
                         )
                         SELECT COUNT(*) AS signed_up,
                                COUNT(*) FILTER (WHERE c.verified) AS verified,
@@ -111,11 +118,11 @@ public class LaunchMetricsService {
                                    SELECT 1 FROM candidate_saved_jobs s WHERE s.user_id = c.id
                                    AND s.status IN ('APPLIED', 'INTERVIEWING', 'OFFER', 'REJECTED'))) AS tracked_applied,
                                (SELECT COUNT(*) FROM users u
-                                 WHERE u.role = 'APPLICANT' AND u.created_at >= :since
+                                 WHERE u.role = 'APPLICANT' AND %s >= :since
                                    AND NOT (%s)) AS test_hidden
                         FROM cohort c
-                        """.formatted(REAL_ACCOUNT, REAL_ACCOUNT))
-                .bind("since", sinceLocal)
+                        """.formatted(USER_CREATED, REAL_ACCOUNT, USER_CREATED, REAL_ACCOUNT))
+                .bind("since", since)
                 .map((row, meta) -> new Funnel(n(row, "signed_up"), n(row, "verified"), n(row, "resume"),
                         n(row, "matched"), n(row, "saved"), n(row, "clicked_apply"),
                         n(row, "tracked_applied"), n(row, "test_hidden")))
@@ -124,14 +131,14 @@ public class LaunchMetricsService {
         Mono<Employers> employers = databaseClient.sql("""
                         SELECT (SELECT COUNT(*) FROM users u
                                  WHERE u.role = 'HR_MANAGER' AND u.organization_id IS NOT NULL
-                                   AND u.created_at >= :since AND %s) AS signed_up,
+                                   AND %s >= :since AND %s) AS signed_up,
                                (SELECT COUNT(*) FROM organizations
                                  WHERE verification_status = 'PENDING') AS pending,
                                (SELECT COUNT(*) FROM organizations
                                  WHERE verification_status = 'VERIFIED') AS verified,
                                (SELECT COUNT(*) FROM jobs WHERE status = 'OPEN') AS open_jobs
-                        """.formatted(REAL_ACCOUNT))
-                .bind("since", sinceLocal)
+                        """.formatted(USER_CREATED, REAL_ACCOUNT))
+                .bind("since", since)
                 .map((row, meta) -> new Employers(n(row, "signed_up"), n(row, "pending"),
                         n(row, "verified"), n(row, "open_jobs")))
                 .one();
@@ -149,9 +156,9 @@ public class LaunchMetricsService {
                             GROUP BY 1
                         ),
                         signups AS (
-                            SELECT u.created_at::date AS day, COUNT(*) AS signups
+                            SELECT (%s AT TIME ZONE 'UTC')::date AS day, COUNT(*) AS signups
                             FROM users u
-                            WHERE u.role = 'APPLICANT' AND u.created_at >= :sinceLocal AND %s
+                            WHERE u.role = 'APPLICANT' AND %s >= :since AND %s
                             GROUP BY 1
                         )
                         SELECT d.day,
@@ -162,17 +169,17 @@ public class LaunchMetricsService {
                         LEFT JOIN visits v ON v.day = d.day
                         LEFT JOIN signups s ON s.day = d.day
                         ORDER BY d.day
-                        """.formatted(REAL_ACCOUNT))
+                        """.formatted(USER_CREATED, USER_CREATED, REAL_ACCOUNT))
                 .bind("first", since.toLocalDate())
                 .bind("since", since)
-                .bind("sinceLocal", sinceLocal)
                 .map((row, meta) -> new Day(row.get("day", LocalDate.class), n(row, "visitors"),
                         n(row, "signups"), n(row, "apply_clicks")))
                 .all()
                 .collectList();
 
         Mono<List<Applicant>> recent = databaseClient.sql("""
-                        SELECT u.id, u.email, u.first_name, u.last_name, u.created_at, u.last_login_at,
+                        SELECT u.id, u.email, u.first_name, u.last_name,
+                               %s AS created_at, %s AS last_login_at,
                                COALESCE(u.email_verified, false) AS verified,
                                (SELECT COUNT(*) FROM candidate_resume_documents r WHERE r.user_id = u.id) AS resumes,
                                (SELECT COUNT(*) FROM candidate_job_fit_results f WHERE f.user_id = u.id) AS matches,
@@ -181,18 +188,18 @@ public class LaunchMetricsService {
                                  WHERE e.user_id = u.id AND e.event_name = 'apply_click') AS apply_clicks,
                                (SELECT MAX(e.created_at) FROM analytics_events e WHERE e.user_id = u.id) AS last_seen
                         FROM users u
-                        WHERE u.role = 'APPLICANT' AND u.created_at >= :since AND %s
+                        WHERE u.role = 'APPLICANT' AND %s >= :since AND %s
                         ORDER BY u.created_at DESC
                         LIMIT :limit
-                        """.formatted(REAL_ACCOUNT))
-                .bind("since", sinceLocal)
+                        """.formatted(USER_CREATED, USER_LAST_LOGIN, USER_CREATED, REAL_ACCOUNT))
+                .bind("since", since)
                 .bind("limit", RECENT_APPLICANTS)
                 .map((row, meta) -> new Applicant(
                         row.get("id", Long.class),
                         row.get("email", String.class),
                         name(row.get("first_name", String.class), row.get("last_name", String.class)),
-                        row.get("created_at", LocalDateTime.class),
-                        row.get("last_login_at", LocalDateTime.class),
+                        row.get("created_at", OffsetDateTime.class),
+                        row.get("last_login_at", OffsetDateTime.class),
                         row.get("last_seen", OffsetDateTime.class),
                         Boolean.TRUE.equals(row.get("verified", Boolean.class)),
                         n(row, "resumes"), n(row, "matches"), n(row, "saved"), n(row, "apply_clicks")))
