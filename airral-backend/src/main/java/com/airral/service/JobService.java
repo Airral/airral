@@ -142,6 +142,24 @@ public class JobService {
      * Update a job
      */
     @Transactional
+    /**
+     * Change only a job's status. Closing or reopening a job used to go through
+     * updateJob with little more than a title and a status, and updateJob
+     * replaces every field, so it wiped the job's location, pay, requirements
+     * and keywords.
+     */
+    public Mono<JobResponse> updateJobStatus(Long id, JobStatus status, Long organizationId) {
+        return jobRepository.findByIdAndOrganizationId(id, organizationId)
+                .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
+                .flatMap(job -> {
+                    job.setStatus(status);
+                    job.setUpdatedAt(LocalDateTime.now());
+                    return jobRepository.save(job);
+                })
+                .flatMap(savedJob -> internalJobCatalogProjectionService.sync(savedJob).thenReturn(savedJob))
+                .flatMap(this::toJobResponse);
+    }
+
     public Mono<JobResponse> updateJob(Long id, CreateJobRequest request, Long organizationId) {
         return jobRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))

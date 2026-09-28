@@ -2,6 +2,7 @@ package com.airral.controller;
 
 import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.CreateJobRequest;
+import com.airral.dto.request.UpdateJobStatusRequest;
 import com.airral.dto.response.JobResponse;
 import com.airral.dto.response.PublicStatisticsResponse;
 import com.airral.exception.BadRequestException;
@@ -110,6 +111,24 @@ public class JobController {
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
         return jobService.updateJob(id, request, organizationId)
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * Open, close or fill a job, leaving everything else about it as it is
+     * PUT /api/jobs/{id}/status
+     */
+    @PutMapping("/{id}/status")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<JobResponse>> updateJobStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateJobStatusRequest request,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+
+        return jobService.updateJobStatus(id, request.getStatus(), organizationId)
                 .map(ResponseEntity::ok);
     }
 

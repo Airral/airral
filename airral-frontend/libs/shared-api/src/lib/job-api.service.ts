@@ -48,6 +48,11 @@ export class JobApiService {
     return this.apiClient.put<Job>(`/jobs/${id}`, request);
   }
 
+  /** Open, close or fill a job without touching anything else about it. */
+  updateJobStatus(id: number, status: string): Observable<Job> {
+    return this.apiClient.put<Job>(`/jobs/${id}/status`, { status });
+  }
+
   deleteJob(id: number): Observable<any> {
     return this.apiClient.delete<any>(`/jobs/${id}`);
   }

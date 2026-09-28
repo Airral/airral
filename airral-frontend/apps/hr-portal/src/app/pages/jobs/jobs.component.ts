@@ -145,15 +145,10 @@ export class JobsComponent implements OnInit {
   }
 
   changeJobStatus(job: Job, status: JobStatus): void {
-    const payload: CreateJobRequest = {
-      title: job.title,
-      department: job.department,
-      description: job.description,
-      status,
-    };
-
+    // Its own endpoint: sending a partial job to updateJob used to wipe the
+    // fields left out, since updateJob replaces the whole job.
     this.saving = true;
-    this.jobApi.updateJob(job.id, payload).subscribe({
+    this.jobApi.updateJobStatus(job.id, status).subscribe({
       next: () => {
         this.saving = false;
         this.loadData();
