@@ -61,12 +61,26 @@
     <section class="card" aria-labelledby="members-heading">
       <h2 id="members-heading">Members <span class="count">{{ members.length }}</span></h2>
       <ul class="rows">
-        <li class="row" *ngFor="let member of members">
+        <li class="row" *ngFor="let member of members" [class.row--inactive]="member.isActive === false">
           <div class="who">
             <strong>{{ displayName(member.firstName, member.lastName, member.email) }}</strong>
-            <span class="sub">{{ member.email }}</span>
+            <span class="sub">{{ member.email }}<ng-container *ngIf="member.isActive === false"> · Deactivated</ng-container></span>
+            <span class="sub row-message" role="status" *ngIf="memberMessage[member.id]">{{ memberMessage[member.id] }}</span>
           </div>
-          <span class="role-chip">{{ roleLabel(member.role) }}</span>
+          <div class="row-actions" *ngIf="canManage(member); else fixedRole">
+            <label class="sr-only" [attr.for]="'member-role-' + member.id">Role for {{ member.email }}</label>
+            <select [id]="'member-role-' + member.id" [ngModel]="member.role" (ngModelChange)="changeRole(member, $event)"
+                    [disabled]="memberBusy.has(member.id) || member.isActive === false">
+              <option *ngFor="let option of roleOptions" [ngValue]="option.value">{{ option.label }}</option>
+            </select>
+            <button type="button" class="btn-quiet" [class.btn-danger]="member.isActive !== false"
+                    (click)="toggleActive(member)" [disabled]="memberBusy.has(member.id)">
+              {{ member.isActive === false ? 'Reactivate' : 'Deactivate' }}
+            </button>
+          </div>
+          <ng-template #fixedRole>
+            <span class="role-chip">{{ roleLabel(member.role) }}<ng-container *ngIf="isMe(member)"> · You</ng-container></span>
+          </ng-template>
         </li>
       </ul>
     </section>

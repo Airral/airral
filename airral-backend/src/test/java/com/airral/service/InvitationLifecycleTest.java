@@ -49,7 +49,8 @@ class InvitationLifecycleTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserService(users, invitations, organizations, mock(DepartmentRepository.class), linkSender, throttle);
+        service = new UserService(users, invitations, organizations, mock(DepartmentRepository.class), linkSender, throttle,
+                mock(com.airral.security.TokenVersionCache.class));
         when(users.findByEmail(any())).thenReturn(Mono.empty());
         when(invitations.findValidInvitationByEmailAndOrganization(any(), any())).thenReturn(Mono.empty());
         when(invitations.save(any(UserInvitation.class))).thenAnswer(inv -> {

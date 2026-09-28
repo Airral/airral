@@ -17,6 +17,7 @@ import com.airral.exception.InvitationRateLimitedException;
 import com.airral.exception.NotFoundException;
 import com.airral.repository.UserRepository;
 import com.airral.security.LoginThrottle;
+import com.airral.security.TokenVersionCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
@@ -53,19 +54,22 @@ public class UserService {
     private final DepartmentRepository departmentRepository;
     private final FirebaseEmailLinkSender linkSender;
     private final LoginThrottle loginThrottle;
+    private final TokenVersionCache tokenVersionCache;
 
     public UserService(UserRepository userRepository,
                       UserInvitationRepository invitationRepository,
                       OrganizationRepository organizationRepository,
                       DepartmentRepository departmentRepository,
                       FirebaseEmailLinkSender linkSender,
-                      LoginThrottle loginThrottle) {
+                      LoginThrottle loginThrottle,
+                      TokenVersionCache tokenVersionCache) {
         this.userRepository = userRepository;
         this.invitationRepository = invitationRepository;
         this.organizationRepository = organizationRepository;
         this.departmentRepository = departmentRepository;
         this.linkSender = linkSender;
         this.loginThrottle = loginThrottle;
+        this.tokenVersionCache = tokenVersionCache;
     }
 
     /**
@@ -129,6 +133,57 @@ public class UserService {
                     user.setUpdatedAt(LocalDateTime.now());
 
                     return userRepository.save(user);
+                })
+                .flatMap(this::toUserResponse);
+    }
+
+    /**
+     * Give a member another role. They are signed out everywhere, since a
+     * session carries the role it was issued with.
+     */
+    public Mono<UserResponse> changeRole(Long id, UserRole role, Long organizationId, Long callerId) {
+        if (!INVITABLE_ROLES.contains(role)) {
+            return Mono.error(new BadRequestException("A member can only be an HR manager, a manager or an employee"));
+        }
+        if (id.equals(callerId)) {
+            return Mono.error(new BadRequestException("You can't change your own role. Ask another HR manager."));
+        }
+        return managedMember(id, organizationId)
+                .flatMap(user -> user.getRole() == role
+                        ? Mono.just(user)
+                        : keepsAnHrManager(user, organizationId, role == UserRole.HR_MANAGER)
+                                .then(Mono.defer(() -> {
+                                    user.setRole(role);
+                                    user.setUpdatedAt(LocalDateTime.now());
+                                    return userRepository.save(user);
+                                }))
+                                .flatMap(saved -> tokenVersionCache.revokeAll(saved.getId()).thenReturn(saved)))
+                .flatMap(this::toUserResponse);
+    }
+
+    /**
+     * Deactivate a member, or let them back in. A deactivated member cannot
+     * sign in, and every session they hold ends at once.
+     */
+    public Mono<UserResponse> setActive(Long id, boolean active, Long organizationId, Long callerId) {
+        if (!active && id.equals(callerId)) {
+            return Mono.error(new BadRequestException("You can't deactivate yourself. Ask another HR manager."));
+        }
+        return managedMember(id, organizationId)
+                .flatMap(user -> {
+                    if (Boolean.valueOf(active).equals(user.getIsActive())) {
+                        return Mono.just(user);
+                    }
+                    Mono<Void> check = active ? Mono.empty() : keepsAnHrManager(user, organizationId, false);
+                    return check
+                            .then(Mono.defer(() -> {
+                                user.setIsActive(active);
+                                user.setUpdatedAt(LocalDateTime.now());
+                                return userRepository.save(user);
+                            }))
+                            .flatMap(saved -> active
+                                    ? Mono.just(saved)
+                                    : tokenVersionCache.revokeAll(saved.getId()).thenReturn(saved));
                 })
                 .flatMap(this::toUserResponse);
     }
@@ -280,6 +335,37 @@ public class UserService {
                 .createdAt(invitation.getCreatedAt())
                 .emailSent(emailSent)
                 .build();
+    }
+
+    /**
+     * A member of the caller's company whose account the company may manage.
+     * AIRRAL's own admins are not a company's to demote or switch off.
+     */
+    private Mono<User> managedMember(Long id, Long organizationId) {
+        return userRepository.findById(id)
+                .filter(user -> sameCompany(user, organizationId))
+                .switchIfEmpty(Mono.error(new NotFoundException("User not found")))
+                .flatMap(user -> user.getRole() == UserRole.ADMIN || Boolean.TRUE.equals(user.getIsPlatformAdmin())
+                        ? Mono.<User>error(new AccessDeniedException("This account is managed by AIRRAL"))
+                        : Mono.just(user));
+    }
+
+    /**
+     * Refuses a change that would leave the company without an active HR
+     * manager: nobody would be left to run hiring or manage the team.
+     */
+    private Mono<Void> keepsAnHrManager(User user, Long organizationId, boolean staysHrManager) {
+        boolean losesOne = user.getRole() == UserRole.HR_MANAGER
+                && Boolean.TRUE.equals(user.getIsActive())
+                && !staysHrManager;
+        if (!losesOne) {
+            return Mono.empty();
+        }
+        return userRepository.countActiveHrManagers(organizationId)
+                .flatMap(count -> count <= 1
+                        ? Mono.<Void>error(new BadRequestException(
+                                "Your company needs at least one HR manager. Make someone else an HR manager first."))
+                        : Mono.<Void>empty());
     }
 
     /** Whether a user belongs to the given company. No company matches nobody. */

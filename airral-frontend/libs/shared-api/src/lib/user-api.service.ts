@@ -83,4 +83,14 @@ export class UserApiService {
   cancelInvitation(id: number): Observable<void> {
     return this.apiClient.delete<void>(`/users/invitations/${id}`);
   }
+
+  /** Give a member another role. They are signed out so the new role takes effect. */
+  changeRole(id: number, role: InviteRole): Observable<User> {
+    return this.apiClient.put<User>(`/users/${id}/role`, { role });
+  }
+
+  /** Deactivate a member (they are signed out everywhere), or let them back in. */
+  setActive(id: number, active: boolean): Observable<User> {
+    return this.apiClient.put<User>(`/users/${id}/active`, { active });
+  }
 }

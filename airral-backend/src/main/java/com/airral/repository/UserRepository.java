@@ -38,4 +38,7 @@ public interface UserRepository extends R2dbcRepository<User, Long> {
     @Query("SELECT * FROM users WHERE manager_id = :managerId")
     Flux<User> findByManagerId(Long managerId);
 
+    @Query("SELECT COUNT(*) FROM users WHERE organization_id = :organizationId AND role = 'HR_MANAGER' AND is_active = true")
+    Mono<Long> countActiveHrManagers(Long organizationId);
+
 }

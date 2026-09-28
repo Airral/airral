@@ -54,7 +54,8 @@ class UserServiceRulesTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserService(users, invitations, organizations, departments, linkSender, throttle);
+        service = new UserService(users, invitations, organizations, departments, linkSender, throttle,
+                mock(com.airral.security.TokenVersionCache.class));
         when(organizations.findById(any(Long.class))).thenReturn(Mono.just(Organization.builder().name("Acme").build()));
         for (User user : new User[] {amy, ben, gus}) {
             when(users.findById(user.getId())).thenReturn(Mono.just(user));

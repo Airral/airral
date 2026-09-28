@@ -1,6 +1,8 @@
 package com.airral.controller;
 
+import com.airral.dto.request.ChangeRoleRequest;
 import com.airral.dto.request.InviteUserRequest;
+import com.airral.dto.request.SetActiveRequest;
 import com.airral.dto.request.UpdateUserRequest;
 import com.airral.dto.response.InvitationResponse;
 import com.airral.dto.response.UserResponse;
@@ -92,6 +94,44 @@ public class UserController {
         return userService.updateUser(id, request, organizationId,
                         jwtTokenProvider.getUserIdFromToken(token),
                         jwtTokenProvider.getRoleFromToken(token))
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * Change a member's role
+     * PUT /api/users/{id}/role
+     */
+    @PutMapping("/{id}/role")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<UserResponse>> changeRole(
+            @PathVariable Long id,
+            @Valid @RequestBody ChangeRoleRequest request,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+
+        return userService.changeRole(id, request.getRole(),
+                        jwtTokenProvider.getOrganizationIdFromToken(token),
+                        jwtTokenProvider.getUserIdFromToken(token))
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * Deactivate or reactivate a member
+     * PUT /api/users/{id}/active
+     */
+    @PutMapping("/{id}/active")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<UserResponse>> setActive(
+            @PathVariable Long id,
+            @Valid @RequestBody SetActiveRequest request,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+
+        return userService.setActive(id, request.getActive(),
+                        jwtTokenProvider.getOrganizationIdFromToken(token),
+                        jwtTokenProvider.getUserIdFromToken(token))
                 .map(ResponseEntity::ok);
     }
 
