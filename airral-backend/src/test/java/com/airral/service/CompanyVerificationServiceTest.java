@@ -39,10 +39,25 @@ class CompanyVerificationServiceTest {
         organizationRepository = mock(OrganizationRepository.class);
         jobRepository = mock(JobRepository.class);
         projection = mock(InternalJobCatalogProjectionService.class);
-        service = new CompanyVerificationService(organizationRepository, jobRepository, projection);
+        // The domain tests below describe approval by work email, which is
+        // switched on here; companyWaitsForReviewWhileDomainApprovalIsOff covers
+        // the default.
+        service = new CompanyVerificationService(organizationRepository, jobRepository, projection, true);
         when(organizationRepository.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         when(jobRepository.findByOrganizationIdAndStatus(any(), any())).thenReturn(Flux.empty());
         when(organizationRepository.existsVerifiedDomainOtherThan(any(), any())).thenReturn(Mono.just(false));
+    }
+
+    @Test
+    @DisplayName("with approval by work email off, proving a work address leaves the company for review")
+    void companyWaitsForReviewWhileDomainApprovalIsOff() {
+        CompanyVerificationService reviewEveryCompany =
+                new CompanyVerificationService(organizationRepository, jobRepository, projection, false);
+        when(organizationRepository.findById(9L)).thenReturn(Mono.just(company("stripe.com")));
+
+        StepVerifier.create(reviewEveryCompany.onEmailProven(hr("bob@stripe.com"))).verifyComplete();
+
+        verify(organizationRepository, never()).save(any());
     }
 
     @Test

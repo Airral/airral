@@ -8,6 +8,7 @@ import com.airral.repository.JobRepository;
 import com.airral.repository.OrganizationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -30,6 +31,10 @@ import java.util.Set;
  *   <li><b>ADMIN</b> -- a platform admin reviews it. Free-mail employers, and any
  *       company without a domain, wait here.</li>
  * </ul>
+ *
+ * <p>DOMAIN is off unless {@code airral.company-review.approve-work-domains} is
+ * set. For now every company waits for an admin, and that review is when AIRRAL
+ * gets in touch with a new employer.
  *
  * <p>This mirrors how the large job boards separate the two questions: LinkedIn
  * verifies job posters by work email, and Indeed checks employers before their
@@ -64,13 +69,16 @@ public class CompanyVerificationService {
     private final OrganizationRepository organizationRepository;
     private final JobRepository jobRepository;
     private final InternalJobCatalogProjectionService projectionService;
+    private final boolean approveWorkDomains;
 
     public CompanyVerificationService(OrganizationRepository organizationRepository,
                                       JobRepository jobRepository,
-                                      @Lazy InternalJobCatalogProjectionService projectionService) {
+                                      @Lazy InternalJobCatalogProjectionService projectionService,
+                                      @Value("${airral.company-review.approve-work-domains:false}") boolean approveWorkDomains) {
         this.organizationRepository = organizationRepository;
         this.jobRepository = jobRepository;
         this.projectionService = projectionService;
+        this.approveWorkDomains = approveWorkDomains;
     }
 
     public static boolean isPublishable(Organization organization) {
@@ -106,6 +114,9 @@ public class CompanyVerificationService {
      */
     public Mono<Void> onEmailProven(User user) {
         if (user == null || user.getOrganizationId() == null) {
+            return Mono.empty();
+        }
+        if (!approveWorkDomains) {
             return Mono.empty();
         }
         String emailDomain = domainOf(user.getEmail());

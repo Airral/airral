@@ -144,6 +144,11 @@ airral:
     google:
       client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
       jwk-url: ${GOOGLE_OAUTH_JWK_URL:https://www.googleapis.com/oauth2/v3/certs}
+  company-review:
+    # Approve a company automatically when one of its people proves an
+    # address on its own work domain. Off for now: every new company waits
+    # for an AIRRAL admin, and that review is when AIRRAL gets in touch.
+    approve-work-domains: ${AIRRAL_APPROVE_WORK_DOMAINS:false}
   client-ip:
     # How many entries at the RIGHT-hand end of X-Forwarded-For were written by
     # infrastructure we control. The caller's own address is that many entries
