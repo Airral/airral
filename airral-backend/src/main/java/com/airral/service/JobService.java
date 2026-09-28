@@ -3,6 +3,8 @@ package com.airral.service;
 import com.airral.domain.Department;
 import com.airral.domain.Job;
 import com.airral.domain.Organization;
+import com.airral.domain.User;
+import com.airral.domain.enums.UserRole;
 import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.CreateJobRequest;
 import com.airral.dto.response.JobResponse;
@@ -53,7 +55,8 @@ public class JobService {
      */
     @Transactional
     public Mono<JobResponse> createJob(CreateJobRequest request, Long organizationId, Long userId) {
-        return companyDepartment(request.getDepartmentId(), organizationId)
+        return hiringManagerCheck(request.getHiringManagerId(), organizationId)
+                .then(companyDepartment(request.getDepartmentId(), organizationId))
                 .flatMap(department -> jobRepository.save(newJob(request, organizationId, userId, department)))
                 .flatMap(savedJob -> internalJobCatalogProjectionService.sync(savedJob).thenReturn(savedJob))
                 .flatMap(this::toJobResponse);
@@ -67,6 +70,7 @@ public class JobService {
                 .description(request.getDescription())
                 .departmentId(department.map(Department::getId).orElse(null))
                 .department(department.map(Department::getName).orElse(null))
+                .hiringManagerId(request.getHiringManagerId())
                 .location(request.getLocation())
                 .employmentType(request.getEmploymentType())
                 .salaryMin(request.getSalaryMin())
@@ -153,6 +157,23 @@ public class JobService {
      */
     @Transactional
     /**
+     * A job's hiring manager must be an active manager or HR manager in the
+     * same company: they will see every candidate for it.
+     */
+    private Mono<Void> hiringManagerCheck(Long hiringManagerId, Long organizationId) {
+        if (hiringManagerId == null) {
+            return Mono.empty();
+        }
+        return userRepository.findById(hiringManagerId)
+                .filter(user -> organizationId != null && organizationId.equals(user.getOrganizationId())
+                        && Boolean.TRUE.equals(user.getIsActive())
+                        && (user.getRole() == UserRole.MANAGER || user.getRole() == UserRole.HR_MANAGER))
+                .switchIfEmpty(Mono.error(new BadRequestException(
+                        "The hiring manager must be an active manager or HR manager in your company")))
+                .then();
+    }
+
+    /**
      * The company department a job is filed under. Its name is copied onto the
      * job from the department, never taken from the request, so a job's
      * department is always one of the company's own.
@@ -187,7 +208,8 @@ public class JobService {
     public Mono<JobResponse> updateJob(Long id, CreateJobRequest request, Long organizationId) {
         return jobRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
-                .zipWith(companyDepartment(request.getDepartmentId(), organizationId))
+                .zipWith(hiringManagerCheck(request.getHiringManagerId(), organizationId)
+                        .then(companyDepartment(request.getDepartmentId(), organizationId)))
                 .flatMap(found -> {
                     Job job = found.getT1();
                     Optional<Department> department = found.getT2();
@@ -196,6 +218,7 @@ public class JobService {
                     job.setDescription(request.getDescription());
                     job.setDepartmentId(department.map(Department::getId).orElse(null));
                     job.setDepartment(department.map(Department::getName).orElse(null));
+                    job.setHiringManagerId(request.getHiringManagerId());
                     job.setLocation(request.getLocation());
                     job.setEmploymentType(request.getEmploymentType());
                     job.setSalaryMin(request.getSalaryMin());
@@ -249,10 +272,21 @@ public class JobService {
 
         Mono<Organization> organization = findOrganization(job.getOrganizationId());
 
+        // Internal responses only: the public job board uses toPublicJobResponse,
+        // which never names the hiring manager.
+        Mono<String> hiringManagerName = job.getHiringManagerId() == null
+                ? Mono.just("")
+                : userRepository.findById(job.getHiringManagerId()).map(User::getFullName).defaultIfEmpty("");
+
         return createdByName.flatMap(createdBy ->
                 organization
                         .map(org -> buildJobResponse(job, createdBy, org))
-                        .defaultIfEmpty(buildJobResponse(job, createdBy, null)));
+                        .defaultIfEmpty(buildJobResponse(job, createdBy, null)))
+                .zipWith(hiringManagerName, (response, name) -> {
+                    response.setHiringManagerId(job.getHiringManagerId());
+                    response.setHiringManagerName(name.isBlank() ? null : name);
+                    return response;
+                });
     }
 
     private JobResponse buildJobResponse(Job job, String createdBy, Organization organization) {

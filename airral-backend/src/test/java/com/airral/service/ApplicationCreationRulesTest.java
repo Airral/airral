@@ -150,7 +150,7 @@ class ApplicationCreationRulesTest {
         when(jwt.getEmailFromToken("tok")).thenReturn("amy@example.com");
         when(stub.applyAsApplicant(any(), any(), any())).thenReturn(Mono.empty());
 
-        new ApplicationController(stub, jwt).submitApplication(request(), "Bearer tok").block();
+        new ApplicationController(stub, jwt, mock(HiringScope.class)).submitApplication(request(), "Bearer tok").block();
 
         verify(stub).applyAsApplicant(any(), eq(7L), eq("amy@example.com"));
     }
@@ -162,7 +162,7 @@ class ApplicationCreationRulesTest {
         JwtTokenProvider jwt = mock(JwtTokenProvider.class);
         when(jwt.getRoleFromToken("tok")).thenReturn("EMPLOYEE");
 
-        StepVerifier.create(new ApplicationController(stub, jwt).submitApplication(request(), "Bearer tok"))
+        StepVerifier.create(new ApplicationController(stub, jwt, mock(HiringScope.class)).submitApplication(request(), "Bearer tok"))
                 .assertNext(response -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN))
                 .verifyComplete();
         verifyNoInteractions(stub);

@@ -39,10 +39,11 @@ public class InterviewService {
      * Schedule a new interview
      */
         @Transactional
-    public Mono<InterviewResponse> scheduleInterview(ScheduleInterviewRequest request, 
-                                                     Long organizationId, Long userId) {
-        // Verify the application belongs to this organization
+    public Mono<InterviewResponse> scheduleInterview(ScheduleInterviewRequest request,
+                                                     Long organizationId, Long userId, JobScope scope) {
+        // Verify the application belongs to this organization, and to the caller's jobs
         return applicationRepository.findByIdAndOrganizationId(request.getApplicationId(), organizationId)
+                .filter(application -> scope.allows(application.getJobId()))
                 .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
                 .flatMap(application -> {
                     Interview interview = Interview.builder()
@@ -68,17 +69,19 @@ public class InterviewService {
     /**
      * Get all interviews for an organization
      */
-    public Flux<InterviewResponse> getAllInterviews(Long organizationId) {
+    public Flux<InterviewResponse> getAllInterviews(Long organizationId, JobScope scope) {
         return interviewRepository.findAllByOrganizationId(organizationId)
+                .filterWhen(interview -> inScope(interview, scope))
                 .flatMap(this::toInterviewResponse);
     }
 
     /**
      * Get interviews by application
      */
-    public Flux<InterviewResponse> getInterviewsByApplication(Long applicationId, Long organizationId) {
-        // First verify the application belongs to this organization
+    public Flux<InterviewResponse> getInterviewsByApplication(Long applicationId, Long organizationId, JobScope scope) {
+        // First verify the application belongs to this organization, and to the caller's jobs
         return applicationRepository.findByIdAndOrganizationId(applicationId, organizationId)
+                .filter(application -> scope.allows(application.getJobId()))
                 .flatMapMany(app -> interviewRepository.findByApplicationId(applicationId))
                 .flatMap(this::toInterviewResponse);
     }
@@ -86,18 +89,21 @@ public class InterviewService {
     /**
      * Get upcoming interviews
      */
-    public Flux<InterviewResponse> getUpcomingInterviews(Long organizationId) {
+    public Flux<InterviewResponse> getUpcomingInterviews(Long organizationId, JobScope scope) {
         return interviewRepository.findUpcomingByOrganizationId(organizationId, LocalDateTime.now())
+                .filterWhen(interview -> inScope(interview, scope))
                 .flatMap(this::toInterviewResponse);
     }
 
     /**
      * Get interviews by date range (for calendar view)
      */
-    public Flux<InterviewResponse> getInterviewsByDateRange(Long organizationId, 
-                                                            LocalDateTime startDate, 
-                                                            LocalDateTime endDate) {
+    public Flux<InterviewResponse> getInterviewsByDateRange(Long organizationId,
+                                                            LocalDateTime startDate,
+                                                            LocalDateTime endDate,
+                                                            JobScope scope) {
         return interviewRepository.findByOrganizationIdAndDateRange(organizationId, startDate, endDate)
+                .filterWhen(interview -> inScope(interview, scope))
                 .flatMap(this::toInterviewResponse);
     }
 
@@ -105,9 +111,10 @@ public class InterviewService {
      * Submit interview feedback
      */
         @Transactional
-    public Mono<InterviewResponse> submitFeedback(Long interviewId, InterviewFeedbackRequest request, 
-                                                  Long organizationId) {
+    public Mono<InterviewResponse> submitFeedback(Long interviewId, InterviewFeedbackRequest request,
+                                                  Long organizationId, JobScope scope) {
         return interviewRepository.findByIdAndOrganizationId(interviewId, organizationId)
+                .filterWhen(interview -> inScope(interview, scope))
                 .switchIfEmpty(Mono.error(new NotFoundException("Interview not found")))
                 .flatMap(interview -> {
                     interview.setFeedback(request.getFeedback());
@@ -159,5 +166,15 @@ public class InterviewService {
                                 );
                             })
                 );
+    }
+
+    /** An interview belongs to the caller's jobs when its application does. */
+    private Mono<Boolean> inScope(Interview interview, JobScope scope) {
+        if (scope.isWholeCompany()) {
+            return Mono.just(true);
+        }
+        return applicationRepository.findById(interview.getApplicationId())
+                .map(application -> scope.allows(application.getJobId()))
+                .defaultIfEmpty(false);
     }
 }

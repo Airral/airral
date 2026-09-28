@@ -118,8 +118,9 @@ public class ApplicationService {
     /**
      * Get application by ID
      */
-    public Mono<ApplicationResponse> getApplicationById(Long id, Long organizationId) {
+    public Mono<ApplicationResponse> getApplicationById(Long id, Long organizationId, JobScope scope) {
         return applicationRepository.findByIdAndOrganizationId(id, organizationId)
+                .filter(application -> scope.allows(application.getJobId()))
                 .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
                 .flatMap(this::toApplicationResponse);
     }
@@ -127,15 +128,19 @@ public class ApplicationService {
     /**
      * Get all applications for an organization
      */
-    public Flux<ApplicationResponse> getAllApplications(Long organizationId) {
+    public Flux<ApplicationResponse> getAllApplications(Long organizationId, JobScope scope) {
         return applicationRepository.findAllByOrganizationId(organizationId)
+                .filter(application -> scope.allows(application.getJobId()))
                 .flatMap(this::toApplicationResponse);
     }
 
     /**
      * Get applications by job
      */
-    public Flux<ApplicationResponse> getApplicationsByJob(Long jobId, Long organizationId) {
+    public Flux<ApplicationResponse> getApplicationsByJob(Long jobId, Long organizationId, JobScope scope) {
+        if (!scope.allows(jobId)) {
+            return Flux.empty();
+        }
         return applicationRepository.findByJobIdAndOrganizationId(jobId, organizationId)
                 .flatMap(this::toApplicationResponse);
     }
@@ -151,9 +156,10 @@ public class ApplicationService {
     /**
      * Update application status
      */
-    public Mono<ApplicationResponse> updateApplicationStatus(Long id, ApplicationStatus status, 
-                                                             Long organizationId, Long userId) {
+    public Mono<ApplicationResponse> updateApplicationStatus(Long id, ApplicationStatus status,
+                                                             Long organizationId, Long userId, JobScope scope) {
         return applicationRepository.findByIdAndOrganizationId(id, organizationId)
+                .filter(application -> scope.allows(application.getJobId()))
                 .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
                 .flatMap(application -> {
                     application.setStatus(status);

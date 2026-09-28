@@ -25,6 +25,8 @@ public class JobResponse {
     private String description;
     private Long departmentId;
     private String department;
+    private Long hiringManagerId;
+    private String hiringManagerName;
     private String location;
     private String employmentType;
     

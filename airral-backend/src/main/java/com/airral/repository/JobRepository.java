@@ -97,4 +97,7 @@ public interface JobRepository extends R2dbcRepository<Job, Long> {
     @Modifying
     @Query("UPDATE jobs SET department = NULL, department_id = NULL WHERE department_id = :departmentId")
     Mono<Long> clearDepartment(Long departmentId);
+
+    @Query("SELECT * FROM jobs WHERE organization_id = :organizationId AND hiring_manager_id = :hiringManagerId")
+    Flux<Job> findByOrganizationIdAndHiringManagerId(Long organizationId, Long hiringManagerId);
 }

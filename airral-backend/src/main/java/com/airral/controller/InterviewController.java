@@ -6,6 +6,8 @@ import com.airral.dto.response.InterviewResponse;
 import com.airral.exception.BadRequestException;
 import com.airral.security.JwtTokenProvider;
 import com.airral.service.InterviewService;
+import com.airral.service.JobScope;
+import com.airral.service.HiringScope;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -22,9 +24,12 @@ import java.time.LocalDateTime;
 public class InterviewController {
 
     private final InterviewService interviewService;
+    private final HiringScope hiringScope;
     private final JwtTokenProvider jwtTokenProvider;
 
-    public InterviewController(InterviewService interviewService, JwtTokenProvider jwtTokenProvider) {
+    public InterviewController(InterviewService interviewService, JwtTokenProvider jwtTokenProvider,
+                                 HiringScope hiringScope) {
+        this.hiringScope = hiringScope;
         this.interviewService = interviewService;
         this.jwtTokenProvider = jwtTokenProvider;
     }
@@ -44,7 +49,7 @@ public class InterviewController {
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
         Long userId = jwtTokenProvider.getUserIdFromToken(token);
 
-        return interviewService.scheduleInterview(request, organizationId, userId)
+        return scopeFor(token).flatMap(scope -> interviewService.scheduleInterview(request, organizationId, userId, scope))
                 .map(interview -> ResponseEntity.status(HttpStatus.CREATED).body(interview));
     }
 
@@ -60,7 +65,8 @@ public class InterviewController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return Mono.just(ResponseEntity.ok(interviewService.getAllInterviews(organizationId)));
+        return Mono.just(ResponseEntity.ok(scopeFor(token).flatMapMany(scope ->
+                interviewService.getAllInterviews(organizationId, scope))));
     }
 
     /**
@@ -77,7 +83,8 @@ public class InterviewController {
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
         return Mono.just(ResponseEntity.ok(
-                interviewService.getInterviewsByApplication(applicationId, organizationId)
+                scopeFor(token).flatMapMany(scope ->
+                        interviewService.getInterviewsByApplication(applicationId, organizationId, scope))
         ));
     }
 
@@ -93,7 +100,8 @@ public class InterviewController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return Mono.just(ResponseEntity.ok(interviewService.getUpcomingInterviews(organizationId)));
+        return Mono.just(ResponseEntity.ok(scopeFor(token).flatMapMany(scope ->
+                interviewService.getUpcomingInterviews(organizationId, scope))));
     }
 
     /**
@@ -111,7 +119,8 @@ public class InterviewController {
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
         return Mono.just(ResponseEntity.ok(
-                interviewService.getInterviewsByDateRange(organizationId, startDate, endDate)
+                scopeFor(token).flatMapMany(scope ->
+                        interviewService.getInterviewsByDateRange(organizationId, startDate, endDate, scope))
         ));
     }
 
@@ -129,7 +138,7 @@ public class InterviewController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return interviewService.submitFeedback(id, request, organizationId)
+        return scopeFor(token).flatMap(scope -> interviewService.submitFeedback(id, request, organizationId, scope))
                 .map(ResponseEntity::ok);
     }
 
@@ -141,5 +150,12 @@ public class InterviewController {
             return authHeader.substring(7);
         }
         throw new BadRequestException("Invalid authorization header");
+    }
+
+    /** The jobs this caller may work on: all of the company's, or a hiring manager's own. */
+    private Mono<JobScope> scopeFor(String token) {
+        return hiringScope.of(jwtTokenProvider.getOrganizationIdFromToken(token),
+                jwtTokenProvider.getUserIdFromToken(token),
+                jwtTokenProvider.getRoleFromToken(token));
     }
 }

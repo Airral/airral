@@ -7,6 +7,8 @@ import com.airral.dto.response.ApplicationResponse;
 import com.airral.exception.BadRequestException;
 import com.airral.security.JwtTokenProvider;
 import com.airral.service.ApplicationService;
+import com.airral.service.JobScope;
+import com.airral.service.HiringScope;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,9 +22,12 @@ import reactor.core.publisher.Mono;
 public class ApplicationController {
 
     private final ApplicationService applicationService;
+    private final HiringScope hiringScope;
     private final JwtTokenProvider jwtTokenProvider;
 
-    public ApplicationController(ApplicationService applicationService, JwtTokenProvider jwtTokenProvider) {
+    public ApplicationController(ApplicationService applicationService, JwtTokenProvider jwtTokenProvider,
+                                 HiringScope hiringScope) {
+        this.hiringScope = hiringScope;
         this.applicationService = applicationService;
         this.jwtTokenProvider = jwtTokenProvider;
     }
@@ -74,7 +79,8 @@ public class ApplicationController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return Mono.just(ResponseEntity.ok(applicationService.getAllApplications(organizationId)));
+        return Mono.just(ResponseEntity.ok(scopeFor(token).flatMapMany(scope ->
+                applicationService.getAllApplications(organizationId, scope))));
     }
 
     /**
@@ -90,7 +96,7 @@ public class ApplicationController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return applicationService.getApplicationById(id, organizationId)
+        return scopeFor(token).flatMap(scope -> applicationService.getApplicationById(id, organizationId, scope))
                 .map(ResponseEntity::ok);
     }
 
@@ -108,7 +114,7 @@ public class ApplicationController {
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
         return Mono.just(ResponseEntity.ok(
-                applicationService.getApplicationsByJob(jobId, organizationId)
+                scopeFor(token).flatMapMany(scope -> applicationService.getApplicationsByJob(jobId, organizationId, scope))
         ));
     }
 
@@ -152,7 +158,8 @@ public class ApplicationController {
 
         try {
             ApplicationStatus appStatus = ApplicationStatus.valueOf(status.toUpperCase());
-            return applicationService.updateApplicationStatus(id, appStatus, organizationId, userId)
+            return scopeFor(token).flatMap(scope ->
+                            applicationService.updateApplicationStatus(id, appStatus, organizationId, userId, scope))
                     .map(ResponseEntity::ok);
         } catch (IllegalArgumentException e) {
             return Mono.error(new BadRequestException("Invalid application status: " + status));
@@ -167,5 +174,12 @@ public class ApplicationController {
             return authHeader.substring(7);
         }
         throw new BadRequestException("Invalid authorization header");
+    }
+
+    /** The jobs this caller may work on: all of the company's, or a hiring manager's own. */
+    private Mono<JobScope> scopeFor(String token) {
+        return hiringScope.of(jwtTokenProvider.getOrganizationIdFromToken(token),
+                jwtTokenProvider.getUserIdFromToken(token),
+                jwtTokenProvider.getRoleFromToken(token));
     }
 }

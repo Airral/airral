@@ -5,6 +5,8 @@ import com.airral.dto.response.EncounterResponse;
 import com.airral.exception.BadRequestException;
 import com.airral.security.JwtTokenProvider;
 import com.airral.service.HrEncounterService;
+import com.airral.service.JobScope;
+import com.airral.service.HiringScope;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,9 +20,12 @@ import reactor.core.publisher.Mono;
 public class HrEncounterController {
 
     private final HrEncounterService encounterService;
+    private final HiringScope hiringScope;
     private final JwtTokenProvider jwtTokenProvider;
 
-    public HrEncounterController(HrEncounterService encounterService, JwtTokenProvider jwtTokenProvider) {
+    public HrEncounterController(HrEncounterService encounterService, JwtTokenProvider jwtTokenProvider,
+                                 HiringScope hiringScope) {
+        this.hiringScope = hiringScope;
         this.encounterService = encounterService;
         this.jwtTokenProvider = jwtTokenProvider;
     }
@@ -39,7 +44,7 @@ public class HrEncounterController {
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
         Long userId = jwtTokenProvider.getUserIdFromToken(token);
 
-        return encounterService.createEncounter(request, organizationId, userId)
+        return scopeFor(token).flatMap(scope -> encounterService.createEncounter(request, organizationId, userId, scope))
                 .map(encounter -> ResponseEntity.status(HttpStatus.CREATED).body(encounter));
     }
 
@@ -55,7 +60,8 @@ public class HrEncounterController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return Mono.just(ResponseEntity.ok(encounterService.getAllEncounters(organizationId)));
+        return Mono.just(ResponseEntity.ok(scopeFor(token).flatMapMany(scope ->
+                encounterService.getAllEncounters(organizationId, scope))));
     }
 
     /**
@@ -71,7 +77,8 @@ public class HrEncounterController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return Mono.just(ResponseEntity.ok(encounterService.getEncountersByApplication(applicationId, organizationId)));
+        return Mono.just(ResponseEntity.ok(scopeFor(token).flatMapMany(scope ->
+                encounterService.getEncountersByApplication(applicationId, organizationId, scope))));
     }
 
     /**
@@ -87,7 +94,8 @@ public class HrEncounterController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return Mono.just(ResponseEntity.ok(encounterService.getEncountersByJob(jobId, organizationId)));
+        return Mono.just(ResponseEntity.ok(scopeFor(token).flatMapMany(scope ->
+                encounterService.getEncountersByJob(jobId, organizationId, scope))));
     }
 
     /**
@@ -103,7 +111,8 @@ public class HrEncounterController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return Mono.just(ResponseEntity.ok(encounterService.getRecentEncounters(organizationId, limit)));
+        return Mono.just(ResponseEntity.ok(scopeFor(token).flatMapMany(scope ->
+                encounterService.getRecentEncounters(organizationId, limit, scope))));
     }
 
     /**
@@ -119,7 +128,8 @@ public class HrEncounterController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return Mono.just(ResponseEntity.ok(encounterService.getEncountersByType(organizationId, encounterType)));
+        return Mono.just(ResponseEntity.ok(scopeFor(token).flatMapMany(scope ->
+                encounterService.getEncountersByType(organizationId, encounterType, scope))));
     }
 
     /**
@@ -135,7 +145,7 @@ public class HrEncounterController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return encounterService.getEncounterById(id, organizationId)
+        return scopeFor(token).flatMap(scope -> encounterService.getEncounterById(id, organizationId, scope))
                 .map(ResponseEntity::ok);
     }
 
@@ -147,5 +157,12 @@ public class HrEncounterController {
             return authHeader.substring(7);
         }
         throw new BadRequestException("Invalid authorization header");
+    }
+
+    /** The jobs this caller may work on: all of the company's, or a hiring manager's own. */
+    private Mono<JobScope> scopeFor(String token) {
+        return hiringScope.of(jwtTokenProvider.getOrganizationIdFromToken(token),
+                jwtTokenProvider.getUserIdFromToken(token),
+                jwtTokenProvider.getRoleFromToken(token));
     }
 }
