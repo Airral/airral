@@ -13,6 +13,7 @@ import com.airral.repository.DepartmentRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.repository.UserInvitationRepository;
 import com.airral.repository.UserRepository;
+import com.airral.security.LoginThrottle;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,8 @@ class UserServiceRulesTest {
     private final UserInvitationRepository invitations = mock(UserInvitationRepository.class);
     private final OrganizationRepository organizations = mock(OrganizationRepository.class);
     private final DepartmentRepository departments = mock(DepartmentRepository.class);
+    private final FirebaseEmailLinkSender linkSender = mock(FirebaseEmailLinkSender.class);
+    private final LoginThrottle throttle = mock(LoginThrottle.class);
     private UserService service;
 
     private final User amy = person(7L, ACME, UserRole.EMPLOYEE);
@@ -51,7 +54,7 @@ class UserServiceRulesTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserService(users, invitations, organizations, departments);
+        service = new UserService(users, invitations, organizations, departments, linkSender, throttle);
         when(organizations.findById(any(Long.class))).thenReturn(Mono.just(Organization.builder().name("Acme").build()));
         for (User user : new User[] {amy, ben, gus}) {
             when(users.findById(user.getId())).thenReturn(Mono.just(user));
@@ -224,12 +227,16 @@ class UserServiceRulesTest {
     void hrInvitesManager() {
         when(users.findByEmail("new@acme.io")).thenReturn(Mono.empty());
         when(invitations.findValidInvitationByEmailAndOrganization("new@acme.io", ACME)).thenReturn(Mono.empty());
+        when(throttle.invitationEmailAllowed(ACME)).thenReturn(Mono.just(true));
+        when(throttle.recordInvitationEmail(ACME)).thenReturn(Mono.empty());
+        when(linkSender.sendInvitation(any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(service.inviteUser(invite(UserRole.MANAGER), ACME, ACME_HR))
-                .assertNext(invitation -> {
-                    assertThat(invitation.getRole()).isEqualTo(UserRole.MANAGER);
-                    assertThat(invitation.getOrganizationId()).isEqualTo(ACME);
-                })
+                .assertNext(invitation -> assertThat(invitation.getRole()).isEqualTo(UserRole.MANAGER))
                 .verifyComplete();
+
+        org.mockito.ArgumentCaptor<UserInvitation> saved = org.mockito.ArgumentCaptor.forClass(UserInvitation.class);
+        verify(invitations).save(saved.capture());
+        assertThat(saved.getValue().getOrganizationId()).isEqualTo(ACME);
     }
 }

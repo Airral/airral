@@ -159,15 +159,11 @@ public class AuthService {
      * unverified here, so the row may well have been created by someone who
      * simply typed the address in first.
      *
-     * <p>Which today refuses every existing account, and that is worth knowing
-     * before reading a support ticket about it. Nothing in this service sets
-     * emailVerified true except the two Google paths below, and the third
-     * candidate does not count: registerWithInvitation flips it, but it resolves
-     * the token against users.invitation_token, and nothing writes that column
-     * -- UserService.inviteUser saves to the separate user_invitations table --
-     * so that branch never matches. Every row in users is therefore unverified,
-     * and until an account is created here through Google, the only outcomes on
-     * the address fallback are "refused" and "new account".
+     * <p>So an existing account is adopted only when its password was set after
+     * its address was proven: through a reset link, or by accepting an
+     * invitation, whose page the invitation email's link opens. An account made
+     * at /register is refused even once verified, which is worth knowing before
+     * reading a support ticket about it.
      */
     private boolean isSafeToLink(User user) {
         // A verified address is not enough on its own any more, now that
@@ -297,9 +293,11 @@ public class AuthService {
                                         : registerWithNewOrganization(request));
                     }
 
-                    // Invited user (join existing organization)
+                    // Invitations are accepted from their email's link, which
+                    // proves the address (POST /api/auth/invitations/{token}/accept).
                     if (invitedFlow) {
-                        return registerWithInvitation(request);
+                        return Mono.<AuthResponse>error(new BadRequestException(
+                                "Accept an invitation from the link in its email."));
                     }
 
                     // Applicant self-registration (no organization)
@@ -430,35 +428,6 @@ public class AuthService {
         } catch (JsonProcessingException ex) {
             throw new BadRequestException("Invalid JSON payload for " + fieldName);
         }
-    }
-
-    /**
-     * Invited user registration
-     */
-    private Mono<AuthResponse> registerWithInvitation(RegisterRequest request) {
-        return userRepository.findByValidInvitationToken(request.getInvitationToken())
-                .switchIfEmpty(Mono.error(new BadRequestException("Invalid or expired invitation")))
-                .flatMap(user -> {
-                    // Set password and activate user
-                    user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-                    if (StringUtils.hasText(request.getFirstName())) {
-                        user.setFirstName(request.getFirstName());
-                    }
-                    if (StringUtils.hasText(request.getLastName())) {
-                        user.setLastName(request.getLastName());
-                    }
-                    if (StringUtils.hasText(request.getPhone())) {
-                        user.setPhone(request.getPhone());
-                    }
-                    user.setInvitationToken(null);
-                    user.setInvitationExpiresAt(null);
-                    user.setEmailVerified(true);
-                    user.setIsActive(true);
-                    user.setUpdatedAt(LocalDateTime.now());
-
-                    return userRepository.save(user)
-                            .flatMap(savedUser -> buildAuthResponse(savedUser, "Account activated successfully"));
-                });
     }
 
     /**

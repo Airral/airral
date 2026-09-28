@@ -1,10 +1,13 @@
 package com.airral.service;
 
 import com.airral.domain.User;
+import com.airral.domain.UserInvitation;
 import com.airral.exception.BadRequestException;
+import com.airral.exception.ConflictException;
 import com.airral.exception.EmailLinkRateLimitedException;
 import com.airral.exception.EmailNotVerifiedException;
 import com.airral.exception.UnauthorizedException;
+import com.airral.repository.UserInvitationRepository;
 import com.airral.repository.UserRepository;
 import com.airral.security.LoginThrottle;
 import com.airral.security.TokenVersionCache;
@@ -12,7 +15,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
+import java.util.Locale;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -43,6 +48,7 @@ public class AccountVerificationService {
     private final LoginThrottle loginThrottle;
     private final CompanyVerificationService companyVerificationService;
     private final FirebaseEmailLinkSender linkSender;
+    private final UserInvitationRepository invitationRepository;
 
     /**
      * Every forgot-password answer takes at least this long, whether or not a
@@ -58,8 +64,10 @@ public class AccountVerificationService {
                                       TokenVersionCache tokenVersionCache,
                                       LoginThrottle loginThrottle,
                                       CompanyVerificationService companyVerificationService,
-                                      FirebaseEmailLinkSender linkSender) {
+                                      FirebaseEmailLinkSender linkSender,
+                                      UserInvitationRepository invitationRepository) {
         this.linkSender = linkSender;
+        this.invitationRepository = invitationRepository;
         this.firebaseIdentityService = firebaseIdentityService;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -209,5 +217,70 @@ public class AccountVerificationService {
         }
         user.setEmailVerified(true);
         user.setUpdatedAt(LocalDateTime.now());
+    }
+
+    /**
+     * Accept an invitation: the invitee followed the link Firebase emailed and
+     * now sets a password.
+     *
+     * <p>The Firebase ID token proves they own the address the invitation was
+     * sent to, so HR, who never sees the invitation's token, cannot accept on
+     * their behalf. The account gets the invitation's company and role, starts
+     * verified, and the invitation cannot be used again.
+     */
+    public Mono<User> acceptInvitation(String invitationToken, String idToken, String password,
+                                       String firstName, String lastName) {
+        return firebaseIdentityService.verifyIdToken(idToken)
+                .flatMap(proof -> invitationRepository.findByInvitationToken(invitationToken)
+                        .filter(UserService::isOpen)
+                        .switchIfEmpty(Mono.error(new BadRequestException(UserService.INVITATION_GONE)))
+                        .flatMap(invitation -> {
+                            if (!invitation.getEmail().equalsIgnoreCase(proof.email())) {
+                                return Mono.<User>error(new BadRequestException(
+                                        "This invitation was sent to a different address. Open it from the email it was sent to."));
+                            }
+                            if (!UserService.INVITABLE_ROLES.contains(invitation.getRole())) {
+                                return Mono.<User>error(new BadRequestException(UserService.INVITATION_GONE));
+                            }
+                            String email = invitation.getEmail().trim().toLowerCase(Locale.ROOT);
+                            return userRepository.existsByEmail(email)
+                                    .flatMap(exists -> exists
+                                            ? Mono.<User>error(new ConflictException(
+                                                    "That address already has an AIRRAL account. Sign in instead."))
+                                            : userRepository.save(invitedUser(invitation, email, password, firstName, lastName)))
+                                    .flatMap(user -> {
+                                        invitation.setIsAccepted(true);
+                                        invitation.setAcceptedAt(LocalDateTime.now());
+                                        return invitationRepository.save(invitation).thenReturn(user);
+                                    });
+                        }))
+                .flatMap(user -> loginThrottle.recordSuccess(user.getEmail())
+                        .then(companyVerificationService.onEmailProven(user))
+                        .doOnSuccess(ignored -> log.info("Invitation accepted: user {} joined company {}",
+                                user.getId(), user.getOrganizationId()))
+                        .thenReturn(user));
+    }
+
+    private User invitedUser(UserInvitation invitation, String email, String password,
+                             String firstName, String lastName) {
+        LocalDateTime now = LocalDateTime.now();
+        return User.builder()
+                .email(email)
+                .passwordHash(passwordEncoder.encode(password))
+                .firstName(StringUtils.hasText(firstName) ? firstName.trim() : invitation.getFirstName())
+                .lastName(StringUtils.hasText(lastName) ? lastName.trim() : invitation.getLastName())
+                .organizationId(invitation.getOrganizationId())
+                .role(invitation.getRole())
+                .department(invitation.getDepartment())
+                .departmentId(invitation.getDepartmentId())
+                .isPlatformAdmin(false)
+                .isActive(true)
+                .emailVerified(true)
+                .emailVerifiedAt(now)
+                .passwordProvenAt(now)
+                .createdById(invitation.getInvitedById())
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
     }
 }

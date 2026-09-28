@@ -38,6 +38,4 @@ public interface UserRepository extends R2dbcRepository<User, Long> {
     @Query("SELECT * FROM users WHERE manager_id = :managerId")
     Flux<User> findByManagerId(Long managerId);
 
-    @Query("SELECT * FROM users WHERE invitation_token = :token AND invitation_expires_at > CURRENT_TIMESTAMP")
-    Mono<User> findByValidInvitationToken(String token);
 }

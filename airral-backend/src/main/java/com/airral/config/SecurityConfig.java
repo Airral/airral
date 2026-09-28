@@ -124,6 +124,11 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.POST, "/api/auth/forgot-password").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/verify-email").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/reset-password").permitAll()
+                        // An invitation's page, and accepting it. The token in the
+                        // path is the link's secret; accepting also needs the
+                        // Firebase ID token proving the invitee owns the address.
+                        .pathMatchers(HttpMethod.GET, "/api/auth/invitations/*").permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/auth/invitations/*/accept").permitAll()
                         //
                         // POST /api/applications was public too. It is the only
                         // write endpoint outside the auth flow that took no

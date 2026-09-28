@@ -48,7 +48,8 @@ class EmailVerificationGateTest {
         verification = new AccountVerificationService(
                 mock(FirebaseIdentityService.class), userRepository, mock(PasswordEncoder.class),
                 mock(TokenVersionCache.class), mock(LoginThrottle.class), mock(CompanyVerificationService.class),
-                mock(com.airral.service.FirebaseEmailLinkSender.class));
+                mock(com.airral.service.FirebaseEmailLinkSender.class),
+                mock(com.airral.repository.UserInvitationRepository.class));
         notifications = new CandidateNotificationController(emailService, jwt, verification, false);
         when(jwt.getEmailFromToken("tok")).thenReturn("amy@example.com");
         when(jwt.getUserIdFromToken("tok")).thenReturn(7L);

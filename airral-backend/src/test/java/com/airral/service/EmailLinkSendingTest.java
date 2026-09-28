@@ -39,7 +39,8 @@ class EmailLinkSendingTest {
     void setUp() {
         service = new AccountVerificationService(mock(FirebaseIdentityService.class), users,
                 mock(PasswordEncoder.class), mock(TokenVersionCache.class), throttle,
-                mock(CompanyVerificationService.class), sender);
+                mock(CompanyVerificationService.class), sender,
+                mock(com.airral.repository.UserInvitationRepository.class));
         when(throttle.emailLinkAllowed(anyLong())).thenReturn(Mono.just(true));
         when(throttle.recordEmailLink(anyLong())).thenReturn(Mono.empty());
         when(sender.send(any(), any())).thenReturn(Mono.empty());

@@ -1,8 +1,8 @@
 package com.airral.controller;
 
-import com.airral.domain.UserInvitation;
 import com.airral.dto.request.InviteUserRequest;
 import com.airral.dto.request.UpdateUserRequest;
+import com.airral.dto.response.InvitationResponse;
 import com.airral.dto.response.UserResponse;
 import com.airral.exception.BadRequestException;
 import com.airral.security.JwtTokenProvider;
@@ -101,7 +101,7 @@ public class UserController {
      */
     @PostMapping("/invite")
     @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
-    public Mono<ResponseEntity<UserInvitation>> inviteUser(
+    public Mono<ResponseEntity<InvitationResponse>> inviteUser(
             @Valid @RequestBody InviteUserRequest request,
             @RequestHeader("Authorization") String authHeader) {
         
@@ -119,13 +119,47 @@ public class UserController {
      */
     @GetMapping("/invitations")
     @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
-    public Mono<ResponseEntity<Flux<UserInvitation>>> getPendingInvitations(
+    public Mono<ResponseEntity<Flux<InvitationResponse>>> getPendingInvitations(
             @RequestHeader("Authorization") String authHeader) {
         
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
         return Mono.just(ResponseEntity.ok(userService.getPendingInvitations(organizationId)));
+    }
+
+    /**
+     * Send an invitation's email again
+     * POST /api/users/invitations/{id}/resend
+     */
+    @PostMapping("/invitations/{id}/resend")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<InvitationResponse>> resendInvitation(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+
+        return userService.resendInvitation(id, organizationId)
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * Cancel a pending invitation
+     * DELETE /api/users/invitations/{id}
+     */
+    @DeleteMapping("/invitations/{id}")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<Void>> cancelInvitation(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+
+        return userService.cancelInvitation(id, organizationId)
+                .thenReturn(ResponseEntity.noContent().<Void>build());
     }
 
     /**

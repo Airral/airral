@@ -7,6 +7,7 @@ import com.airral.repository.DepartmentRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.repository.UserInvitationRepository;
 import com.airral.repository.UserRepository;
+import com.airral.security.LoginThrottle;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,7 @@ class UserResponseMappingTest {
     @BeforeEach
     void setUp() {
         service = new UserService(users, mock(UserInvitationRepository.class), organizations,
-                mock(DepartmentRepository.class));
+                mock(DepartmentRepository.class), mock(FirebaseEmailLinkSender.class), mock(LoginThrottle.class));
         when(organizations.findById(1L)).thenReturn(Mono.just(Organization.builder().id(1L).name("Acme").build()));
     }
 

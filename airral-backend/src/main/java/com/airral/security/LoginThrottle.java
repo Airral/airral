@@ -173,6 +173,27 @@ public class LoginThrottle {
         return "link:" + userId;
     }
 
+    /**
+     * Invitation emails one company may send per window. They go to addresses
+     * nobody at AIRRAL has seen yet, so a company created a minute ago must not
+     * be able to use AIRRAL's sender to mail a list of strangers.
+     */
+    public static final int MAX_INVITATION_EMAILS_PER_COMPANY = 20;
+
+    /** Whether this company may send another invitation email in the current window. */
+    public Mono<Boolean> invitationEmailAllowed(Long organizationId) {
+        return attempts(invitationKey(organizationId)).map(used -> used < MAX_INVITATION_EMAILS_PER_COMPANY);
+    }
+
+    /** Count one invitation email sent by this company. */
+    public Mono<Void> recordInvitationEmail(Long organizationId) {
+        return increment(invitationKey(organizationId));
+    }
+
+    private static String invitationKey(Long organizationId) {
+        return "invite:" + organizationId;
+    }
+
     public Mono<Long> purgeBefore(LocalDateTime cutoff) {
         return databaseClient.sql("DELETE FROM auth_attempt_windows WHERE window_start < :cutoff")
                 .bind("cutoff", cutoff)
