@@ -65,8 +65,14 @@ public class UserController {
      */
     @GetMapping("/team/{managerId}")
     @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'MANAGER', 'ADMIN')")
-    public Mono<ResponseEntity<Flux<UserResponse>>> getTeamMembers(@PathVariable Long managerId) {
-        return Mono.just(ResponseEntity.ok(userService.getTeamMembers(managerId)));
+    public Mono<ResponseEntity<Flux<UserResponse>>> getTeamMembers(
+            @PathVariable Long managerId,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+
+        return Mono.just(ResponseEntity.ok(userService.getTeamMembers(managerId, organizationId)));
     }
 
     /**
@@ -74,7 +80,7 @@ public class UserController {
      * PUT /api/users/{id}
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN', 'EMPLOYEE')")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN', 'MANAGER', 'EMPLOYEE')")
     public Mono<ResponseEntity<UserResponse>> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request,
@@ -83,7 +89,9 @@ public class UserController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return userService.updateUser(id, request, organizationId)
+        return userService.updateUser(id, request, organizationId,
+                        jwtTokenProvider.getUserIdFromToken(token),
+                        jwtTokenProvider.getRoleFromToken(token))
                 .map(ResponseEntity::ok);
     }
 
