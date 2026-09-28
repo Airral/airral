@@ -30,21 +30,18 @@ const NAV_BY_SEGMENT: Record<RoleSegment, HrNavItem[]> = {
     { label: 'Offers', path: '/offers', icon: 'description' },
     { label: 'Settings', path: '/settings', icon: 'settings' }
   ],
+  // For launch a company's team is its hiring team: a MANAGER is the hiring
+  // manager for their jobs and an EMPLOYEE interviews. Internal jobs,
+  // referrals and benefits stay out of the menus until they are built out.
   MANAGER: [
     { label: 'Home', path: '/', icon: 'home' },
     { label: 'My Team Reviews', path: '/team-review', icon: 'fact_check' },
     { label: 'Interviews', path: '/interviews', icon: 'event' },
-    { label: 'Internal Jobs', path: '/jobs', icon: 'work_outline' },
-    { label: 'Referrals', path: '/referrals', icon: 'handshake' },
-    { label: 'My Profile', path: '/profile', icon: 'person_outline' },
-    { label: 'My Benefits', path: '/benefits', icon: 'redeem' }
+    { label: 'My Profile', path: '/profile', icon: 'person_outline' }
   ],
   EMPLOYEE: [
     { label: 'Home', path: '/', icon: 'home' },
-    { label: 'Internal Jobs', path: '/jobs', icon: 'work_outline' },
-    { label: 'Referrals', path: '/referrals', icon: 'handshake' },
-    { label: 'My Profile', path: '/profile', icon: 'person_outline' },
-    { label: 'My Benefits', path: '/benefits', icon: 'redeem' }
+    { label: 'My Profile', path: '/profile', icon: 'person_outline' }
   ],
   APPLICANT: [{ label: 'Home', path: '/', icon: 'home' }],
 };

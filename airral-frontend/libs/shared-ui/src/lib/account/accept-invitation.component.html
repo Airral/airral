@@ -1,0 +1,53 @@
+<div class="reset-page">
+  <div class="reset-card">
+    <h1>{{ invitation ? 'Join ' + invitation.companyName + ' on AIRRAL' : 'Accept your invitation' }}</h1>
+
+    <p *ngIf="checking" class="reset-note">Checking your invitation…</p>
+
+    <ng-container *ngIf="!checking">
+      <ng-container *ngIf="invitation && hasLink; else cannotUse">
+        <p>You've been invited as {{ roleLabel }}. Set a password for <strong>{{ invitation.email }}</strong> to finish.</p>
+
+        <form (ngSubmit)="submit()" novalidate>
+          <label for="invite-first">First name</label>
+          <input id="invite-first" name="firstName" autocomplete="given-name" maxlength="100"
+                 [(ngModel)]="firstName" [disabled]="working" />
+
+          <label for="invite-last">Last name</label>
+          <input id="invite-last" name="lastName" autocomplete="family-name" maxlength="100"
+                 [(ngModel)]="lastName" [disabled]="working" />
+
+          <label for="invite-password">Password</label>
+          <div class="reset-password-control">
+            <input id="invite-password" name="password" [type]="showPassword ? 'text' : 'password'"
+                   autocomplete="new-password" required [(ngModel)]="password" [disabled]="working" />
+            <button type="button" class="reset-toggle" (click)="showPassword = !showPassword"
+                    [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'">
+              {{ showPassword ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+
+          <label for="invite-confirm">Confirm password</label>
+          <input id="invite-confirm" name="confirmPassword" [type]="showPassword ? 'text' : 'password'"
+                 autocomplete="new-password" required [(ngModel)]="confirmPassword" [disabled]="working" />
+
+          <p class="reset-note" *ngIf="!passwordProblem">At least 8 characters with uppercase, lowercase, and a number.</p>
+          <p class="reset-error" *ngIf="passwordProblem">{{ passwordProblem }}</p>
+          <p class="reset-error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+          <button type="submit" class="reset-primary" [disabled]="working">
+            {{ working ? 'Setting up your account…' : 'Join ' + invitation.companyName }}
+          </button>
+        </form>
+      </ng-container>
+
+      <ng-template #cannotUse>
+        <p class="reset-error">
+          {{ unavailable || 'Open this page from the link in your invitation email. That link proves the invitation was sent to you.' }}
+        </p>
+      </ng-template>
+    </ng-container>
+
+    <p class="reset-links"><a routerLink="/login">Already have an account? Sign in</a></p>
+  </div>
+</div>

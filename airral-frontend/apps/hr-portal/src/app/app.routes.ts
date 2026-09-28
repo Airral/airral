@@ -1,4 +1,4 @@
-import { ForgotPasswordComponent, ResetPasswordComponent, VerifyEmailComponent } from '@airral/shared-ui';
+import { AcceptInvitationComponent, ForgotPasswordComponent, ResetPasswordComponent, VerifyEmailComponent } from '@airral/shared-ui';
 import { Route } from '@angular/router';
 import { authGuard, roleGuard } from '@airral/shared-auth';
 import { ROUTE_ACCESS } from './feature-config';
@@ -42,6 +42,10 @@ export const appRoutes: Route[] = [
   {
     path: 'reset-password',
     component: ResetPasswordComponent,
+  },
+  {
+    path: 'accept-invitation/:token',
+    component: AcceptInvitationComponent,
   },
   {
     path: '',
@@ -101,6 +105,12 @@ export const appRoutes: Route[] = [
     ...hrAccess,
     loadComponent: () =>
       import('./pages/settings/settings.component').then((m) => m.SettingsComponent),
+  },
+  {
+    path: 'settings/team',
+    ...hrAccess,
+    loadComponent: () =>
+      import('./pages/settings/team/team.component').then((m) => m.TeamComponent),
   },
   {
     path: 'settings/integrations',
