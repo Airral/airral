@@ -55,7 +55,8 @@ export class InterviewsComponent implements OnInit {
       interviewTime: ['10:00', Validators.required],
       durationMinutes: [60],
       notes: [''],
-      notifyCandidate: [true]
+      notifyCandidate: [true],
+      notifyInterviewers: [true]
     });
   }
 
@@ -173,7 +174,7 @@ export class InterviewsComponent implements OnInit {
 
   cancelSchedule(): void {
     this.showScheduleForm = false;
-    this.scheduleForm.reset({ interviewTime: '10:00', durationMinutes: 60, notifyCandidate: true });
+    this.scheduleForm.reset({ interviewTime: '10:00', durationMinutes: 60, notifyCandidate: true, notifyInterviewers: true });
     this.interviewerIds = new Set<number>();
   }
 
@@ -182,7 +183,7 @@ export class InterviewsComponent implements OnInit {
       return;
     }
 
-    const { applicationId, interviewDate, interviewTime, durationMinutes, notes, notifyCandidate } = this.scheduleForm.value;
+    const { applicationId, interviewDate, interviewTime, durationMinutes, notes, notifyCandidate, notifyInterviewers } = this.scheduleForm.value;
     // The time as entered, in this browser's time zone, which goes with it.
     const timestamp = `${interviewDate}T${interviewTime}:00`;
 
@@ -191,6 +192,7 @@ export class InterviewsComponent implements OnInit {
       interviewDate: timestamp,
       notes: notes || undefined,
       notifyCandidate: !!notifyCandidate,
+      notifyInterviewers: !!notifyInterviewers && this.interviewerIds.size > 0,
       interviewerIds: [...this.interviewerIds],
       durationMinutes: Number(durationMinutes) || 60,
       timeZone: browserTimeZone(),

@@ -69,7 +69,7 @@ class HiringManagerScopeTest {
     void setUp() {
         applicationService = new ApplicationService(applications, jobs, users, organizations,
                 mock(com.airral.repository.CandidateProfileRepository.class), mock(CandidateUpdateEmails.class));
-        interviewService = new InterviewService(interviews, applications, jobs, users, mock(CandidateUpdateEmails.class));
+        interviewService = new InterviewService(interviews, applications, jobs, users, mock(CandidateUpdateEmails.class), mock(InterviewerEmails.class));
         encounterService = new HrEncounterService(encounters, applications, jobs, users);
 
         when(jobs.findById(any(Long.class))).thenAnswer(inv -> Mono.just(

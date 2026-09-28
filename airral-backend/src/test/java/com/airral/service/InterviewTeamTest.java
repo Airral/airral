@@ -27,6 +27,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -50,8 +51,9 @@ class InterviewTeamTest {
     private final ApplicationRepository applications = mock(ApplicationRepository.class);
     private final JobRepository jobs = mock(JobRepository.class);
     private final UserRepository users = mock(UserRepository.class);
+    private final InterviewerEmails interviewerEmails = mock(InterviewerEmails.class);
     private final InterviewService service =
-            new InterviewService(interviews, applications, jobs, users, mock(CandidateUpdateEmails.class));
+            new InterviewService(interviews, applications, jobs, users, mock(CandidateUpdateEmails.class), interviewerEmails);
 
     private final Application amysApplication = Application.builder().id(100L).jobId(10L)
             .applicantId(AMY).applicantName("Amy Adams").applicantEmail("amy@example.com")
@@ -113,6 +115,18 @@ class InterviewTeamTest {
         // Ivan was listed twice and is added once.
         verify(interviews).addInterviewer(900L, IVAN);
         verify(interviews).addInterviewer(900L, MIA);
+    }
+
+    @Test
+    @DisplayName("interviewers are invited only when the booker asks")
+    void invitesAreOptIn() {
+        service.scheduleInterview(booking(IVAN, MIA), ACME, HANA, JobScope.wholeCompany()).block();
+        verify(interviewerEmails, never()).invite(any(), any(), any());
+
+        ScheduleInterviewRequest request = booking(IVAN, MIA);
+        request.setNotifyInterviewers(true);
+        service.scheduleInterview(request, ACME, HANA, JobScope.wholeCompany()).block();
+        verify(interviewerEmails).invite(any(Interview.class), eq(amysApplication), eq(List.of(IVAN, MIA)));
     }
 
     @Test

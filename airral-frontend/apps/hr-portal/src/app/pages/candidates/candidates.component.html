@@ -250,6 +250,12 @@
                       <p class="field-help">Invite teammates in Settings, then add them here.</p>
                     }
                   </fieldset>
+                  @if (interviewerIds.size > 0) {
+                    <label class="check">
+                      <input type="checkbox" [(ngModel)]="inviteInterviewers" />
+                      Send the interviewers a calendar invite
+                    </label>
+                  }
                   <label class="wide">Panel notes<textarea rows="3" [(ngModel)]="interviewNotes" placeholder="Focus areas, panel, or meeting link. The candidate does not see these."></textarea></label>
                   <label class="check">
                     <input type="checkbox" [(ngModel)]="emailInterview" />

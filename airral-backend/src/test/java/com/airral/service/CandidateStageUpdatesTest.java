@@ -53,7 +53,7 @@ class CandidateStageUpdatesTest {
 
     private final ApplicationService applicationService = new ApplicationService(applications, jobs, users,
             organizations, mock(CandidateProfileRepository.class), emails);
-    private final InterviewService interviewService = new InterviewService(interviews, applications, jobs, users, emails);
+    private final InterviewService interviewService = new InterviewService(interviews, applications, jobs, users, emails, mock(InterviewerEmails.class));
 
     @BeforeEach
     void setUp() {

@@ -75,6 +75,7 @@ export class CandidatesComponent implements OnInit {
   feedback = '';
   rating = 3;
   emailInterview = true;
+  inviteInterviewers = true;
   interviewDuration = 60;
   interviewerIds = new Set<number>();
   teammates: User[] = [];
@@ -446,6 +447,7 @@ export class CandidatesComponent implements OnInit {
         interviewDate: this.interviewDate,
         notes,
         notifyCandidate: this.emailInterview,
+        notifyInterviewers: this.inviteInterviewers && this.interviewerIds.size > 0,
         interviewerIds: [...this.interviewerIds],
         durationMinutes: this.interviewDuration,
         timeZone: browserTimeZone(),

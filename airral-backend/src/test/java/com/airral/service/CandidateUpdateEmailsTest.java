@@ -43,11 +43,11 @@ class CandidateUpdateEmailsTest {
     private final JobRepository jobs = mock(JobRepository.class);
     private final OrganizationRepository organizations = mock(OrganizationRepository.class);
     private final CandidateUpdateEmails emails =
-            new CandidateUpdateEmails(email, jobs, organizations, "https://apply.airral.com");
+            new CandidateUpdateEmails(email, jobs, organizations, "https://apply.airral.com", "notifications@airral.com");
 
     @BeforeEach
     void setUp() {
-        when(email.sendEmail(any(), any(), any())).thenReturn(Mono.empty());
+        when(email.sendEmail(any(), any(), any(), any())).thenReturn(Mono.empty());
         // The template is tested on its own below; here it shows what went into it.
         when(email.wrapTransactional(any(), any(), any()))
                 .thenAnswer(inv -> inv.getArgument(1) + "|footer: " + inv.getArgument(2));
@@ -76,11 +76,13 @@ class CandidateUpdateEmailsTest {
                 .applicantName("Hal Hughes").applicantEmail("hal@example.com").build();
     }
 
+    /** Subject, body and calendar file of the one email sent to this address. */
     private String[] sentTo(String address) {
         ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
-        verify(email).sendEmail(eq(address), subject.capture(), body.capture());
-        return new String[] {subject.getValue(), body.getValue()};
+        ArgumentCaptor<String> calendar = ArgumentCaptor.forClass(String.class);
+        verify(email).sendEmail(eq(address), subject.capture(), body.capture(), calendar.capture());
+        return new String[] {subject.getValue(), body.getValue(), calendar.getValue()};
     }
 
     @Test
@@ -110,15 +112,15 @@ class CandidateUpdateEmailsTest {
         emails.interviewBooked(hal(), interview);
         emails.notSelected(hal());
 
-        verify(email, never()).sendEmail(any(), any(), any());
+        verify(email, never()).sendEmail(any(), any(), any(), any());
     }
 
     @Test
-    @DisplayName("the interview email gives the day and time in the company's time zone")
+    @DisplayName("the interview email gives the day and time in the zone it was booked in, with a calendar file")
     void interviewBooked() {
-        companyIs(CompanyVerificationService.VERIFIED, "America/New_York");
-        Interview interview = Interview.builder().interviewDate(LocalDateTime.of(2026, 10, 1, 14, 0))
-                .notes("Panel: ask about the outage").build();
+        companyIs(CompanyVerificationService.VERIFIED, "Europe/London");
+        Interview interview = Interview.builder().id(900L).interviewDate(LocalDateTime.of(2026, 10, 1, 14, 0))
+                .durationMinutes(45).timeZone("America/New_York").notes("Panel: ask about the outage").build();
 
         emails.interviewBooked(hal(), interview);
 
@@ -126,21 +128,32 @@ class CandidateUpdateEmailsTest {
         assertThat(sent[0]).isEqualTo("Interview with Acme & Co: <b>Backend</b> engineer");
         assertThat(sent[1])
                 .contains("Hi Hal,")
-                .contains("<strong>Thursday 1 October at 2:00 PM EDT</strong>")
+                // The booker's zone, not the company's.
+                .contains("<strong>Thursday 1 October at 2:00 PM EDT</strong> (45 minutes)")
+                .contains("The attached file adds it to your calendar.")
                 // The panel's notes are the team's, not the candidate's.
                 .doesNotContain("outage")
                 .contains("|footer: a company that hires with AIRRAL is considering you for this job");
+        assertThat(sent[2])
+                .contains("DTSTART:20261001T180000Z")
+                .contains("DTEND:20261001T184500Z")
+                .contains("mailto:hal@example.com")
+                .doesNotContain("outage");
     }
 
     @Test
-    @DisplayName("without a time zone it knows, the time is the company's local time")
+    @DisplayName("without a zone it knows, the time is the company's local time and there is no calendar file")
     void interviewTimeWithoutAZone() {
-        LocalDateTime at = LocalDateTime.of(2026, 10, 1, 14, 0);
+        companyIs(CompanyVerificationService.VERIFIED, "Mars/Olympus");
+        Interview interview = Interview.builder().id(900L).interviewDate(LocalDateTime.of(2026, 10, 1, 14, 0)).build();
 
-        assertThat(CandidateUpdateEmails.interviewTime(at, Organization.builder().name("Acme").build()))
+        assertThat(CandidateUpdateEmails.interviewTime(interview, Organization.builder().name("Acme").build()))
                 .isEqualTo("Thursday 1 October at 2:00 PM, Acme's local time");
-        assertThat(CandidateUpdateEmails.interviewTime(at, Organization.builder().name("Acme").timezone("Mars/Olympus").build()))
-                .isEqualTo("Thursday 1 October at 2:00 PM, Acme's local time");
+
+        emails.interviewBooked(hal(), interview);
+        String[] sent = sentTo("hal@example.com");
+        assertThat(sent[1]).contains("2:00 PM, Acme &amp; Co").contains("local time").doesNotContain("attached file");
+        assertThat(sent[2]).isNull();
     }
 
     @Test
@@ -170,7 +183,7 @@ class CandidateUpdateEmailsTest {
     @DisplayName("a failed send never reaches the action that caused it")
     void failureIsContained() {
         companyIs(CompanyVerificationService.VERIFIED, null);
-        when(email.sendEmail(any(), any(), any())).thenReturn(Mono.error(new MailSendException("SMTP is down")));
+        when(email.sendEmail(any(), any(), any(), any())).thenReturn(Mono.error(new MailSendException("SMTP is down")));
 
         assertThatCode(() -> emails.applicationReceived(amy())).doesNotThrowAnyException();
     }

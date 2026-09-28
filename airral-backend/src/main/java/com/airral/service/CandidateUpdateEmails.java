@@ -10,15 +10,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.util.HtmlUtils;
 import reactor.core.publisher.Mono;
 
-import java.time.DateTimeException;
+import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
+
+import static com.airral.service.EmailHtml.button;
+import static com.airral.service.EmailHtml.escape;
+import static com.airral.service.EmailHtml.paragraph;
+import static com.airral.service.EmailHtml.strong;
 
 /**
  * The emails a candidate gets about one application: the company has it, an
@@ -45,16 +49,20 @@ public class CandidateUpdateEmails {
     private final JobRepository jobRepository;
     private final OrganizationRepository organizationRepository;
     private final String applicantPortalUrl;
+    private final String fromAddress;
 
     public CandidateUpdateEmails(CandidateEmailService email,
                                  JobRepository jobRepository,
                                  OrganizationRepository organizationRepository,
                                  @Value("${airral.notifications.email.app-base-url:https://apply.airral.com}")
-                                 String applicantPortalUrl) {
+                                 String applicantPortalUrl,
+                                 @Value("${airral.notifications.email.from-address:notifications@airral.com}")
+                                 String fromAddress) {
         this.email = email;
         this.jobRepository = jobRepository;
         this.organizationRepository = organizationRepository;
         this.applicantPortalUrl = applicantPortalUrl;
+        this.fromAddress = fromAddress;
     }
 
     /** To an applicant who applied on AIRRAL: the company has their application. */
@@ -66,19 +74,32 @@ public class CandidateUpdateEmails {
                                 + strong(job.getTitle()) + ", with the resume on your AIRRAL profile.")
                         + paragraph("You can see where it stands at any time.")
                         + button(applicantPortalUrl + "/tracker", "See your applications"),
-                "you applied to this job on AIRRAL"));
+                "you applied to this job on AIRRAL", null));
     }
 
-    /** To the candidate: the company booked an interview with them. */
+    /**
+     * To the candidate: the company booked an interview with them, with a
+     * calendar file when the time can be placed.
+     */
     public void interviewBooked(Application application, Interview interview) {
-        send(application, (job, company) -> new Message(
-                "Interview with " + company.getName() + ": " + job.getTitle(),
-                greeting(application)
-                        + paragraph(escape(company.getName()) + " booked an interview with you for "
-                                + strong(job.getTitle()) + ".")
-                        + paragraph(strong(interviewTime(interview.getInterviewDate(), company)))
-                        + paragraph(escape(company.getName()) + " will be in touch about how to join."),
-                reason(application)));
+        send(application, (job, company) -> {
+            String summary = "Interview with " + company.getName() + ": " + job.getTitle();
+            String calendar = InterviewCalendar.event(interview, company, summary,
+                    company.getName() + " will be in touch about how to join.", fromAddress,
+                    List.of(new InterviewCalendar.Attendee(application.getApplicantName(), application.getApplicantEmail())),
+                    Instant.now()).orElse(null);
+            return new Message(
+                    summary,
+                    greeting(application)
+                            + paragraph(escape(company.getName()) + " booked an interview with you for "
+                                    + strong(job.getTitle()) + ".")
+                            + paragraph(strong(interviewTime(interview, company))
+                                    + " (" + minutes(interview) + " minutes)")
+                            + paragraph(escape(company.getName()) + " will be in touch about how to join."
+                                    + (calendar != null ? " The attached file adds it to your calendar." : "")),
+                    reason(application),
+                    calendar);
+        });
     }
 
     /** To the candidate: the company is not moving forward with them. */
@@ -93,7 +114,7 @@ public class CandidateUpdateEmails {
                                 ? paragraph("Your other applications are not affected.")
                                         + button(applicantPortalUrl + "/jobs", "Find more jobs")
                                 : ""),
-                reason(application)));
+                reason(application), null));
     }
 
     private void send(Application application, BiFunction<Job, Organization, Message> compose) {
@@ -105,7 +126,8 @@ public class CandidateUpdateEmails {
                         .filter(CompanyVerificationService::isPublishable)
                         .map(company -> compose.apply(job, company)))
                 .flatMap(message -> email.sendEmail(to, message.subject(),
-                        email.wrapTransactional(message.subject(), message.bodyHtml(), message.reason())))
+                        email.wrapTransactional(message.subject(), message.bodyHtml(), message.reason()),
+                        message.calendar()))
                 .onErrorResume(e -> {
                     log.warn("Could not email the candidate on application {}: {}",
                             application.getId(), e.getMessage());
@@ -115,28 +137,25 @@ public class CandidateUpdateEmails {
     }
 
     /**
-     * The interview's day and time. The HR portal books it in the local time of
-     * whoever booked it, so the company's time zone names that time when the
-     * company has set one.
+     * The interview's day and time, named with the zone it was booked in: the
+     * booker's, or else the company's. Without either it is the company's
+     * local time, which is what the booker entered.
      */
-    static String interviewTime(LocalDateTime at, Organization company) {
+    static String interviewTime(Interview interview, Organization company) {
+        LocalDateTime at = interview.getInterviewDate();
         if (at == null) return "At a time the company will confirm";
         String dayAndTime = DAY_AND_TIME.format(at);
-        String zone = company.getTimezone();
-        if (zone != null && !zone.isBlank()) {
-            try {
-                return dayAndTime + " " + ZONE.format(at.atZone(ZoneId.of(zone.trim())));
-            } catch (DateTimeException ignored) {
-                // A time zone the company typed that Java does not know.
-            }
-        }
-        return dayAndTime + ", " + company.getName() + "'s local time";
+        return InterviewCalendar.zoneOf(interview, company)
+                .map(zone -> dayAndTime + " " + ZONE.format(at.atZone(zone)))
+                .orElse(dayAndTime + ", " + company.getName() + "'s local time");
+    }
+
+    private static int minutes(Interview interview) {
+        return interview.getDurationMinutes() != null ? interview.getDurationMinutes() : 60;
     }
 
     private static String greeting(Application application) {
-        String name = application.getApplicantName() == null ? "" : application.getApplicantName().trim();
-        String first = name.isEmpty() ? "" : name.split("\\s+")[0];
-        return paragraph(first.isEmpty() ? "Hello," : "Hi " + escape(first) + ",");
+        return EmailHtml.greeting(application.getApplicantName());
     }
 
     private static String reason(Application application) {
@@ -145,25 +164,7 @@ public class CandidateUpdateEmails {
                 : "a company that hires with AIRRAL is considering you for this job";
     }
 
-    private static String paragraph(String html) {
-        return "<p style=\"margin:0 0 16px; font-size:15px; line-height:1.6; color:#111827;\">" + html + "</p>";
-    }
-
-    private static String strong(String text) {
-        return "<strong>" + escape(text) + "</strong>";
-    }
-
-    private static String button(String url, String label) {
-        return "<p style=\"margin:24px 0 0;\"><a href=\"" + escape(url) + "\" style=\"display:inline-block;"
-                + " background:#007C6D; color:#ffffff; text-decoration:none; font-weight:600;"
-                + " padding:10px 18px; border-radius:6px;\">" + escape(label) + "</a></p>";
-    }
-
-    private static String escape(String text) {
-        return text == null ? "" : HtmlUtils.htmlEscape(text);
-    }
-
-    private record Message(String subject, String bodyHtml, String reason) {
+    private record Message(String subject, String bodyHtml, String reason, String calendar) {
         Message {
             // The subject carries the company's name and job title, which are
             // typed text: keep it one short line.

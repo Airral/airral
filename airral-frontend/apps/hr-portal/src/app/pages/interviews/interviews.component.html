@@ -214,6 +214,10 @@
           <input type="checkbox" formControlName="notifyCandidate" />
           Email the candidate the day and time
         </label>
+        <label class="notify-check" *ngIf="interviewerIds.size > 0">
+          <input type="checkbox" formControlName="notifyInterviewers" />
+          Send the interviewers a calendar invite
+        </label>
 
         <div class="form-actions">
           <button type="button" class="btn btn-outline" (click)="cancelSchedule()">Cancel</button>

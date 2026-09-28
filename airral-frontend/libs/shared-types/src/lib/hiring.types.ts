@@ -348,6 +348,8 @@ export interface ScheduleInterviewRequest {
   notes?: string;
   /** Email the candidate the day and time. */
   notifyCandidate?: boolean;
+  /** Email each interviewer an invitation with a calendar file. */
+  notifyInterviewers?: boolean;
   interviewerIds?: number[];
   durationMinutes?: number;
   /** The booker's IANA time zone. */

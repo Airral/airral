@@ -41,22 +41,25 @@ public class InterviewService {
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
     private final CandidateUpdateEmails candidateEmails;
+    private final InterviewerEmails interviewerEmails;
 
     public InterviewService(InterviewRepository interviewRepository,
                           ApplicationRepository applicationRepository,
                           JobRepository jobRepository,
                           UserRepository userRepository,
-                          CandidateUpdateEmails candidateEmails) {
+                          CandidateUpdateEmails candidateEmails,
+                          InterviewerEmails interviewerEmails) {
         this.interviewRepository = interviewRepository;
         this.applicationRepository = applicationRepository;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.candidateEmails = candidateEmails;
+        this.interviewerEmails = interviewerEmails;
     }
 
     /**
-     * Schedule a new interview. The candidate is emailed the time when the
-     * caller asks.
+     * Schedule a new interview. When the caller asks, the candidate is emailed
+     * the time and the interviewers get an invitation, each with a calendar file.
      */
         @Transactional
     public Mono<InterviewResponse> scheduleInterview(ScheduleInterviewRequest request,
@@ -95,6 +98,9 @@ public class InterviewService {
                             .doOnNext(saved -> {
                                 if (Boolean.TRUE.equals(request.getNotifyCandidate())) {
                                     candidateEmails.interviewBooked(application, saved);
+                                }
+                                if (Boolean.TRUE.equals(request.getNotifyInterviewers())) {
+                                    interviewerEmails.invite(saved, application, interviewerIds);
                                 }
                             });
                 }))

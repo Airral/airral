@@ -8,6 +8,7 @@ import com.airral.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import reactor.core.scheduler.Schedulers;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -59,6 +61,14 @@ public class CandidateEmailService {
      * Send an HTML email to a user. Handles errors gracefully — logs and continues.
      */
     public Mono<Void> sendEmail(String toEmail, String subject, String htmlBody) {
+        return sendEmail(toEmail, subject, htmlBody, null);
+    }
+
+    /**
+     * Send an HTML email with a calendar file attached, when there is one: an
+     * interview the recipient can add to their calendar.
+     */
+    public Mono<Void> sendEmail(String toEmail, String subject, String htmlBody, String calendar) {
         if (!emailEnabled) {
             log.debug("Email sending disabled. Would have sent '{}' to {}", subject, toEmail);
             return Mono.empty();
@@ -72,6 +82,11 @@ public class CandidateEmailService {
                 helper.setTo(toEmail);
                 helper.setSubject(subject);
                 helper.setText(htmlBody, true);
+                if (calendar != null) {
+                    helper.addAttachment(InterviewCalendar.FILE_NAME,
+                            new ByteArrayResource(calendar.getBytes(StandardCharsets.UTF_8)),
+                            "text/calendar; charset=UTF-8; method=PUBLISH");
+                }
                 mailSender.send(message);
                 log.info("Sent email '{}' to {}", subject, toEmail);
             } catch (MessagingException | java.io.UnsupportedEncodingException e) {

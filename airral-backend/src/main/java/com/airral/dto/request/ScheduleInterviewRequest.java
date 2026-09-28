@@ -29,6 +29,9 @@ public class ScheduleInterviewRequest {
     /** Email the candidate the day and time. Off unless the caller asks. */
     private Boolean notifyCandidate;
 
+    /** Email each interviewer an invitation with a calendar file. Off unless the caller asks. */
+    private Boolean notifyInterviewers;
+
     /** Teammates who interview: HR managers, hiring managers or interviewers in the company. */
     @Size(max = 10, message = "An interview can have at most 10 interviewers")
     private List<Long> interviewerIds;
