@@ -44,7 +44,8 @@ export class InterviewsComponent implements OnInit {
       applicationId: ['', Validators.required],
       interviewDate: ['', Validators.required],
       interviewTime: ['10:00', Validators.required],
-      notes: ['']
+      notes: [''],
+      notifyCandidate: [true]
     });
   }
 
@@ -160,7 +161,7 @@ export class InterviewsComponent implements OnInit {
 
   cancelSchedule(): void {
     this.showScheduleForm = false;
-    this.scheduleForm.reset({ interviewTime: '10:00' });
+    this.scheduleForm.reset({ interviewTime: '10:00', notifyCandidate: true });
   }
 
   submitSchedule(): void {
@@ -168,10 +169,10 @@ export class InterviewsComponent implements OnInit {
       return;
     }
 
-    const { applicationId, interviewDate, interviewTime, notes } = this.scheduleForm.value;
+    const { applicationId, interviewDate, interviewTime, notes, notifyCandidate } = this.scheduleForm.value;
     const timestamp = `${interviewDate}T${interviewTime}:00.000Z`;
 
-    this.applicationApiService.scheduleInterview(parseInt(applicationId, 10), timestamp, notes).subscribe({
+    this.applicationApiService.scheduleInterview(parseInt(applicationId, 10), timestamp, notes, !!notifyCandidate).subscribe({
       next: (interview) => {
         this.interviews = [...this.interviews, interview];
         this.buildCalendar();

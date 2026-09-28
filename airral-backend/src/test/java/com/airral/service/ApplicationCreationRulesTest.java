@@ -51,15 +51,17 @@ class ApplicationCreationRulesTest {
     private final JobRepository jobs = mock(JobRepository.class);
     private final OrganizationRepository organizations = mock(OrganizationRepository.class);
     private final CandidateProfileRepository profiles = mock(CandidateProfileRepository.class);
+    private final CandidateUpdateEmails emails = mock(CandidateUpdateEmails.class);
     private ApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new ApplicationService(applications, jobs, mock(UserRepository.class), organizations, profiles);
+        service = new ApplicationService(applications, jobs, mock(UserRepository.class), organizations, profiles, emails);
         when(applications.save(any(Application.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         // Amy, applicant 7, has a resume on file and has not applied yet.
         when(profiles.findByUserId(7L)).thenReturn(Mono.just(CandidateProfile.builder().userId(7L).activeResumeDocumentId(70L).build()));
         when(applications.existsByJobIdAndApplicantId(JOB, 7L)).thenReturn(Mono.just(false));
+        when(applications.existsByJobIdAndApplicantEmail(eq(JOB), any())).thenReturn(Mono.just(false));
     }
 
     private void jobIs(JobStatus status, long companyId, String companyStatus) {
@@ -100,6 +102,11 @@ class ApplicationCreationRulesTest {
         // The resume on file is attached, and a link the request names is not.
         assertThat(saved.getResumeDocumentId()).isEqualTo(70L);
         assertThat(saved.getResumeUrl()).isNull();
+        // And the email saying the company has it goes to Amy's own address.
+        ArgumentCaptor<Application> emailed = ArgumentCaptor.forClass(Application.class);
+        verify(emails).applicationReceived(emailed.capture());
+        assertThat(emailed.getValue().getApplicantEmail()).isEqualTo("amy@example.com");
+        assertThat(emailed.getValue().getJobId()).isEqualTo(JOB);
     }
 
     @Test
@@ -112,6 +119,7 @@ class ApplicationCreationRulesTest {
                 .expectError(ConflictException.class)
                 .verify();
         verify(applications, never()).save(any());
+        verifyNoInteractions(emails);
     }
 
     @Test
@@ -174,13 +182,34 @@ class ApplicationCreationRulesTest {
         // for verification.
         jobIs(JobStatus.OPEN, OUR_COMPANY, "PENDING");
 
-        StepVerifier.create(service.addCandidate(request(), OUR_COMPANY))
+        SubmitApplicationRequest typed = request();
+        typed.setApplicantEmail(" Someone-Else@Example.com ");
+        typed.setResumeUrl(" ");
+
+        StepVerifier.create(service.addCandidate(typed, OUR_COMPANY))
                 .expectNextCount(1)
                 .verifyComplete();
 
         Application saved = saved();
         assertThat(saved.getApplicantId()).isNull();
         assertThat(saved.getApplicantEmail()).isEqualTo("someone-else@example.com");
+        assertThat(saved.getResumeUrl()).isNull();
+        // They did not apply, so nothing tells them they did.
+        verifyNoInteractions(emails);
+    }
+
+    @Test
+    @DisplayName("HR cannot add the same person to a job twice")
+    void hrAddsACandidateOnce() {
+        jobIs(JobStatus.OPEN, OUR_COMPANY, CompanyVerificationService.VERIFIED);
+        when(applications.existsByJobIdAndApplicantEmail(JOB, "someone-else@example.com")).thenReturn(Mono.just(true));
+
+        StepVerifier.create(service.addCandidate(request(), OUR_COMPANY))
+                .expectErrorSatisfies(error -> assertThat(error)
+                        .isInstanceOf(ConflictException.class)
+                        .hasMessageContaining("already a candidate"))
+                .verify();
+        verify(applications, never()).save(any());
     }
 
     @Test

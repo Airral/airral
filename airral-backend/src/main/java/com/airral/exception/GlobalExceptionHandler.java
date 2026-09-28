@@ -50,6 +50,9 @@ public class GlobalExceptionHandler {
         );
         
         errorResponse.put("validationErrors", validationErrors);
+        // Clients show "message"; without one they fall back to a raw HTTP error.
+        ex.getFieldErrors().stream().findFirst()
+                .ifPresent(error -> errorResponse.put("message", error.getDefaultMessage()));
         
         return Mono.just(ResponseEntity.badRequest().body(errorResponse));
     }

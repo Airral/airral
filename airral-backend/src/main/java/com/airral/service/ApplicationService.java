@@ -2,10 +2,13 @@ package com.airral.service;
 
 import com.airral.domain.Application;
 import com.airral.domain.Job;
+import com.airral.domain.Organization;
+import com.airral.domain.enums.ApplicantStage;
 import com.airral.domain.enums.ApplicationStatus;
 import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.SubmitApplicationRequest;
 import com.airral.dto.response.ApplicationResponse;
+import com.airral.dto.response.MyApplicationResponse;
 import com.airral.exception.BadRequestException;
 import com.airral.exception.ConflictException;
 import com.airral.repository.ApplicationRepository;
@@ -21,6 +24,7 @@ import reactor.core.publisher.Mono;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,17 +35,20 @@ public class ApplicationService {
     private final UserRepository userRepository;
     private final OrganizationRepository organizationRepository;
     private final CandidateProfileRepository candidateProfileRepository;
+    private final CandidateUpdateEmails candidateEmails;
 
     public ApplicationService(ApplicationRepository applicationRepository,
                             JobRepository jobRepository,
                             UserRepository userRepository,
                             OrganizationRepository organizationRepository,
-                            CandidateProfileRepository candidateProfileRepository) {
+                            CandidateProfileRepository candidateProfileRepository,
+                            CandidateUpdateEmails candidateEmails) {
         this.applicationRepository = applicationRepository;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
         this.candidateProfileRepository = candidateProfileRepository;
+        this.candidateEmails = candidateEmails;
     }
 
     /**
@@ -52,7 +59,8 @@ public class ApplicationService {
      * OPEN, at a company AIRRAL has verified. Any other job answers "Job not
      * found", the same as one that does not exist. It carries the resume the
      * applicant has on file, never a link the request names, and one person
-     * applies to a job once.
+     * applies to a job once. The applicant gets an email saying the company
+     * has it.
      */
     public Mono<ApplicationResponse> applyAsApplicant(SubmitApplicationRequest request,
                                                       Long applicantId, String applicantEmail) {
@@ -68,7 +76,19 @@ public class ApplicationService {
                                 : Mono.just(found)));
         return job.zipWith(resumeOnFile(applicantId))
                 .flatMap(found -> create(Mono.just(found.getT1()), request, applicantId, applicantEmail,
-                        null, found.getT2()));
+                        null, found.getT2()))
+                .doOnNext(saved -> candidateEmails.applicationReceived(applicationFor(saved)));
+    }
+
+    /** The fields of a new application its "received" email reads. */
+    private static Application applicationFor(ApplicationResponse saved) {
+        return Application.builder()
+                .id(saved.getId())
+                .jobId(saved.getJobId())
+                .applicantId(saved.getApplicantId())
+                .applicantName(saved.getApplicantName())
+                .applicantEmail(saved.getApplicantEmail())
+                .build();
     }
 
     /** The applicant's active resume. Applying needs one: the company reviews it. */
@@ -85,10 +105,17 @@ public class ApplicationService {
      * candidate, but cannot file an application under somebody's account.
      */
     public Mono<ApplicationResponse> addCandidate(SubmitApplicationRequest request, Long organizationId) {
+        String email = request.getApplicantEmail().trim().toLowerCase(Locale.ROOT);
         Mono<Job> job = jobRepository.findById(request.getJobId())
                 .filter(found -> organizationId != null && organizationId.equals(found.getOrganizationId()))
-                .switchIfEmpty(Mono.error(new NotFoundException("Job not found")));
-        return create(job, request, null, request.getApplicantEmail(), request.getResumeUrl(), null);
+                .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
+                .flatMap(found -> applicationRepository.existsByJobIdAndApplicantEmail(found.getId(), email)
+                        .flatMap(taken -> taken
+                                ? Mono.<Job>error(new ConflictException(email + " is already a candidate for this job"))
+                                : Mono.just(found)));
+        String resumeUrl = request.getResumeUrl() == null || request.getResumeUrl().isBlank()
+                ? null : request.getResumeUrl().trim();
+        return create(job, request, null, email, resumeUrl, null);
     }
 
     /**
@@ -182,22 +209,44 @@ public class ApplicationService {
     }
 
     /**
-     * Get applications by applicant
+     * An applicant's own applications, newest first, with the stage each one
+     * is at as the applicant sees it.
      */
-    public Flux<ApplicationResponse> getMyApplications(Long applicantId) {
+    public Flux<MyApplicationResponse> getMyApplications(Long applicantId) {
         return applicationRepository.findByApplicantId(applicantId)
-                .flatMap(this::toApplicationResponse);
+                .flatMapSequential(application -> jobRepository.findById(application.getJobId())
+                        .flatMap(job -> organizationRepository.findById(job.getOrganizationId())
+                                .map(Organization::getName)
+                                .defaultIfEmpty("")
+                                .map(companyName -> MyApplicationResponse.builder()
+                                        .id(application.getId())
+                                        .jobId(application.getJobId())
+                                        .jobTitle(job.getTitle())
+                                        .companyName(companyName.isBlank() ? null : companyName)
+                                        .stage(ApplicantStage.of(application.getStatus()))
+                                        .appliedAt(application.getAppliedAt())
+                                        .updatedAt(application.getUpdatedAt())
+                                        .build())));
     }
 
     /**
-     * Update application status
+     * Move an application to a stage. Turning a candidate down can email them,
+     * when the caller asks.
      */
     public Mono<ApplicationResponse> updateApplicationStatus(Long id, ApplicationStatus status,
                                                              Long organizationId, Long userId, JobScope scope) {
+        return updateApplicationStatus(id, status, organizationId, userId, scope, false);
+    }
+
+    public Mono<ApplicationResponse> updateApplicationStatus(Long id, ApplicationStatus status,
+                                                             Long organizationId, Long userId, JobScope scope,
+                                                             boolean notifyCandidate) {
         return applicationRepository.findByIdAndOrganizationId(id, organizationId)
                 .filter(application -> scope.allows(application.getJobId()))
                 .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
                 .flatMap(application -> {
+                    boolean turnedDown = status == ApplicationStatus.REJECTED
+                            && application.getStatus() != ApplicationStatus.REJECTED;
                     application.setStatus(status);
                     application.setUpdatedAt(LocalDateTime.now());
                     
@@ -207,7 +256,10 @@ public class ApplicationService {
                         application.setReviewedByHrAt(LocalDateTime.now());
                     }
                     
-                    return applicationRepository.save(application);
+                    return applicationRepository.save(application)
+                            .doOnNext(saved -> {
+                                if (turnedDown && notifyCandidate) candidateEmails.notSelected(saved);
+                            });
                 })
                 .flatMap(this::toApplicationResponse);
     }

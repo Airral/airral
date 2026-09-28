@@ -2,7 +2,7 @@
   <header class="tracker-header">
     <div>
       <h1>Application Tracker</h1>
-      <p *ngIf="!loading">{{ totalJobs }} jobs tracked</p>
+      <p *ngIf="!loading">{{ totalJobs }} {{ totalJobs === 1 ? 'job' : 'jobs' }} tracked</p>
     </div>
   </header>
 
@@ -16,24 +16,31 @@
       <div class="column-header">
         <span class="material-icons">{{ col.icon }}</span>
         <span class="column-label">{{ col.label }}</span>
-        <span class="column-count">{{ col.jobs.length }}</span>
+        <span class="column-count">{{ col.cards.length }}</span>
       </div>
 
       <div class="column-body">
-        <div class="tracker-card" *ngFor="let job of col.jobs">
+        <div class="tracker-card" *ngFor="let card of col.cards; trackBy: trackCard">
           <div class="tracker-card-top">
-            <span class="tracker-company">{{ job.job?.companyName || 'Unknown' }}</span>
+            <span class="tracker-company">{{ card.company }}</span>
+            <span class="tracker-stage" *ngIf="card.application as application" [attr.data-stage]="application.stage">
+              {{ stageLabel(application.stage) }}
+            </span>
           </div>
-          <h3 class="tracker-title">{{ job.job?.title || 'Untitled' }}</h3>
-          <p class="tracker-note" *ngIf="job.nextStep">{{ job.nextStep }}</p>
-          <div class="tracker-card-actions">
+          <h3 class="tracker-title">{{ card.title }}</h3>
+          <p class="tracker-note" *ngIf="card.note">{{ card.note }}</p>
+          <p class="tracker-note" *ngIf="card.application as application">
+            Applied on AIRRAL {{ application.appliedAt | date: 'MMM d' }}<ng-container
+              *ngIf="application.updatedAt && application.stage !== 'APPLIED'"> · updated {{ application.updatedAt | date: 'MMM d' }}</ng-container>
+          </p>
+          <div class="tracker-card-actions" *ngIf="card.saved as job">
             <button class="tracker-action" (click)="removeJob(job)" title="Remove">
               <span class="material-icons">close</span>
             </button>
           </div>
         </div>
 
-        <div class="column-empty" *ngIf="col.jobs.length === 0">
+        <div class="column-empty" *ngIf="col.cards.length === 0">
           <span class="material-icons">inbox</span>
           <span>No jobs here</span>
         </div>

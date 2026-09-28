@@ -124,3 +124,6 @@ textarea.form-control { resize: vertical; }
   .page-header { flex-direction: column; gap: 12px; }
   .list-row { flex-wrap: wrap; gap: 10px; }
 }
+
+.notify-check { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: #374151; font-size: 13px; }
+.notify-check input { accent-color: #087f70; }

@@ -142,6 +142,27 @@ export interface UpdateJobRequest extends Partial<CreateJobRequest> {
 }
 
 // For submitting applications (applicant-side)
+/** Where an application stands, as the applicant sees it. */
+export type ApplicantStage =
+  | 'APPLIED'
+  | 'IN_REVIEW'
+  | 'INTERVIEWING'
+  | 'OFFER'
+  | 'HIRED'
+  | 'NOT_SELECTED'
+  | 'WITHDRAWN';
+
+/** One of the signed-in applicant's own applications on AIRRAL. */
+export interface MyApplication {
+  id: number;
+  jobId: number;
+  jobTitle: string;
+  companyName?: string;
+  stage: ApplicantStage;
+  appliedAt: string;
+  updatedAt?: string;
+}
+
 export interface SubmitApplicationRequest {
   jobId: number;
   applicantName: string;

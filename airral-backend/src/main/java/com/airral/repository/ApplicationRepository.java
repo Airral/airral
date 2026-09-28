@@ -64,4 +64,8 @@ public interface ApplicationRepository extends R2dbcRepository<Application, Long
 
     @Query("SELECT COUNT(*) > 0 FROM applications WHERE job_id = :jobId AND applicant_id = :applicantId")
     Mono<Boolean> existsByJobIdAndApplicantId(Long jobId, Long applicantId);
+
+    /** Whether this address is already a candidate for the job, however its case was typed. */
+    @Query("SELECT COUNT(*) > 0 FROM applications WHERE job_id = :jobId AND lower(applicant_email) = lower(:email)")
+    Mono<Boolean> existsByJobIdAndApplicantEmail(Long jobId, String email);
 }

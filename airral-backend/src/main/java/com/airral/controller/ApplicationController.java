@@ -4,6 +4,7 @@ import com.airral.domain.enums.ApplicationStatus;
 import com.airral.domain.enums.UserRole;
 import com.airral.dto.request.SubmitApplicationRequest;
 import com.airral.dto.response.ApplicationResponse;
+import com.airral.dto.response.MyApplicationResponse;
 import com.airral.exception.BadRequestException;
 import com.airral.security.JwtTokenProvider;
 import com.airral.service.ApplicationService;
@@ -130,7 +131,7 @@ public class ApplicationController {
      */
     @GetMapping("/applicant/{applicantId}")
     @PreAuthorize("hasAuthority('APPLICANT')")
-    public Mono<ResponseEntity<Flux<ApplicationResponse>>> getMyApplications(
+    public Mono<ResponseEntity<Flux<MyApplicationResponse>>> getMyApplications(
             @PathVariable Long applicantId,
             @RequestHeader("Authorization") String authHeader) {
         
@@ -150,12 +151,15 @@ public class ApplicationController {
     /**
      * Update application status
      * PUT /api/applications/{id}/status?status=SHORTLISTED
+     *
+     * <p>With {@code notifyCandidate=true}, turning a candidate down emails them.
      */
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'MANAGER', 'ADMIN')")
     public Mono<ResponseEntity<ApplicationResponse>> updateApplicationStatus(
             @PathVariable Long id,
             @RequestParam String status,
+            @RequestParam(defaultValue = "false") boolean notifyCandidate,
             @RequestHeader("Authorization") String authHeader) {
         
         String token = extractToken(authHeader);
@@ -165,7 +169,8 @@ public class ApplicationController {
         try {
             ApplicationStatus appStatus = ApplicationStatus.valueOf(status.toUpperCase());
             return scopeFor(token).flatMap(scope ->
-                            applicationService.updateApplicationStatus(id, appStatus, organizationId, userId, scope))
+                            applicationService.updateApplicationStatus(id, appStatus, organizationId, userId, scope,
+                                    notifyCandidate))
                     .map(ResponseEntity::ok);
         } catch (IllegalArgumentException e) {
             return Mono.error(new BadRequestException("Invalid application status: " + status));

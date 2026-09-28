@@ -181,12 +181,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
 .tracker-company {
   font-size: 11.5px;
   font-weight: 800;
   color: var(--stage-color);
+}
+
+/* An application on AIRRAL: the company sets this stage. */
+.tracker-stage {
+  font-size: 11px;
+  font-weight: 700;
+  color: #006B5B;
+  background: #eef7f5;
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.tracker-stage[data-stage='NOT_SELECTED'],
+.tracker-stage[data-stage='WITHDRAWN'] {
+  color: #4b5563;
+  background: #f3f4f6;
 }
 
 .tracker-title {

@@ -24,19 +24,23 @@ public class InterviewService {
     private final ApplicationRepository applicationRepository;
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
+    private final CandidateUpdateEmails candidateEmails;
 
     public InterviewService(InterviewRepository interviewRepository,
                           ApplicationRepository applicationRepository,
                           JobRepository jobRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          CandidateUpdateEmails candidateEmails) {
         this.interviewRepository = interviewRepository;
         this.applicationRepository = applicationRepository;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
+        this.candidateEmails = candidateEmails;
     }
 
     /**
-     * Schedule a new interview
+     * Schedule a new interview. The candidate is emailed the time when the
+     * caller asks.
      */
         @Transactional
     public Mono<InterviewResponse> scheduleInterview(ScheduleInterviewRequest request,
@@ -61,7 +65,12 @@ public class InterviewService {
                     application.setUpdatedAt(LocalDateTime.now());
 
                     return applicationRepository.save(application)
-                            .then(interviewRepository.save(interview));
+                            .then(interviewRepository.save(interview))
+                            .doOnNext(saved -> {
+                                if (Boolean.TRUE.equals(request.getNotifyCandidate())) {
+                                    candidateEmails.interviewBooked(application, saved);
+                                }
+                            });
                 })
                 .flatMap(this::toInterviewResponse);
     }

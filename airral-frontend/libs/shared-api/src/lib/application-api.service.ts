@@ -9,6 +9,7 @@ import {
   CreateOfferRequest,
   SendOfferRequest,
   Interview,
+  MyApplication,
 } from '@airral/shared-types';
 import { ApiClientService } from './api-client.service';
 
@@ -31,8 +32,9 @@ export class ApplicationApiService {
     return this.apiClient.getBlob(`/applications/${applicationId}/resume`);
   }
 
-  getMyApplications(applicantId: number): Observable<Application[]> {
-    return this.apiClient.get<Application[]>(`/applications/applicant/${applicantId}`);
+  /** The signed-in applicant's own applications, with the stage each is at. */
+  getMyApplications(applicantId: number): Observable<MyApplication[]> {
+    return this.apiClient.get<MyApplication[]>(`/applications/applicant/${applicantId}`);
   }
 
   getJobApplications(jobId: number): Observable<Application[]> {
@@ -43,8 +45,10 @@ export class ApplicationApiService {
     return this.apiClient.get<Application[]>('/applications');
   }
 
-  updateApplicationStatus(id: number, status: string): Observable<Application> {
-    return this.apiClient.put<Application>(`/applications/${id}/status?status=${status}`, {});
+  /** With notifyCandidate, turning a candidate down emails them. */
+  updateApplicationStatus(id: number, status: string, notifyCandidate = false): Observable<Application> {
+    const notify = notifyCandidate ? '&notifyCandidate=true' : '';
+    return this.apiClient.put<Application>(`/applications/${id}/status?status=${status}${notify}`, {});
   }
 
   hire(id: number): Observable<Application> {
@@ -59,8 +63,9 @@ export class ApplicationApiService {
     return this.updateApplicationStatus(id, ApplicationStatus.REJECTED);
   }
 
-  scheduleInterview(applicationId: number, interviewDate: string, notes?: string): Observable<Interview> {
-    return this.apiClient.post<Interview>('/interviews', { applicationId, interviewDate, notes });
+  /** With notifyCandidate, the candidate is emailed the day and time. */
+  scheduleInterview(applicationId: number, interviewDate: string, notes?: string, notifyCandidate = false): Observable<Interview> {
+    return this.apiClient.post<Interview>('/interviews', { applicationId, interviewDate, notes, notifyCandidate });
   }
 
   getInterviewsByApplication(applicationId: number): Observable<Interview[]> {

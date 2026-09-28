@@ -21,4 +21,7 @@ public class ScheduleInterviewRequest {
     private LocalDateTime interviewDate;
 
     private String notes;
+
+    /** Email the candidate the day and time. Off unless the caller asks. */
+    private Boolean notifyCandidate;
 }

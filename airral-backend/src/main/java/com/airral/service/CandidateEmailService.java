@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -197,6 +198,41 @@ public class CandidateEmailService {
                 </body>
                 </html>
                 """.formatted(subject, bodyHtml, emailFooter(unsubscribeToken));
+    }
+
+    /**
+     * Wrap an email about one application in the standard template.
+     *
+     * <p>These are not marketing: they tell someone about their own
+     * application, so there is no unsubscribe link, and the footer says why the
+     * email came instead. Some recipients have no AIRRAL account, because a
+     * company added them by hand.
+     */
+    public String wrapTransactional(String subject, String bodyHtml, String reason) {
+        return """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>%s</title>
+                </head>
+                <body style="margin:0; padding:0; background-color:#f6f7f6; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                  <div style="max-width:600px; margin:0 auto; padding:32px 16px;">
+                    <div style="margin-bottom:24px;">
+                      <span style="font-size:20px; font-weight:700; color:#007C6D;">AIRRAL</span>
+                    </div>
+                    <div style="background:#ffffff; border-radius:8px; padding:32px; border:1px solid #e1e5e9;">
+                      %s
+                    </div>
+                    <div style="margin-top:32px; padding-top:16px; border-top:1px solid #e1e5e9; font-size:12px; color:#667789;">
+                      <p>You're getting this because %s.</p>
+                      <p style="margin-top:8px;">AIRRAL · Job search, simplified.</p>
+                    </div>
+                  </div>
+                </body>
+                </html>
+                """.formatted(HtmlUtils.htmlEscape(subject), bodyHtml, HtmlUtils.htmlEscape(reason));
     }
 
     private Mono<CandidateNotificationPreference> createDefaultPreferences(Long userId) {

@@ -2,9 +2,21 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { ApplicationApiService, HrEncounterApiService, JobApiService } from '@airral/shared-api';
+import { ApplicationApiService, AuthApiService, HrEncounterApiService, JobApiService } from '@airral/shared-api';
+import { AuthService } from '@airral/shared-auth';
 import { Application, ApplicationStatus, CreateEncounterRequest, HrEncounter, Job } from '@airral/shared-types';
 import { catchError, combineLatest, finalize, of } from 'rxjs';
+import { getPrimaryRole } from '../../feature-config';
+
+interface CandidateDraft {
+  jobId: string;
+  name: string;
+  email: string;
+  phone: string;
+  resumeUrl: string;
+}
+
+const EMPTY_DRAFT: CandidateDraft = { jobId: '', name: '', email: '', phone: '', resumeUrl: '' };
 
 interface StageOption {
   value: 'ALL' | ApplicationStatus;
@@ -23,6 +35,13 @@ export class CandidatesComponent implements OnInit {
   private readonly jobApi = inject(JobApiService);
   private readonly encounterApi = inject(HrEncounterApiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
+  private readonly authApi = inject(AuthApiService);
+
+  /** HR adds candidates by hand. Hiring managers work the ones on their jobs. */
+  readonly canAddCandidates = getPrimaryRole(this.auth.getCurrentUser()?.roles) === 'HR_MANAGER';
+  /** False while AIRRAL has not verified the company, which is when candidate emails wait. Null until known. */
+  companyVerified: boolean | null = null;
 
   readonly statuses = ApplicationStatus;
   readonly stageOptions: StageOption[] = [
@@ -51,6 +70,12 @@ export class CandidatesComponent implements OnInit {
   interviewNotes = '';
   feedback = '';
   rating = 3;
+  emailInterview = true;
+
+  addingCandidate = false;
+  newCandidate: CandidateDraft = { ...EMPTY_DRAFT };
+  confirmingReject = false;
+  emailOnReject = true;
 
   loading = true;
   detailLoading = false;
@@ -64,6 +89,12 @@ export class CandidatesComponent implements OnInit {
       this.stageFilter = requestedStage as ApplicationStatus;
     }
     this.load();
+    this.authApi
+      .me()
+      .pipe(catchError(() => of(null)))
+      .subscribe((status) => {
+        this.companyVerified = status ? status.organizationVerificationStatus === 'VERIFIED' : null;
+      });
   }
 
   load(): void {
@@ -144,6 +175,7 @@ export class CandidatesComponent implements OnInit {
 
   selectApplication(application: Application): void {
     this.selectedApplication = application;
+    this.confirmingReject = false;
     this.detailLoading = true;
     this.error = '';
     this.success = '';
@@ -266,14 +298,14 @@ export class CandidatesComponent implements OnInit {
     }
   }
 
-  updateStatus(application: Application, nextStatus: ApplicationStatus): void {
+  updateStatus(application: Application, nextStatus: ApplicationStatus, notifyCandidate = false): void {
     if (this.saving || application.status === nextStatus) return;
     const previousStatus = application.status;
     this.saving = true;
     this.clearMessages();
 
     this.applicationApi
-      .updateApplicationStatus(application.id, nextStatus)
+      .updateApplicationStatus(application.id, nextStatus, notifyCandidate)
       .pipe(finalize(() => (this.saving = false)))
       .subscribe({
         next: (updated) => {
@@ -294,9 +326,72 @@ export class CandidatesComponent implements OnInit {
       });
   }
 
-  reject(application: Application): void {
-    if (!confirm(`Reject ${application.applicantName || application.applicantEmail}?`)) return;
-    this.updateStatus(application, ApplicationStatus.REJECTED);
+  reject(): void {
+    this.clearMessages();
+    this.emailOnReject = true;
+    this.confirmingReject = true;
+  }
+
+  cancelReject(): void {
+    this.confirmingReject = false;
+  }
+
+  confirmReject(application: Application): void {
+    this.confirmingReject = false;
+    this.updateStatus(application, ApplicationStatus.REJECTED, this.emailOnReject);
+  }
+
+  firstName(application: Application): string {
+    return application.applicantName?.trim().split(/\s+/)[0] || 'the candidate';
+  }
+
+  openAddCandidate(): void {
+    this.clearMessages();
+    this.addingCandidate = true;
+    if (!this.newCandidate.jobId) {
+      if (this.jobFilter !== 'ALL') this.newCandidate.jobId = this.jobFilter;
+      else if (this.jobs.length === 1) this.newCandidate.jobId = String(this.jobs[0].id);
+    }
+  }
+
+  cancelAddCandidate(): void {
+    this.addingCandidate = false;
+    this.newCandidate = { ...EMPTY_DRAFT };
+  }
+
+  get canSubmitCandidate(): boolean {
+    const draft = this.newCandidate;
+    return !this.saving && !!draft.jobId && !!draft.name.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim());
+  }
+
+  /** Someone HR found itself. They get no AIRRAL account and no email saying they were added. */
+  addCandidate(): void {
+    if (!this.canSubmitCandidate) return;
+    const draft = this.newCandidate;
+    this.saving = true;
+    this.clearMessages();
+
+    this.applicationApi
+      .submitApplication({
+        jobId: Number(draft.jobId),
+        applicantName: draft.name.trim(),
+        applicantEmail: draft.email.trim(),
+        applicantPhone: draft.phone.trim() || undefined,
+        resumeUrl: draft.resumeUrl.trim() || undefined,
+      })
+      .pipe(finalize(() => (this.saving = false)))
+      .subscribe({
+        next: (created) => {
+          this.applications = [created, ...this.applications];
+          this.addingCandidate = false;
+          this.newCandidate = { ...EMPTY_DRAFT };
+          this.selectApplication(created);
+          this.success = `${created.applicantName || created.applicantEmail} is now a candidate for ${this.jobTitle(created)}.`;
+        },
+        error: (error: Error) => {
+          this.error = error.message || 'Unable to add this candidate.';
+        },
+      });
   }
 
   scheduleInterview(): void {
@@ -307,7 +402,7 @@ export class CandidatesComponent implements OnInit {
     this.clearMessages();
 
     this.applicationApi
-      .scheduleInterview(application.id, this.interviewDate, notes)
+      .scheduleInterview(application.id, this.interviewDate, notes, this.emailInterview)
       .pipe(finalize(() => (this.saving = false)))
       .subscribe({
         next: (interview) => {

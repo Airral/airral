@@ -41,6 +41,11 @@ spring:
           auth: true
           starttls:
             enable: true
+          # JavaMail waits forever by default. Candidate emails go out as people
+          # work, so an unreachable server must give up instead of holding a thread.
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
 
 # Server Configuration
 server:
