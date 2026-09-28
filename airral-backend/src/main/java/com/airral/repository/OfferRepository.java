@@ -15,6 +15,15 @@ public interface OfferRepository extends R2dbcRepository<Offer, Long> {
     @Query("SELECT * FROM offers WHERE application_id = :applicationId ORDER BY created_at DESC")
     Flux<Offer> findByApplicationId(Long applicationId);
 
+    /** Whether the application has an offer that is still being made: a draft, or sent and not answered. */
+    @Query("SELECT COUNT(*) > 0 FROM offers WHERE application_id = :applicationId AND status IN ('DRAFT', 'SENT')")
+    Mono<Boolean> existsOpenByApplicationId(Long applicationId);
+
+    /** An applicant's own offers, newest first. Drafts are the company's until sent. */
+    @Query("SELECT o.* FROM offers o JOIN applications a ON o.application_id = a.id " +
+           "WHERE a.applicant_id = :applicantId AND o.status <> 'DRAFT' ORDER BY o.created_at DESC")
+    Flux<Offer> findSentByApplicantId(Long applicantId);
+
     // Find all offers for an organization (via application -> job join)
     @Query("SELECT o.* FROM offers o " +
            "JOIN applications a ON o.application_id = a.id " +

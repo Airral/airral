@@ -3,6 +3,7 @@ package com.airral.service;
 import com.airral.domain.Application;
 import com.airral.domain.Interview;
 import com.airral.domain.Job;
+import com.airral.domain.Offer;
 import com.airral.domain.Organization;
 import com.airral.repository.JobRepository;
 import com.airral.repository.OrganizationRepository;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -44,6 +46,8 @@ public class CandidateUpdateEmails {
     private static final DateTimeFormatter DAY_AND_TIME =
             DateTimeFormatter.ofPattern("EEEE d MMMM 'at' h:mm a", Locale.ENGLISH);
     private static final DateTimeFormatter ZONE = DateTimeFormatter.ofPattern("zzz", Locale.ENGLISH);
+    private static final DateTimeFormatter ANSWER_BY = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH);
+    private static final DateTimeFormatter START_DATE = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
 
     private final CandidateEmailService email;
     private final JobRepository jobRepository;
@@ -115,6 +119,47 @@ public class CandidateUpdateEmails {
                                         + button(applicantPortalUrl + "/jobs", "Find more jobs")
                                 : ""),
                 reason(application), null));
+    }
+
+    /**
+     * To the candidate: the company sent them an offer. An applicant reads the
+     * full offer and answers on AIRRAL. Someone the company added by hand has no
+     * account, so the email carries the offer letter and asks them to tell the
+     * company their answer.
+     */
+    public void offerSent(Application application, Offer offer) {
+        send(application, (job, company) -> {
+            boolean hasAccount = application.getApplicantId() != null;
+            String answerBy = offer.getExpiresAt() == null ? null : ANSWER_BY.format(offer.getExpiresAt());
+            return new Message(
+                    "Your offer from " + company.getName() + ": " + job.getTitle(),
+                    greeting(application)
+                            + paragraph(escape(company.getName()) + " is offering you the " + strong(job.getTitle())
+                                    + " role.")
+                            + paragraph("Pay: " + strong(money(offer)))
+                            + (offer.getStartDate() != null
+                                    ? paragraph("Start date: " + strong(START_DATE.format(offer.getStartDate())))
+                                    : "")
+                            + (hasAccount
+                                    ? paragraph("Read the full offer and give your answer on AIRRAL"
+                                            + (answerBy != null ? " by " + strong(answerBy) : "") + ".")
+                                            + button(applicantPortalUrl + "/tracker", "See your offer")
+                                    : (offer.getOfferLetter() != null && !offer.getOfferLetter().isBlank()
+                                            ? EmailHtml.block(offer.getOfferLetter()) : "")
+                                            + paragraph("Let " + escape(company.getName()) + " know your answer"
+                                                    + (answerBy != null ? " by " + strong(answerBy) : "") + ".")),
+                    reason(application),
+                    null);
+        });
+    }
+
+    /** "USD 85,000" style: the currency code, and the amount without trailing cents when there are none. */
+    static String money(Offer offer) {
+        if (offer.getSalary() == null) return "to be agreed";
+        NumberFormat format = NumberFormat.getNumberInstance(Locale.US);
+        format.setMinimumFractionDigits(offer.getSalary().stripTrailingZeros().scale() > 0 ? 2 : 0);
+        format.setMaximumFractionDigits(2);
+        return (offer.getCurrency() == null ? "USD" : offer.getCurrency()) + " " + format.format(offer.getSalary());
     }
 
     private void send(Application application, BiFunction<Job, Organization, Message> compose) {

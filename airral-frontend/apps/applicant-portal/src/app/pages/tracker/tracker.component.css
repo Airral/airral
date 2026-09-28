@@ -158,6 +158,180 @@
   overflow-y: auto;
 }
 
+/* ── Offers ───────────────────────────────────────── */
+.offers {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.offers h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.offer-message {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.offer-message.success {
+  color: #006B5B;
+  background: #eef7f5;
+  border: 1px solid #b9ded7;
+}
+
+.offer-message.error {
+  color: #9d2c24;
+  background: #fff7f6;
+  border: 1px solid #efc7c3;
+}
+
+.offer-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e1e5e9;
+  border-radius: 10px;
+}
+
+.offer-card[data-status='SENT'] {
+  border-color: #007C6D;
+}
+
+.offer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.offer-company {
+  font-size: 12px;
+  font-weight: 800;
+  color: #4b5563;
+}
+
+.offer-head h3 {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.offer-status {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #4b5563;
+  background: #f3f4f6;
+  white-space: nowrap;
+}
+
+.offer-status[data-status='SENT'],
+.offer-status[data-status='ACCEPTED'] {
+  color: #006B5B;
+  background: #eef7f5;
+}
+
+.offer-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0;
+}
+
+.offer-terms div {
+  display: grid;
+  gap: 2px;
+}
+
+.offer-terms dt {
+  font-size: 11px;
+  color: #667789;
+}
+
+.offer-terms dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.offer-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.offer-details h4 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.offer-text {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #374151;
+  white-space: pre-line;
+}
+
+.offer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.confirm-text {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 13px;
+  color: #111827;
+}
+
+.btn-accept,
+.btn-decline {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-accept {
+  border: 1px solid #007C6D;
+  color: #ffffff;
+  background: #007C6D;
+}
+
+.btn-accept:hover:not(:disabled) {
+  background: #006B5B;
+}
+
+.btn-decline {
+  border: 1px solid #d9dee3;
+  color: #111827;
+  background: #ffffff;
+}
+
+.btn-accept:disabled,
+.btn-decline:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* ── Job cards in board ───────────────────────────── */
 .tracker-card {
   background: #ffffff;

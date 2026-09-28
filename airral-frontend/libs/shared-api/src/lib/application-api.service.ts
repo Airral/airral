@@ -127,6 +127,12 @@ export class ApplicationApiService {
     return this.apiClient.post<Offer>(`/offers/${request.offerId}/send`, request);
   }
 
+  /** The signed-in applicant's own offers, once sent. */
+  getMyOffers(): Observable<Offer[]> {
+    return this.apiClient.get<Offer[]>('/offers/mine');
+  }
+
+  /** An applicant accepts their offer, or HR records that a candidate it added by hand accepted. */
   acceptOffer(offerId: number): Observable<Offer> {
     return this.apiClient.post<Offer>(`/offers/${offerId}/accept`, {});
   }

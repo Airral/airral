@@ -5,10 +5,13 @@ import com.airral.domain.enums.ApplicationStatus;
 import com.airral.domain.enums.OfferStatus;
 import com.airral.dto.request.CreateOfferRequest;
 import com.airral.dto.response.OfferResponse;
+import com.airral.exception.BadRequestException;
+import com.airral.exception.ConflictException;
+import com.airral.exception.NotFoundException;
 import com.airral.repository.ApplicationRepository;
 import com.airral.repository.JobRepository;
-import com.airral.exception.NotFoundException;
 import com.airral.repository.OfferRepository;
+import com.airral.repository.OrganizationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
@@ -16,156 +19,223 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 
+/**
+ * Offers, from draft to answer.
+ *
+ * <p>A company drafts an offer, sends it, and can withdraw it until it is
+ * answered. The candidate answers it: an applicant with an AIRRAL account on
+ * apply.airral.com, and nobody else can answer for them. A candidate the
+ * company added by hand has no account, so HR records their answer instead.
+ * Accepting marks the application hired; declining withdraws it.
+ */
 @Service
 public class OfferService {
+
+    static final int DEFAULT_DAYS_TO_ANSWER = 7;
 
     private final OfferRepository offerRepository;
     private final ApplicationRepository applicationRepository;
     private final JobRepository jobRepository;
+    private final OrganizationRepository organizationRepository;
+    private final CandidateUpdateEmails candidateEmails;
+    private final HiringTeamEmails teamEmails;
 
     public OfferService(OfferRepository offerRepository,
-                       ApplicationRepository applicationRepository,
-                       JobRepository jobRepository) {
+                        ApplicationRepository applicationRepository,
+                        JobRepository jobRepository,
+                        OrganizationRepository organizationRepository,
+                        CandidateUpdateEmails candidateEmails,
+                        HiringTeamEmails teamEmails) {
         this.offerRepository = offerRepository;
         this.applicationRepository = applicationRepository;
         this.jobRepository = jobRepository;
+        this.organizationRepository = organizationRepository;
+        this.candidateEmails = candidateEmails;
+        this.teamEmails = teamEmails;
     }
 
     /**
-     * Create a new offer
+     * Draft an offer for one of the company's candidates. It is always for the
+     * application's own job, and a candidate has one open offer at a time.
      */
     public Mono<OfferResponse> createOffer(CreateOfferRequest request, Long organizationId) {
-        // Verify the application belongs to this organization
         return applicationRepository.findByIdAndOrganizationId(request.getApplicationId(), organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
-                .flatMap(application -> {
-                    Offer offer = Offer.builder()
-                            .applicationId(request.getApplicationId())
-                            .jobId(request.getJobId())
-                            .salary(request.getSalary())
-                            .currency(request.getCurrency() != null ? request.getCurrency() : "USD")
-                            .startDate(request.getStartDate())
-                            .offerLetter(request.getOfferLetter())
-                            .benefits(request.getBenefits())
-                            .contingencies(request.getContingencies())
-                            .status(OfferStatus.DRAFT)
-                            .createdAt(LocalDateTime.now())
-                            .updatedAt(LocalDateTime.now())
-                            .build();
-
-                    return offerRepository.save(offer);
-                })
+                .flatMap(application -> offerRepository.existsOpenByApplicationId(application.getId())
+                        .flatMap(open -> open
+                                ? Mono.<Offer>error(new ConflictException(
+                                        "This candidate already has an open offer. Withdraw it before making another."))
+                                : offerRepository.save(Offer.builder()
+                                        .applicationId(application.getId())
+                                        .jobId(application.getJobId())
+                                        .salary(request.getSalary())
+                                        .currency(request.getCurrency() != null ? request.getCurrency() : "USD")
+                                        .startDate(request.getStartDate())
+                                        .offerLetter(request.getOfferLetter())
+                                        .benefits(request.getBenefits())
+                                        .contingencies(request.getContingencies())
+                                        .status(OfferStatus.DRAFT)
+                                        .createdAt(LocalDateTime.now())
+                                        .updatedAt(LocalDateTime.now())
+                                        .build())))
                 .flatMap(this::toOfferResponse);
     }
 
-    /**
-     * Get offer by ID
-     */
     public Mono<OfferResponse> getOfferById(Long id, Long organizationId) {
         return offerRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Offer not found")))
                 .flatMap(this::toOfferResponse);
     }
 
-    /**
-     * Get all offers for an organization
-     */
     public Flux<OfferResponse> getAllOffers(Long organizationId) {
         return offerRepository.findAllByOrganizationId(organizationId)
-                .flatMap(this::toOfferResponse);
+                .concatMap(this::toOfferResponse);
     }
 
-    /**
-     * Get offers by application
-     */
     public Flux<OfferResponse> getOffersByApplication(Long applicationId, Long organizationId) {
-        // Verify the application belongs to this organization
         return applicationRepository.findByIdAndOrganizationId(applicationId, organizationId)
                 .flatMapMany(app -> offerRepository.findByApplicationId(applicationId))
-                .flatMap(this::toOfferResponse);
+                .concatMap(this::toOfferResponse);
+    }
+
+    /** An applicant's own offers, once sent. */
+    public Flux<OfferResponse> getMyOffers(Long applicantId) {
+        return offerRepository.findSentByApplicantId(applicantId)
+                .concatMap(this::toOfferResponse);
     }
 
     /**
-     * Send offer to candidate
+     * Send a draft to the candidate. They have {@code daysToAnswer} days, and
+     * are emailed the offer when AIRRAL has verified the company.
      */
     @Transactional
-    public Mono<OfferResponse> sendOffer(Long id, Long organizationId) {
+    public Mono<OfferResponse> sendOffer(Long id, Long organizationId, Integer daysToAnswer) {
+        int days = daysToAnswer != null ? daysToAnswer : DEFAULT_DAYS_TO_ANSWER;
+        if (days < 1 || days > 60) {
+            return Mono.error(new BadRequestException("An offer is open for 1 to 60 days"));
+        }
         return offerRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Offer not found")))
-                .flatMap(offer -> {
-                    offer.setStatus(OfferStatus.SENT);
-                    offer.setSentAt(LocalDateTime.now());
-                    // Set expiry to 7 days from now
-                    offer.setExpiresAt(LocalDateTime.now().plusDays(7));
-                    offer.setUpdatedAt(LocalDateTime.now());
-
-                    // Update application status
-                    return applicationRepository.findById(offer.getApplicationId())
-                            .flatMap(application -> {
-                                application.setStatus(ApplicationStatus.OFFER_EXTENDED);
-                                application.setUpdatedAt(LocalDateTime.now());
-                                return applicationRepository.save(application);
-                            })
-                            .then(offerRepository.save(offer));
-                })
-                .flatMap(this::toOfferResponse);
-    }
-
-    /**
-     * Update offer status (accept/decline)
-     */
-    @Transactional
-    public Mono<OfferResponse> updateOfferStatus(Long id, OfferStatus status, Long organizationId) {
-        return offerRepository.findByIdAndOrganizationId(id, organizationId)
-                .switchIfEmpty(Mono.error(new NotFoundException("Offer not found")))
-                .flatMap(offer -> {
-                    offer.setStatus(status);
-                    offer.setRespondedAt(LocalDateTime.now());
-                    offer.setUpdatedAt(LocalDateTime.now());
-
-                    // If accepted, update application to HIRED
-                    if (status == OfferStatus.ACCEPTED) {
-                        return applicationRepository.findById(offer.getApplicationId())
+                .flatMap(offer -> offer.getStatus() != OfferStatus.DRAFT
+                        ? Mono.<Offer>error(new ConflictException("Only a draft can be sent. This offer is "
+                                + offer.getStatus().name().toLowerCase() + "."))
+                        : applicationRepository.findById(offer.getApplicationId())
                                 .flatMap(application -> {
-                                    application.setStatus(ApplicationStatus.HIRED);
-                                    application.setUpdatedAt(LocalDateTime.now());
-                                    return applicationRepository.save(application);
-                                })
-                                .then(offerRepository.save(offer));
-                    }
+                                    LocalDateTime now = LocalDateTime.now();
+                                    offer.setStatus(OfferStatus.SENT);
+                                    offer.setSentAt(now);
+                                    offer.setExpiresAt(now.plusDays(days));
+                                    offer.setUpdatedAt(now);
+                                    application.setStatus(ApplicationStatus.OFFER_EXTENDED);
+                                    application.setUpdatedAt(now);
+                                    return applicationRepository.save(application)
+                                            .then(offerRepository.save(offer))
+                                            .doOnNext(sent -> candidateEmails.offerSent(application, sent));
+                                }))
+                .flatMap(this::toOfferResponse);
+    }
 
+    /** Take back an offer that has not been answered. */
+    public Mono<OfferResponse> withdrawOffer(Long id, Long organizationId) {
+        return offerRepository.findByIdAndOrganizationId(id, organizationId)
+                .switchIfEmpty(Mono.error(new NotFoundException("Offer not found")))
+                .flatMap(offer -> {
+                    if (offer.getStatus() != OfferStatus.DRAFT && offer.getStatus() != OfferStatus.SENT) {
+                        return Mono.error(new ConflictException("This offer is already "
+                                + offer.getStatus().name().toLowerCase() + "."));
+                    }
+                    offer.setStatus(OfferStatus.WITHDRAWN);
+                    offer.setUpdatedAt(LocalDateTime.now());
                     return offerRepository.save(offer);
                 })
                 .flatMap(this::toOfferResponse);
     }
 
+    /** The applicant answers their own offer. */
+    @Transactional
+    public Mono<OfferResponse> answerAsApplicant(Long id, Long applicantId, boolean accept) {
+        return offerRepository.findById(id)
+                .filterWhen(offer -> applicationRepository.findById(offer.getApplicationId())
+                        .map(application -> applicantId != null && applicantId.equals(application.getApplicantId()))
+                        .defaultIfEmpty(false))
+                .filter(offer -> offer.getStatus() != OfferStatus.DRAFT)
+                .switchIfEmpty(Mono.error(new NotFoundException("Offer not found")))
+                .flatMap(offer -> answer(offer, accept))
+                .flatMap(this::toOfferResponse);
+    }
+
     /**
-     * Convert Offer entity to OfferResponse DTO
+     * HR records the answer of a candidate it added by hand. Anyone with an
+     * AIRRAL account answers for themselves, so a company cannot accept an
+     * offer on their behalf.
      */
+    @Transactional
+    public Mono<OfferResponse> recordAnswer(Long id, Long organizationId, boolean accept) {
+        return offerRepository.findByIdAndOrganizationId(id, organizationId)
+                .switchIfEmpty(Mono.error(new NotFoundException("Offer not found")))
+                .flatMap(offer -> applicationRepository.findById(offer.getApplicationId())
+                        .flatMap(application -> application.getApplicantId() != null
+                                ? Mono.<Offer>error(new ConflictException(
+                                        "This candidate has an AIRRAL account and answers the offer themselves."))
+                                : answer(offer, accept)))
+                .flatMap(this::toOfferResponse);
+    }
+
+    private Mono<Offer> answer(Offer offer, boolean accept) {
+        if (offer.getStatus() != OfferStatus.SENT) {
+            return Mono.error(new ConflictException("This offer is " + offer.getStatus().name().toLowerCase()
+                    + " and can no longer be answered."));
+        }
+        if (isExpired(offer)) {
+            return Mono.error(new ConflictException("This offer expired and can no longer be answered."));
+        }
+        LocalDateTime now = LocalDateTime.now();
+        offer.setStatus(accept ? OfferStatus.ACCEPTED : OfferStatus.DECLINED);
+        offer.setRespondedAt(now);
+        offer.setUpdatedAt(now);
+        return applicationRepository.findById(offer.getApplicationId())
+                .flatMap(application -> {
+                    application.setStatus(accept ? ApplicationStatus.HIRED : ApplicationStatus.WITHDRAWN);
+                    application.setUpdatedAt(now);
+                    return applicationRepository.save(application)
+                            .then(offerRepository.save(offer))
+                            .doOnNext(answered -> teamEmails.offerAnswered(answered, application));
+                });
+    }
+
+    static boolean isExpired(Offer offer) {
+        return offer.getExpiresAt() != null && offer.getExpiresAt().isBefore(LocalDateTime.now());
+    }
+
     private Mono<OfferResponse> toOfferResponse(Offer offer) {
         return applicationRepository.findById(offer.getApplicationId())
-                .flatMap(application -> 
-                    jobRepository.findById(application.getJobId())
-                            .map(job -> OfferResponse.builder()
-                                    .id(offer.getId())
-                                    .applicationId(offer.getApplicationId())
-                                    .jobId(offer.getJobId())
-                                    .candidateName(application.getApplicantName())
-                                    .candidateEmail(application.getApplicantEmail())
-                                    .jobTitle(job.getTitle())
-                                    .salary(offer.getSalary())
-                                    .currency(offer.getCurrency())
-                                    .startDate(offer.getStartDate())
-                                    .offerLetter(offer.getOfferLetter())
-                                    .benefits(offer.getBenefits())
-                                    .contingencies(offer.getContingencies())
-                                    .status(offer.getStatus())
-                                    .sentAt(offer.getSentAt())
-                                    .expiresAt(offer.getExpiresAt())
-                                    .respondedAt(offer.getRespondedAt())
-                                    .createdAt(offer.getCreatedAt())
-                                    .updatedAt(offer.getUpdatedAt())
-                                    .build())
-                );
+                .flatMap(application -> jobRepository.findById(application.getJobId())
+                        .flatMap(job -> organizationRepository.findById(job.getOrganizationId())
+                                .map(company -> company.getName() == null ? "" : company.getName())
+                                .defaultIfEmpty("")
+                                .map(companyName -> OfferResponse.builder()
+                                        .id(offer.getId())
+                                        .applicationId(offer.getApplicationId())
+                                        .jobId(application.getJobId())
+                                        .candidateName(application.getApplicantName())
+                                        .candidateEmail(application.getApplicantEmail())
+                                        .candidateHasAccount(application.getApplicantId() != null)
+                                        .jobTitle(job.getTitle())
+                                        .companyName(companyName.isBlank() ? null : companyName)
+                                        .salary(offer.getSalary())
+                                        .currency(offer.getCurrency())
+                                        .startDate(offer.getStartDate())
+                                        .offerLetter(offer.getOfferLetter())
+                                        .benefits(offer.getBenefits())
+                                        .contingencies(offer.getContingencies())
+                                        // A sent offer past its date reads as expired; nothing answers it now.
+                                        .status(offer.getStatus() == OfferStatus.SENT && isExpired(offer)
+                                                ? OfferStatus.EXPIRED : offer.getStatus())
+                                        .sentAt(offer.getSentAt())
+                                        .expiresAt(offer.getExpiresAt())
+                                        .respondedAt(offer.getRespondedAt())
+                                        .createdAt(offer.getCreatedAt())
+                                        .updatedAt(offer.getUpdatedAt())
+                                        .build())));
     }
 }

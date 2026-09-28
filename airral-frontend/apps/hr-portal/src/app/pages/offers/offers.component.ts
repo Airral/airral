@@ -17,6 +17,7 @@ export class OffersComponent implements OnInit {
   applications: Application[] = [];
   loading = false;
   error: string | null = null;
+  notice: string | null = null;
 
   showCreateForm = false;
   showOfferDetail = false;
@@ -105,8 +106,8 @@ export class OffersComponent implements OnInit {
         this.offerForm.reset({ currency: 'USD', offerLetter: 'We are pleased to offer you this position...' });
         this.error = null;
       },
-      error: (err) => {
-        this.error = 'Failed to create offer';
+      error: (err: Error) => {
+        this.error = err?.message || 'The offer could not be saved.';
       }
     });
   }
@@ -124,14 +125,49 @@ export class OffersComponent implements OnInit {
   sendOffer(offer: Offer) {
     this.applicationApiService.sendOffer({ offerId: offer.id, expiresInDays: 14 }).subscribe({
       next: (updatedOffer) => {
-        const index = this.offers.findIndex(o => o.id === offer.id);
-        if (index >= 0) this.offers[index] = updatedOffer;
+        this.replaceOffer(updatedOffer);
         this.error = null;
+        this.notice = updatedOffer.candidateHasAccount
+          ? `Sent. ${updatedOffer.candidateName || 'The candidate'} answers on AIRRAL within 14 days.`
+          : `Sent. ${updatedOffer.candidateName || 'The candidate'} has no AIRRAL account, so record their answer here when you have it.`;
       },
-      error: (err) => {
-        this.error = 'Failed to send offer';
+      error: (err: Error) => {
+        this.error = err?.message || 'The offer could not be sent.';
       }
     });
+  }
+
+  /** For a candidate HR added by hand: they have no account, so HR records their answer. */
+  recordAnswer(offer: Offer, accepted: boolean) {
+    const name = offer.candidateName || 'the candidate';
+    if (!confirm(accepted ? `Record that ${name} accepted? They will be marked hired.` : `Record that ${name} declined?`)) return;
+    const answer$ = accepted
+      ? this.applicationApiService.acceptOffer(offer.id)
+      : this.applicationApiService.declineOffer(offer.id);
+    answer$.subscribe({
+      next: (updatedOffer) => {
+        this.replaceOffer(updatedOffer);
+        this.error = null;
+        this.notice = accepted ? `${name} is marked hired.` : `Recorded that ${name} declined.`;
+      },
+      error: (err: Error) => {
+        this.error = err?.message || 'The answer could not be recorded.';
+      }
+    });
+  }
+
+  canRecordAnswer(offer: Offer): boolean {
+    return offer.status === OfferStatus.SENT && offer.candidateHasAccount === false;
+  }
+
+  awaitingCandidate(offer: Offer): boolean {
+    return offer.status === OfferStatus.SENT && offer.candidateHasAccount === true;
+  }
+
+  private replaceOffer(updated: Offer) {
+    const index = this.offers.findIndex(o => o.id === updated.id);
+    if (index >= 0) this.offers[index] = updated;
+    if (this.selectedOffer?.id === updated.id) this.selectedOffer = updated;
   }
 
   withdrawOffer(offer: Offer) {
@@ -139,12 +175,12 @@ export class OffersComponent implements OnInit {
 
     this.applicationApiService.withdrawOffer(offer.id).subscribe({
       next: (updatedOffer) => {
-        const index = this.offers.findIndex(o => o.id === offer.id);
-        if (index >= 0) this.offers[index] = updatedOffer;
+        this.replaceOffer(updatedOffer);
         this.error = null;
+        this.notice = 'Offer withdrawn.';
       },
-      error: (err) => {
-        this.error = 'Failed to withdraw offer';
+      error: (err: Error) => {
+        this.error = err?.message || 'The offer could not be withdrawn.';
       }
     });
   }

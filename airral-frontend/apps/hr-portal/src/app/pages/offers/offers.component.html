@@ -12,6 +12,7 @@
   </div>
 
   <div *ngIf="error" class="error-banner">{{ error }}</div>
+  <div *ngIf="notice && !error" class="notice-banner" role="status">{{ notice }}</div>
 
   <!-- Stats Bar -->
   <div class="stats-bar" *ngIf="offers.length > 0">
@@ -172,6 +173,8 @@
 
       <div class="modal-actions">
         <button *ngIf="canSendOffer(selectedOffer)" class="btn btn-success" (click)="sendOffer(selectedOffer)">Send to Candidate</button>
+        <button *ngIf="canRecordAnswer(selectedOffer)" class="btn btn-success" (click)="recordAnswer(selectedOffer, true)">They accepted</button>
+        <button *ngIf="canRecordAnswer(selectedOffer)" class="btn btn-secondary" (click)="recordAnswer(selectedOffer, false)">They declined</button>
         <button *ngIf="canWithdraw(selectedOffer)" class="btn btn-danger" (click)="withdrawOffer(selectedOffer)">Withdraw</button>
         <button class="btn btn-secondary" (click)="closeOfferDetail()">Close</button>
       </div>
@@ -213,10 +216,13 @@
             <div *ngIf="offer.expiresAt && offer.status === 'SENT'" class="expiry-hint">
               Expires {{ formatDate(offer.expiresAt) }}
             </div>
+            <div *ngIf="awaitingCandidate(offer)" class="expiry-hint">Waiting for their answer on AIRRAL</div>
           </td>
           <td class="actions-cell">
             <button class="action-btn" (click)="viewOffer(offer)">View</button>
             <button *ngIf="canSendOffer(offer)" class="action-btn send-btn" (click)="sendOffer(offer)">Send</button>
+            <button *ngIf="canRecordAnswer(offer)" class="action-btn send-btn" (click)="recordAnswer(offer, true)">Accepted</button>
+            <button *ngIf="canRecordAnswer(offer)" class="action-btn" (click)="recordAnswer(offer, false)">Declined</button>
             <button *ngIf="canWithdraw(offer)" class="action-btn withdraw-btn" (click)="withdrawOffer(offer)">Withdraw</button>
           </td>
         </tr>

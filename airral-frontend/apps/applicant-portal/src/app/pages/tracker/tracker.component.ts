@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApplicationApiService, CandidatePortalService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
-import { ApplicantStage, CandidateSavedJob, MyApplication } from '@airral/shared-types';
+import { ApplicantStage, CandidateSavedJob, MyApplication, Offer } from '@airral/shared-types';
 import { catchError, finalize, forkJoin, of, timeout } from 'rxjs';
 
 type TrackerStatus = 'SAVED' | 'APPLYING' | 'APPLIED' | 'INTERVIEWING' | 'OFFER' | 'REJECTED' | 'ARCHIVED';
@@ -71,6 +71,13 @@ export class TrackerComponent implements OnInit {
   totalJobs = 0;
   errorMessage = '';
 
+  /** Offers companies sent through AIRRAL, open ones first. */
+  offers: Offer[] = [];
+  confirming: { offerId: number; accept: boolean } | null = null;
+  answering: number | null = null;
+  offerMessage = '';
+  offerError = '';
+
   constructor(
     private readonly candidateApi: CandidatePortalService,
     private readonly applicationApi: ApplicationApiService,
@@ -104,18 +111,79 @@ export class TrackerComponent implements OnInit {
           return of([] as MyApplication[]);
         })
       ),
+      offers: (userId ? this.applicationApi.getMyOffers() : of([] as Offer[])).pipe(
+        timeout(this.trackerTimeoutMs),
+        catchError(() => of([] as Offer[]))
+      ),
     }).pipe(
       finalize(() => {
         this.loading = false;
         this.changeDetectorRef.detectChanges();
       })
-    ).subscribe(({ saved, applications }) => {
+    ).subscribe(({ saved, applications, offers }) => {
       if (failed) {
         this.errorMessage = 'Some of your jobs are taking longer than expected to load. Try again.';
       }
+      this.offers = [...offers].sort((a, b) => Number(b.status === 'SENT') - Number(a.status === 'SENT'));
       this.fillColumns(saved, applications);
       this.changeDetectorRef.detectChanges();
     });
+  }
+
+  askToAnswer(offer: Offer, accept: boolean): void {
+    this.offerMessage = '';
+    this.offerError = '';
+    this.confirming = { offerId: offer.id, accept };
+  }
+
+  cancelAnswer(): void {
+    this.confirming = null;
+  }
+
+  answer(offer: Offer): void {
+    const accept = this.confirming?.accept;
+    if (accept === undefined || this.answering) return;
+    this.answering = offer.id;
+    const answer$ = accept ? this.applicationApi.acceptOffer(offer.id) : this.applicationApi.declineOffer(offer.id);
+    answer$.pipe(finalize(() => {
+      this.answering = null;
+      this.changeDetectorRef.detectChanges();
+    })).subscribe({
+      next: (answered) => {
+        this.confirming = null;
+        this.offerMessage = accept
+          ? `You accepted. ${answered.companyName || 'The company'} has been told, and will be in touch about your start.`
+          : `You declined the offer from ${answered.companyName || 'the company'}.`;
+        // The application's stage moves with the answer.
+        this.loadSavedJobs();
+      },
+      error: (error: { message?: string }) => {
+        this.offerError = error?.message || 'Your answer did not go through. Try again.';
+      },
+    });
+  }
+
+  offerStatusLabel(offer: Offer): string {
+    const labels: Record<string, string> = {
+      SENT: 'Waiting for your answer',
+      ACCEPTED: 'You accepted',
+      DECLINED: 'You declined',
+      EXPIRED: 'Expired',
+      WITHDRAWN: 'Withdrawn by the company',
+    };
+    return labels[offer.status] ?? offer.status;
+  }
+
+  money(offer: Offer): string {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: offer.currency || 'USD',
+        maximumFractionDigits: offer.salary % 1 === 0 ? 0 : 2,
+      }).format(offer.salary);
+    } catch {
+      return `${offer.currency || ''} ${offer.salary}`.trim();
+    }
   }
 
   trackCard(_index: number, card: TrackerCard): string {

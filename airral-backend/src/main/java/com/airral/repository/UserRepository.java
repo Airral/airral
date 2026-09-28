@@ -42,6 +42,9 @@ public interface UserRepository extends R2dbcRepository<User, Long> {
     @Query("SELECT COUNT(*) FROM users WHERE organization_id = :organizationId AND role = 'HR_MANAGER' AND is_active = true")
     Mono<Long> countActiveHrManagers(Long organizationId);
 
+    @Query("SELECT * FROM users WHERE organization_id = :organizationId AND role = 'HR_MANAGER' AND is_active = true")
+    Flux<User> findActiveHrManagers(Long organizationId);
+
 
     /** Keeps the department name copied on users in step with a renamed department. */
     @Modifying

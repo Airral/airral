@@ -24,6 +24,9 @@ public class OfferResponse {
     private String candidateName;
     private String candidateEmail;
     private String jobTitle;
+    private String companyName;
+    /** Whether the candidate has an AIRRAL account and answers the offer themselves. */
+    private Boolean candidateHasAccount;
     
     // Offer details
     private BigDecimal salary;
