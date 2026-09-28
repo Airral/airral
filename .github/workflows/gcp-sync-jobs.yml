@@ -156,7 +156,7 @@ jobs:
 
       - name: Summary
         if: always() && steps.db.outputs.skip != 'true'
-        # The grep below is a fixed allowlist of four phrases, not a tail of the
+        # The grep below is a fixed allowlist of phrases, not a tail of the
         # log, and that is deliberate: whatever the application prints, only
         # lines matching those phrases can reach the run summary. Keep it that
         # way. A summary is a file the runner uploads rather than a log line, so
@@ -166,6 +166,12 @@ jobs:
             echo "### External job sync"
             echo ""
             echo '```'
-            grep -E 'One-shot sync finished|sync failed|Auto-disabling|SWEEP DRY RUN' /tmp/sync.log | tail -20 || echo "no summary line found"
+            grep -E 'One-shot sync finished|sync failed|Auto-disabling|SWEEP DRY RUN|Retrying [0-9]+ source|Retry recovered|failed this run but synced|have not synced for over' /tmp/sync.log | tail -30 || echo "no summary line found"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          # Green, but not silent: a board that failed twice this run and read
+          # fine within the last day is a yellow warning on the run page.
+          # Only a board with no success for 24 hours turns the run red.
+          if grep -q 'status=PARTIAL_SUCCESS' /tmp/sync.log; then
+            echo "::warning title=Some job boards did not answer::$(grep -oE '[0-9]+ source\(s\) failed this run but synced within the last [0-9]+ hours' /tmp/sync.log | tail -1)"
+          fi

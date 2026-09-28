@@ -196,7 +196,7 @@
                   <span class="who">{{ a.name || a.email }}</span>
                   <span class="who-sub" *ngIf="a.name">{{ a.email }}</span>
                 </td>
-                <td class="nowrap">{{ utc(a.signedUpAt) | date: 'MMM d, h:mm a' }}</td>
+                <td class="nowrap">{{ a.signedUpAt | date: 'MMM d, h:mm a' }}</td>
                 <td>
                   <span class="chips">
                     <span class="chip" [class.done]="a.verified">{{ a.verified ? '✓' : '·' }} Verified</span>

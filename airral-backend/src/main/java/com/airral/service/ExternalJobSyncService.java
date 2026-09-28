@@ -199,6 +199,7 @@ public class ExternalJobSyncService {
                 .flatMap(sources -> Flux.fromIterable(sources)
                         .flatMap(this::syncSource, sourceConcurrency)
                         .collectList()
+                        .flatMap(this::retryFailedSources)
                         .flatMap(sourceResults -> finishRun(runId, sources, sourceResults)))
                 .onErrorResume(error -> externalJobPostingStore.completeSyncRun(
                                 runId,
@@ -209,6 +210,43 @@ public class ExternalJobSyncService {
                                 0,
                                 error.getMessage())
                         .then(Mono.error(error)));
+    }
+
+    /**
+     * One more try, at the end of the run, for every board that failed for a
+     * reason other than being gone.
+     *
+     * <p>Measured over 25 production runs in September 2026: the failures were
+     * almost all a board not answering within the 45-second timeout, and a
+     * different handful of Lever and SmartRecruiters boards each time -- slowness
+     * on their side, not a broken board. Without a retry each of those left the
+     * board's postings unrefreshed for four hours and turned the run red. Two at
+     * a time, so a board that was struggling is not hit by six requests at once.
+     */
+    private Mono<List<SourceSyncResult>> retryFailedSources(List<SourceSyncResult> results) {
+        List<SourceSyncResult> retryable = results.stream()
+                .filter(SourceSyncResult::failed)
+                .filter(result -> !result.autoDisabled())
+                .toList();
+        if (retryable.isEmpty()) {
+            return Mono.just(results);
+        }
+        log.info("Retrying {} source(s) that failed this run", retryable.size());
+        java.util.Set<Long> retriedIds = retryable.stream()
+                .map(result -> result.source().id())
+                .collect(Collectors.toSet());
+        return Flux.fromIterable(retryable)
+                .flatMap(result -> syncSource(result.source()), 2)
+                .collectList()
+                .map(retried -> {
+                    long recovered = retried.stream().filter(result -> !result.failed()).count();
+                    log.info("Retry recovered {} of {} source(s)", recovered, retried.size());
+                    List<SourceSyncResult> merged = new java.util.ArrayList<>(results.stream()
+                            .filter(result -> !retriedIds.contains(result.source().id()))
+                            .toList());
+                    merged.addAll(retried);
+                    return merged;
+                });
     }
 
     private Mono<SourceSyncResult> syncSource(ExternalJobSourceRecord source) {
@@ -399,16 +437,41 @@ public class ExternalJobSyncService {
         // all -- is a board we still believe in that we failed to read, and it has to
         // be loud: nothing refreshes those postings, and they age out of the
         // catalogue about two weeks later with nothing in between to explain it.
-        long unexplainedFailures = sourceResults.stream()
+        //
+        // Loud, but not for a single slow answer: a board that failed this run
+        // and the retry, yet read fine within the last day, is PARTIAL_SUCCESS
+        // and a warning. Only one with no success for a whole day -- six runs in
+        // a row -- makes the run DEGRADED and red, which is the case the rule
+        // exists for: its postings really are going stale.
+        List<Long> unexplainedIds = sourceResults.stream()
                 .filter(SourceSyncResult::failed)
                 .filter(result -> !result.autoDisabled())
-                .count();
-        String status = errorMessage.isBlank() ? "SUCCESS"
-                : (unexplainedFailures > 0 ? "DEGRADED" : "PARTIAL_SUCCESS");
-        if (unexplainedFailures > 0) {
-            log.error("{} source(s) failed for a reason other than a dead board; their postings will not refresh",
-                    unexplainedFailures);
-        }
+                .map(result -> result.source().id())
+                .toList();
+        Mono<Long> staleFailures = unexplainedIds.isEmpty() ? Mono.just(0L)
+                : externalJobPostingStore.countSourcesWithoutSuccessSince(
+                        unexplainedIds, OffsetDateTime.now(ZoneOffset.UTC).minus(STALE_SOURCE_AFTER));
+
+        return staleFailures.flatMap(stale -> {
+            String status = errorMessage.isBlank() ? "SUCCESS"
+                    : (stale > 0 ? "DEGRADED" : "PARTIAL_SUCCESS");
+            if (stale > 0) {
+                log.error("{} source(s) have not synced for over {} hours; their postings are going stale",
+                        stale, STALE_SOURCE_AFTER.toHours());
+            } else if (!unexplainedIds.isEmpty()) {
+                log.warn("{} source(s) failed this run but synced within the last {} hours",
+                        unexplainedIds.size(), STALE_SOURCE_AFTER.toHours());
+            }
+            return finishPipeline(runId, sources, status, errorMessage, jobsSeen, jobsUpserted, jobsRetired);
+        });
+    }
+
+    /** A failing board older than this since its last success turns the run red. */
+    static final java.time.Duration STALE_SOURCE_AFTER = java.time.Duration.ofHours(24);
+
+    private Mono<ExternalJobSyncResult> finishPipeline(
+            Long runId, List<ExternalJobSourceRecord> sources, String status, String errorMessage,
+            int jobsSeen, int jobsUpserted, long jobsRetired) {
 
         // Hydration first, and specifically before the quality rescore and the
         // pay backfill: both of those read columns this pass writes, so running

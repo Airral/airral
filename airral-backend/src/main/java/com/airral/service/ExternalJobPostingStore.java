@@ -1142,12 +1142,29 @@ public class ExternalJobPostingStore {
                             -- view that did. Without this the sync overwrote real, description-derived
                             -- values with defaults every four hours, and no read path recomputed --
                             -- so the correct value survived exactly one sync interval.
-                            job_quality_score = CASE
-                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.job_quality_score
-                                ELSE COALESCE(external_job_postings.job_quality_score, EXCLUDED.job_quality_score)
-                            END,
+                            -- The score is recomputeJobQuality's, not the mapper's: that pass
+                            -- rescores every live row after the sync from signals only the
+                            -- corpus has. Taking the mapper's value here overwrote it on every
+                            -- posting every run, so the rescore then wrote ~40k rows back, and
+                            -- because job_quality_score is indexed, both writes were non-HOT and
+                            -- re-indexed every row in all nineteen indexes. Measured: the
+                            -- rescore went from 6 to 31 minutes once V34 added a trigram GIN,
+                            -- taking a run to ~90 of its 100 minutes. A new row still takes
+                            -- the mapper's score until the rescore replaces it.
+                            job_quality_score = COALESCE(external_job_postings.job_quality_score, EXCLUDED.job_quality_score),
+                            -- Same reasoning for the reasons: the rescore appends the churn chip
+                            -- to the mapper's list. Keep the stored list when the mapper's list
+                            -- is what is already there under the chip, so an unchanged posting
+                            -- is not rewritten; take the new one when it really differs. The
+                            -- LIKE pattern is coupled to recomputeJobQuality's wording.
                             quality_reasons = CASE
-                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL THEN EXCLUDED.quality_reasons
+                                WHEN NULLIF(EXCLUDED.description_text, '') IS NOT NULL
+                                     AND EXCLUDED.quality_reasons IS DISTINCT FROM ARRAY(
+                                         SELECT kept FROM unnest(external_job_postings.quality_reasons)
+                                             WITH ORDINALITY AS stored(kept, ord)
+                                         WHERE kept NOT LIKE 'Employer has % postings with this title'
+                                         ORDER BY ord)
+                                    THEN EXCLUDED.quality_reasons
                                 WHEN COALESCE(array_length(external_job_postings.quality_reasons, 1), 0) > 0
                                     THEN external_job_postings.quality_reasons
                                 ELSE EXCLUDED.quality_reasons
@@ -1563,8 +1580,18 @@ public class ExternalJobPostingStore {
                             salary_period = :salaryPeriod,
                             salary_label = :salaryLabel,
                             source_payload_hash = :sourcePayloadHash,
-                            job_quality_score = :jobQualityScore,
-                            quality_reasons = CAST(:qualityReasons AS TEXT[]),
+                            -- recomputeJobQuality owns the score of a stored row; see upsertJob.
+                            -- Opening a posting must not swap it for the mapper's and re-index it.
+                            job_quality_score = COALESCE(external_job_postings.job_quality_score, :jobQualityScore),
+                            quality_reasons = CASE
+                                WHEN CAST(:qualityReasons AS TEXT[]) IS DISTINCT FROM ARRAY(
+                                         SELECT kept FROM unnest(external_job_postings.quality_reasons)
+                                             WITH ORDINALITY AS stored(kept, ord)
+                                         WHERE kept NOT LIKE 'Employer has % postings with this title'
+                                         ORDER BY ord)
+                                    THEN CAST(:qualityReasons AS TEXT[])
+                                ELSE external_job_postings.quality_reasons
+                            END,
                             total_comp_label = :totalCompLabel,
                             compensation_confidence = :compensationConfidence,
                             sponsorship_language = :sponsorshipLanguage,
@@ -2155,6 +2182,24 @@ public class ExternalJobPostingStore {
                 .bind("sourceId", sourceId)
                 .fetch()
                 .rowsUpdated();
+    }
+
+    /** How many of these sources have not synced successfully since the given time. */
+    public Mono<Long> countSourcesWithoutSuccessSince(java.util.List<Long> sourceIds, OffsetDateTime since) {
+        return databaseClient.sql("""
+                        SELECT COUNT(*) AS stale
+                        FROM external_job_sources
+                        WHERE id = ANY(:ids)
+                          AND (last_success_at IS NULL OR last_success_at < :since)
+                        """)
+                .bind("ids", sourceIds.toArray(new Long[0]))
+                .bind("since", since)
+                .map((row, meta) -> {
+                    Number value = row.get("stale", Number.class);
+                    return value == null ? 0L : value.longValue();
+                })
+                .one()
+                .defaultIfEmpty(0L);
     }
 
     public Mono<Long> markSourceError(Long sourceId, String errorMessage) {

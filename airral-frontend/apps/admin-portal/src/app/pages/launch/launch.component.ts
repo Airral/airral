@@ -131,16 +131,11 @@ export class LaunchComponent implements OnInit {
   }
 
   lastActive(a: LaunchApplicant): string | null {
-    const times = [a.lastSeenAt, a.lastLoginAt ? `${a.lastLoginAt}Z` : null, `${a.signedUpAt}Z`]
+    const times = [a.lastSeenAt, a.lastLoginAt, a.signedUpAt]
       .filter((t): t is string => !!t)
       .map((t) => new Date(t).getTime())
       .filter((t) => !Number.isNaN(t));
     return times.length ? new Date(Math.max(...times)).toISOString() : null;
-  }
-
-  /** Account timestamps are UTC without a zone; mark them so the date pipe does not shift them. */
-  utc(value: string | null): string | null {
-    return value ? `${value}Z` : null;
   }
 
   /** The busiest day's value, so the unlabelled bars have a scale. */
