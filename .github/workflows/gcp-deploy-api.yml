@@ -167,7 +167,9 @@ jobs:
           # Cloud Run log for "Resume storage provider is GCS" to confirm it took.
           #
           # --set-secrets passes references, never values. Cloud Run resolves
-          # db-password, jwt-encryption-secret and cors-allowed-origins at
+          # db-password, jwt-encryption-secret, cors-allowed-origins and
+          # slack-webhook-url (the team's Slack alerts: new companies, contact
+          # messages, server errors) at
           # instance start using the service's own identity (GCP_API_SA), so no
           # secret is ever fetched into this runner and there is nothing here for
           # ::add-mask:: to register. The one workflow that does read secrets into
@@ -202,7 +204,7 @@ jobs:
             --timeout 300 \
             --startup-probe httpGet.path=/actuator/health,initialDelaySeconds=10,periodSeconds=10,failureThreshold=30 \
             --set-env-vars "^|^SPRING_PROFILES_ACTIVE=gcp|CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}|DB_NAME=${{ vars.DB_NAME }}|DB_USER=${{ vars.DB_USER }}|AIRRAL_RELEASE_VERSION=${{ inputs.version }}|GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}|AIRRAL_MCP_HOSTNAME=mcp.airral.com|AIRRAL_BOOTSTRAP_ADMIN_EMAIL=${{ vars.BOOTSTRAP_ADMIN_EMAIL }}|FILE_UPLOAD_STORAGE_PROVIDER=${{ vars.RESUME_BUCKET && 'GCS' || 'LOCAL' }}|FILE_UPLOAD_GCS_BUCKET=${{ vars.RESUME_BUCKET }}" \
-            --set-secrets "DB_PASSWORD=db-password:latest,JWT_ENCRYPTION_SECRET=jwt-encryption-secret:latest,CORS_ALLOWED_ORIGINS=cors-allowed-origins:latest"
+            --set-secrets "DB_PASSWORD=db-password:latest,JWT_ENCRYPTION_SECRET=jwt-encryption-secret:latest,CORS_ALLOWED_ORIGINS=cors-allowed-origins:latest,AIRRAL_SLACK_WEBHOOK_URL=slack-webhook-url:latest"
 
       - name: Smoke test
         id: smoke
