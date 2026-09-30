@@ -37,6 +37,8 @@ export class InterviewsComponent implements OnInit {
   applications: Application[] = [];
   loading = false;
   error: string | null = null;
+  /** A booking is on its way: Schedule waits, so a second click cannot book it twice. */
+  scheduling = false;
 
   view: 'calendar' | 'list' = 'calendar';
   currentMonth = new Date();
@@ -85,11 +87,11 @@ export class InterviewsComponent implements OnInit {
         this.teammates = interviewersFrom(users);
         this.buildCalendar();
       },
-      error: () => {
+      error: (err: Error) => {
         this.interviews = [];
         this.applications = [];
         this.buildCalendar();
-        this.error = null;
+        this.error = err?.message || 'Interviews could not be loaded. Try again.';
       },
     });
   }
@@ -174,14 +176,17 @@ export class InterviewsComponent implements OnInit {
 
   cancelSchedule(): void {
     this.showScheduleForm = false;
+    this.error = null;
     this.scheduleForm.reset({ interviewTime: '10:00', durationMinutes: 60, notifyCandidate: true, notifyInterviewers: true });
     this.interviewerIds = new Set<number>();
   }
 
   submitSchedule(): void {
-    if (!this.scheduleForm.valid) {
+    if (!this.scheduleForm.valid || this.scheduling) {
       return;
     }
+    this.scheduling = true;
+    this.error = null;
 
     const { applicationId, interviewDate, interviewTime, durationMinutes, notes, notifyCandidate, notifyInterviewers } = this.scheduleForm.value;
     // The time as entered, in this browser's time zone, which goes with it.
@@ -196,14 +201,15 @@ export class InterviewsComponent implements OnInit {
       interviewerIds: [...this.interviewerIds],
       durationMinutes: Number(durationMinutes) || 60,
       timeZone: browserTimeZone(),
-    }).subscribe({
+    }).pipe(finalize(() => (this.scheduling = false))).subscribe({
       next: (interview) => {
         this.interviews = [...this.interviews, interview];
         this.buildCalendar();
         this.cancelSchedule();
       },
-      error: () => {
-        this.error = 'Failed to schedule interview';
+      error: (err: Error) => {
+        // The server says why: a closed application, an interviewer not on the team.
+        this.error = err?.message || 'The interview could not be booked.';
       },
     });
   }

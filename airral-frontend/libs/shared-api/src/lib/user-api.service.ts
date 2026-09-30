@@ -36,6 +36,8 @@ export interface Invitation {
   lastName?: string | null;
   department?: string | null;
   expiresAt: string;
+  /** Past its date: its link no longer works. Resend, or inviting the address again, renews it. */
+  expired?: boolean | null;
   createdAt?: string | null;
   /** Whether the invitation email went out this time; null when nothing was sent. */
   emailSent?: boolean | null;

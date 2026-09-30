@@ -38,8 +38,12 @@
             <option *ngFor="let person of hiringManagers" [ngValue]="person.id">
               {{ (person.firstName || '') + ' ' + (person.lastName || '') | slice: 0 : 60 }} ({{ person.email }})
             </option>
+            <option *ngIf="formerHiringManagerId !== null" [ngValue]="formerHiringManagerId">
+              {{ hiringManagerName || 'Former hiring manager' }} (no longer on the hiring team)
+            </option>
           </select>
-          <span class="label-hint">Sees and interviews this job's candidates, and no other job's.</span>
+          <span class="label-hint" *ngIf="formerHiringManagerId === null">Sees and interviews this job's candidates, and no other job's.</span>
+          <span class="label-hint" *ngIf="formerHiringManagerId !== null">They are no longer a manager here. Choose someone else, or None yet.</span>
         </label>
         <label>
           <span class="label-text">Interview kit</span>

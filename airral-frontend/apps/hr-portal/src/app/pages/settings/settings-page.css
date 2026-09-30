@@ -196,6 +196,11 @@ button:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.sub .expired {
+  color: #b42318;
+  font-weight: 600;
+}
+
 .row-message {
   color: #374151;
   font-weight: 600;

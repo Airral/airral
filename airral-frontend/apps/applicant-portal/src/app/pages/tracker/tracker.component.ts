@@ -48,6 +48,21 @@ const STAGE_LABELS: Record<ApplicantStage, string> = {
   WITHDRAWN: 'Withdrawn',
 };
 
+/**
+ * The AIRRAL job a saved job is, when it is one a company posted here. The
+ * catalogue's summary says so while the job is listed; once it is filled or
+ * closed the summary is gone, and the saved job's key still names it:
+ * airral_internal:organization-<company>:<job id>.
+ */
+function internalJobIdOf(saved: CandidateSavedJob): number | null {
+  if (saved.job?.sourceType === 'AIRRAL_INTERNAL' && saved.job.externalJobId) {
+    const id = Number(saved.job.externalJobId);
+    return Number.isInteger(id) ? id : null;
+  }
+  const match = /^airral_internal:organization-\d+:(\d+)$/.exec(saved.sourceJobKey ?? '');
+  return match ? Number(match[1]) : null;
+}
+
 @Component({
   selector: 'app-tracker',
   standalone: true,
@@ -94,6 +109,7 @@ export class TrackerComponent implements OnInit {
     this.loading = true;
     this.errorMessage = '';
     let failed = false;
+    let offersFailed = false;
     const userId = this.auth.getCurrentUser()?.id;
 
     forkJoin({
@@ -113,7 +129,11 @@ export class TrackerComponent implements OnInit {
       ),
       offers: (userId ? this.applicationApi.getMyOffers() : of([] as Offer[])).pipe(
         timeout(this.trackerTimeoutMs),
-        catchError(() => of([] as Offer[]))
+        catchError(() => {
+          // Not silent: an applicant told nothing would think they have no offer.
+          offersFailed = true;
+          return of([] as Offer[]);
+        })
       ),
     }).pipe(
       finalize(() => {
@@ -121,7 +141,9 @@ export class TrackerComponent implements OnInit {
         this.changeDetectorRef.detectChanges();
       })
     ).subscribe(({ saved, applications, offers }) => {
-      if (failed) {
+      if (offersFailed) {
+        this.errorMessage = 'Your offers did not load, so any waiting for your answer are not shown. Try again.';
+      } else if (failed) {
         this.errorMessage = 'Some of your jobs are taking longer than expected to load. Try again.';
       }
       this.offers = [...offers].sort((a, b) => Number(b.status === 'SENT') - Number(a.status === 'SENT'));
@@ -157,8 +179,14 @@ export class TrackerComponent implements OnInit {
         // The application's stage moves with the answer.
         this.loadSavedJobs();
       },
-      error: (error: { message?: string }) => {
+      error: (error: { status?: number; message?: string }) => {
         this.offerError = error?.message || 'Your answer did not go through. Try again.';
+        // The offer changed since this page loaded (withdrawn, expired, or the
+        // application moved on): show where it stands now.
+        if (error?.status === 409 || error?.status === 404) {
+          this.confirming = null;
+          this.loadSavedJobs();
+        }
       },
     });
   }
@@ -214,7 +242,10 @@ export class TrackerComponent implements OnInit {
     // A saved AIRRAL job the applicant has since applied to shows once, as the application.
     const appliedJobIds = new Set(applications.map((application) => application.jobId));
     const savedCards: TrackerCard[] = saved
-      .filter((job) => !(job.job?.sourceType === 'AIRRAL_INTERNAL' && appliedJobIds.has(Number(job.job?.externalJobId))))
+      .filter((job) => {
+        const internalId = internalJobIdOf(job);
+        return internalId === null || !appliedJobIds.has(internalId);
+      })
       .map((job) => ({
         key: `saved-${job.id}`,
         company: job.job?.companyName || 'Unknown',

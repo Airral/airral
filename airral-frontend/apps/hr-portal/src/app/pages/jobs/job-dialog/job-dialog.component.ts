@@ -37,7 +37,19 @@ export class JobDialogComponent {
   @Input() departments: Department[] = [];
   /** Active managers and HR managers in the company. */
   @Input() hiringManagers: User[] = [];
+  /** The name of the job's hiring manager as the job has it, for one no longer on the hiring team. */
+  @Input() hiringManagerName: string | null = null;
   @Input() interviewKits: InterviewKit[] = [];
+
+  /**
+   * The job's hiring manager when they are no longer among the team's hiring
+   * managers (switched off, or moved to another role). Shown as they are, so
+   * HR sees who it was and picks someone else; saving without a change keeps them.
+   */
+  get formerHiringManagerId(): number | null {
+    const id = this.formData.hiringManagerId;
+    return id != null && !this.hiringManagers.some((person) => person.id === id) ? id : null;
+  }
   @Input() formData: JobFormData = {
     title: '',
     departmentId: null,

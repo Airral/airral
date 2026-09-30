@@ -137,7 +137,7 @@ export class AcceptInvitationComponent implements OnInit {
             error?.status === 429
               ? 'Too many attempts from this network. Wait a few minutes and try again.'
               : error?.status === 400 || error?.status === 409
-                ? (error?.error?.message ?? 'This invitation can no longer be used.')
+                ? (error?.message || 'This invitation can no longer be used.')
                 : 'We could not reach the server. Your account was not created. Try again.'
           );
         },

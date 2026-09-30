@@ -58,10 +58,6 @@ export class ApplicationApiService {
     return this.updateApplicationStatus(id, ApplicationStatus.HIRED);
   }
 
-  extendOffer(id: number): Observable<Application> {
-    return this.updateApplicationStatus(id, ApplicationStatus.OFFER_EXTENDED);
-  }
-
   reject(id: number): Observable<Application> {
     return this.updateApplicationStatus(id, ApplicationStatus.REJECTED);
   }

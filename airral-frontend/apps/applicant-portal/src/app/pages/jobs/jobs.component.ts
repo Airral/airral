@@ -88,7 +88,8 @@ export class JobsComponent implements OnInit, OnDestroy {
   fittingJob = false;
   actionMessage = '';
   actionError = '';
-  applying = false;
+  /** The job an application is on its way for. Its answer is shown only while that job is open. */
+  applyingJobId: number | null = null;
   /** Set when applying needs a resume first, to show the upload link. */
   applyNeedsResume = false;
   /** Internal ids of the HR-posted jobs this applicant has applied to. */
@@ -152,17 +153,18 @@ export class JobsComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.filtersExpanded = !this.isMobileViewport();
-    this.preparePostOnboardingSearch();
-    if (this.onboardingStartPending) {
-      return;
-    }
-
+    // Who the visitor is, and what they have applied to, whether or not the
+    // search waits for them to start it: arriving from onboarding, they are
+    // signed in, and their saves and applications count from the first job.
     this.signedIn.set(this.auth.isAuthenticated());
-    this.loadJobs();
     this.loadMyApplications();
     this.loadResumeHealth();
     this.loadMatchProfile();
     this.checkProfileUpdate();
+    this.preparePostOnboardingSearch();
+    if (!this.onboardingStartPending) {
+      this.loadJobs();
+    }
   }
 
   ngOnDestroy(): void {
@@ -301,6 +303,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     this.detailError = false;
     this.actionMessage = '';
     this.actionError = '';
+    this.applyNeedsResume = false;
     this.fitResult = null;
     this.mobileDetailOpen = true;
 
@@ -520,36 +523,48 @@ export class JobsComponent implements OnInit, OnDestroy {
     return jobId !== null && this.appliedJobIds().has(jobId);
   }
 
+  /** Whether an application is on its way for the job on screen. */
+  get applying(): boolean {
+    return this.applyingJobId !== null && this.applyingJobId === this.internalJobId(this.selectedJob);
+  }
+
   applyInAirral(): void {
     const job = this.selectedJob;
     const jobId = this.internalJobId(job);
-    if (!job || jobId === null || this.applying || this.hasApplied(job)) return;
+    if (!job || jobId === null || this.applyingJobId !== null || this.hasApplied(job)) return;
     if (!this.requireAccount('apply to this job')) return;
     const user = this.auth.getCurrentUser();
     if (!user?.email) return;
 
-    this.applying = true;
+    this.applyingJobId = jobId;
     this.actionMessage = '';
     this.actionError = '';
     this.applyNeedsResume = false;
     const name = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email;
+    // The answer belongs to this job: shown only if it is still the one open.
+    const stillOpen = () => this.internalJobId(this.selectedJob) === jobId;
 
     this.applicationApi
       .submitApplication({ jobId, applicantName: name, applicantEmail: user.email })
       .pipe(finalize(() => {
-        this.applying = false;
+        this.applyingJobId = null;
         this.changeDetectorRef.markForCheck();
       }))
       .subscribe({
         next: () => {
           this.markApplied(jobId);
-          this.actionMessage = `Applied. ${job.companyName || 'The company'} can see your resume and profile now.`;
+          if (stillOpen()) {
+            this.actionMessage = `Applied. ${job.companyName || 'The company'} can see your resume and profile now.`;
+          }
           this.visitorSignals.track('apply_in_airral', '/jobs', 'applicant');
           this.analytics.event('apply_in_airral');
         },
         error: (error: { status?: number; message?: string }) => {
           if (error?.status === 409) {
             this.markApplied(jobId);
+          }
+          if (!stillOpen()) return;
+          if (error?.status === 409) {
             this.actionMessage = "You've already applied to this job.";
           } else if (error?.status === 400 && /resume/i.test(error?.message ?? '')) {
             this.applyNeedsResume = true;

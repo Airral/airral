@@ -27,6 +27,11 @@ export function capitalize(text: string): string {
  * booker entered and the booker's IANA time zone, so a teammate elsewhere sees
  * it in their own time. Without a zone (interviews booked before zones were
  * kept) the time is read as this browser's local time, as it always was.
+ *
+ * Across a clock change it settles the time the way the API's calendar invites
+ * do (Java's LocalDateTime.atZone): a time that happens twice, when the clocks
+ * go back, is the first of the two; a time the clocks skip, when they go
+ * forward, moves on by the length of the skip (2:30 becomes 3:30).
  */
 export function wallTimeToDate(wallTime: string, timeZone?: string | null): Date {
   const local = wallTime.replace(/Z$/, '');
@@ -34,29 +39,47 @@ export function wallTimeToDate(wallTime: string, timeZone?: string | null): Date
   const asUtc = new Date(`${local}Z`);
   if (Number.isNaN(asUtc.getTime())) return new Date(local);
   try {
-    // Two passes settle the offset across a daylight-saving change.
-    let guess = asUtc.getTime() - zoneOffsetMs(asUtc, timeZone);
-    guess = asUtc.getTime() - zoneOffsetMs(new Date(guess), timeZone);
-    return new Date(guess);
+    const wall = asUtc.getTime();
+    // The zone's offsets a day either side: any clock change near this time
+    // lies between them.
+    const before = zoneOffsetMs(wall - DAY_MS, timeZone);
+    const after = zoneOffsetMs(wall + DAY_MS, timeZone);
+    const valid = [wall - before, wall - after].filter((instant) => zoneOffsetMs(instant, timeZone) === wall - instant);
+    return new Date(valid.length > 0 ? Math.min(...valid) : wall - before);
   } catch {
     return new Date(local);
   }
 }
 
-function zoneOffsetMs(at: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(at);
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** One formatter per zone: building one is far slower than using it. */
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function zoneFormatter(timeZone: string): Intl.DateTimeFormat {
+  let formatter = zoneFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    zoneFormatters.set(timeZone, formatter);
+  }
+  return formatter;
+}
+
+/** How far the zone's clocks are ahead of UTC at this instant, in milliseconds. */
+function zoneOffsetMs(instant: number, timeZone: string): number {
+  const parts = zoneFormatter(timeZone).formatToParts(new Date(instant));
   const part = (type: string) => Number(parts.find((p) => p.type === type)?.value);
   const wall = Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
-  return wall - Math.floor(at.getTime() / 1000) * 1000;
+  return wall - Math.floor(instant / 1000) * 1000;
 }
 
 /** This browser's IANA time zone, e.g. America/New_York, when it reports one. */

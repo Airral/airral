@@ -54,7 +54,8 @@
         <li class="row" *ngFor="let invitation of invitations">
           <div class="who">
             <strong>{{ displayName(invitation.firstName, invitation.lastName, invitation.email) }}</strong>
-            <span class="sub">{{ invitation.email }} · {{ roleLabel(invitation.role) }} · link works until {{ invitation.expiresAt | date: 'd MMM' }}</span>
+            <span class="sub" *ngIf="!invitation.expired">{{ invitation.email }} · {{ roleLabel(invitation.role) }} · link works until {{ invitation.expiresAt | date: 'd MMM' }}</span>
+            <span class="sub" *ngIf="invitation.expired">{{ invitation.email }} · {{ roleLabel(invitation.role) }} · <strong class="expired">link expired {{ invitation.expiresAt | date: 'd MMM' }}</strong>. Resend sends a new one.</span>
             <span class="sub row-message" role="status" *ngIf="rowMessage[invitation.id]">{{ rowMessage[invitation.id] }}</span>
           </div>
           <div class="row-actions">

@@ -20,6 +20,8 @@ export class JobsComponent implements OnInit {
   jobs: Job[] = [];
   departments: Department[] = [];
   hiringManagers: User[] = [];
+  /** The hiring manager's name on the job being edited, as the job has it. */
+  editingHiringManagerName: string | null = null;
   interviewKits: InterviewKit[] = [];
   applications: Application[] = [];
 
@@ -134,6 +136,7 @@ export class JobsComponent implements OnInit {
   editJob(job: Job): void {
     this.showForm = true;
     this.editingJobId = job.id;
+    this.editingHiringManagerName = job.hiringManagerName ?? null;
     this.form = {
       title: job.title,
       departmentId: job.departmentId ?? null,

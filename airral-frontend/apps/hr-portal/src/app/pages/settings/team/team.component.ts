@@ -120,7 +120,9 @@ export class TeamComponent implements OnInit {
       .subscribe({
         next: (invitation) => {
           this.inviting = false;
-          this.invitations = [invitation, ...this.invitations];
+          // Inviting an address whose invitation expired renews that one, so it
+          // replaces its row rather than adding a second.
+          this.invitations = [invitation, ...this.invitations.filter((item) => item.id !== invitation.id)];
           this.inviteMessage =
             invitation.emailSent === false
               ? `Invitation saved for ${invitation.email}, but the email didn't go out. Use Resend below.`

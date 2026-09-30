@@ -11,6 +11,8 @@ import { API_BASE_URL } from '@airral/shared-utils';
  */
 export interface ApiError extends Error {
   status: number;
+  /** The error code the API sent with it, such as EMAIL_NOT_VERIFIED, when it sent one. */
+  code?: string;
 }
 
 @Injectable({
@@ -73,7 +75,7 @@ export class ApiClientService {
     // .message straight off it threw a TypeError from inside catchError --
     // which reached the caller as a failure carrying no status at all, exactly
     // in the case where the status is what it needed.
-    const body = error.error as { message?: string } | string | null | undefined;
+    const body = error.error as { message?: string; error?: string } | string | null | undefined;
     const bodyMessage = typeof body === 'string' ? undefined : body?.message;
 
     const failure = new Error(
@@ -82,6 +84,9 @@ export class ApiClientService {
     // 0 is what Angular reports when the request never got an answer at all
     // (DNS, TLS, connection refused), which is not a verdict about the resource.
     failure.status = typeof error.status === 'number' ? error.status : 0;
+    if (body && typeof body === 'object' && typeof body.error === 'string') {
+      failure.code = body.error;
+    }
 
     return throwError(() => failure);
   }

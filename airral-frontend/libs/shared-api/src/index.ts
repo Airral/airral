@@ -12,3 +12,4 @@ export * from './lib/contact-api.service';
 export * from './lib/company-api.service';
 export * from './lib/department-api.service';
 export * from './lib/interview-kit-api.service';
+export * from './lib/redraw-after-response.interceptor';

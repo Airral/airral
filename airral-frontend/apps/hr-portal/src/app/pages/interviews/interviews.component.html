@@ -219,9 +219,10 @@
           Send the interviewers a calendar invite
         </label>
 
+        <div *ngIf="error" class="error-banner" role="alert">{{ error }}</div>
         <div class="form-actions">
           <button type="button" class="btn btn-outline" (click)="cancelSchedule()">Cancel</button>
-          <button type="submit" class="btn btn-primary" [disabled]="!scheduleForm.valid">Schedule</button>
+          <button type="submit" class="btn btn-primary" [disabled]="!scheduleForm.valid || scheduling">{{ scheduling ? 'Scheduling…' : 'Schedule' }}</button>
         </div>
       </form>
     </div>

@@ -110,7 +110,7 @@ export class ResetPasswordComponent implements OnInit {
           error?.status === 429
             ? 'Too many attempts from this network. Please wait a few minutes and try again.'
             : error?.status === 400
-              ? (error?.error?.message ?? 'This reset link is invalid or has expired. Request a new one.')
+              ? (error?.message || 'This reset link is invalid or has expired. Request a new one.')
               : 'We could not reach the server. Your password has not changed — please try again.'
         );
       },

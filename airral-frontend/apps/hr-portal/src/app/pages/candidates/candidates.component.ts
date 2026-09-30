@@ -1,12 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ApplicationApiService, AuthApiService, HrEncounterApiService, JobApiService, UserApiService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
 import { Application, ApplicationStatus, CreateEncounterRequest, HrEncounter, Job, Recommendation, Scorecard, User } from '@airral/shared-types';
 import { browserTimeZone, wallTimeToDate } from '@airral/shared-utils';
-import { catchError, combineLatest, finalize, of } from 'rxjs';
+import { Subscription, catchError, combineLatest, finalize, of } from 'rxjs';
 import { getPrimaryRole } from '../../feature-config';
 import { interviewersFrom, teammateName, teammateRole } from '../interviews/teammates';
 
@@ -37,12 +37,15 @@ export class CandidatesComponent implements OnInit {
   private readonly jobApi = inject(JobApiService);
   private readonly encounterApi = inject(HrEncounterApiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly authApi = inject(AuthApiService);
   private readonly userApi = inject(UserApiService);
 
   /** HR adds candidates by hand. Hiring managers work the ones on their jobs. */
   readonly canAddCandidates = getPrimaryRole(this.auth.getCurrentUser()?.roles) === 'HR_MANAGER';
+  /** Offers are HR's, on the Offers page; a hiring manager hands the decision to HR. */
+  readonly canMakeOffers = this.canAddCandidates;
   /** False while AIRRAL has not verified the company, which is when candidate emails wait. Null until known. */
   companyVerified: boolean | null = null;
 
@@ -92,6 +95,8 @@ export class CandidatesComponent implements OnInit {
 
   loading = true;
   detailLoading = false;
+  /** The open candidate's notes, interviews and scorecards, while they load. */
+  private detailRequest?: Subscription;
   saving = false;
   error = '';
   success = '';
@@ -210,7 +215,11 @@ export class CandidatesComponent implements OnInit {
     this.scorecards = [];
     this.selectedInterviewId = null;
 
-    combineLatest({
+    // Only the candidate on screen: the previous one's answers, arriving late,
+    // would otherwise show their notes and scorecards under this name.
+    this.detailRequest?.unsubscribe();
+    const selectedId = application.id;
+    this.detailRequest = combineLatest({
       encounters: this.encounterApi
         .getEncountersByApplication(application.id)
         .pipe(catchError(() => of([] as HrEncounter[]))),
@@ -221,8 +230,11 @@ export class CandidatesComponent implements OnInit {
         .getScorecards(application.id)
         .pipe(catchError(() => of([] as Scorecard[]))),
     })
-      .pipe(finalize(() => (this.detailLoading = false)))
+      .pipe(finalize(() => {
+        if (this.selectedApplication?.id === selectedId) this.detailLoading = false;
+      }))
       .subscribe(({ encounters, interviews, scorecards }) => {
+        if (this.selectedApplication?.id !== selectedId) return;
         this.scorecards = scorecards;
         this.encounters = [...encounters].sort(
           (a, b) => new Date(b.encounteredAt).getTime() - new Date(a.encounteredAt).getTime(),
@@ -232,6 +244,8 @@ export class CandidatesComponent implements OnInit {
   }
 
   closeDetail(): void {
+    this.detailRequest?.unsubscribe();
+    this.detailLoading = false;
     this.selectedApplication = null;
     this.encounters = [];
   }
@@ -273,8 +287,10 @@ export class CandidatesComponent implements OnInit {
   primaryActionLabel(application: Application): string | null {
     if (application.status === ApplicationStatus.SUBMITTED) return 'Start review';
     if (application.status === ApplicationStatus.UNDER_REVIEW) return 'Shortlist';
-    if (application.status === ApplicationStatus.INTERVIEWED) return 'Move to offer';
-    if (application.status === ApplicationStatus.OFFER_EXTENDED) return 'Mark hired';
+    // The offer stage comes from sending an offer, and the candidate's answer
+    // hires them: both happen on the Offers page.
+    if (application.status === ApplicationStatus.INTERVIEWED) return this.canMakeOffers ? 'Make an offer' : null;
+    if (application.status === ApplicationStatus.OFFER_EXTENDED) return this.canMakeOffers ? 'See the offer' : null;
     return null;
   }
 
@@ -323,10 +339,11 @@ export class CandidatesComponent implements OnInit {
       this.updateStatus(application, ApplicationStatus.UNDER_REVIEW);
     } else if (application.status === ApplicationStatus.UNDER_REVIEW) {
       this.updateStatus(application, ApplicationStatus.SHORTLISTED);
-    } else if (application.status === ApplicationStatus.INTERVIEWED) {
-      this.updateStatus(application, ApplicationStatus.OFFER_EXTENDED);
-    } else if (application.status === ApplicationStatus.OFFER_EXTENDED) {
-      this.updateStatus(application, ApplicationStatus.HIRED);
+    } else if (
+      this.canMakeOffers &&
+      (application.status === ApplicationStatus.INTERVIEWED || application.status === ApplicationStatus.OFFER_EXTENDED)
+    ) {
+      void this.router.navigate(['/offers'], { queryParams: { applicationId: application.id } });
     }
   }
 
@@ -442,6 +459,7 @@ export class CandidatesComponent implements OnInit {
           const done: string[] = [];
           if (result.markedFilled) done.push('the job is marked filled');
           if (result.turnedDown) done.push(`${result.turnedDown} other candidate${result.turnedDown === 1 ? ' was' : 's were'} turned down`);
+          if (result.withOpenOffers) done.push(`${result.withOpenOffers} with an offer still open ${result.withOpenOffers === 1 ? 'was' : 'were'} left as they are`);
           this.load();
           this.success = done.length ? `Done: ${done.join(', and ')}.` : 'Nothing needed closing out.';
         },
