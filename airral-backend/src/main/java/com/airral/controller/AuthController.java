@@ -194,7 +194,9 @@ public class AuthController {
             @PathVariable String token,
             ServerWebExchange exchange) {
 
-        return loginThrottle.checkAddress(clientAddress(exchange))
+        String address = clientAddress(exchange);
+        return loginThrottle.checkAddress(address)
+                .then(loginThrottle.recordAddressAttempt(address))
                 .then(userService.describeInvitation(token))
                 .map(ResponseEntity::ok);
     }

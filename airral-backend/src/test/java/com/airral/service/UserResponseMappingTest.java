@@ -33,7 +33,7 @@ class UserResponseMappingTest {
     void setUp() {
         service = new UserService(users, mock(UserInvitationRepository.class), organizations,
                 mock(DepartmentRepository.class), mock(FirebaseEmailLinkSender.class), mock(LoginThrottle.class),
-                mock(com.airral.security.TokenVersionCache.class));
+                mock(com.airral.security.TokenVersionCache.class), mock(com.airral.repository.JobRepository.class));
         when(organizations.findById(1L)).thenReturn(Mono.just(Organization.builder().id(1L).name("Acme").build()));
     }
 

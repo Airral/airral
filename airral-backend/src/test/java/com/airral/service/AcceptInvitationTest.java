@@ -60,7 +60,12 @@ class AcceptInvitationTest {
         when(encoder.encode("Secret123")).thenReturn("hash");
         when(throttle.recordSuccess(any())).thenReturn(Mono.empty());
         when(companies.onEmailProven(any())).thenReturn(Mono.empty());
+        when(users.findById(7L)).thenReturn(Mono.just(inviter));
     }
+
+    /** Whoever sent the invitation: Acme's HR manager, account on. */
+    private final User inviter = User.builder().id(7L).organizationId(1L).role(UserRole.HR_MANAGER)
+            .isActive(true).emailVerified(true).build();
 
     private void linkFollowedBy(String email) {
         when(firebase.verifyIdToken("id-token"))
@@ -94,6 +99,36 @@ class AcceptInvitationTest {
 
         assertThat(invitation.getIsAccepted()).isTrue();
         assertThat(invitation.getAcceptedAt()).isNotNull();
+        // An invitee proving their own address says nothing about the company.
+        verify(companies, never()).onEmailProven(any());
+    }
+
+    @Test
+    @DisplayName("an invitation from someone whose account was since switched off no longer lets anyone in")
+    void inviterSwitchedOff() {
+        inviter.setIsActive(false);
+        linkFollowedBy("ben@acme.io");
+
+        refused(BadRequestException.class);
+        assertThat(invitation.getIsAccepted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("an invitation from someone since moved out of HR no longer lets anyone in")
+    void inviterMovedOutOfHr() {
+        inviter.setRole(UserRole.EMPLOYEE);
+        linkFollowedBy("ben@acme.io");
+
+        refused(BadRequestException.class);
+    }
+
+    @Test
+    @DisplayName("an invitation whose sender is gone no longer lets anyone in")
+    void inviterGone() {
+        when(users.findById(7L)).thenReturn(Mono.empty());
+        linkFollowedBy("ben@acme.io");
+
+        refused(BadRequestException.class);
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.airral.dto.request.ContactMessageRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -109,5 +110,27 @@ class TeamAlertsTest {
                 .isEqualTo(":rotating_light: 500 on POST /api/auth/&lt;login&gt;: NullPointerException (ref ab12cd34)\n"
                         + "2 more like it since the last alert.\n"
                         + "The API log has the details under the same reference.");
+    }
+
+    @Test
+    @DisplayName("a failed post is described without the webhook's address, which is the secret")
+    void failuresNeverNameTheWebhook() {
+        // Answers the way Slack does for a revoked webhook, carrying the request
+        // the way a real connection does.
+        TeamAlerts alerts = new TeamAlerts(WebClient.builder().exchangeFunction(request -> Mono.just(
+                ClientResponse.create(HttpStatus.NOT_FOUND)
+                        .request(new MockClientHttpRequest(request.method(), request.url()))
+                        .build())), WEBHOOK, ADMIN);
+
+        StepVerifier.create(alerts.contactMessage(message()))
+                .expectErrorSatisfies(error -> {
+                    // What WebClient says names the address it called...
+                    assertThat(error.getMessage()).contains("hooks.slack.com");
+                    // ...so the logs get this instead.
+                    assertThat(TeamAlerts.describe(error)).isEqualTo("Slack answered 404");
+                })
+                .verify();
+        assertThat(TeamAlerts.describe(new IllegalStateException("POST " + WEBHOOK + " timed out")))
+                .isEqualTo("IllegalStateException");
     }
 }

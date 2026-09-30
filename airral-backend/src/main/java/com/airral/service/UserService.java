@@ -17,12 +17,14 @@ import com.airral.exception.ConflictException;
 import com.airral.exception.InvitationRateLimitedException;
 import com.airral.exception.NotFoundException;
 import com.airral.repository.UserRepository;
+import com.airral.repository.JobRepository;
 import com.airral.security.LoginThrottle;
 import com.airral.security.TokenVersionCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -56,6 +58,7 @@ public class UserService {
     private final FirebaseEmailLinkSender linkSender;
     private final LoginThrottle loginThrottle;
     private final TokenVersionCache tokenVersionCache;
+    private final JobRepository jobRepository;
 
     public UserService(UserRepository userRepository,
                       UserInvitationRepository invitationRepository,
@@ -63,7 +66,8 @@ public class UserService {
                       DepartmentRepository departmentRepository,
                       FirebaseEmailLinkSender linkSender,
                       LoginThrottle loginThrottle,
-                      TokenVersionCache tokenVersionCache) {
+                      TokenVersionCache tokenVersionCache,
+                      JobRepository jobRepository) {
         this.userRepository = userRepository;
         this.invitationRepository = invitationRepository;
         this.organizationRepository = organizationRepository;
@@ -71,6 +75,7 @@ public class UserService {
         this.linkSender = linkSender;
         this.loginThrottle = loginThrottle;
         this.tokenVersionCache = tokenVersionCache;
+        this.jobRepository = jobRepository;
     }
 
     /**
@@ -142,9 +147,12 @@ public class UserService {
                     if (request.getPhone() != null) user.setPhone(request.getPhone());
                     if (request.getJobTitle() != null) user.setJobTitle(request.getJobTitle());
                     if (request.getManagerId() != null) user.setManagerId(request.getManagerId());
-                    user.setUpdatedAt(LocalDateTime.now());
-
-                    return userRepository.save(user);
+                    // Only the profile's own columns: a profile edit racing HR's change
+                    // of role or active flag must not write the old values back.
+                    return userRepository.updateProfile(user.getId(), user.getFirstName(), user.getLastName(),
+                                    user.getPhone(), user.getJobTitle(), user.getManagerId(),
+                                    user.getDepartmentId(), user.getDepartment(), LocalDateTime.now())
+                            .then(userRepository.findById(user.getId()));
                 })
                 .flatMap(this::toUserResponse);
     }
@@ -153,6 +161,7 @@ public class UserService {
      * Give a member another role. They are signed out everywhere, since a
      * session carries the role it was issued with.
      */
+    @Transactional
     public Mono<UserResponse> changeRole(Long id, UserRole role, Long organizationId, Long callerId) {
         if (!INVITABLE_ROLES.contains(role)) {
             return Mono.error(new BadRequestException("A member can only be an HR manager, a manager or an employee"));
@@ -160,16 +169,18 @@ public class UserService {
         if (id.equals(callerId)) {
             return Mono.error(new BadRequestException("You can't change your own role. Ask another HR manager."));
         }
-        return managedMember(id, organizationId)
+        // The company's row is held until this commits, so two HR managers
+        // demoting each other at once cannot both pass the "keep one" check.
+        return organizationRepository.lockForUpdate(organizationId)
+                .then(managedMember(id, organizationId))
                 .flatMap(user -> user.getRole() == role
                         ? Mono.just(user)
                         : keepsAnHrManager(user, organizationId, role == UserRole.HR_MANAGER)
-                                .then(Mono.defer(() -> {
-                                    user.setRole(role);
-                                    user.setUpdatedAt(LocalDateTime.now());
-                                    return userRepository.save(user);
-                                }))
-                                .flatMap(saved -> tokenVersionCache.revokeAll(saved.getId()).thenReturn(saved)))
+                                .then(Mono.defer(() -> userRepository.setRole(user.getId(), organizationId, role.name(),
+                                        LocalDateTime.now())))
+                                .then(Mono.defer(() -> releaseJobsIfNotHiringManager(user.getId(), role)))
+                                .then(Mono.defer(() -> tokenVersionCache.revokeAll(user.getId())))
+                                .then(Mono.defer(() -> userRepository.findById(user.getId()))))
                 .flatMap(this::toUserResponse);
     }
 
@@ -177,27 +188,35 @@ public class UserService {
      * Deactivate a member, or let them back in. A deactivated member cannot
      * sign in, and every session they hold ends at once.
      */
+    @Transactional
     public Mono<UserResponse> setActive(Long id, boolean active, Long organizationId, Long callerId) {
         if (!active && id.equals(callerId)) {
             return Mono.error(new BadRequestException("You can't deactivate yourself. Ask another HR manager."));
         }
-        return managedMember(id, organizationId)
+        return organizationRepository.lockForUpdate(organizationId)
+                .then(managedMember(id, organizationId))
                 .flatMap(user -> {
                     if (Boolean.valueOf(active).equals(user.getIsActive())) {
                         return Mono.just(user);
                     }
                     Mono<Void> check = active ? Mono.empty() : keepsAnHrManager(user, organizationId, false);
                     return check
-                            .then(Mono.defer(() -> {
-                                user.setIsActive(active);
-                                user.setUpdatedAt(LocalDateTime.now());
-                                return userRepository.save(user);
-                            }))
-                            .flatMap(saved -> active
-                                    ? Mono.just(saved)
-                                    : tokenVersionCache.revokeAll(saved.getId()).thenReturn(saved));
+                            .then(Mono.defer(() -> userRepository.setActive(user.getId(), organizationId, active,
+                                    LocalDateTime.now())))
+                            // Switched off: no longer the hiring manager of any job, and
+                            // signed out everywhere.
+                            .then(Mono.defer(() -> active ? Mono.empty() : jobRepository.clearHiringManager(user.getId())))
+                            .then(Mono.defer(() -> active ? Mono.empty() : tokenVersionCache.revokeAll(user.getId())))
+                            .then(Mono.defer(() -> userRepository.findById(user.getId())));
                 })
                 .flatMap(this::toUserResponse);
+    }
+
+    /** A member who can no longer be a hiring manager stops being one on the company's jobs. */
+    private Mono<Void> releaseJobsIfNotHiringManager(Long userId, UserRole role) {
+        return role == UserRole.MANAGER || role == UserRole.HR_MANAGER
+                ? Mono.empty()
+                : jobRepository.clearHiringManager(userId).then();
     }
 
     /**
@@ -210,55 +229,75 @@ public class UserService {
         }
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
 
-        // Check if user already exists
-        return userRepository.findByEmail(email)
+        // Every attempt counts against the company's budget, refused ones too,
+        // so the endpoint cannot be used to look addresses up for free.
+        return requireVerifiedInviter(invitedById)
+                .then(Mono.defer(() -> withinInvitationBudget(organizationId)))
+                .then(Mono.defer(() -> userRepository.findByEmail(email)
+                        .map(Optional::of)
+                        .defaultIfEmpty(Optional.empty())))
                 .flatMap(existingUser -> {
-                    if (existingUser.getOrganizationId() == null) {
+                    if (existingUser.isPresent()) {
+                        // One answer for any account outside this company: whether an
+                        // address is a job seeker's, or another company's, is not the
+                        // inviting company's business.
                         return Mono.<UserInvitation>error(new ConflictException(
-                                "That address already has an AIRRAL applicant account, so it can't be invited"));
+                                organizationId.equals(existingUser.get().getOrganizationId())
+                                        ? email + " is already on your team"
+                                        : "That address already has an AIRRAL account, so it can't be invited. "
+                                                + "Ask them for another work address."));
                     }
-                    if (existingUser.getOrganizationId().equals(organizationId)) {
-                        return Mono.<UserInvitation>error(new ConflictException("User already exists in this organization"));
-                    }
-                    return Mono.<UserInvitation>error(new ConflictException("User already exists in another organization"));
-                })
-                .switchIfEmpty(
-                    // Check if invitation already exists
-                    invitationRepository.findValidInvitationByEmailAndOrganization(email, organizationId)
-                            .flatMap(existing -> Mono.<UserInvitation>error(new ConflictException("Invitation already sent")))
-                            .switchIfEmpty(
-                                // Create new invitation, within the company's email budget
-                                Mono.defer(() -> withinInvitationBudget(organizationId))
-                                        .then(Mono.defer(() -> companyDepartment(request.getDepartmentId(), organizationId)))
+                    return invitationRepository.findUnacceptedByEmailAndOrganization(email, organizationId)
+                            .map(Optional::of)
+                            .defaultIfEmpty(Optional.empty())
+                            .flatMap(unaccepted -> {
+                                if (unaccepted.isPresent() && isOpen(unaccepted.get())) {
+                                    return Mono.<UserInvitation>error(new ConflictException(
+                                            "Invitation already sent. Resend it from your invitations if it went astray."));
+                                }
+                                return companyDepartment(request.getDepartmentId(), organizationId)
                                         .flatMap(department -> {
-                                    String token = UUID.randomUUID().toString();
-                                    UserInvitation invitation = UserInvitation.builder()
-                                            .invitedById(invitedById)
-                                            .organizationId(organizationId)
-                                            .email(email)
-                                            .role(request.getRole())
-                                            .departmentId(department.map(Department::getId).orElse(null))
-                                            .firstName(request.getFirstName())
-                                            .lastName(request.getLastName())
-                                            .department(department.map(Department::getName).orElse(null))
-                                            .invitationToken(token)
-                                            .expiresAt(LocalDateTime.now().plusDays(INVITATION_DAYS))
-                                            .isAccepted(false)
-                                            .createdAt(LocalDateTime.now())
-                                            .build();
-
-                                    return invitationRepository.save(invitation);
-                                })
-                            )
-                )
+                                            // An expired invitation is renewed rather than added
+                                            // to: the address can hold one unaccepted invitation.
+                                            UserInvitation invitation = unaccepted.orElseGet(() -> UserInvitation.builder()
+                                                    .organizationId(organizationId)
+                                                    .email(email)
+                                                    .isAccepted(false)
+                                                    .createdAt(LocalDateTime.now())
+                                                    .build());
+                                            invitation.setInvitedById(invitedById);
+                                            invitation.setRole(request.getRole());
+                                            invitation.setDepartmentId(department.map(Department::getId).orElse(null));
+                                            invitation.setDepartment(department.map(Department::getName).orElse(null));
+                                            invitation.setFirstName(request.getFirstName());
+                                            invitation.setLastName(request.getLastName());
+                                            invitation.setInvitationToken(UUID.randomUUID().toString());
+                                            invitation.setExpiresAt(LocalDateTime.now().plusDays(INVITATION_DAYS));
+                                            return invitationRepository.save(invitation);
+                                        });
+                            });
+                })
                 .flatMap(this::sendInvitationEmail);
+    }
+
+    /**
+     * Invitations go out from AIRRAL's own address, so the person sending them
+     * must have proven theirs first: a throwaway signup cannot mail strangers.
+     */
+    private Mono<Void> requireVerifiedInviter(Long invitedById) {
+        return userRepository.findById(invitedById)
+                .filter(User::isEmailVerified)
+                .switchIfEmpty(Mono.error(new BadRequestException(
+                        "Verify your email address before you invite teammates. The link is in your inbox.")))
+                .then();
     }
 
     /**
      * Get pending invitations
      */
     public Flux<InvitationResponse> getPendingInvitations(Long organizationId) {
-        return invitationRepository.findPendingByOrganizationId(organizationId)
+        // Expired ones included, marked as such, so HR can renew or cancel them.
+        return invitationRepository.findUnacceptedByOrganizationId(organizationId)
                 .map(invitation -> toInvitationResponse(invitation, null));
     }
 
@@ -346,6 +385,7 @@ public class UserService {
                 .lastName(invitation.getLastName())
                 .department(invitation.getDepartment())
                 .expiresAt(invitation.getExpiresAt())
+                .expired(!isOpen(invitation))
                 .createdAt(invitation.getCreatedAt())
                 .emailSent(emailSent)
                 .build();

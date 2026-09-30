@@ -101,10 +101,13 @@ public class AuthService {
                         return Mono.error(new UnauthorizedException("Account is deactivated"));
                     }
 
-                    // Update last login
-                    user.setLastLoginAt(LocalDateTime.now());
-                    return userRepository.save(user)
-                            .flatMap(savedUser -> buildAuthResponse(savedUser, "Login successful"));
+                    // Only last_login_at is written. Saving the row read before the
+                    // password check would put back a role, an active flag or a token
+                    // version HR changed in the meantime, undoing a deactivation.
+                    LocalDateTime now = LocalDateTime.now();
+                    user.setLastLoginAt(now);
+                    return userRepository.touchLastLogin(user.getId(), now)
+                            .then(Mono.defer(() -> buildAuthResponse(user, "Login successful")));
                 });
     }
 

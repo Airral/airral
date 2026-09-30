@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -61,9 +62,9 @@ public class TeamAlerts {
         try {
             post(newCompanyText(organization, hrManager)).subscribe(
                     null,
-                    error -> log.warn("Could not post company {} to Slack: {}", organization.getId(), error.getMessage()));
+                    error -> log.warn("Could not post company {} to Slack: {}", organization.getId(), describe(error)));
         } catch (RuntimeException error) {
-            log.warn("Could not post company {} to Slack: {}", organization.getId(), error.getMessage());
+            log.warn("Could not post company {} to Slack: {}", organization.getId(), describe(error));
         }
     }
 
@@ -90,9 +91,9 @@ public class TeamAlerts {
         try {
             post(serverErrorText(method, route, status, errorType, reference, moreSinceLastAlert)).subscribe(
                     null,
-                    error -> log.warn("Could not post a server error alert to Slack: {}", error.getMessage()));
+                    error -> log.warn("Could not post a server error alert to Slack: {}", describe(error)));
         } catch (RuntimeException error) {
-            log.warn("Could not post a server error alert to Slack: {}", error.getMessage());
+            log.warn("Could not post a server error alert to Slack: {}", describe(error));
         }
     }
 
@@ -134,6 +135,18 @@ public class TeamAlerts {
                 + "From: " + escape(message.getName()) + ", " + escape(message.getEmail()) + "\n"
                 + "Subject: " + escape(subject) + "\n\n"
                 + escape(message.getMessage());
+    }
+
+    /**
+     * What went wrong posting to Slack, without the webhook's address: a
+     * WebClient error's message includes the URL it called, and the URL is the
+     * secret.
+     */
+    public static String describe(Throwable error) {
+        if (error instanceof WebClientResponseException response) {
+            return "Slack answered " + response.getStatusCode().value();
+        }
+        return error.getClass().getSimpleName();
     }
 
     /** Slack's own escaping for message text: the three characters its markup is built from. */

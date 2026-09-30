@@ -21,4 +21,13 @@ public interface OrganizationRepository extends R2dbcRepository<Organization, Lo
     @Query("SELECT EXISTS (SELECT 1 FROM organizations WHERE lower(domain) = lower(:domain) "
             + "AND verification_status = 'VERIFIED' AND id <> :excludeId)")
     Mono<Boolean> existsVerifiedDomainOtherThan(String domain, Long excludeId);
+
+    /**
+     * Holds the company's row until the surrounding transaction ends, so two
+     * changes to its HR managers cannot both pass the "keep one" check.
+     * NO KEY UPDATE rather than UPDATE: inserts that only reference the company
+     * (a new job, a new member) take a key-share lock, which this leaves alone.
+     */
+    @Query("SELECT id FROM organizations WHERE id = :id FOR NO KEY UPDATE")
+    Mono<Long> lockForUpdate(Long id);
 }

@@ -25,6 +25,8 @@ public class InvitationResponse {
     private String lastName;
     private String department;
     private LocalDateTime expiresAt;
+    /** Past its date and not accepted: HR can resend it for a fresh week, or cancel it. */
+    private Boolean expired;
     private LocalDateTime createdAt;
     /** Whether the invitation email went out this time; null when nothing was sent. */
     private Boolean emailSent;

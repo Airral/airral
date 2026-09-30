@@ -27,6 +27,7 @@ import reactor.test.StepVerifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -57,7 +58,7 @@ class DepartmentByIdTest {
     void setUp() {
         jobService = new JobService(jobs, users, organizations, mock(ExternalJobPostingStore.class), catalogue, departments, mock(com.airral.repository.InterviewKitRepository.class));
         userService = new UserService(users, invitations, organizations, departments, linkSender, throttle,
-                mock(TokenVersionCache.class));
+                mock(TokenVersionCache.class), mock(com.airral.repository.JobRepository.class));
 
         when(departments.findByIdAndOrganizationId(5L, ACME)).thenReturn(Mono.just(
                 Department.builder().id(5L).organizationId(ACME).name("Engineering").build()));
@@ -68,7 +69,8 @@ class DepartmentByIdTest {
         ben = User.builder().id(8L).email("ben@acme.io").organizationId(ACME).role(UserRole.EMPLOYEE)
                 .department("Old text").isActive(true).build();
         when(users.findById(8L)).thenReturn(Mono.just(ben));
-        when(users.save(any(User.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(users.updateProfile(anyLong(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(Mono.just(1));
     }
 
     private static CreateJobRequest job(Long departmentId, String typedDepartment) {
@@ -147,13 +149,16 @@ class DepartmentByIdTest {
                 .expectError(AccessDeniedException.class)
                 .verify();
         verify(users, never()).save(any());
+        verify(users, never()).updateProfile(anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
     @DisplayName("an invitation's department name comes from the company's department")
     void invitationTakesTheDepartmentsName() {
         when(users.findByEmail(any())).thenReturn(Mono.empty());
-        when(invitations.findValidInvitationByEmailAndOrganization(any(), any())).thenReturn(Mono.empty());
+        when(users.findById(1L)).thenReturn(Mono.just(User.builder().id(1L).organizationId(ACME)
+                .role(UserRole.HR_MANAGER).emailVerified(true).isActive(true).build()));
+        when(invitations.findUnacceptedByEmailAndOrganization(any(), any())).thenReturn(Mono.empty());
         when(invitations.save(any(UserInvitation.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         when(throttle.invitationEmailAllowed(ACME)).thenReturn(Mono.just(true));
         when(throttle.recordInvitationEmail(ACME)).thenReturn(Mono.empty());

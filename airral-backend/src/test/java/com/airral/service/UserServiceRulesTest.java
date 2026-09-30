@@ -24,6 +24,9 @@ import reactor.test.StepVerifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -48,6 +51,7 @@ class UserServiceRulesTest {
     private final LoginThrottle throttle = mock(LoginThrottle.class);
     private UserService service;
 
+    private final User hr = person(ACME_HR, ACME, UserRole.HR_MANAGER);
     private final User amy = person(7L, ACME, UserRole.EMPLOYEE);
     private final User ben = person(8L, ACME, UserRole.EMPLOYEE);
     private final User gus = person(50L, GLOBEX, UserRole.MANAGER);
@@ -55,13 +59,25 @@ class UserServiceRulesTest {
     @BeforeEach
     void setUp() {
         service = new UserService(users, invitations, organizations, departments, linkSender, throttle,
-                mock(com.airral.security.TokenVersionCache.class));
+                mock(com.airral.security.TokenVersionCache.class), mock(com.airral.repository.JobRepository.class));
         when(organizations.findById(any(Long.class))).thenReturn(Mono.just(Organization.builder().name("Acme").build()));
-        for (User user : new User[] {amy, ben, gus}) {
+        hr.setEmailVerified(true);
+        for (User user : new User[] {hr, amy, ben, gus}) {
             when(users.findById(user.getId())).thenReturn(Mono.just(user));
         }
-        when(users.save(any(User.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(users.updateProfile(anyLong(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(Mono.just(1));
         when(invitations.save(any(UserInvitation.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(invitations.findUnacceptedByEmailAndOrganization(any(), any())).thenReturn(Mono.empty());
+        when(throttle.invitationEmailAllowed(ACME)).thenReturn(Mono.just(true));
+        when(throttle.recordInvitationEmail(ACME)).thenReturn(Mono.empty());
+        when(linkSender.sendInvitation(any(), any(), any())).thenReturn(Mono.empty());
+    }
+
+    /** No profile was written. */
+    private void profileUntouched() {
+        verify(users, never()).save(any());
+        verify(users, never()).updateProfile(anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     private static User person(long id, long company, UserRole role) {
@@ -110,6 +126,11 @@ class UserServiceRulesTest {
         StepVerifier.create(service.updateUser(7L, rename("Amelia"), ACME, 7L, "EMPLOYEE"))
                 .assertNext(response -> assertThat(response.getFirstName()).isEqualTo("Amelia"))
                 .verifyComplete();
+        // The profile's own columns only, never the whole row: a full save would
+        // write back a role or active flag HR changed since it was read.
+        verify(users).updateProfile(eq(7L), eq("Amelia"), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                any(java.time.LocalDateTime.class));
+        verify(users, never()).save(any());
     }
 
     @Test
@@ -128,7 +149,7 @@ class UserServiceRulesTest {
         StepVerifier.create(service.updateUser(8L, rename("Benedict"), ACME, 7L, "EMPLOYEE"))
                 .expectError(AccessDeniedException.class)
                 .verify();
-        verify(users, never()).save(any());
+        profileUntouched();
     }
 
     @Test
@@ -140,7 +161,7 @@ class UserServiceRulesTest {
         StepVerifier.create(service.updateUser(7L, request, ACME, 7L, "EMPLOYEE"))
                 .expectError(AccessDeniedException.class)
                 .verify();
-        verify(users, never()).save(any());
+        profileUntouched();
     }
 
     @Test
@@ -163,7 +184,7 @@ class UserServiceRulesTest {
         StepVerifier.create(service.updateUser(8L, request, ACME, ACME_HR, "HR_MANAGER"))
                 .expectError(BadRequestException.class)
                 .verify();
-        verify(users, never()).save(any());
+        profileUntouched();
     }
 
     @Test
@@ -176,7 +197,7 @@ class UserServiceRulesTest {
         StepVerifier.create(service.updateUser(8L, request, ACME, ACME_HR, "HR_MANAGER"))
                 .expectError(BadRequestException.class)
                 .verify();
-        verify(users, never()).save(any());
+        profileUntouched();
     }
 
     @Test
@@ -185,7 +206,7 @@ class UserServiceRulesTest {
         StepVerifier.create(service.updateUser(50L, rename("Gustav"), ACME, ACME_HR, "HR_MANAGER"))
                 .expectError(NotFoundException.class)
                 .verify();
-        verify(users, never()).save(any());
+        profileUntouched();
     }
 
     // ---- invitations ----
@@ -209,28 +230,55 @@ class UserServiceRulesTest {
     }
 
     @Test
-    @DisplayName("inviting an address that has an applicant account gives a clear answer")
-    void inviteExistingApplicant() {
+    @DisplayName("an address with an account outside the company gets one answer, whoever holds it")
+    void inviteExistingAccountElsewhere() {
+        for (User holder : new User[] {
+                User.builder().id(60L).email("new@acme.io").role(UserRole.APPLICANT).build(),
+                User.builder().id(61L).email("new@acme.io").role(UserRole.EMPLOYEE).organizationId(GLOBEX).build()}) {
+            when(users.findByEmail("new@acme.io")).thenReturn(Mono.just(holder));
+
+            StepVerifier.create(service.inviteUser(invite(UserRole.EMPLOYEE), ACME, ACME_HR))
+                    .expectErrorSatisfies(error -> assertThat(error)
+                            .isInstanceOf(ConflictException.class)
+                            .hasMessage("That address already has an AIRRAL account, so it can't be invited. "
+                                    + "Ask them for another work address."))
+                    .verify();
+        }
+        verify(invitations, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("inviting someone already on the team says so")
+    void inviteExistingTeammate() {
         when(users.findByEmail("new@acme.io")).thenReturn(Mono.just(
-                User.builder().id(60L).email("new@acme.io").role(UserRole.APPLICANT).build()));
-        when(invitations.findValidInvitationByEmailAndOrganization("new@acme.io", ACME)).thenReturn(Mono.empty());
+                User.builder().id(62L).email("new@acme.io").role(UserRole.EMPLOYEE).organizationId(ACME).build()));
 
         StepVerifier.create(service.inviteUser(invite(UserRole.EMPLOYEE), ACME, ACME_HR))
                 .expectErrorSatisfies(error -> assertThat(error)
                         .isInstanceOf(ConflictException.class)
-                        .hasMessageContaining("applicant account"))
+                        .hasMessage("new@acme.io is already on your team"))
                 .verify();
         verify(invitations, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("an inviter who has not verified their own address cannot send invitations")
+    void unverifiedInviterCannotInvite() {
+        hr.setEmailVerified(false);
+
+        StepVerifier.create(service.inviteUser(invite(UserRole.EMPLOYEE), ACME, ACME_HR))
+                .expectErrorSatisfies(error -> assertThat(error)
+                        .isInstanceOf(BadRequestException.class)
+                        .hasMessageContaining("Verify your email address"))
+                .verify();
+        verify(invitations, never()).save(any());
+        verify(linkSender, never()).sendInvitation(any(), any(), any());
     }
 
     @Test
     @DisplayName("an HR manager invites a manager")
     void hrInvitesManager() {
         when(users.findByEmail("new@acme.io")).thenReturn(Mono.empty());
-        when(invitations.findValidInvitationByEmailAndOrganization("new@acme.io", ACME)).thenReturn(Mono.empty());
-        when(throttle.invitationEmailAllowed(ACME)).thenReturn(Mono.just(true));
-        when(throttle.recordInvitationEmail(ACME)).thenReturn(Mono.empty());
-        when(linkSender.sendInvitation(any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(service.inviteUser(invite(UserRole.MANAGER), ACME, ACME_HR))
                 .assertNext(invitation -> assertThat(invitation.getRole()).isEqualTo(UserRole.MANAGER))

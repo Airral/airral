@@ -254,6 +254,57 @@ class HiringLoopEndToEndTest {
                 .isEqualTo("FILLED");
     }
 
+    @Test
+    @DisplayName("HR edits a teammate, moves them out of hiring, and switches their account off")
+    void hrManagesTheTeam() {
+        String companyDomain = "globex-" + run + ".test";
+        String hanaEmail = "hana@" + companyDomain;
+        String miaEmail = "mia@" + companyDomain;
+
+        JsonNode hana = call(HttpMethod.POST, "/api/auth/register", null, Map.of(
+                "email", hanaEmail, "password", PASSWORD, "firstName", "Hana", "lastName", "Hill",
+                "companyName", "Globex E2E " + run), HttpStatus.CREATED);
+        String hr = hana.get("token").asText();
+        long hanaId = hana.get("userId").asLong();
+        proveAddress(hanaEmail);
+        companyReview.approve(hana.get("organizationId").asLong(), "End-to-end test").block();
+
+        call(HttpMethod.POST, "/api/users/invite", hr, Map.of("email", miaEmail, "role", "MANAGER"), HttpStatus.CREATED);
+        // A second invitation to an address with one still open is refused, not duplicated.
+        call(HttpMethod.POST, "/api/users/invite", hr, Map.of("email", miaEmail, "role", "MANAGER"), HttpStatus.CONFLICT);
+        ArgumentCaptor<String> invitationToken = ArgumentCaptor.forClass(String.class);
+        verify(links).sendInvitation(anyLong(), eq(miaEmail), invitationToken.capture());
+        stubFirebaseFor(miaEmail, "mia-team-link");
+        call(HttpMethod.POST, "/api/auth/invitations/" + invitationToken.getValue() + "/accept", null, Map.of(
+                "idToken", "mia-team-link", "password", PASSWORD), HttpStatus.CREATED);
+        JsonNode mia = call(HttpMethod.POST, "/api/auth/login", null,
+                Map.of("email", miaEmail, "password", PASSWORD), HttpStatus.OK);
+        long miaId = mia.get("userId").asLong();
+        long jobId = call(HttpMethod.POST, "/api/jobs", hr, Map.of(
+                "title", "Buyer", "description", "Buy for the stores.", "status", "OPEN",
+                "hiringManagerId", miaId), HttpStatus.CREATED).get("id").asLong();
+
+        // A profile edit writes the profile only.
+        assertThat(call(HttpMethod.PUT, "/api/users/" + miaId, hr, Map.of("jobTitle", "Senior buyer"), HttpStatus.OK)
+                .get("jobTitle").asText()).isEqualTo("Senior buyer");
+
+        // Moved out of hiring: signed out, and no longer the job's hiring manager.
+        assertThat(call(HttpMethod.PUT, "/api/users/" + miaId + "/role", hr, Map.of("role", "EMPLOYEE"), HttpStatus.OK)
+                .get("role").asText()).isEqualTo("EMPLOYEE");
+        call(HttpMethod.GET, "/api/auth/me", mia.get("token").asText(), null, HttpStatus.UNAUTHORIZED);
+        assertThat(call(HttpMethod.GET, "/api/jobs/" + jobId, hr, null, HttpStatus.OK).path("hiringManagerId").asLong(0))
+                .isZero();
+
+        // Switched off: the password no longer signs in.
+        assertThat(call(HttpMethod.PUT, "/api/users/" + miaId + "/active", hr, Map.of("active", false), HttpStatus.OK)
+                .get("isActive").asBoolean()).isFalse();
+        call(HttpMethod.POST, "/api/auth/login", null, Map.of("email", miaEmail, "password", PASSWORD),
+                HttpStatus.UNAUTHORIZED);
+
+        // Nobody changes their own role, so the company keeps its HR manager.
+        call(HttpMethod.PUT, "/api/users/" + hanaId + "/role", hr, Map.of("role", "EMPLOYEE"), HttpStatus.BAD_REQUEST);
+    }
+
     /** Follow the verification link Firebase would have emailed. */
     private void proveAddress(String email) {
         String link = "link-" + email;

@@ -100,4 +100,9 @@ public interface JobRepository extends R2dbcRepository<Job, Long> {
 
     @Query("SELECT * FROM jobs WHERE organization_id = :organizationId AND hiring_manager_id = :hiringManagerId")
     Flux<Job> findByOrganizationIdAndHiringManagerId(Long organizationId, Long hiringManagerId);
+
+    /** A member who was switched off or can no longer hire stops being any job's hiring manager. */
+    @Modifying
+    @Query("UPDATE jobs SET hiring_manager_id = NULL WHERE hiring_manager_id = :userId")
+    Mono<Long> clearHiringManager(Long userId);
 }

@@ -60,7 +60,7 @@ public class ContactController {
                         .thenReturn(ResponseEntity.status(HttpStatus.ACCEPTED)
                                 .body(Map.<String, Object>of("message", SENT)))
                         .onErrorResume(error -> {
-                            log.warn("Contact message not delivered: {}", error.getMessage());
+                            log.warn("Contact message not delivered: {}", TeamAlerts.describe(error));
                             return Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                                     .body(Map.<String, Object>of("message", NOT_SENT)));
                         }));
