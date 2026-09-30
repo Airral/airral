@@ -7,3 +7,4 @@ export * from './lib/account/reset-password.component';
 export * from './lib/account/accept-invitation.component';
 export * from './lib/account/verify-email.component';
 export * from './lib/account/verify-email-banner.component';
+export * from './lib/ai-connect/ai-connect.component';

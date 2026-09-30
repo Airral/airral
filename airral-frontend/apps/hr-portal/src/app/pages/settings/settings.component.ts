@@ -1,7 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AiAccessApiService } from '@airral/shared-api';
 import { OrganizationService } from '@airral/shared-utils';
+import { catchError, of } from 'rxjs';
 
 interface SettingSection {
   title: string;
@@ -21,8 +23,17 @@ interface SettingSection {
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.css',
 })
-export class SettingsComponent {
+export class SettingsComponent implements OnInit {
   private readonly orgService = inject(OrganizationService);
+  private readonly aiAccess = inject(AiAccessApiService);
+
+  /** A paid feature: its card shows when it is on, or while old keys remain to revoke. */
+  readonly aiAccessIncluded = signal(false);
+
+  ngOnInit(): void {
+    this.aiAccess.overview().pipe(catchError(() => of(null)))
+      .subscribe((overview) => this.aiAccessIncluded.set(!!overview?.included || !!overview?.keys?.length));
+  }
 
   readonly sections: SettingSection[] = [
     {

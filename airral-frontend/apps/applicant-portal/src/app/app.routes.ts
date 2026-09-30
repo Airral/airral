@@ -19,6 +19,13 @@ const authenticatedRoutes: Route[] = [
     loadComponent: () =>
       import('./pages/profile/profile.component').then((m) => m.ProfileComponent),
   },
+  {
+    // Connecting an AI assistant. Under Profile, so the Profile tab stays lit
+    // and the four-item nav stays four items.
+    path: 'profile/ai',
+    loadComponent: () =>
+      import('./pages/ai-connect/ai-connect-page.component').then((m) => m.AiConnectPageComponent),
+  },
   { path: '', redirectTo: '/jobs', pathMatch: 'full' },
 ];
 

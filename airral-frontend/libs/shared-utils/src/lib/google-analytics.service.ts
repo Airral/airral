@@ -12,7 +12,9 @@ const LIVE_HOSTS = ['airral.com', 'www.airral.com', 'apply.airral.com'];
  * code or a personal token in the address, so GA is never loaded on them -- not even with the code
  * stripped, because gtag reads the address itself for its automatic events.
  */
-const PRIVATE_PATHS = ['/verify-email', '/reset-password', '/forgot-password', '/unsubscribe'];
+// /profile/ai shows a new API key once. The key is never in the address or
+// title, but the page is kept out of analytics all the same.
+const PRIVATE_PATHS = ['/verify-email', '/reset-password', '/forgot-password', '/unsubscribe', '/profile/ai'];
 
 /** Set to "1" in localStorage to try GA on localhost; hits then go to DebugView only. */
 const DEBUG_FLAG = 'airral.ga.debug';
