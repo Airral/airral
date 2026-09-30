@@ -1,9 +1,9 @@
 <ng-container *ngIf="!isAuthRoute; else authLayout">
 	<div class="hr-shell" [class.menu-open]="menuOpen()">
-	<aside class="sidebar">
+	<aside class="sidebar" aria-label="Company hiring">
 		<div class="brand">
-			<div class="brand-mark">AR</div>
-			<div>
+			<span class="brand-mark" aria-hidden="true"></span>
+			<div class="brand-text">
 				<p class="brand-title">{{ organizationName }}</p>
 				<p class="brand-sub">{{ tierLabel }}</p>
 			</div>
@@ -17,15 +17,20 @@
 				[routerLinkActiveOptions]="{ exact: item.path === '/' }"
 				(click)="closeMenu()"
 			>
-				<span class="material-icons nav-icon">{{ item.icon }}</span>
+				<span class="material-icons nav-icon" aria-hidden="true">{{ item.icon }}</span>
 				<span>{{ item.label }}</span>
 			</a>
 		</nav>
 
 		<div class="sidebar-foot">
-			<p>Workspace</p>
-			<strong>{{ organizationName }}</strong>
-			<span>{{ tierLabel }}</span>
+			<span class="profile-pill" aria-hidden="true">{{ userInitials }}</span>
+			<div class="foot-text">
+				<strong>{{ userName }}</strong>
+				<span>{{ roleLabel }}</span>
+			</div>
+			<button class="logout-btn" type="button" (click)="logout()" title="Sign out" aria-label="Sign out">
+				<span class="material-icons">logout</span>
+			</button>
 		</div>
 	</aside>
 
@@ -34,14 +39,10 @@
 			<button class="menu-btn" type="button" (click)="toggleMenu()" title="Open navigation" aria-label="Open navigation">
 				<span class="material-icons">menu</span>
 			</button>
-
-			<div class="topbar-right">
-				<div class="org-pill">{{ organizationContext }}</div>
-				<div class="profile-pill" [title]="roleLabel">{{ userInitials }}</div>
-				<button class="logout-btn" type="button" (click)="logout()" title="Sign out" aria-label="Sign out">
-					<span class="material-icons">logout</span>
-				</button>
-			</div>
+			<span class="topbar-brand">
+				<span class="brand-mark small" aria-hidden="true"></span>
+				<span>{{ organizationName }}</span>
+			</span>
 		</header>
 
 		<!-- Unverified email, or a company still waiting for review: both mean this

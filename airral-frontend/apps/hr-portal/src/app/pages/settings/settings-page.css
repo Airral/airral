@@ -1,34 +1,35 @@
 .settings-container {
-  padding: 32px 40px;
+  padding: 28px 32px 48px;
   max-width: 960px;
   margin: 0 auto;
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
 .settings-header {
-  padding-bottom: 20px;
-  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 4px;
+  border-bottom: 0;
 }
 
 .settings-header h1 {
   margin: 0 0 4px;
-  font-size: 28px;
-  font-weight: 800;
-  color: #111827;
+  color: var(--ap-ink);
+  font: 800 30px/1.15 'Sora', 'Manrope', sans-serif;
+  letter-spacing: -0.02em;
 }
 
 .settings-header p {
   margin: 0;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 14px;
 }
 
 .card {
   background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 0;
+  border-radius: 16px;
   padding: 20px 24px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 .card h2 {
@@ -38,14 +39,14 @@
   margin: 0 0 16px;
   font-size: 17px;
   font-weight: 700;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .count {
   font-size: 12px;
   font-weight: 700;
-  color: #4b5563;
-  background: #f3f4f6;
+  color: var(--ap-ink-2);
+  background: var(--ap-fill-soft);
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -71,36 +72,43 @@
 label {
   font-size: 13px;
   font-weight: 600;
-  color: #374151;
+  color: var(--ap-ink);
 }
 
 .optional {
   font-weight: 500;
-  color: #9ca3af;
+  color: var(--ap-ink-3);
 }
 
 input,
-select {
+select,
+textarea {
   font: inherit;
   font-size: 14px;
   padding: 9px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: #fff;
-  color: #111827;
+  border: 0;
+  border-radius: 10px;
+  background: var(--ap-fill-soft);
+  box-shadow: inset 0 0 0 1.5px var(--ap-hair-2);
+  color: var(--ap-ink);
 }
 
 input:focus-visible,
 select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ap-tint);
+}
+
 button:focus-visible {
-  outline: 2px solid #007c6d;
+  outline: 2px solid var(--ap-tint);
   outline-offset: 2px;
 }
 
 .hint {
   margin: 0;
   font-size: 13px;
-  color: #6b7280;
+  color: var(--ap-ink-2);
 }
 
 .actions {
@@ -111,18 +119,19 @@ button:focus-visible {
 }
 
 .btn-primary {
-  background: #007c6d;
+  background: var(--ap-tint);
   color: #fff;
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 10px 18px;
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
+  min-height: 40px;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #006b5b;
+  background: var(--ap-tint-hover);
 }
 
 .btn-primary:disabled,
@@ -132,18 +141,22 @@ button:focus-visible {
 }
 
 .btn-quiet {
-  background: #fff;
-  border: 1px solid #d1d5db;
-  color: #374151;
-  border-radius: 8px;
+  background: var(--ap-fill);
+  border: 0;
+  color: var(--ap-ink);
+  border-radius: 10px;
   padding: 7px 12px;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 13px;
   cursor: pointer;
 }
 
+.btn-quiet:hover:not(:disabled) {
+  background: #e2e5ea;
+}
+
 .btn-danger {
-  color: #b42318;
+  color: var(--ap-red);
 }
 
 .message {
@@ -153,11 +166,11 @@ button:focus-visible {
 }
 
 .message--ok {
-  color: #006b5b;
+  color: var(--ap-tint-hover);
 }
 
 .message--error {
-  color: #b42318;
+  color: var(--ap-red);
 }
 
 .rows {
@@ -172,7 +185,7 @@ button:focus-visible {
   justify-content: space-between;
   gap: 16px;
   padding: 12px 0;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--ap-fill-soft);
 }
 
 .row:first-child {
@@ -187,22 +200,22 @@ button:focus-visible {
 
 .who strong {
   font-size: 14px;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .sub {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   overflow-wrap: anywhere;
 }
 
 .sub .expired {
-  color: #b42318;
+  color: var(--ap-red);
   font-weight: 600;
 }
 
 .row-message {
-  color: #374151;
+  color: var(--ap-ink);
   font-weight: 600;
 }
 
@@ -215,7 +228,7 @@ button:focus-visible {
 .role-chip {
   font-size: 12px;
   font-weight: 700;
-  color: #006b5b;
+  color: var(--ap-tint-hover);
   background: #e6f2f0;
   border-radius: 999px;
   padding: 3px 10px;
@@ -223,7 +236,7 @@ button:focus-visible {
 }
 
 .row--inactive .who strong {
-  color: #6b7280;
+  color: var(--ap-ink-2);
 }
 
 .row-actions select {
@@ -245,13 +258,17 @@ button:focus-visible {
 
 .empty {
   margin: 0;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 14px;
 }
 
 @media (max-width: 640px) {
   .settings-container {
-    padding: 20px 16px;
+    padding: 18px 12px 32px;
+  }
+
+  .settings-header h1 {
+    font-size: 26px;
   }
 
   .invite-form {

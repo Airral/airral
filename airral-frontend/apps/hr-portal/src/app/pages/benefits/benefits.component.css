@@ -7,26 +7,26 @@
 .benefits-header {
   margin-bottom: 32px;
   padding-bottom: 24px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--ap-hair-2);
 }
 
 .benefits-header h1 {
   margin: 0 0 4px;
   font-size: 28px;
   font-weight: 800;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .subtitle {
   margin: 0;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 14px;
 }
 
 .loading-state {
   text-align: center;
   padding: 60px 20px;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 16px;
 }
 
@@ -38,7 +38,7 @@
 
 .benefit-section {
   background: white;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 12px;
   padding: 24px;
 }
@@ -47,14 +47,14 @@
   margin: 0 0 20px;
   font-size: 20px;
   font-weight: 700;
-  color: #111827;
+  color: var(--ap-ink);
   padding-bottom: 12px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--ap-fill-soft);
 }
 
 .benefit-card {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--ap-fill-soft);
+  border: 1px solid var(--ap-hair-2);
   border-radius: 10px;
   padding: 20px;
 }
@@ -70,7 +70,7 @@
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 4px;
@@ -79,7 +79,7 @@
 .benefit-detail p {
   margin: 0;
   font-size: 15px;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .status-badge {
@@ -91,8 +91,8 @@
 }
 
 .status-badge.active {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--ap-tint-soft);
+  color: var(--ap-tint-hover);
 }
 
 .cost-breakdown {
@@ -100,7 +100,7 @@
   flex-direction: column;
   gap: 8px;
   padding-top: 16px;
-  border-top: 1px solid #d1d5db;
+  border-top: 1px solid var(--ap-hair-2);
 }
 
 .cost-item {
@@ -108,19 +108,19 @@
   justify-content: space-between;
   align-items: center;
   font-size: 14px;
-  color: #374151;
+  color: var(--ap-ink);
 }
 
 .cost-item.employer {
-  color: #059669;
+  color: var(--ap-tint);
 }
 
 .cost-item.total {
   font-size: 16px;
   font-weight: 700;
-  color: #111827;
+  color: var(--ap-ink);
   padding-top: 8px;
-  border-top: 1px solid #d1d5db;
+  border-top: 1px solid var(--ap-hair-2);
 }
 
 .insurance-grid {
@@ -131,8 +131,8 @@
 }
 
 .insurance-mini {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--ap-fill-soft);
+  border: 1px solid var(--ap-hair-2);
   border-radius: 10px;
   padding: 16px;
 }
@@ -141,25 +141,25 @@
   margin: 0 0 8px;
   font-size: 16px;
   font-weight: 700;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .insurance-mini .provider {
   margin: 4px 0;
   font-size: 14px;
-  color: #6b7280;
+  color: var(--ap-ink-2);
 }
 
 .insurance-mini .coverage {
   margin: 4px 0;
   font-size: 14px;
-  color: #374151;
+  color: var(--ap-ink);
 }
 
 .insurance-mini .cost {
   margin: 8px 0 0;
   font-size: 13px;
-  color: #059669;
+  color: var(--ap-tint);
   font-weight: 600;
 }
 
@@ -177,7 +177,7 @@
 .balance-display label {
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -186,13 +186,13 @@
   margin: 4px 0;
   font-size: 32px;
   font-weight: 800;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .balance-display .ytd {
   margin: 4px 0 0;
   font-size: 14px;
-  color: #6b7280;
+  color: var(--ap-ink-2);
 }
 
 .contribution-grid {
@@ -208,7 +208,7 @@
 .contribution-item span {
   display: block;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   margin-bottom: 4px;
 }
 
@@ -216,7 +216,7 @@
   display: block;
   font-size: 24px;
   font-weight: 700;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .pto-grid {
@@ -226,8 +226,8 @@
 }
 
 .pto-card {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--ap-fill-soft);
+  border: 1px solid var(--ap-hair-2);
   border-radius: 10px;
   padding: 16px;
 }
@@ -236,7 +236,7 @@
   margin: 0 0 12px;
   font-size: 16px;
   font-weight: 700;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .pto-stats {
@@ -249,7 +249,7 @@
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 4px;
@@ -259,24 +259,24 @@
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #374151;
+  color: var(--ap-ink);
 }
 
 .pto-stat.balance .balance-value {
-  color: #0f9d78;
+  color: var(--ap-tint);
   font-size: 18px;
 }
 
 .pto-bar {
   height: 6px;
-  background: #e5e7eb;
+  background: var(--ap-hair-2);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .pto-used {
   height: 100%;
-  background: #0f9d78;
+  background: var(--ap-tint);
   transition: width 0.3s ease;
 }
 
@@ -291,7 +291,7 @@
   align-items: flex-start;
   gap: 8px;
   font-size: 14px;
-  color: #374151;
+  color: var(--ap-ink);
 }
 
 .perk-icon {
@@ -300,8 +300,8 @@
   justify-content: center;
   width: 20px;
   height: 20px;
-  background: #d1fae5;
-  color: #059669;
+  background: var(--ap-tint-soft);
+  color: var(--ap-tint);
   border-radius: 50%;
   font-size: 12px;
   font-weight: 700;
@@ -309,8 +309,8 @@
 }
 
 .upgrade-prompt {
-  background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
-  border: 2px solid #0f9d78;
+  background: linear-gradient(135deg, var(--ap-tint-soft), var(--ap-tint-soft));
+  border: 2px solid var(--ap-tint);
   border-radius: 12px;
   padding: 32px;
   text-align: center;
@@ -320,13 +320,13 @@
   margin: 0 0 12px;
   font-size: 24px;
   font-weight: 700;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .upgrade-content p {
   margin: 0 0 16px;
   font-size: 16px;
-  color: #374151;
+  color: var(--ap-ink);
 }
 
 .upgrade-content ul {
@@ -340,20 +340,20 @@
 .upgrade-content ul li {
   padding: 8px 0;
   font-size: 15px;
-  color: #374151;
+  color: var(--ap-ink);
 }
 
 .upgrade-content ul li::before {
   content: '✓';
   display: inline-block;
   width: 20px;
-  color: #0f9d78;
+  color: var(--ap-tint);
   font-weight: 700;
 }
 
 .btn-upgrade {
   padding: 14px 32px;
-  background: #0f9d78;
+  background: var(--ap-tint);
   color: white;
   border: none;
   border-radius: 8px;
@@ -364,7 +364,7 @@
 }
 
 .btn-upgrade:hover {
-  background: #0d8a69;
+  background: var(--ap-tint);
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(15, 157, 120, 0.3);
 }

@@ -68,3 +68,7 @@ When in doubt, make the UI calmer and more focused. Teal-green should mean actio
 - Do not display applicant emails, raw user IDs, or internal author IDs in feed cards.
 - Treat backend feed data as the source of truth. Local feed cards are only a fallback when the API is unavailable.
 - Do not reintroduce arbitrary public ATS detail fetching from the UI. Job details should come from AIRRAL-discovered active postings.
+
+## Company Portal Design Contract
+
+Before changing `apps/hr-portal`, read `docs/hr-portal-design-system.md`. The company portal uses the same light `--ap-*` palette as the applicant portal, shares its buttons, tiles and stage pills from `apps/hr-portal/src/styles.css`, and gives each stage one color on every page.

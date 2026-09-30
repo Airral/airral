@@ -267,6 +267,11 @@ export class JobsComponent implements OnInit {
     ).length;
   }
 
+  statusLabel(status: string): string {
+    const labels: Record<string, string> = { OPEN: 'Open', DRAFT: 'Draft', CLOSED: 'Closed', FILLED: 'Filled' };
+    return labels[status] ?? status.charAt(0) + status.slice(1).toLowerCase();
+  }
+
   daysOpen(createdAt: string): number {
     const created = new Date(createdAt).getTime();
     const now = Date.now();

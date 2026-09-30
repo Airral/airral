@@ -5,8 +5,8 @@
       <div class="logo-box">
         <span>A</span>
       </div>
-      <h1>Airral Hiring OS</h1>
-      <p>The modern, all-in-one platform to find, interview, and hire the best talent.</p>
+      <h1>Hire with AIRRAL</h1>
+      <p>Post a job, see how each applicant matches it, and move the right people to an offer.</p>
     </div>
 
     <!-- Decorative graphic abstracting recruiting -->
@@ -22,14 +22,14 @@
     <div class="login-container">
 
       <div class="login-header">
-        <h2>Welcome Back</h2>
-        <p>Sign in to access your HR workspace</p>
+        <h2>Sign in</h2>
+        <p>Your company's hiring workspace.</p>
       </div>
 
       <form class="login-form" (ngSubmit)="onSubmit()" #loginForm="ngForm">
 
         <div class="input-group">
-          <label for="email">Email Address</label>
+          <label for="email">Work email</label>
           <div class="input-wrapper">
             <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
@@ -77,12 +77,12 @@
         </p>
 
         <button type="submit" class="btn-login" [disabled]="isLoading || !loginForm.form.valid">
-          <span *ngIf="!isLoading">Sign In</span>
+          <span *ngIf="!isLoading">Sign in</span>
           <span *ngIf="isLoading" class="loading">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
             </svg>
-            Signing in...
+            Signing in…
           </span>
         </button>
 
@@ -91,7 +91,7 @@
         </div>
 
         <a [href]="portalRoutes.APPLICANT + '/login'" class="btn-outline">
-          Apply for a Job (Applicant Portal)
+          Looking for a job? Go to AIRRAL Jobs
         </a>
       </form>
 
