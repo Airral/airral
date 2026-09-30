@@ -71,8 +71,10 @@ export interface Application {
 
   // ATS Scoring (calculated when application submitted)
   atsScore: number;                // 0-100%
-  atsMatchedKeywords: string[];    // Which keywords matched
-  atsMissingKeywords: string[];    // Which keywords didn't match
+  /** The job's keywords, or the skills its description names, found in the resume or note. Null when there were none to look for. */
+  atsMatchedKeywords?: string[] | null;
+  /** The ones not found. Null when there were none to look for. */
+  atsMissingKeywords?: string[] | null;
   atsMatchDetails?: Record<string, boolean>; // Detailed match per keyword
 
   // HR visibility control

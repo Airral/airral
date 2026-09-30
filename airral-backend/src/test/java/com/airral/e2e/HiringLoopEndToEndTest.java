@@ -168,7 +168,8 @@ class HiringLoopEndToEndTest {
         // 5. HR posts a job, with Mia as its hiring manager.
         JsonNode job = call(HttpMethod.POST, "/api/jobs", hr, Map.of(
                 "title", "Store manager", "description", "Run a busy hardware store.",
-                "location", "Atlanta, GA", "status", "OPEN", "hiringManagerId", miaId), HttpStatus.CREATED);
+                "location", "Atlanta, GA", "status", "OPEN", "hiringManagerId", miaId,
+                "atsKeywords", List.of("Inventory Management", "Forklift")), HttpStatus.CREATED);
         long jobId = job.get("id").asLong();
 
         // 6. An applicant signs up, proves her address, uploads a resume and applies in AIRRAL.
@@ -182,12 +183,20 @@ class HiringLoopEndToEndTest {
                 "jobId", jobId, "applicantName", "Amy Adams", "applicantEmail", amyEmail), HttpStatus.CREATED);
         long applicationId = application.get("id").asLong();
         assertThat(application.get("resumeOnFile").asBoolean()).isTrue();
+        // Her copy leaves out the company's evidence.
+        assertThat(application.get("atsMatchedKeywords").isNull()).isTrue();
         // One application per job.
         call(HttpMethod.POST, "/api/applications", applicant, Map.of(
                 "jobId", jobId, "applicantName", "Amy Adams", "applicantEmail", amyEmail), HttpStatus.CONFLICT);
 
-        // 7. The hiring manager sees her, and HR opens her resume.
-        assertThat(ids(call(HttpMethod.GET, "/api/applications", manager, null, HttpStatus.OK))).contains(applicationId);
+        // 7. The hiring manager sees her, with the job's keywords read against the PDF she uploaded,
+        //    and HR opens her resume.
+        JsonNode managerView = call(HttpMethod.GET, "/api/applications", manager, null, HttpStatus.OK);
+        assertThat(ids(managerView)).contains(applicationId);
+        JsonNode evidence = StreamSupport.stream(managerView.spliterator(), false)
+                .filter(node -> node.get("id").asLong() == applicationId).findFirst().orElseThrow();
+        assertThat(evidence.get("atsMatchedKeywords").get(0).asText()).isEqualTo("Inventory Management");
+        assertThat(evidence.get("atsMissingKeywords").get(0).asText()).isEqualTo("Forklift");
         byte[] resume = web.get().uri("/api/applications/" + applicationId + "/resume")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + hr)
                 .exchange().expectStatus().isOk()
@@ -278,11 +287,24 @@ class HiringLoopEndToEndTest {
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             PDPage page = new PDPage();
             document.addPage(page);
+            // Enough words that the resume parser keeps its text (it wants at least 20).
+            String[] lines = {
+                    "Amy Adams",
+                    "Store manager, Atlanta, GA",
+                    "Experience",
+                    "Store manager, Hillside Hardware, 2020 to now: ran a store of 40 people,",
+                    "owned inventory management and weekly scheduling, and cut stock losses by 18 percent.",
+                    "Assistant manager, Corner Market, 2017 to 2020: trained new staff and handled deliveries.",
+            };
             try (PDPageContentStream text = new PDPageContentStream(document, page)) {
                 text.beginText();
-                text.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
+                text.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 11);
+                text.setLeading(16);
                 text.newLineAtOffset(72, 700);
-                text.showText("Amy Adams - Store manager. Six years running retail stores, inventory and teams.");
+                for (String line : lines) {
+                    text.showText(line);
+                    text.newLine();
+                }
                 text.endText();
             }
             document.save(out);

@@ -202,24 +202,32 @@
                 <span class="evidence-note">Directional evidence, never a visibility gate</span>
               </div>
 
-              <div class="evidence-grid">
-                <div>
-                  <h4><span class="material-icons positive" aria-hidden="true">check_circle</span>Found in application</h4>
-                  <div class="keyword-list">
-                    @for (keyword of application.atsMatchedKeywords || []; track keyword) {
-                      <span class="keyword matched">{{ keyword }}</span>
-                    } @empty { <span class="muted">No keyword evidence recorded.</span> }
+              @if (application.atsMatchedKeywords?.length || application.atsMissingKeywords?.length) {
+                <p class="field-help evidence-source">
+                  The job's keywords, or the skills its description names, looked for in
+                  {{ application.resumeOnFile ? 'the resume and the note' : 'the note' }}.
+                </p>
+                <div class="evidence-grid">
+                  <div>
+                    <h4><span class="material-icons positive" aria-hidden="true">check_circle</span>Found in {{ application.resumeOnFile ? 'the resume or note' : 'the note' }}</h4>
+                    <div class="keyword-list">
+                      @for (keyword of application.atsMatchedKeywords || []; track keyword) {
+                        <span class="keyword matched">{{ keyword }}</span>
+                      } @empty { <span class="muted">None of them.</span> }
+                    </div>
+                  </div>
+                  <div>
+                    <h4><span class="material-icons neutral" aria-hidden="true">help_outline</span>Not found: worth asking about</h4>
+                    <div class="keyword-list">
+                      @for (keyword of application.atsMissingKeywords || []; track keyword) {
+                        <span class="keyword missing">{{ keyword }}</span>
+                      } @empty { <span class="muted">Nothing: every one was found.</span> }
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <h4><span class="material-icons neutral" aria-hidden="true">help_outline</span>Needs validation</h4>
-                  <div class="keyword-list">
-                    @for (keyword of application.atsMissingKeywords || []; track keyword) {
-                      <span class="keyword missing">{{ keyword }}</span>
-                    } @empty { <span class="muted">No outstanding keyword gaps.</span> }
-                  </div>
-                </div>
-              </div>
+              } @else {
+                <p class="muted">The job names no keywords or known skills to look for. Add keywords to the job to see them checked here.</p>
+              }
 
               <div class="cover-letter">
                 <h4>Candidate note</h4>

@@ -3,6 +3,7 @@ package com.airral.service;
 import com.airral.controller.ApplicationController;
 import com.airral.domain.Application;
 import com.airral.domain.CandidateProfile;
+import com.airral.domain.CandidateResumeDocument;
 import com.airral.domain.Job;
 import com.airral.domain.Organization;
 import com.airral.domain.enums.JobStatus;
@@ -12,6 +13,7 @@ import com.airral.exception.ConflictException;
 import com.airral.exception.NotFoundException;
 import com.airral.repository.ApplicationRepository;
 import com.airral.repository.CandidateProfileRepository;
+import com.airral.repository.CandidateResumeDocumentRepository;
 import com.airral.repository.JobRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.repository.UserRepository;
@@ -52,11 +54,15 @@ class ApplicationCreationRulesTest {
     private final OrganizationRepository organizations = mock(OrganizationRepository.class);
     private final CandidateProfileRepository profiles = mock(CandidateProfileRepository.class);
     private final CandidateUpdateEmails emails = mock(CandidateUpdateEmails.class);
+    private final CandidateResumeDocumentRepository resumes = mock(CandidateResumeDocumentRepository.class);
     private ApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new ApplicationService(applications, jobs, mock(UserRepository.class), organizations, profiles, emails);
+        service = new ApplicationService(applications, jobs, mock(UserRepository.class), organizations, profiles, emails, resumes);
+        // Amy's resume on file, as parsed when she uploaded it.
+        when(resumes.findByIdAndUserId(70L, 7L)).thenReturn(Mono.just(CandidateResumeDocument.builder().id(70L).userId(7L)
+                .extractedText("Six years running retail stores: inventory management, scheduling, Excel.").build()));
         when(applications.save(any(Application.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         // Amy, applicant 7, has a resume on file and has not applied yet.
         when(profiles.findByUserId(7L)).thenReturn(Mono.just(CandidateProfile.builder().userId(7L).activeResumeDocumentId(70L).build()));
@@ -107,6 +113,23 @@ class ApplicationCreationRulesTest {
         verify(emails).applicationReceived(emailed.capture());
         assertThat(emailed.getValue().getApplicantEmail()).isEqualTo("amy@example.com");
         assertThat(emailed.getValue().getJobId()).isEqualTo(JOB);
+    }
+
+    @Test
+    @DisplayName("the job's keywords are read against the resume she attached, not only a cover letter")
+    void alignmentReadsTheResume() {
+        when(jobs.findById(JOB)).thenReturn(Mono.just(Job.builder().id(JOB).title("Store manager")
+                .organizationId(OUR_COMPANY).status(JobStatus.OPEN)
+                .atsKeywords(new String[] {"Inventory Management", "Excel", "Forklift"}).build()));
+        when(organizations.findById(OUR_COMPANY)).thenReturn(Mono.just(Organization.builder().id(OUR_COMPANY)
+                .isActive(true).verificationStatus(CompanyVerificationService.VERIFIED).build()));
+
+        service.applyAsApplicant(request(), 7L, "amy@example.com").block();
+
+        Application saved = saved();
+        assertThat(saved.getAtsMatchedKeywords()).containsExactly("Inventory Management", "Excel");
+        assertThat(saved.getAtsMissingKeywords()).containsExactly("Forklift");
+        assertThat(saved.getAtsScore()).isEqualTo(66);
     }
 
     @Test
@@ -236,6 +259,28 @@ class ApplicationCreationRulesTest {
         new ApplicationController(stub, jwt, mock(HiringScope.class), mock(CandidateProfileService.class), mock(ScorecardService.class)).submitApplication(request(), "Bearer tok").block();
 
         verify(stub).applyAsApplicant(any(), eq(7L), eq("amy@example.com"));
+    }
+
+    @Test
+    @DisplayName("an applicant's own copy of the new application leaves out the company's evidence")
+    void applicantSeesNoCompanyEvidence() {
+        ApplicationService stub = mock(ApplicationService.class);
+        JwtTokenProvider jwt = mock(JwtTokenProvider.class);
+        when(jwt.getRoleFromToken("tok")).thenReturn("APPLICANT");
+        when(jwt.getUserIdFromToken("tok")).thenReturn(7L);
+        when(jwt.getEmailFromToken("tok")).thenReturn("amy@example.com");
+        when(stub.applyAsApplicant(any(), any(), any())).thenReturn(Mono.just(com.airral.dto.response.ApplicationResponse.builder()
+                .id(55L).jobId(JOB).atsScore(66).atsMatchedKeywords(java.util.List.of("Excel"))
+                .atsMissingKeywords(java.util.List.of("Forklift")).visibleToHr(false).build()));
+
+        var body = new ApplicationController(stub, jwt, mock(HiringScope.class), mock(CandidateProfileService.class),
+                mock(ScorecardService.class)).submitApplication(request(), "Bearer tok").block().getBody();
+
+        assertThat(body.getId()).isEqualTo(55L);
+        assertThat(body.getAtsScore()).isNull();
+        assertThat(body.getAtsMatchedKeywords()).isNull();
+        assertThat(body.getAtsMissingKeywords()).isNull();
+        assertThat(body.getVisibleToHr()).isNull();
     }
 
     @Test

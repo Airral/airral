@@ -13,6 +13,7 @@ import com.airral.exception.BadRequestException;
 import com.airral.exception.ConflictException;
 import com.airral.repository.ApplicationRepository;
 import com.airral.repository.CandidateProfileRepository;
+import com.airral.repository.CandidateResumeDocumentRepository;
 import com.airral.repository.JobRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.exception.NotFoundException;
@@ -23,9 +24,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 @Service
 public class ApplicationService {
@@ -36,19 +35,22 @@ public class ApplicationService {
     private final OrganizationRepository organizationRepository;
     private final CandidateProfileRepository candidateProfileRepository;
     private final CandidateUpdateEmails candidateEmails;
+    private final CandidateResumeDocumentRepository resumeDocumentRepository;
 
     public ApplicationService(ApplicationRepository applicationRepository,
                             JobRepository jobRepository,
                             UserRepository userRepository,
                             OrganizationRepository organizationRepository,
                             CandidateProfileRepository candidateProfileRepository,
-                            CandidateUpdateEmails candidateEmails) {
+                            CandidateUpdateEmails candidateEmails,
+                            CandidateResumeDocumentRepository resumeDocumentRepository) {
         this.applicationRepository = applicationRepository;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
         this.candidateProfileRepository = candidateProfileRepository;
         this.candidateEmails = candidateEmails;
+        this.resumeDocumentRepository = resumeDocumentRepository;
     }
 
     /**
@@ -135,10 +137,13 @@ public class ApplicationService {
                                              Long applicantId, String applicantEmail,
                                              String resumeUrl, Long resumeDocumentId) {
         return jobLookup
-                .flatMap(job -> {
-                    // Calculate ATS score
-                    int atsScore = calculateAtsScore(job, request.getCoverLetter());
-                    
+                .zipWith(applicationText(resumeDocumentId, applicantId, request.getCoverLetter()))
+                .flatMap(found -> {
+                    Job job = found.getT1();
+                    // What the job asks for, read against the resume and the cover letter.
+                    JobAlignment.Result alignment = JobAlignment.of(job, found.getT2());
+                    int atsScore = alignment.score();
+
                     Application application = Application.builder()
                             .jobId(request.getJobId())
                             .applicantId(applicantId)
@@ -155,22 +160,9 @@ public class ApplicationService {
                             .updatedAt(LocalDateTime.now())
                             .build();
 
-                    // Calculate matched/missing keywords
-                    if (job.getAtsKeywords() != null && job.getAtsKeywords().length > 0) {
-                        String coverText = request.getCoverLetter() != null ? 
-                                request.getCoverLetter().toLowerCase() : "";
-                        List<String> keywords = Arrays.asList(job.getAtsKeywords());
-                        
-                        List<String> matched = keywords.stream()
-                                .filter(kw -> coverText.contains(kw.toLowerCase()))
-                                .collect(Collectors.toList());
-                        
-                        List<String> missing = keywords.stream()
-                                .filter(kw -> !coverText.contains(kw.toLowerCase()))
-                                .collect(Collectors.toList());
-                        
-                        application.setAtsMatchedKeywords(matched.toArray(String[]::new));
-                        application.setAtsMissingKeywords(missing.toArray(String[]::new));
+                    if (!alignment.matched().isEmpty() || !alignment.missing().isEmpty()) {
+                        application.setAtsMatchedKeywords(alignment.matched().toArray(String[]::new));
+                        application.setAtsMissingKeywords(alignment.missing().toArray(String[]::new));
                     }
 
                     return applicationRepository.save(application);
@@ -265,27 +257,24 @@ public class ApplicationService {
     }
 
     /**
-     * Calculate ATS score based on job requirements
-     * Basic implementation - can be enhanced with ML/AI
+     * The text an application is read against: the attached resume, and the
+     * cover letter. When resume text is not kept (file.upload.store-extracted-text
+     * off), the skills parsed from the resume stand in for it. A candidate HR
+     * added by hand has a link, not a document, so only their note is read.
      */
-    private int calculateAtsScore(Job job, String coverLetter) {
-        if (job.getAtsKeywords() == null || job.getAtsKeywords().length == 0) {
-            return 75; // Default score if no keywords configured
+    private Mono<String> applicationText(Long resumeDocumentId, Long applicantId, String coverLetter) {
+        String note = coverLetter == null ? "" : coverLetter;
+        if (resumeDocumentId == null || applicantId == null) {
+            return Mono.just(note);
         }
-
-        String coverText = coverLetter != null ? coverLetter.toLowerCase() : "";
-        List<String> keywords = Arrays.asList(job.getAtsKeywords());
-        
-        if (keywords.isEmpty()) {
-            return 75;
-        }
-
-        long matchedCount = keywords.stream()
-                .filter(kw -> coverText.contains(kw.toLowerCase().trim()))
-                .count();
-
-        // Calculate percentage match
-        return (int) ((matchedCount * 100.0) / keywords.size());
+        return resumeDocumentRepository.findByIdAndUserId(resumeDocumentId, applicantId)
+                .map(document -> {
+                    String resume = document.getExtractedText() != null && !document.getExtractedText().isBlank()
+                            ? document.getExtractedText()
+                            : document.getParsedSkills() != null ? document.getParsedSkills().asString() : "";
+                    return resume + "\n" + note;
+                })
+                .defaultIfEmpty(note);
     }
 
     /**

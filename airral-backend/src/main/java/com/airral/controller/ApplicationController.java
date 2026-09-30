@@ -65,7 +65,8 @@ public class ApplicationController {
         if (UserRole.APPLICANT.name().equals(role)) {
             created = applicationService.applyAsApplicant(request,
                     jwtTokenProvider.getUserIdFromToken(token),
-                    jwtTokenProvider.getEmailFromToken(token));
+                    jwtTokenProvider.getEmailFromToken(token))
+                    .map(ApplicationController::withoutCompanyEvidence);
         } else if (UserRole.HR_MANAGER.name().equals(role) || UserRole.ADMIN.name().equals(role)) {
             created = applicationService.addCandidate(request,
                     jwtTokenProvider.getOrganizationIdFromToken(token));
@@ -233,6 +234,22 @@ public class ApplicationController {
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
         return Mono.just(ResponseEntity.ok(scopeFor(token).flatMapMany(scope ->
                 scorecardService.submittedForApplication(id, organizationId, scope))));
+    }
+
+    /**
+     * What an applicant sees of the application they just made: not the
+     * company's screening score, its keywords read against their resume, or who
+     * reviewed it. The company reads those; the applicant's own list
+     * (MyApplicationResponse) leaves them out for the same reason.
+     */
+    static ApplicationResponse withoutCompanyEvidence(ApplicationResponse response) {
+        response.setAtsScore(null);
+        response.setAtsMatchedKeywords(null);
+        response.setAtsMissingKeywords(null);
+        response.setVisibleToHr(null);
+        response.setReviewedBy(null);
+        response.setReviewedByHrAt(null);
+        return response;
     }
 
     /** The jobs this caller may work on: all of the company's, or a hiring manager's own. */

@@ -142,6 +142,7 @@ label.check input { accent-color: #087f70; }
 .close-out { display: grid; gap: 10px; }
 .close-out .primary-button { justify-self: start; margin-top: 4px; }
 label.check.indent { margin-left: 24px; }
+.evidence-source { margin: -6px 0 14px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 980px) {
   .pipeline-page { padding: 22px 20px 40px; }
