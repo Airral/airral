@@ -16,7 +16,7 @@
 
     <ng-container *ngIf="state === 'verified'">
       <p class="reset-done">Your email is verified.</p>
-      <p>You can now upload your resume, turn on job alerts, and publish jobs if you're hiring.</p>
+      <p>{{ nowYouCan }}</p>
       <a [routerLink]="signedIn ? '/' : '/login'" class="reset-primary reset-primary-link">
         {{ signedIn ? 'Continue' : 'Sign in' }}
       </a>

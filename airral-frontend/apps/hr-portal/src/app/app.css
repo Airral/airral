@@ -150,7 +150,10 @@
 .main-content {
   min-width: 0;
   display: grid;
-  grid-template-rows: 54px minmax(0, 1fr);
+  /* Top bar, the verify/review banner (empty, so no height, once it has
+     nothing to say), then the page. With only two rows the banner took the
+     page's row and the page fell to the bottom of the screen. */
+  grid-template-rows: 54px auto minmax(0, 1fr);
 }
 
 .topbar {

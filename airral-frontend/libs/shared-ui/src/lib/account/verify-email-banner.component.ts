@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AccountStatus, AuthApiService } from '@airral/shared-api';
-import { AuthService } from '@airral/shared-auth';
+import { AuthService, PORTAL_ID } from '@airral/shared-auth';
 import { Subscription, firstValueFrom } from 'rxjs';
 
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -26,6 +26,7 @@ export class VerifyEmailBannerComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly authApi = inject(AuthApiService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly portal = inject(PORTAL_ID, { optional: true });
   private userSub?: Subscription;
   private cooldownTimer?: ReturnType<typeof setInterval>;
 
@@ -67,6 +68,16 @@ export class VerifyEmailBannerComponent implements OnInit, OnDestroy {
 
   get email(): string {
     return this.status?.email ?? this.auth.getCurrentUser()?.email ?? '';
+  }
+
+  /**
+   * What proving the address unlocks in this portal. An employer and a job
+   * seeker need it for different things, and each was being told both.
+   */
+  get unlocks(): string {
+    return this.portal === 'hr'
+      ? "You'll need it to invite teammates, and AIRRAL looks for it when reviewing your company."
+      : "You'll need it to upload a resume, check your fit against a job, or turn on alerts.";
   }
 
   get needsEmailVerification(): boolean {
