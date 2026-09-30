@@ -72,7 +72,7 @@ walks you through the first steps.
 | Move someone through review, shortlist, interview, offer, hired or rejected, with notes and a shared timeline | works |
 | Book interviews with teammates on them, shown in everyone's own time zone, with calendar invites | works |
 | Interviewers score each interview against the job's kit; drafts stay private until submitted | works |
-| Send an offer, which the candidate accepts or declines on AIRRAL | works |
+| Send an offer, open until the end of a day in your time zone, which the candidate accepts or declines on AIRRAL; their answer is what hires them | works |
 | Close out a job after a hire: mark it filled and turn down the rest | works |
 | Emails to candidates and the team: application received, interview booked, offers, decisions | once SMTP is set up in production |
 | Hiring analytics | partial, and not in the menu yet |
