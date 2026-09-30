@@ -8,14 +8,17 @@ import com.airral.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -44,20 +47,36 @@ public class CandidateEmailService {
             @Value("${airral.notifications.email.from-address:notifications@airral.com}") String fromAddress,
             @Value("${airral.notifications.email.from-name:AIRRAL}") String fromName,
             @Value("${airral.notifications.email.app-base-url:https://apply.airral.com}") String appBaseUrl,
-            @Value("${airral.notifications.email.enabled:true}") boolean emailEnabled) {
+            @Value("${airral.notifications.email.enabled:true}") boolean emailEnabled,
+            @Value("${spring.mail.username:}") String mailUsername) {
         this.mailSender = mailSender;
         this.preferenceRepository = preferenceRepository;
         this.userRepository = userRepository;
         this.fromAddress = fromAddress;
         this.fromName = fromName;
         this.appBaseUrl = appBaseUrl;
-        this.emailEnabled = emailEnabled;
+        // The SMTP settings ask for authentication, so without an account every
+        // send would fail, one slow connection at a time. Say so once instead.
+        boolean smtpConfigured = mailUsername != null && !mailUsername.isBlank();
+        this.emailEnabled = emailEnabled && smtpConfigured;
+        if (emailEnabled && !smtpConfigured) {
+            log.warn("Notification emails are off: MAIL_USERNAME is not set. Set MAIL_HOST, MAIL_USERNAME and "
+                    + "MAIL_PASSWORD to send candidate and team emails.");
+        }
     }
 
     /**
      * Send an HTML email to a user. Handles errors gracefully — logs and continues.
      */
     public Mono<Void> sendEmail(String toEmail, String subject, String htmlBody) {
+        return sendEmail(toEmail, subject, htmlBody, null);
+    }
+
+    /**
+     * Send an HTML email with a calendar file attached, when there is one: an
+     * interview the recipient can add to their calendar.
+     */
+    public Mono<Void> sendEmail(String toEmail, String subject, String htmlBody, String calendar) {
         if (!emailEnabled) {
             log.debug("Email sending disabled. Would have sent '{}' to {}", subject, toEmail);
             return Mono.empty();
@@ -71,6 +90,11 @@ public class CandidateEmailService {
                 helper.setTo(toEmail);
                 helper.setSubject(subject);
                 helper.setText(htmlBody, true);
+                if (calendar != null) {
+                    helper.addAttachment(InterviewCalendar.FILE_NAME,
+                            new ByteArrayResource(calendar.getBytes(StandardCharsets.UTF_8)),
+                            "text/calendar; charset=UTF-8; method=PUBLISH");
+                }
                 mailSender.send(message);
                 log.info("Sent email '{}' to {}", subject, toEmail);
             } catch (MessagingException | java.io.UnsupportedEncodingException e) {
@@ -197,6 +221,41 @@ public class CandidateEmailService {
                 </body>
                 </html>
                 """.formatted(subject, bodyHtml, emailFooter(unsubscribeToken));
+    }
+
+    /**
+     * Wrap an email about one application in the standard template.
+     *
+     * <p>These are not marketing: they tell someone about their own
+     * application, so there is no unsubscribe link, and the footer says why the
+     * email came instead. Some recipients have no AIRRAL account, because a
+     * company added them by hand.
+     */
+    public String wrapTransactional(String subject, String bodyHtml, String reason) {
+        return """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>%s</title>
+                </head>
+                <body style="margin:0; padding:0; background-color:#f6f7f6; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                  <div style="max-width:600px; margin:0 auto; padding:32px 16px;">
+                    <div style="margin-bottom:24px;">
+                      <span style="font-size:20px; font-weight:700; color:#007C6D;">AIRRAL</span>
+                    </div>
+                    <div style="background:#ffffff; border-radius:8px; padding:32px; border:1px solid #e1e5e9;">
+                      %s
+                    </div>
+                    <div style="margin-top:32px; padding-top:16px; border-top:1px solid #e1e5e9; font-size:12px; color:#667789;">
+                      <p>You're getting this because %s.</p>
+                      <p style="margin-top:8px;">AIRRAL · Job search, simplified.</p>
+                    </div>
+                  </div>
+                </body>
+                </html>
+                """.formatted(HtmlUtils.htmlEscape(subject), bodyHtml, HtmlUtils.htmlEscape(reason));
     }
 
     private Mono<CandidateNotificationPreference> createDefaultPreferences(Long userId) {

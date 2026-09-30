@@ -124,3 +124,9 @@ textarea.form-control { resize: vertical; }
   .page-header { flex-direction: column; gap: 12px; }
   .list-row { flex-wrap: wrap; gap: 10px; }
 }
+
+.notify-check { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: #374151; font-size: 13px; }
+.notify-check input { accent-color: #087f70; }
+.interviewer-picker { margin: 0 0 14px; padding: 0; border: 0; display: grid; gap: 6px; max-height: 180px; overflow-y: auto; }
+.interviewer-picker legend { margin-bottom: 5px; color: #374151; font-size: 13px; font-weight: 500; }
+.interviewer-picker .notify-check { margin: 0; }

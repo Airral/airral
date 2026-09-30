@@ -3,8 +3,8 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { finalize, timeout } from 'rxjs/operators';
-import { ApplicationApiService, JobApiService } from '@airral/shared-api';
-import { Application, ApplicationStatus, CreateJobRequest, Job, JobStatus } from '@airral/shared-types';
+import { ApplicationApiService, Department, DepartmentApiService, InterviewKitApiService, JobApiService, UserApiService } from '@airral/shared-api';
+import { Application, ApplicationStatus, CreateJobRequest, InterviewKit, Job, JobStatus, User } from '@airral/shared-types';
 import { JobDialogComponent, JobFormData } from './job-dialog/job-dialog.component';
 
 @Component({
@@ -18,6 +18,11 @@ export class JobsComponent implements OnInit {
   readonly jobStatus = JobStatus;
 
   jobs: Job[] = [];
+  departments: Department[] = [];
+  hiringManagers: User[] = [];
+  /** The hiring manager's name on the job being edited, as the job has it. */
+  editingHiringManagerName: string | null = null;
+  interviewKits: InterviewKit[] = [];
   applications: Application[] = [];
 
   loading = false;
@@ -27,8 +32,6 @@ export class JobsComponent implements OnInit {
   showForm = false;
   editingJobId: number | null = null;
 
-  // LinkedIn Integration (mock for now - will come from organization settings)
-  linkedInConnected = true;  // Simulating LinkedIn is connected
 
   // Pagination
   currentPage = 1;
@@ -36,7 +39,9 @@ export class JobsComponent implements OnInit {
 
   form: JobFormData = {
     title: '',
-    department: '',
+    departmentId: null,
+    hiringManagerId: null,
+    interviewKitId: null,
     location: '',
     employmentType: 'Full-time',
     salaryMin: '',
@@ -50,11 +55,37 @@ export class JobsComponent implements OnInit {
 
   constructor(
     private readonly jobApi: JobApiService,
-    private readonly applicationApi: ApplicationApiService
+    private readonly applicationApi: ApplicationApiService,
+    private readonly departmentApi: DepartmentApiService,
+    private readonly userApi: UserApiService,
+    private readonly interviewKitApi: InterviewKitApiService
   ) {}
 
   ngOnInit(): void {
     this.loadData();
+    // Apart from the jobs load, so a job list still shows if this fails.
+    this.departmentApi.list().subscribe({
+      next: (departments) => {
+        this.departments = [...departments].sort((a, b) => a.name.localeCompare(b.name));
+      },
+      error: () => {
+        this.departments = [];
+      },
+    });
+    this.userApi.getAllUsers().subscribe({
+      next: (people) => {
+        this.hiringManagers = people.filter(
+          (person) => person.isActive !== false && (person.role === 'MANAGER' || person.role === 'HR_MANAGER')
+        );
+      },
+      error: () => {
+        this.hiringManagers = [];
+      },
+    });
+    this.interviewKitApi.list().subscribe({
+      next: (kits) => (this.interviewKits = kits),
+      error: () => (this.interviewKits = []),
+    });
   }
 
   loadData(): void {
@@ -87,7 +118,9 @@ export class JobsComponent implements OnInit {
     this.editingJobId = null;
     this.form = {
       title: '',
-      department: '',
+      departmentId: null,
+      hiringManagerId: null,
+      interviewKitId: null,
       location: '',
       employmentType: 'Full-time',
       salaryMin: '',
@@ -96,16 +129,19 @@ export class JobsComponent implements OnInit {
       requirements: '',
       niceToHave: '',
       atsKeywords: '',
-      linkedInEnabled: this.linkedInConnected,  // Auto-enable if connected
+      linkedInEnabled: false,
     };
   }
 
   editJob(job: Job): void {
     this.showForm = true;
     this.editingJobId = job.id;
+    this.editingHiringManagerName = job.hiringManagerName ?? null;
     this.form = {
       title: job.title,
-      department: job.department || '',
+      departmentId: job.departmentId ?? null,
+      hiringManagerId: job.hiringManagerId ?? null,
+      interviewKitId: job.interviewKitId ?? null,
       location: job.location || '',
       employmentType: job.employmentType || 'Full-time',
       salaryMin: job.salaryMin?.toString() || '',
@@ -123,7 +159,9 @@ export class JobsComponent implements OnInit {
     this.editingJobId = null;
     this.form = {
       title: '',
-      department: '',
+      departmentId: null,
+      hiringManagerId: null,
+      interviewKitId: null,
       location: '',
       employmentType: 'Full-time',
       salaryMin: '',
@@ -145,15 +183,10 @@ export class JobsComponent implements OnInit {
   }
 
   changeJobStatus(job: Job, status: JobStatus): void {
-    const payload: CreateJobRequest = {
-      title: job.title,
-      department: job.department,
-      description: job.description,
-      status,
-    };
-
+    // Its own endpoint: sending a partial job to updateJob used to wipe the
+    // fields left out, since updateJob replaces the whole job.
     this.saving = true;
-    this.jobApi.updateJob(job.id, payload).subscribe({
+    this.jobApi.updateJobStatus(job.id, status).subscribe({
       next: () => {
         this.saving = false;
         this.loadData();
@@ -214,6 +247,12 @@ export class JobsComponent implements OnInit {
     return this.applications.filter((application) => application.jobId === jobId).length;
   }
 
+  hiredCount(jobId: number): number {
+    return this.applications.filter(
+      (application) => application.jobId === jobId && application.status === ApplicationStatus.HIRED
+    ).length;
+  }
+
   interviewCount(jobId: number): number {
     const interviewLikeStatuses = new Set<ApplicationStatus>([
       ApplicationStatus.INTERVIEW_SCHEDULED,
@@ -245,8 +284,8 @@ export class JobsComponent implements OnInit {
   }
 
   private upsertJob(status: JobStatus): void {
-    if (!this.form.title.trim() || !this.form.department.trim() || !this.form.description.trim()) {
-      this.error = 'Title, department, and description are required.';
+    if (!this.form.title.trim() || !this.form.description.trim()) {
+      this.error = 'Title and description are required.';
       return;
     }
 
@@ -257,7 +296,9 @@ export class JobsComponent implements OnInit {
 
     const payload: CreateJobRequest = {
       title: this.form.title.trim(),
-      department: this.form.department.trim(),
+      departmentId: this.form.departmentId ?? undefined,
+      hiringManagerId: this.form.hiringManagerId ?? undefined,
+      interviewKitId: this.form.interviewKitId ?? undefined,
       location: this.form.location.trim() || undefined,
       employmentType: this.form.employmentType || undefined,
       salaryMin: this.form.salaryMin ? parseInt(this.form.salaryMin, 10) : undefined,
@@ -290,13 +331,4 @@ export class JobsComponent implements OnInit {
     });
   }
 
-  connectLinkedIn(): void {
-    // TODO: Implement OAuth LinkedIn connection flow
-    // For now, simulate connection
-    alert('LinkedIn OAuth flow would start here. In production:\n\n1. Redirect to LinkedIn OAuth\n2. User authorizes company page access\n3. Store access token\n4. Enable job posting');
-
-    // Simulate successful connection
-    this.linkedInConnected = true;
-    this.form.linkedInEnabled = true;
-  }
 }

@@ -1,0 +1,58 @@
+<main class="my-interviews">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Interviewing</p>
+      <h1>My interviews</h1>
+      <p class="page-copy">The interviews you are on, soonest first.</p>
+    </div>
+    <button type="button" class="icon-action" title="Refresh" aria-label="Refresh interviews" (click)="load()">
+      <span class="material-icons" aria-hidden="true">refresh</span>
+    </button>
+  </header>
+
+  @if (error) {
+    <div class="notice" role="alert"><span class="material-icons" aria-hidden="true">error_outline</span>{{ error }}</div>
+  }
+
+  @if (loading) {
+    <p class="state"><span class="spinner"></span>Loading your interviews</p>
+  } @else if (upcoming.length === 0 && past.length === 0 && !error) {
+    <section class="empty">
+      <span class="material-icons" aria-hidden="true">event_available</span>
+      <strong>No interviews yet</strong>
+      <p>When someone adds you as an interviewer, the interview shows up here.</p>
+    </section>
+  } @else {
+    @for (group of [{ title: 'Upcoming', items: upcoming }, { title: 'Past', items: past }]; track group.title) {
+      @if (group.items.length) {
+        <section class="group" [attr.aria-label]="group.title + ' interviews'">
+          <h2>{{ group.title }} <span>{{ group.items.length }}</span></h2>
+          <ul>
+            @for (interview of group.items; track interview.id) {
+              <li class="row">
+                <time [attr.datetime]="startOf(interview).toISOString()">
+                  <strong>{{ startOf(interview) | date: 'EEE d MMM' }}</strong>
+                  <span>{{ startOf(interview) | date: 'h:mm a' }} · {{ interview.durationMinutes || 60 }} min</span>
+                </time>
+                <div class="who">
+                  <strong>{{ interview.candidateName || 'Candidate' }}</strong>
+                  <span>{{ interview.jobTitle }}</span>
+                  @if (alongside(interview); as others) {
+                    <span class="with">With {{ others }}</span>
+                  }
+                </div>
+                <div class="row-end">
+                  <span class="status" [attr.data-status]="interview.status">{{ interview.status === 'COMPLETED' ? 'Done' : interview.status === 'CANCELLED' ? 'Cancelled' : 'Scheduled' }}</span>
+                  <a class="scorecard-link" [routerLink]="['/interviews/scorecard']" [queryParams]="{ interviewId: interview.id }"
+                     [attr.data-scorecard]="interview.myScorecardStatus || 'NONE'">
+                    {{ interview.myScorecardStatus === 'SUBMITTED' ? 'Scorecard submitted' : interview.myScorecardStatus === 'DRAFT' ? 'Finish scorecard' : 'Scorecard' }}
+                  </a>
+                </div>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    }
+  }
+</main>

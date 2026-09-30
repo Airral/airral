@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.math.BigDecimal;
@@ -47,6 +48,14 @@ public class Offer {
     // Timestamps
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    /**
+     * Bumped on every save, which fails when the row changed since it was
+     * read: an offer withdrawn while the candidate accepts it takes only one
+     * of the two.
+     */
+    @Version
+    private Long version;
 
     // Helper methods
     public boolean isDraft() {

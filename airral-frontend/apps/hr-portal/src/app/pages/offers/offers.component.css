@@ -123,3 +123,5 @@ textarea.form-control { resize: vertical; }
   .stat-divider { display: none; }
   .offers-table th:nth-child(3), .offers-table td:nth-child(3) { display: none; }
 }
+
+.notice-banner { margin-bottom: 16px; padding: 10px 14px; border: 1px solid #a9d8cf; border-radius: 8px; color: #096b5f; background: #f2fbf8; font-size: 14px; }

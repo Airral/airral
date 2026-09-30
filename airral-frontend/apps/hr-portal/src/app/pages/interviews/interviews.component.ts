@@ -1,10 +1,12 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ApplicationApiService } from '@airral/shared-api';
-import { Interview, Application } from '@airral/shared-types';
-import { forkJoin } from 'rxjs';
-import { finalize, timeout } from 'rxjs/operators';
+import { ApplicationApiService, UserApiService } from '@airral/shared-api';
+import { Interview, Application, User } from '@airral/shared-types';
+import { browserTimeZone, wallTimeToDate } from '@airral/shared-utils';
+import { interviewersFrom, teammateName, teammateRole } from './teammates';
+import { forkJoin, of } from 'rxjs';
+import { catchError, finalize, timeout } from 'rxjs/operators';
 
 export interface CalendarDay {
   date: Date;
@@ -22,12 +24,21 @@ export interface CalendarDay {
 })
 export class InterviewsComponent implements OnInit {
   private applicationApiService = inject(ApplicationApiService);
+  private userApi = inject(UserApiService);
   private fb = inject(FormBuilder);
+
+  readonly durations = [30, 45, 60, 90, 120];
+  readonly teammateName = teammateName;
+  readonly teammateRole = teammateRole;
+  teammates: User[] = [];
+  interviewerIds = new Set<number>();
 
   interviews: Interview[] = [];
   applications: Application[] = [];
   loading = false;
   error: string | null = null;
+  /** A booking is on its way: Schedule waits, so a second click cannot book it twice. */
+  scheduling = false;
 
   view: 'calendar' | 'list' = 'calendar';
   currentMonth = new Date();
@@ -44,7 +55,10 @@ export class InterviewsComponent implements OnInit {
       applicationId: ['', Validators.required],
       interviewDate: ['', Validators.required],
       interviewTime: ['10:00', Validators.required],
-      notes: ['']
+      durationMinutes: [60],
+      notes: [''],
+      notifyCandidate: [true],
+      notifyInterviewers: [true]
     });
   }
 
@@ -60,22 +74,24 @@ export class InterviewsComponent implements OnInit {
     forkJoin({
       interviews: this.applicationApiService.getAllInterviews(),
       applications: this.applicationApiService.getAllApplications(),
+      users: this.userApi.getAllUsers().pipe(catchError(() => of([] as User[]))),
     }).pipe(
       timeout(15000),
       finalize(() => {
         this.loading = false;
       })
     ).subscribe({
-      next: ({ interviews, applications }) => {
+      next: ({ interviews, applications, users }) => {
         this.interviews = interviews;
         this.applications = applications;
+        this.teammates = interviewersFrom(users);
         this.buildCalendar();
       },
-      error: () => {
+      error: (err: Error) => {
         this.interviews = [];
         this.applications = [];
         this.buildCalendar();
-        this.error = null;
+        this.error = err?.message || 'Interviews could not be loaded. Try again.';
       },
     });
   }
@@ -95,7 +111,7 @@ export class InterviewsComponent implements OnInit {
       date.setDate(startDate.getDate() + i);
 
       const dayInterviews = this.interviews.filter((inv) => {
-        const interviewDate = new Date(inv.interviewDate);
+        const interviewDate = this.startOf(inv);
         return interviewDate.getFullYear() === date.getFullYear()
           && interviewDate.getMonth() === date.getMonth()
           && interviewDate.getDate() === date.getDate();
@@ -119,14 +135,14 @@ export class InterviewsComponent implements OnInit {
   get upcomingInterviews(): Interview[] {
     const now = new Date();
     return this.interviews
-      .filter((inv) => new Date(inv.interviewDate) >= now && inv.status !== 'COMPLETED')
-      .sort((left, right) => new Date(left.interviewDate).getTime() - new Date(right.interviewDate).getTime());
+      .filter((inv) => this.startOf(inv) >= now && inv.status !== 'COMPLETED')
+      .sort((left, right) => this.startOf(left).getTime() - this.startOf(right).getTime());
   }
 
   get completedInterviews(): Interview[] {
     return this.interviews
       .filter((inv) => inv.status === 'COMPLETED')
-      .sort((left, right) => new Date(right.interviewDate).getTime() - new Date(left.interviewDate).getTime());
+      .sort((left, right) => this.startOf(right).getTime() - this.startOf(left).getTime());
   }
 
   prevMonth(): void {
@@ -146,7 +162,7 @@ export class InterviewsComponent implements OnInit {
   }
 
   selectInterviewAsFocus(interview: Interview): void {
-    const interviewDate = new Date(interview.interviewDate);
+    const interviewDate = this.startOf(interview);
     const matchedDay = this.calendarDays.find((day) =>
       day.date.getFullYear() === interviewDate.getFullYear()
       && day.date.getMonth() === interviewDate.getMonth()
@@ -160,25 +176,40 @@ export class InterviewsComponent implements OnInit {
 
   cancelSchedule(): void {
     this.showScheduleForm = false;
-    this.scheduleForm.reset({ interviewTime: '10:00' });
+    this.error = null;
+    this.scheduleForm.reset({ interviewTime: '10:00', durationMinutes: 60, notifyCandidate: true, notifyInterviewers: true });
+    this.interviewerIds = new Set<number>();
   }
 
   submitSchedule(): void {
-    if (!this.scheduleForm.valid) {
+    if (!this.scheduleForm.valid || this.scheduling) {
       return;
     }
+    this.scheduling = true;
+    this.error = null;
 
-    const { applicationId, interviewDate, interviewTime, notes } = this.scheduleForm.value;
-    const timestamp = `${interviewDate}T${interviewTime}:00.000Z`;
+    const { applicationId, interviewDate, interviewTime, durationMinutes, notes, notifyCandidate, notifyInterviewers } = this.scheduleForm.value;
+    // The time as entered, in this browser's time zone, which goes with it.
+    const timestamp = `${interviewDate}T${interviewTime}:00`;
 
-    this.applicationApiService.scheduleInterview(parseInt(applicationId, 10), timestamp, notes).subscribe({
+    this.applicationApiService.scheduleInterview({
+      applicationId: parseInt(applicationId, 10),
+      interviewDate: timestamp,
+      notes: notes || undefined,
+      notifyCandidate: !!notifyCandidate,
+      notifyInterviewers: !!notifyInterviewers && this.interviewerIds.size > 0,
+      interviewerIds: [...this.interviewerIds],
+      durationMinutes: Number(durationMinutes) || 60,
+      timeZone: browserTimeZone(),
+    }).pipe(finalize(() => (this.scheduling = false))).subscribe({
       next: (interview) => {
         this.interviews = [...this.interviews, interview];
         this.buildCalendar();
         this.cancelSchedule();
       },
-      error: () => {
-        this.error = 'Failed to schedule interview';
+      error: (err: Error) => {
+        // The server says why: a closed application, an interviewer not on the team.
+        this.error = err?.message || 'The interview could not be booked.';
       },
     });
   }
@@ -191,12 +222,40 @@ export class InterviewsComponent implements OnInit {
     return name.split(' ').map((part) => part[0]).join('').toUpperCase().slice(0, 2);
   }
 
-  formatDate(dateString: string): string {
-    return new Date(dateString).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  toggleInterviewer(userId: number): void {
+    const next = new Set(this.interviewerIds);
+    if (next.has(userId)) {
+      next.delete(userId);
+    } else {
+      next.add(userId);
+    }
+    this.interviewerIds = next;
   }
 
-  formatTime(dateString: string): string {
-    return new Date(dateString).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  /** When the interview starts, wherever it was booked. */
+  startOf(interview: Interview): Date {
+    return wallTimeToDate(interview.interviewDate, interview.timeZone);
+  }
+
+  private endOf(interview: Interview): Date {
+    return new Date(this.startOf(interview).getTime() + (interview.durationMinutes || 60) * 60_000);
+  }
+
+  durationLabel(interview: Interview): string {
+    const minutes = interview.durationMinutes || 60;
+    return minutes % 60 === 0 ? `${minutes / 60} hour${minutes === 60 ? '' : 's'}` : `${minutes} minutes`;
+  }
+
+  interviewerNames(interview: Interview): string {
+    return (interview.interviewers ?? []).map((interviewer) => interviewer.name).join(', ');
+  }
+
+  formatDate(interview: Interview): string {
+    return this.startOf(interview).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  formatTime(interview: Interview): string {
+    return this.startOf(interview).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   }
 
   getStatusClass(status: string): string {
@@ -204,22 +263,22 @@ export class InterviewsComponent implements OnInit {
   }
 
   getGoogleCalendarLink(interview: Interview): string {
-    const start = this.toICSDate(new Date(interview.interviewDate));
-    const end = this.toICSDate(this.addHour(interview.interviewDate));
+    const start = this.toICSDate(this.startOf(interview));
+    const end = this.toICSDate(this.endOf(interview));
     const title = encodeURIComponent(`Interview: ${interview.candidateName} — ${interview.jobTitle}`);
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}`;
   }
 
   getOutlookLink(interview: Interview): string {
-    const start = new Date(interview.interviewDate).toISOString();
-    const end = this.addHour(interview.interviewDate).toISOString();
+    const start = this.startOf(interview).toISOString();
+    const end = this.endOf(interview).toISOString();
     const subject = encodeURIComponent(`Interview: ${interview.candidateName} — ${interview.jobTitle}`);
     return `https://outlook.live.com/calendar/0/deeplink/compose?path=%2Fcalendar%2Faction%2Fcompose&rru=addevent&subject=${subject}&startdt=${start}&enddt=${end}`;
   }
 
   downloadICS(interview: Interview): void {
-    const start = this.toICSDate(new Date(interview.interviewDate));
-    const end = this.toICSDate(this.addHour(interview.interviewDate));
+    const start = this.toICSDate(this.startOf(interview));
+    const end = this.toICSDate(this.endOf(interview));
     const ics = [
       'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Airral HR//Interview//EN',
       'BEGIN:VEVENT',
@@ -243,11 +302,5 @@ export class InterviewsComponent implements OnInit {
 
   private toICSDate(date: Date): string {
     return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-  }
-
-  private addHour(dateString: string): Date {
-    const date = new Date(dateString);
-    date.setHours(date.getHours() + 1);
-    return date;
   }
 }

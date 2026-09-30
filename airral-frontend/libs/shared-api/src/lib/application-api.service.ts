@@ -9,6 +9,10 @@ import {
   CreateOfferRequest,
   SendOfferRequest,
   Interview,
+  MyApplication,
+  ScheduleInterviewRequest,
+  Scorecard,
+  ScorecardRequest,
 } from '@airral/shared-types';
 import { ApiClientService } from './api-client.service';
 
@@ -26,8 +30,14 @@ export class ApplicationApiService {
     return this.apiClient.get<Application>(`/applications/${id}`);
   }
 
-  getMyApplications(applicantId: number): Observable<Application[]> {
-    return this.apiClient.get<Application[]>(`/applications/applicant/${applicantId}`);
+  /** The resume attached to an application, for the company reviewing it. */
+  downloadResume(applicationId: number): Observable<Blob> {
+    return this.apiClient.getBlob(`/applications/${applicationId}/resume`);
+  }
+
+  /** The signed-in applicant's own applications, with the stage each is at. */
+  getMyApplications(applicantId: number): Observable<MyApplication[]> {
+    return this.apiClient.get<MyApplication[]>(`/applications/applicant/${applicantId}`);
   }
 
   getJobApplications(jobId: number): Observable<Application[]> {
@@ -38,24 +48,47 @@ export class ApplicationApiService {
     return this.apiClient.get<Application[]>('/applications');
   }
 
-  updateApplicationStatus(id: number, status: string): Observable<Application> {
-    return this.apiClient.put<Application>(`/applications/${id}/status?status=${status}`, {});
+  /** With notifyCandidate, turning a candidate down emails them. */
+  updateApplicationStatus(id: number, status: string, notifyCandidate = false): Observable<Application> {
+    const notify = notifyCandidate ? '&notifyCandidate=true' : '';
+    return this.apiClient.put<Application>(`/applications/${id}/status?status=${status}${notify}`, {});
   }
 
   hire(id: number): Observable<Application> {
     return this.updateApplicationStatus(id, ApplicationStatus.HIRED);
   }
 
-  extendOffer(id: number): Observable<Application> {
-    return this.updateApplicationStatus(id, ApplicationStatus.OFFER_EXTENDED);
-  }
-
   reject(id: number): Observable<Application> {
     return this.updateApplicationStatus(id, ApplicationStatus.REJECTED);
   }
 
-  scheduleInterview(applicationId: number, interviewDate: string, notes?: string): Observable<Interview> {
-    return this.apiClient.post<Interview>('/interviews', { applicationId, interviewDate, notes });
+  /** With notifyCandidate, the candidate is emailed the day and time. */
+  scheduleInterview(request: ScheduleInterviewRequest): Observable<Interview> {
+    return this.apiClient.post<Interview>('/interviews', request);
+  }
+
+  /** The interviews the signed-in teammate is on as an interviewer. */
+  getMyInterviews(): Observable<Interview[]> {
+    return this.apiClient.get<Interview[]>('/interviews/mine');
+  }
+
+  /** The signed-in interviewer's own scorecard for an interview: saved, or blank. */
+  getMyScorecard(interviewId: number): Observable<Scorecard> {
+    return this.apiClient.get<Scorecard>(`/interviews/${interviewId}/scorecard`);
+  }
+
+  saveMyScorecard(interviewId: number, request: ScorecardRequest): Observable<Scorecard> {
+    return this.apiClient.put<Scorecard>(`/interviews/${interviewId}/scorecard`, request);
+  }
+
+  /** The resume of the candidate in an interview the signed-in teammate is on. */
+  downloadInterviewResume(interviewId: number): Observable<Blob> {
+    return this.apiClient.getBlob(`/interviews/${interviewId}/resume`);
+  }
+
+  /** The submitted scorecards for an application. */
+  getScorecards(applicationId: number): Observable<Scorecard[]> {
+    return this.apiClient.get<Scorecard[]>(`/applications/${applicationId}/scorecards`);
   }
 
   getInterviewsByApplication(applicationId: number): Observable<Interview[]> {
@@ -90,6 +123,12 @@ export class ApplicationApiService {
     return this.apiClient.post<Offer>(`/offers/${request.offerId}/send`, request);
   }
 
+  /** The signed-in applicant's own offers, once sent. */
+  getMyOffers(): Observable<Offer[]> {
+    return this.apiClient.get<Offer[]>('/offers/mine');
+  }
+
+  /** An applicant accepts their offer, or HR records that a candidate it added by hand accepted. */
   acceptOffer(offerId: number): Observable<Offer> {
     return this.apiClient.post<Offer>(`/offers/${offerId}/accept`, {});
   }

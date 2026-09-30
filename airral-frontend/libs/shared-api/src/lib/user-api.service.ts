@@ -12,6 +12,35 @@ export interface UpdateUserRequest {
   jobTitle?: string;
   departmentId?: number;
   managerId?: number;
+  /** HR only: take the person out of their department. */
+  clearDepartment?: boolean;
+}
+
+/** The roles an invitation can give. */
+export type InviteRole = 'HR_MANAGER' | 'MANAGER' | 'EMPLOYEE';
+
+export interface InviteUserRequest {
+  email: string;
+  role: InviteRole;
+  firstName?: string;
+  lastName?: string;
+  departmentId?: number;
+}
+
+/** An invitation as HR sees it. The link's token never comes back from the API. */
+export interface Invitation {
+  id: number;
+  email: string;
+  role: InviteRole;
+  firstName?: string | null;
+  lastName?: string | null;
+  department?: string | null;
+  expiresAt: string;
+  /** Past its date: its link no longer works. Resend, or inviting the address again, renews it. */
+  expired?: boolean | null;
+  createdAt?: string | null;
+  /** Whether the invitation email went out this time; null when nothing was sent. */
+  emailSent?: boolean | null;
 }
 
 @Injectable({
@@ -39,5 +68,33 @@ export class UserApiService {
    */
   updateUser(id: number, request: UpdateUserRequest): Observable<User> {
     return this.apiClient.put<User>(`/users/${id}`, request);
+  }
+
+  /** Invite someone to the company. They are emailed a link to set a password. */
+  inviteUser(request: InviteUserRequest): Observable<Invitation> {
+    return this.apiClient.post<Invitation>('/users/invite', request);
+  }
+
+  getPendingInvitations(): Observable<Invitation[]> {
+    return this.apiClient.get<Invitation[]>('/users/invitations');
+  }
+
+  /** Email a pending invitation again, with a fresh week to accept it. */
+  resendInvitation(id: number): Observable<Invitation> {
+    return this.apiClient.post<Invitation>(`/users/invitations/${id}/resend`, {});
+  }
+
+  cancelInvitation(id: number): Observable<void> {
+    return this.apiClient.delete<void>(`/users/invitations/${id}`);
+  }
+
+  /** Give a member another role. They are signed out so the new role takes effect. */
+  changeRole(id: number, role: InviteRole): Observable<User> {
+    return this.apiClient.put<User>(`/users/${id}/role`, { role });
+  }
+
+  /** Deactivate a member (they are signed out everywhere), or let them back in. */
+  setActive(id: number, active: boolean): Observable<User> {
+    return this.apiClient.put<User>(`/users/${id}/active`, { active });
   }
 }

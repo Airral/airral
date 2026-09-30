@@ -84,8 +84,8 @@ export class SignUpComponent {
       error: (error) => {
         // A 409 carries a message worth showing as-is: "Email already
         // registered", or that the company is already on AIRRAL.
-        this.errorMessage = error?.status === 409 && error?.error?.message
-          ? error.error.message
+        this.errorMessage = error?.status === 409 && error?.message
+          ? error.message
           : 'Unable to create employer account right now. Please try again.';
         this.isLoading = false;
       },

@@ -105,6 +105,19 @@ export const USER_ROLES = {
   APPLICANT: 'APPLICANT'
 };
 
+/**
+ * What each role is called on screen. For launch a company's team is its
+ * hiring team: a MANAGER is the hiring manager for their jobs, and an EMPLOYEE
+ * takes part in interviews.
+ */
+export const ROLE_LABELS: Record<string, string> = {
+  HR_MANAGER: 'HR manager',
+  MANAGER: 'Hiring manager',
+  EMPLOYEE: 'Interviewer',
+  ADMIN: 'AIRRAL admin',
+  APPLICANT: 'Applicant',
+};
+
 export const JOB_STATUS = {
   DRAFT: 'DRAFT',
   OPEN: 'OPEN',

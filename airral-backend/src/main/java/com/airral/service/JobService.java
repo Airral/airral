@@ -1,13 +1,19 @@
 package com.airral.service;
 
+import com.airral.domain.Department;
 import com.airral.domain.Job;
 import com.airral.domain.Organization;
+import com.airral.domain.User;
+import com.airral.domain.enums.UserRole;
 import com.airral.domain.enums.JobStatus;
 import com.airral.dto.request.CreateJobRequest;
 import com.airral.dto.response.JobResponse;
 import com.airral.dto.response.PublicStatisticsResponse;
 import com.airral.repository.JobRepository;
+import com.airral.exception.BadRequestException;
 import com.airral.exception.NotFoundException;
+import com.airral.repository.DepartmentRepository;
+import com.airral.repository.InterviewKitRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.repository.UserRepository;
 import io.r2dbc.postgresql.codec.Json;
@@ -15,8 +21,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuples;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Arrays;
 
 @Service
@@ -27,18 +36,24 @@ public class JobService {
     private final OrganizationRepository organizationRepository;
     private final ExternalJobPostingStore externalJobPostingStore;
     private final InternalJobCatalogProjectionService internalJobCatalogProjectionService;
+    private final DepartmentRepository departmentRepository;
+    private final InterviewKitRepository interviewKitRepository;
 
     public JobService(
             JobRepository jobRepository,
             UserRepository userRepository,
             OrganizationRepository organizationRepository,
             ExternalJobPostingStore externalJobPostingStore,
-            InternalJobCatalogProjectionService internalJobCatalogProjectionService) {
+            InternalJobCatalogProjectionService internalJobCatalogProjectionService,
+            DepartmentRepository departmentRepository,
+            InterviewKitRepository interviewKitRepository) {
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
         this.externalJobPostingStore = externalJobPostingStore;
         this.internalJobCatalogProjectionService = internalJobCatalogProjectionService;
+        this.departmentRepository = departmentRepository;
+        this.interviewKitRepository = interviewKitRepository;
     }
 
     /**
@@ -46,13 +61,24 @@ public class JobService {
      */
     @Transactional
     public Mono<JobResponse> createJob(CreateJobRequest request, Long organizationId, Long userId) {
-        Job job = Job.builder()
+        return hiringManagerCheck(request.getHiringManagerId(), organizationId)
+                .then(interviewKitCheck(request.getInterviewKitId(), organizationId))
+                .then(companyDepartment(request.getDepartmentId(), organizationId))
+                .flatMap(department -> jobRepository.save(newJob(request, organizationId, userId, department)))
+                .flatMap(savedJob -> internalJobCatalogProjectionService.sync(savedJob).thenReturn(savedJob))
+                .flatMap(this::toJobResponse);
+    }
+
+    private Job newJob(CreateJobRequest request, Long organizationId, Long userId, Optional<Department> department) {
+        return Job.builder()
                 .organizationId(organizationId)
                 .createdById(userId)
                 .title(request.getTitle())
                 .description(request.getDescription())
-                .departmentId(request.getDepartmentId())
-                .department(request.getDepartment())
+                .departmentId(department.map(Department::getId).orElse(null))
+                .department(department.map(Department::getName).orElse(null))
+                .hiringManagerId(request.getHiringManagerId())
+                .interviewKitId(request.getInterviewKitId())
                 .location(request.getLocation())
                 .employmentType(request.getEmploymentType())
                 .salaryMin(request.getSalaryMin())
@@ -70,10 +96,6 @@ public class JobService {
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-
-        return jobRepository.save(job)
-                .flatMap(savedJob -> internalJobCatalogProjectionService.sync(savedJob).thenReturn(savedJob))
-                .flatMap(this::toJobResponse);
     }
 
     /**
@@ -85,18 +107,10 @@ public class JobService {
     }
 
     /**
-     * Get open jobs (public - for job board)
-     */
-    public Flux<JobResponse> getOpenJobs() {
-        return jobRepository.findOpenJobs()
-                .flatMap(this::toJobResponse);
-    }
-
-    /**
      * Get open jobs for public pages without internal hiring configuration.
      */
     public Flux<JobResponse> getPublicOpenJobs() {
-        return jobRepository.findOpenJobs()
+        return jobRepository.findPublishedOpenJobs()
                 .flatMap(this::toPublicJobResponse);
     }
 
@@ -115,7 +129,7 @@ public class JobService {
         } else if (normalizedDepartment != null) {
             jobs = jobRepository.findOpenJobsByDepartment(normalizedDepartment);
         } else {
-            jobs = jobRepository.findOpenJobs();
+            jobs = jobRepository.findPublishedOpenJobs();
         }
 
         return jobs.flatMap(this::toPublicJobResponse);
@@ -139,18 +153,90 @@ public class JobService {
     }
 
     /**
+     * A job's hiring manager must be an active manager or HR manager in the
+     * same company: they will see every candidate for it.
+     */
+    private Mono<Void> hiringManagerCheck(Long hiringManagerId, Long organizationId) {
+        if (hiringManagerId == null) {
+            return Mono.empty();
+        }
+        return userRepository.findById(hiringManagerId)
+                .filter(user -> organizationId != null && organizationId.equals(user.getOrganizationId())
+                        && Boolean.TRUE.equals(user.getIsActive())
+                        && (user.getRole() == UserRole.MANAGER || user.getRole() == UserRole.HR_MANAGER))
+                .switchIfEmpty(Mono.error(new BadRequestException(
+                        "The hiring manager must be an active manager or HR manager in your company")))
+                .then();
+    }
+
+    /** A job's interview kit must be one of the company's own. */
+    private Mono<Void> interviewKitCheck(Long interviewKitId, Long organizationId) {
+        if (interviewKitId == null) {
+            return Mono.empty();
+        }
+        return interviewKitRepository.findByIdAndOrganizationId(interviewKitId, organizationId)
+                .switchIfEmpty(Mono.error(new BadRequestException("The interview kit must be one of your company's")))
+                .then();
+    }
+
+    /**
+     * The company department a job is filed under. Its name is copied onto the
+     * job from the department, never taken from the request, so a job's
+     * department is always one of the company's own.
+     */
+    private Mono<Optional<Department>> companyDepartment(Long departmentId, Long organizationId) {
+        if (departmentId == null) {
+            return Mono.just(Optional.empty());
+        }
+        return departmentRepository.findByIdAndOrganizationId(departmentId, organizationId)
+                .map(Optional::of)
+                .switchIfEmpty(Mono.error(new BadRequestException("The department must be one of your company's")));
+    }
+
+    /**
+     * Change only a job's status. Closing or reopening a job used to go through
+     * updateJob with little more than a title and a status, and updateJob
+     * replaces every field, so it wiped the job's location, pay, requirements
+     * and keywords.
+     */
+    public Mono<JobResponse> updateJobStatus(Long id, JobStatus status, Long organizationId) {
+        return jobRepository.findByIdAndOrganizationId(id, organizationId)
+                .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
+                .flatMap(job -> {
+                    job.setStatus(status);
+                    job.setUpdatedAt(LocalDateTime.now());
+                    return jobRepository.save(job);
+                })
+                .flatMap(savedJob -> internalJobCatalogProjectionService.sync(savedJob).thenReturn(savedJob))
+                .flatMap(this::toJobResponse);
+    }
+
+    /**
      * Update a job
      */
     @Transactional
     public Mono<JobResponse> updateJob(Long id, CreateJobRequest request, Long organizationId) {
         return jobRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
-                .flatMap(job -> {
+                // The hiring manager is checked when it changes. One who has since left
+                // hiring no longer blocks every other edit to the job (and stops being
+                // its hiring manager when HR changes their role or account).
+                .flatMap(job -> (Objects.equals(job.getHiringManagerId(), request.getHiringManagerId())
+                                ? Mono.<Void>empty()
+                                : hiringManagerCheck(request.getHiringManagerId(), organizationId))
+                        .then(interviewKitCheck(request.getInterviewKitId(), organizationId))
+                        .then(companyDepartment(request.getDepartmentId(), organizationId))
+                        .map(department -> Tuples.of(job, department)))
+                .flatMap(found -> {
+                    Job job = found.getT1();
+                    Optional<Department> department = found.getT2();
                     // Update fields
                     job.setTitle(request.getTitle());
                     job.setDescription(request.getDescription());
-                    job.setDepartmentId(request.getDepartmentId());
-                    job.setDepartment(request.getDepartment());
+                    job.setDepartmentId(department.map(Department::getId).orElse(null));
+                    job.setDepartment(department.map(Department::getName).orElse(null));
+                    job.setHiringManagerId(request.getHiringManagerId());
+                    job.setInterviewKitId(request.getInterviewKitId());
                     job.setLocation(request.getLocation());
                     job.setEmploymentType(request.getEmploymentType());
                     job.setSalaryMin(request.getSalaryMin());
@@ -204,10 +290,22 @@ public class JobService {
 
         Mono<Organization> organization = findOrganization(job.getOrganizationId());
 
+        // Internal responses only: the public job board uses toPublicJobResponse,
+        // which never names the hiring manager.
+        Mono<String> hiringManagerName = job.getHiringManagerId() == null
+                ? Mono.just("")
+                : userRepository.findById(job.getHiringManagerId()).map(User::getFullName).defaultIfEmpty("");
+
         return createdByName.flatMap(createdBy ->
                 organization
                         .map(org -> buildJobResponse(job, createdBy, org))
-                        .defaultIfEmpty(buildJobResponse(job, createdBy, null)));
+                        .defaultIfEmpty(buildJobResponse(job, createdBy, null)))
+                .zipWith(hiringManagerName, (response, name) -> {
+                    response.setHiringManagerId(job.getHiringManagerId());
+                    response.setHiringManagerName(name.isBlank() ? null : name);
+                    response.setInterviewKitId(job.getInterviewKitId());
+                    return response;
+                });
     }
 
     private JobResponse buildJobResponse(Job job, String createdBy, Organization organization) {

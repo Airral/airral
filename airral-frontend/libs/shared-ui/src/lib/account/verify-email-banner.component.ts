@@ -100,9 +100,9 @@ export class VerifyEmailBannerComponent implements OnInit, OnDestroy {
         this.startCooldown();
       }
     } catch (error) {
-      const failure = error as { status?: number; error?: { message?: string } };
+      const failure = error as { status?: number; message?: string };
       this.errorMessage = failure?.status === 429
-        ? failure.error?.message || 'Several links were sent recently. Check spam, or try again in 15 minutes.'
+        ? failure.message || 'Several links were sent recently. Check spam, or try again in 15 minutes.'
         : 'Could not send the link. Try again in a moment.';
     } finally {
       this.sending = false;

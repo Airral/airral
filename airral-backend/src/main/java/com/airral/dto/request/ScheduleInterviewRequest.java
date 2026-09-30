@@ -1,12 +1,16 @@
 package com.airral.dto.request;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -21,4 +25,22 @@ public class ScheduleInterviewRequest {
     private LocalDateTime interviewDate;
 
     private String notes;
+
+    /** Email the candidate the day and time. Off unless the caller asks. */
+    private Boolean notifyCandidate;
+
+    /** Email each interviewer an invitation with a calendar file. Off unless the caller asks. */
+    private Boolean notifyInterviewers;
+
+    /** Teammates who interview: HR managers, hiring managers or interviewers in the company. */
+    @Size(max = 10, message = "An interview can have at most 10 interviewers")
+    private List<Long> interviewerIds;
+
+    @Min(value = 15, message = "An interview is at least 15 minutes")
+    @Max(value = 480, message = "An interview is at most 8 hours")
+    private Integer durationMinutes;
+
+    /** The booker's IANA time zone, e.g. America/New_York. interviewDate is in it. */
+    @Size(max = 64)
+    private String timeZone;
 }

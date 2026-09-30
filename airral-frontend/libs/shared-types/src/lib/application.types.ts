@@ -10,6 +10,9 @@ export interface Offer {
   candidateName: string;
   candidateEmail: string;
   jobTitle: string;
+  companyName?: string;
+  /** Whether the candidate has an AIRRAL account and answers the offer themselves. */
+  candidateHasAccount?: boolean;
   salary: number;
   currency: string;
   startDate: string;
@@ -47,5 +50,6 @@ export interface CreateOfferRequest {
 
 export interface SendOfferRequest {
   offerId: number;
+  /** How long the candidate has to answer, 1 to 60 days. */
   expiresInDays: number;
 }

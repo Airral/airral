@@ -135,6 +135,7 @@ export function emailLinkErrorMessage(error: unknown): string {
  * the file, not check their inbox.
  */
 export function isEmailNotVerifiedError(error: unknown): boolean {
-  const e = error as { status?: number; error?: { error?: string } } | null;
-  return e?.status === 403 && e?.error?.error === 'EMAIL_NOT_VERIFIED';
+  // An ApiError carries the API's code as .code; a raw HttpErrorResponse, in its body.
+  const e = error as { status?: number; code?: string; error?: { error?: string } } | null;
+  return e?.status === 403 && (e?.code ?? e?.error?.error) === 'EMAIL_NOT_VERIFIED';
 }

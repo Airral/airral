@@ -1,0 +1,103 @@
+<div class="settings-container">
+  <div class="settings-header">
+    <h1>Team</h1>
+    <p>Invite the people who hire with you, and see who has access.</p>
+  </div>
+
+  <section class="card" aria-labelledby="invite-heading">
+    <h2 id="invite-heading">Invite a teammate</h2>
+    <form class="invite-form" (ngSubmit)="invite()" novalidate>
+      <div class="field field--wide">
+        <label for="invite-email">Work email</label>
+        <input id="invite-email" name="email" type="email" autocomplete="off" maxlength="255" required
+               [(ngModel)]="form.email" [disabled]="inviting" />
+      </div>
+      <div class="field">
+        <label for="invite-first">First name <span class="optional">optional</span></label>
+        <input id="invite-first" name="firstName" maxlength="100" [(ngModel)]="form.firstName" [disabled]="inviting" />
+      </div>
+      <div class="field">
+        <label for="invite-last">Last name <span class="optional">optional</span></label>
+        <input id="invite-last" name="lastName" maxlength="100" [(ngModel)]="form.lastName" [disabled]="inviting" />
+      </div>
+      <div class="field">
+        <label for="invite-department">Department <span class="optional">optional</span></label>
+        <select id="invite-department" name="departmentId" [(ngModel)]="form.departmentId" [disabled]="inviting">
+          <option [ngValue]="null">No department</option>
+          <option *ngFor="let department of departments" [ngValue]="department.id">{{ department.name }}</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="invite-role">Role</label>
+        <select id="invite-role" name="role" [(ngModel)]="form.role" [disabled]="inviting">
+          <option *ngFor="let option of roleOptions" [ngValue]="option.value">{{ option.label }}</option>
+        </select>
+        <p class="hint">{{ roleHelp() }}</p>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn-primary" [disabled]="inviting">{{ inviting ? 'Sending…' : 'Send invitation' }}</button>
+        <p class="hint">They get an email with a link to set a password. The link works for 7 days.</p>
+      </div>
+      <p class="message message--ok" role="status" *ngIf="inviteMessage">{{ inviteMessage }}</p>
+      <p class="message message--error" role="alert" *ngIf="inviteError">{{ inviteError }}</p>
+    </form>
+  </section>
+
+  <p class="message message--error" role="alert" *ngIf="loadError">{{ loadError }}</p>
+  <p class="hint" *ngIf="loading">Loading your team…</p>
+
+  <ng-container *ngIf="!loading && !loadError">
+    <section class="card" aria-labelledby="pending-heading">
+      <h2 id="pending-heading">Pending invitations <span class="count">{{ invitations.length }}</span></h2>
+      <p class="empty" *ngIf="invitations.length === 0">No invitations waiting.</p>
+      <ul class="rows" *ngIf="invitations.length">
+        <li class="row" *ngFor="let invitation of invitations">
+          <div class="who">
+            <strong>{{ displayName(invitation.firstName, invitation.lastName, invitation.email) }}</strong>
+            <span class="sub" *ngIf="!invitation.expired">{{ invitation.email }} · {{ roleLabel(invitation.role) }} · link works until {{ invitation.expiresAt | date: 'd MMM' }}</span>
+            <span class="sub" *ngIf="invitation.expired">{{ invitation.email }} · {{ roleLabel(invitation.role) }} · <strong class="expired">link expired {{ invitation.expiresAt | date: 'd MMM' }}</strong>. Resend sends a new one.</span>
+            <span class="sub row-message" role="status" *ngIf="rowMessage[invitation.id]">{{ rowMessage[invitation.id] }}</span>
+          </div>
+          <div class="row-actions">
+            <button type="button" class="btn-quiet" (click)="resend(invitation)" [disabled]="busy.has(invitation.id)">Resend</button>
+            <button type="button" class="btn-quiet btn-danger" (click)="cancel(invitation)" [disabled]="busy.has(invitation.id)">Cancel invitation</button>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="card" aria-labelledby="members-heading">
+      <h2 id="members-heading">Members <span class="count">{{ members.length }}</span></h2>
+      <ul class="rows">
+        <li class="row" *ngFor="let member of members" [class.row--inactive]="member.isActive === false">
+          <div class="who">
+            <strong>{{ displayName(member.firstName, member.lastName, member.email) }}</strong>
+            <span class="sub">{{ member.email }}<ng-container *ngIf="member.department"> · {{ member.department }}</ng-container><ng-container *ngIf="member.isActive === false"> · Deactivated</ng-container></span>
+            <span class="sub row-message" role="status" *ngIf="memberMessage[member.id]">{{ memberMessage[member.id] }}</span>
+          </div>
+          <div class="row-actions" *ngIf="canManage(member); else fixedRole">
+            <label class="sr-only" [attr.for]="'member-role-' + member.id">Role for {{ member.email }}</label>
+            <select [id]="'member-role-' + member.id" [ngModel]="member.role" (ngModelChange)="changeRole(member, $event)"
+                    [disabled]="memberBusy.has(member.id) || member.isActive === false">
+              <option *ngFor="let option of roleOptions" [ngValue]="option.value">{{ option.label }}</option>
+            </select>
+            <label class="sr-only" [attr.for]="'member-department-' + member.id">Department for {{ member.email }}</label>
+            <select [id]="'member-department-' + member.id" [ngModel]="member.departmentId ?? null"
+                    (ngModelChange)="changeDepartment(member, $event)"
+                    [disabled]="memberBusy.has(member.id) || member.isActive === false">
+              <option [ngValue]="null">No department</option>
+              <option *ngFor="let department of departments" [ngValue]="department.id">{{ department.name }}</option>
+            </select>
+            <button type="button" class="btn-quiet" [class.btn-danger]="member.isActive !== false"
+                    (click)="toggleActive(member)" [disabled]="memberBusy.has(member.id)">
+              {{ member.isActive === false ? 'Reactivate' : 'Deactivate' }}
+            </button>
+          </div>
+          <ng-template #fixedRole>
+            <span class="role-chip">{{ roleLabel(member.role) }}<ng-container *ngIf="isMe(member)"> · You</ng-container></span>
+          </ng-template>
+        </li>
+      </ul>
+    </section>
+  </ng-container>
+</div>

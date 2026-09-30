@@ -15,6 +15,23 @@ export interface AccountStatus {
   organizationVerificationStatus?: string;
 }
 
+/** What an invitation is for, shown before the invitee sets a password. */
+export interface InvitationPreview {
+  email: string;
+  companyName: string;
+  role: string;
+  firstName?: string | null;
+  lastName?: string | null;
+}
+
+export interface AcceptInvitationRequest {
+  /** The Firebase ID token from following the invitation email's link. */
+  idToken: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -31,6 +48,17 @@ export class AuthApiService {
 
   register(request: RegisterRequest): Observable<AuthResponse> {
     return this.apiClient.post<AuthResponse>('/auth/register', request);
+  }
+
+  getInvitation(token: string): Observable<InvitationPreview> {
+    return this.apiClient.get<InvitationPreview>(`/auth/invitations/${encodeURIComponent(token)}`);
+  }
+
+  acceptInvitation(token: string, request: AcceptInvitationRequest): Observable<{ accepted: boolean; email: string; message: string }> {
+    return this.apiClient.post<{ accepted: boolean; email: string; message: string }>(
+      `/auth/invitations/${encodeURIComponent(token)}/accept`,
+      request
+    );
   }
 
   /**

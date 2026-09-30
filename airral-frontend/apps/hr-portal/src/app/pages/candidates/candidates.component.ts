@@ -1,10 +1,24 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
-import { ApplicationApiService, HrEncounterApiService, JobApiService } from '@airral/shared-api';
-import { Application, ApplicationStatus, CreateEncounterRequest, HrEncounter, Job } from '@airral/shared-types';
-import { catchError, combineLatest, finalize, of } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { ApplicationApiService, AuthApiService, HrEncounterApiService, JobApiService, UserApiService } from '@airral/shared-api';
+import { AuthService } from '@airral/shared-auth';
+import { Application, ApplicationStatus, CreateEncounterRequest, HrEncounter, Job, Recommendation, Scorecard, User } from '@airral/shared-types';
+import { browserTimeZone, wallTimeToDate } from '@airral/shared-utils';
+import { Subscription, catchError, combineLatest, finalize, of } from 'rxjs';
+import { getPrimaryRole } from '../../feature-config';
+import { interviewersFrom, teammateName, teammateRole } from '../interviews/teammates';
+
+interface CandidateDraft {
+  jobId: string;
+  name: string;
+  email: string;
+  phone: string;
+  resumeUrl: string;
+}
+
+const EMPTY_DRAFT: CandidateDraft = { jobId: '', name: '', email: '', phone: '', resumeUrl: '' };
 
 interface StageOption {
   value: 'ALL' | ApplicationStatus;
@@ -23,6 +37,17 @@ export class CandidatesComponent implements OnInit {
   private readonly jobApi = inject(JobApiService);
   private readonly encounterApi = inject(HrEncounterApiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly authApi = inject(AuthApiService);
+  private readonly userApi = inject(UserApiService);
+
+  /** HR adds candidates by hand. Hiring managers work the ones on their jobs. */
+  readonly canAddCandidates = getPrimaryRole(this.auth.getCurrentUser()?.roles) === 'HR_MANAGER';
+  /** Offers are HR's, on the Offers page; a hiring manager hands the decision to HR. */
+  readonly canMakeOffers = this.canAddCandidates;
+  /** False while AIRRAL has not verified the company, which is when candidate emails wait. Null until known. */
+  companyVerified: boolean | null = null;
 
   readonly statuses = ApplicationStatus;
   readonly stageOptions: StageOption[] = [
@@ -40,6 +65,7 @@ export class CandidatesComponent implements OnInit {
   applications: Application[] = [];
   jobs: Job[] = [];
   encounters: HrEncounter[] = [];
+  scorecards: Scorecard[] = [];
   selectedApplication: Application | null = null;
   selectedInterviewId: number | null = null;
 
@@ -51,9 +77,26 @@ export class CandidatesComponent implements OnInit {
   interviewNotes = '';
   feedback = '';
   rating = 3;
+  emailInterview = true;
+  inviteInterviewers = true;
+  interviewDuration = 60;
+  interviewerIds = new Set<number>();
+  teammates: User[] = [];
+  readonly durations = [30, 45, 60, 90, 120];
+  readonly teammateName = teammateName;
+  readonly teammateRole = teammateRole;
+
+  addingCandidate = false;
+  newCandidate: CandidateDraft = { ...EMPTY_DRAFT };
+  confirmingReject = false;
+  emailOnReject = true;
+  closeOut = { markFilled: true, turnDownOthers: true, notifyCandidates: true };
+  closingOut = false;
 
   loading = true;
   detailLoading = false;
+  /** The open candidate's notes, interviews and scorecards, while they load. */
+  private detailRequest?: Subscription;
   saving = false;
   error = '';
   success = '';
@@ -64,6 +107,26 @@ export class CandidatesComponent implements OnInit {
       this.stageFilter = requestedStage as ApplicationStatus;
     }
     this.load();
+    this.authApi
+      .me()
+      .pipe(catchError(() => of(null)))
+      .subscribe((status) => {
+        this.companyVerified = status ? status.organizationVerificationStatus === 'VERIFIED' : null;
+      });
+    this.userApi
+      .getAllUsers()
+      .pipe(catchError(() => of([] as User[])))
+      .subscribe((users) => (this.teammates = interviewersFrom(users)));
+  }
+
+  toggleInterviewer(userId: number): void {
+    const next = new Set(this.interviewerIds);
+    if (next.has(userId)) {
+      next.delete(userId);
+    } else {
+      next.add(userId);
+    }
+    this.interviewerIds = next;
   }
 
   load(): void {
@@ -144,22 +207,35 @@ export class CandidatesComponent implements OnInit {
 
   selectApplication(application: Application): void {
     this.selectedApplication = application;
+    this.confirmingReject = false;
     this.detailLoading = true;
     this.error = '';
     this.success = '';
     this.encounters = [];
+    this.scorecards = [];
     this.selectedInterviewId = null;
 
-    combineLatest({
+    // Only the candidate on screen: the previous one's answers, arriving late,
+    // would otherwise show their notes and scorecards under this name.
+    this.detailRequest?.unsubscribe();
+    const selectedId = application.id;
+    this.detailRequest = combineLatest({
       encounters: this.encounterApi
         .getEncountersByApplication(application.id)
         .pipe(catchError(() => of([] as HrEncounter[]))),
       interviews: this.applicationApi
         .getInterviewsByApplication(application.id)
         .pipe(catchError(() => of([]))),
+      scorecards: this.applicationApi
+        .getScorecards(application.id)
+        .pipe(catchError(() => of([] as Scorecard[]))),
     })
-      .pipe(finalize(() => (this.detailLoading = false)))
-      .subscribe(({ encounters, interviews }) => {
+      .pipe(finalize(() => {
+        if (this.selectedApplication?.id === selectedId) this.detailLoading = false;
+      }))
+      .subscribe(({ encounters, interviews, scorecards }) => {
+        if (this.selectedApplication?.id !== selectedId) return;
+        this.scorecards = scorecards;
         this.encounters = [...encounters].sort(
           (a, b) => new Date(b.encounteredAt).getTime() - new Date(a.encounteredAt).getTime(),
         );
@@ -168,6 +244,8 @@ export class CandidatesComponent implements OnInit {
   }
 
   closeDetail(): void {
+    this.detailRequest?.unsubscribe();
+    this.detailLoading = false;
     this.selectedApplication = null;
     this.encounters = [];
   }
@@ -209,12 +287,15 @@ export class CandidatesComponent implements OnInit {
   primaryActionLabel(application: Application): string | null {
     if (application.status === ApplicationStatus.SUBMITTED) return 'Start review';
     if (application.status === ApplicationStatus.UNDER_REVIEW) return 'Shortlist';
-    if (application.status === ApplicationStatus.INTERVIEWED) return 'Move to offer';
-    if (application.status === ApplicationStatus.OFFER_EXTENDED) return 'Mark hired';
+    // The offer stage comes from sending an offer, and the candidate's answer
+    // hires them: both happen on the Offers page.
+    if (application.status === ApplicationStatus.INTERVIEWED) return this.canMakeOffers ? 'Make an offer' : null;
+    if (application.status === ApplicationStatus.OFFER_EXTENDED) return this.canMakeOffers ? 'See the offer' : null;
     return null;
   }
 
   canOpenResume(application: Application): boolean {
+    if (application.resumeOnFile) return true;
     try {
       const url = new URL(application.resumeUrl);
       return url.protocol === 'https:' || url.protocol === 'http:';
@@ -224,6 +305,28 @@ export class CandidatesComponent implements OnInit {
   }
 
   openResume(application: Application): void {
+    if (application.resumeOnFile) {
+      // An applicant's own resume comes from the API with this session, so it is
+      // fetched and shown from memory. The tab opens first, inside the click, so
+      // the browser does not block it as a pop-up.
+      const tab = window.open('', '_blank');
+      this.applicationApi.downloadResume(application.id).subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          if (tab) {
+            tab.location.href = url;
+          } else {
+            window.open(url, '_blank');
+          }
+          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        },
+        error: () => {
+          tab?.close();
+          this.error = 'We could not open this resume. Try again.';
+        },
+      });
+      return;
+    }
     if (!this.canOpenResume(application)) {
       this.error = 'This resume is not available from the company workspace yet.';
       return;
@@ -236,21 +339,22 @@ export class CandidatesComponent implements OnInit {
       this.updateStatus(application, ApplicationStatus.UNDER_REVIEW);
     } else if (application.status === ApplicationStatus.UNDER_REVIEW) {
       this.updateStatus(application, ApplicationStatus.SHORTLISTED);
-    } else if (application.status === ApplicationStatus.INTERVIEWED) {
-      this.updateStatus(application, ApplicationStatus.OFFER_EXTENDED);
-    } else if (application.status === ApplicationStatus.OFFER_EXTENDED) {
-      this.updateStatus(application, ApplicationStatus.HIRED);
+    } else if (
+      this.canMakeOffers &&
+      (application.status === ApplicationStatus.INTERVIEWED || application.status === ApplicationStatus.OFFER_EXTENDED)
+    ) {
+      void this.router.navigate(['/offers'], { queryParams: { applicationId: application.id } });
     }
   }
 
-  updateStatus(application: Application, nextStatus: ApplicationStatus): void {
+  updateStatus(application: Application, nextStatus: ApplicationStatus, notifyCandidate = false): void {
     if (this.saving || application.status === nextStatus) return;
     const previousStatus = application.status;
     this.saving = true;
     this.clearMessages();
 
     this.applicationApi
-      .updateApplicationStatus(application.id, nextStatus)
+      .updateApplicationStatus(application.id, nextStatus, notifyCandidate)
       .pipe(finalize(() => (this.saving = false)))
       .subscribe({
         next: (updated) => {
@@ -271,9 +375,151 @@ export class CandidatesComponent implements OnInit {
       });
   }
 
-  reject(application: Application): void {
-    if (!confirm(`Reject ${application.applicantName || application.applicantEmail}?`)) return;
-    this.updateStatus(application, ApplicationStatus.REJECTED);
+  reject(): void {
+    this.clearMessages();
+    this.emailOnReject = true;
+    this.confirmingReject = true;
+  }
+
+  cancelReject(): void {
+    this.confirmingReject = false;
+  }
+
+  confirmReject(application: Application): void {
+    this.confirmingReject = false;
+    this.updateStatus(application, ApplicationStatus.REJECTED, this.emailOnReject);
+  }
+
+  /** Whether the job alignment read the resume. Older applications did when one was attached. */
+  readsResume(application: Application): boolean {
+    return application.alignmentSource
+      ? application.alignmentSource === 'RESUME_AND_NOTE'
+      : !!application.resumeOnFile;
+  }
+
+  /** A resume is attached, but its text could not be read, so its keywords were not looked for. */
+  resumeUnreadable(application: Application): boolean {
+    return application.alignmentSource === 'UNREADABLE_RESUME';
+  }
+
+  recommendationLabel(value?: Recommendation | null): string {
+    const labels: Record<Recommendation, string> = {
+      STRONG_HIRE: 'Strong hire',
+      HIRE: 'Hire',
+      NO_HIRE: 'No hire',
+      STRONG_NO_HIRE: 'Strong no hire',
+    };
+    return value ? labels[value] : 'No recommendation';
+  }
+
+  /** Candidates on the same job still being considered, whom a close-out would turn down. */
+  othersInProgress(application: Application): number {
+    const inProgress: string[] = [
+      ApplicationStatus.SUBMITTED,
+      ApplicationStatus.UNDER_REVIEW,
+      ApplicationStatus.SHORTLISTED,
+      ApplicationStatus.INTERVIEW_SCHEDULED,
+      ApplicationStatus.INTERVIEWED,
+    ];
+    return this.applications.filter(
+      (other) => other.jobId === application.jobId && other.id !== application.id && inProgress.includes(other.status),
+    ).length;
+  }
+
+  offersOut(application: Application): number {
+    return this.applications.filter(
+      (other) => other.jobId === application.jobId && other.id !== application.id && other.status === ApplicationStatus.OFFER_EXTENDED,
+    ).length;
+  }
+
+  jobFilled(application: Application): boolean {
+    return this.jobs.find((job) => job.id === application.jobId)?.status === 'FILLED';
+  }
+
+  canCloseOut(application: Application): boolean {
+    return application.status === ApplicationStatus.HIRED
+      && (!this.jobFilled(application) || this.othersInProgress(application) > 0);
+  }
+
+  runCloseOut(application: Application): void {
+    if (this.closingOut) return;
+    const request = {
+      markFilled: this.closeOut.markFilled && !this.jobFilled(application),
+      turnDownOthers: this.closeOut.turnDownOthers,
+      notifyCandidates: this.closeOut.turnDownOthers && this.closeOut.notifyCandidates,
+    };
+    if (!request.markFilled && !request.turnDownOthers) return;
+    this.closingOut = true;
+    this.clearMessages();
+    this.jobApi
+      .closeOut(application.jobId, request)
+      .pipe(finalize(() => (this.closingOut = false)))
+      .subscribe({
+        next: (result) => {
+          const done: string[] = [];
+          if (result.markedFilled) done.push('the job is marked filled');
+          if (result.turnedDown) done.push(`${result.turnedDown} other candidate${result.turnedDown === 1 ? ' was' : 's were'} turned down`);
+          if (result.withOpenOffers) done.push(`${result.withOpenOffers} with an offer still open ${result.withOpenOffers === 1 ? 'was' : 'were'} left as they are`);
+          this.load();
+          this.success = done.length ? `Done: ${done.join(', and ')}.` : 'Nothing needed closing out.';
+        },
+        error: (error: Error) => {
+          this.error = error.message || 'The job could not be closed out.';
+        },
+      });
+  }
+
+  firstName(application: Application): string {
+    return application.applicantName?.trim().split(/\s+/)[0] || 'the candidate';
+  }
+
+  openAddCandidate(): void {
+    this.clearMessages();
+    this.addingCandidate = true;
+    if (!this.newCandidate.jobId) {
+      if (this.jobFilter !== 'ALL') this.newCandidate.jobId = this.jobFilter;
+      else if (this.jobs.length === 1) this.newCandidate.jobId = String(this.jobs[0].id);
+    }
+  }
+
+  cancelAddCandidate(): void {
+    this.addingCandidate = false;
+    this.newCandidate = { ...EMPTY_DRAFT };
+  }
+
+  get canSubmitCandidate(): boolean {
+    const draft = this.newCandidate;
+    return !this.saving && !!draft.jobId && !!draft.name.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim());
+  }
+
+  /** Someone HR found itself. They get no AIRRAL account and no email saying they were added. */
+  addCandidate(): void {
+    if (!this.canSubmitCandidate) return;
+    const draft = this.newCandidate;
+    this.saving = true;
+    this.clearMessages();
+
+    this.applicationApi
+      .submitApplication({
+        jobId: Number(draft.jobId),
+        applicantName: draft.name.trim(),
+        applicantEmail: draft.email.trim(),
+        applicantPhone: draft.phone.trim() || undefined,
+        resumeUrl: draft.resumeUrl.trim() || undefined,
+      })
+      .pipe(finalize(() => (this.saving = false)))
+      .subscribe({
+        next: (created) => {
+          this.applications = [created, ...this.applications];
+          this.addingCandidate = false;
+          this.newCandidate = { ...EMPTY_DRAFT };
+          this.selectApplication(created);
+          this.success = `${created.applicantName || created.applicantEmail} is now a candidate for ${this.jobTitle(created)}.`;
+        },
+        error: (error: Error) => {
+          this.error = error.message || 'Unable to add this candidate.';
+        },
+      });
   }
 
   scheduleInterview(): void {
@@ -284,7 +530,16 @@ export class CandidatesComponent implements OnInit {
     this.clearMessages();
 
     this.applicationApi
-      .scheduleInterview(application.id, this.interviewDate, notes)
+      .scheduleInterview({
+        applicationId: application.id,
+        interviewDate: this.interviewDate,
+        notes,
+        notifyCandidate: this.emailInterview,
+        notifyInterviewers: this.inviteInterviewers && this.interviewerIds.size > 0,
+        interviewerIds: [...this.interviewerIds],
+        durationMinutes: this.interviewDuration,
+        timeZone: browserTimeZone(),
+      })
       .pipe(finalize(() => (this.saving = false)))
       .subscribe({
         next: (interview) => {
@@ -292,11 +547,12 @@ export class CandidatesComponent implements OnInit {
           this.selectedInterviewId = interview.id;
           this.interviewDate = '';
           this.interviewNotes = '';
+          this.interviewerIds = new Set<number>();
           this.success = 'Interview scheduled.';
           this.recordEncounter({
             encounterType: 'INTERVIEW_SCHEDULED',
             title: 'Interview scheduled',
-            description: new Date(interview.interviewDate).toLocaleString(),
+            description: wallTimeToDate(interview.interviewDate, interview.timeZone).toLocaleString(),
             notes,
             applicationId: application.id,
             jobId: application.jobId,

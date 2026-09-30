@@ -1,9 +1,8 @@
 // libs/shared-api/src/lib/candidate-portal.service.ts
 import { Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
-import { catchError, map, shareReplay, tap } from 'rxjs/operators';
+import { catchError, shareReplay, tap } from 'rxjs/operators';
 import {
-  CandidateApplicationView,
   CandidateJobFitRequest,
   CandidateJobFitResult,
   CandidateJobPageResponse,
@@ -20,7 +19,6 @@ import {
   NotificationPreferences,
   UpdateNotificationPreferencesRequest
 } from '@airral/shared-types';
-import { ApplicationApiService } from './application-api.service';
 import { ApiClientService } from './api-client.service';
 
 @Injectable({
@@ -30,10 +28,7 @@ export class CandidatePortalService {
   private candidateProfileRequest$?: Observable<CandidateProfile>;
   private candidateProfileEmail = '';
 
-  constructor(
-    private apiClient: ApiClientService,
-    private applicationApiService: ApplicationApiService
-  ) {}
+  constructor(private apiClient: ApiClientService) {}
 
   /** Fetch rich candidate profile from backend. Auto-creates if first visit. */
   getCandidateProfile(email: string): Observable<CandidateProfile> {
@@ -216,26 +211,6 @@ export class CandidatePortalService {
 
   updateNotificationPreferences(request: UpdateNotificationPreferencesRequest): Observable<NotificationPreferences> {
     return this.apiClient.put<NotificationPreferences>('/candidate/notifications/preferences', request);
-  }
-
-  getCandidateApplications(userId: number): Observable<CandidateApplicationView[]> {
-    return this.applicationApiService.getMyApplications(userId).pipe(
-      map(apps => apps.map(app => this.mapApplicationToView(app)))
-    );
-  }
-
-  private mapApplicationToView(app: any): CandidateApplicationView {
-    return {
-      id: app.id,
-      jobId: app.jobId,
-      jobTitle: app.jobTitle,
-      department: app.department || 'Engineering',
-      status: app.status,
-      appliedAt: app.submittedAt,
-      lastUpdated: app.updatedAt,
-      interviews: app.interviews || [],
-      currentOffer: app.currentOffer
-    };
   }
 
   private rememberCandidateProfile(profile: CandidateProfile, fallbackEmail = this.candidateProfileEmail): void {

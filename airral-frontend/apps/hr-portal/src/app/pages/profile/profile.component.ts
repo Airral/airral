@@ -94,7 +94,6 @@ export class ProfileComponent implements OnInit {
       firstName: this.profile.firstName,
       lastName: this.profile.lastName,
       phone: this.profile.phone,
-      department: this.profile.department,
       jobTitle: this.profile.jobTitle,
     }).subscribe({
       next: () => {

@@ -1,52 +1,53 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
-import { Router } from '@angular/router';
-import { TierSettingsComponent } from './tier-settings.component';
+import { Component, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { OrganizationService } from '@airral/shared-utils';
 
 interface SettingSection {
   title: string;
   description: string;
-  route?: string;
+  route: string;
 }
 
+/**
+ * The company's settings. Only screens that save what HR changes are listed:
+ * hiring stages, integrations, permissions and the plan switcher only looked
+ * finished, so they are gone until they work.
+ */
 @Component({
   selector: 'app-hr-settings',
   standalone: true,
-  imports: [CommonModule, TierSettingsComponent],
+  imports: [CommonModule, RouterLink],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.css',
 })
 export class SettingsComponent {
+  private readonly orgService = inject(OrganizationService);
+
   readonly sections: SettingSection[] = [
     {
-      title: 'Hiring stages and scorecards',
-      description: 'Define custom hiring stages and evaluation scorecards for your workflow.',
-      route: '/settings/hiring-stages'
+      title: 'Company profile',
+      description: 'What candidates see about you on your jobs: logo, website, industry and size.',
+      route: '/settings/company'
     },
     {
-      title: 'Panel templates and interview kits',
-      description: 'Create reusable interview templates and question banks.',
+      title: 'Team',
+      description: 'Invite the people who hire with you, and see who has access.',
+      route: '/settings/team'
+    },
+    {
+      title: 'Departments',
+      description: 'The teams your jobs and people belong to.',
+      route: '/settings/departments'
+    },
+    {
+      title: 'Interview kits',
+      description: 'The questions interviewers ask and what they rate, for each job.',
       route: '/settings/interview-kits'
-    },
-    {
-      title: 'Role-based permissions',
-      description: 'Configure who can view, edit, and approve hiring decisions.',
-      route: undefined // Coming soon
-    },
-    {
-      title: 'Email and calendar integrations',
-      description: 'Connect Gmail, Outlook, LinkedIn, and other tools to streamline recruiting.',
-      route: '/settings/integrations'
     },
   ];
 
-  constructor(private router: Router) {}
-
-  configure(section: SettingSection): void {
-    if (section.route) {
-      this.router.navigate([section.route]);
-    } else {
-      alert(`${section.title} configuration coming soon!`);
-    }
+  get planName(): string {
+    return this.orgService.getTierName();
   }
 }

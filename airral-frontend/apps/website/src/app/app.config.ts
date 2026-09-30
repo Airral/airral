@@ -6,6 +6,7 @@ import { provideClientHydration, withEventReplay } from '@angular/platform-brows
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { appRoutes } from './app.routes';
+import { redrawAfterResponseInterceptor } from '@airral/shared-api';
 import { authTokenInterceptor, PORTAL_ID } from '@airral/shared-auth';
 
 export const appConfig: ApplicationConfig = {
@@ -14,7 +15,8 @@ export const appConfig: ApplicationConfig = {
     { provide: PORTAL_ID, useValue: 'website' as const },
     provideBrowserGlobalErrorListeners(),
     provideRouter(appRoutes),
-    provideHttpClient(withFetch(), withInterceptors([authTokenInterceptor])),
+    // Zoneless: a response redraws the pages that handle it (see the interceptor).
+    provideHttpClient(withFetch(), withInterceptors([authTokenInterceptor, redrawAfterResponseInterceptor])),
     provideClientHydration(withEventReplay()),
   ],
 };

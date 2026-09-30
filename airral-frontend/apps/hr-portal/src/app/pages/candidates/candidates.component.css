@@ -113,6 +113,38 @@ input[type='datetime-local']:focus, textarea:focus { border-color: #399b8e; box-
 .detail-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; color: #7a8381; text-align: center; }
 .detail-placeholder .material-icons { margin-bottom: 12px; color: #9ca8a5; font-size: 38px; }.detail-placeholder strong { color: #3d4745; }
 .detail-placeholder p { max-width: 320px; margin: 7px 0 0; font-size: 13px; line-height: 1.5; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.add-candidate { margin-bottom: 18px; padding: 16px 18px 18px; border: 1px solid #dfe4e3; border-radius: 8px; background: #fff; }
+.add-candidate .section-heading { margin-bottom: 4px; }
+.add-candidate > .field-help { margin: 0 0 14px; }
+.add-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.add-grid label { display: flex; flex-direction: column; gap: 6px; color: #53605d; font-size: 12px; font-weight: 700; }
+.add-grid .wide { grid-column: span 2; }
+.add-grid input, .add-grid select { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #d4dcda; border-radius: 6px; outline: 0; color: #222a28; background: #fff; }
+.add-grid input:focus, .add-grid select:focus { border-color: #399b8e; box-shadow: 0 0 0 3px rgba(8, 127, 112, .08); }
+.optional { color: #8a9290; font-weight: 600; }
+.add-actions { display: flex; align-items: flex-end; gap: 8px; }
+.reject-confirm { display: grid; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #efd6d2; background: #fffaf9; font-size: 13px; }
+.reject-confirm .field-help { margin: 0; }
+.confirm-actions { display: flex; gap: 8px; }
+label.check, .action-section label.check { display: flex; flex-direction: row; align-items: center; gap: 8px; color: #3f4947; font-size: 12px; font-weight: 600; }
+label.check input { accent-color: #087f70; }
+.action-section select { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #d4dcda; border-radius: 6px; color: #222a28; background: #fff; }
+.interviewer-picker { display: grid; gap: 7px; margin: 0; padding: 0; border: 0; }
+.interviewer-picker legend { margin-bottom: 6px; color: #53605d; font-size: 12px; font-weight: 700; }
+.scorecard-summary { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid #edf0ef; }
+.scorecard-summary:first-of-type { border-top: 0; padding-top: 0; }
+.scorecard-summary p { margin: 0; color: #4d5755; font-size: 13px; line-height: 1.6; white-space: pre-line; }
+.scorecard-top { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.recommendation { padding: 3px 7px; border: 1px solid #d9dfde; border-radius: 5px; color: #596461; background: #f7f9f8; font-size: 11px; font-weight: 800; }
+.recommendation[data-recommendation='STRONG_HIRE'], .recommendation[data-recommendation='HIRE'] { border-color: #acd6ce; color: #087467; background: #eff9f7; }
+.recommendation[data-recommendation='NO_HIRE'], .recommendation[data-recommendation='STRONG_NO_HIRE'] { border-color: #efc7c3; color: #9d2c24; background: #fff7f6; }
+.close-out { display: grid; gap: 10px; }
+.close-out .primary-button { justify-self: start; margin-top: 4px; }
+label.check.indent { margin-left: 24px; }
+.evidence-source { margin: -6px 0 14px; }
+.alignment-warning { display: flex; align-items: flex-start; gap: 8px; margin: -4px 0 14px; padding: 10px 12px; border: 1px solid #e5d49b; border-radius: 6px; color: #6d5a1d; background: #fffaf0; font-size: 12px; line-height: 1.5; }
+.alignment-warning .material-icons { font-size: 17px; color: #97791d; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 980px) {
   .pipeline-page { padding: 22px 20px 40px; }
@@ -125,6 +157,8 @@ input[type='datetime-local']:focus, textarea:focus { border-color: #399b8e; box-
   .page-header { margin-bottom: 14px; } h1 { font-size: 24px; }
   .metrics { grid-template-columns: 1fr 1fr; }.metrics div:nth-child(2) { border-right: 0; }.metrics div:nth-child(-n+2) { border-bottom: 1px solid #e7ebea; }
   .filters { grid-template-columns: 1fr; }
+  .add-grid { grid-template-columns: 1fr; }.add-grid .wide { grid-column: auto; }
+  .page-header { flex-wrap: wrap; }
   .review-shell { display: block; min-height: 0; }
   .candidate-pane { border-right: 0; }
   .review-shell.has-detail .candidate-pane { display: none; }

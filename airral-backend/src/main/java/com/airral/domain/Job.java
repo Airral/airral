@@ -32,6 +32,9 @@ public class Job {
     private String description;
     private Long departmentId;
     private String department;
+    private Long hiringManagerId;
+    /** The interview kit this job's interviews use, or null for the standard criteria. */
+    private Long interviewKitId;
     private String location;
     private String employmentType; // Full-time, Part-time, Contract, etc.
 

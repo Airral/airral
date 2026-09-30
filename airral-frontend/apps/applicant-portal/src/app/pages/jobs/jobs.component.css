@@ -1374,6 +1374,18 @@
   box-shadow: 0 1px 3px rgba(79, 70, 229, 0.3);
 }
 
+button.btn-apply {
+  border: 0;
+  cursor: pointer;
+}
+
+button.btn-apply:disabled {
+  background: #4b8f86;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
 .btn-apply:hover {
   background: #005f54;
   transform: translateY(-1px);

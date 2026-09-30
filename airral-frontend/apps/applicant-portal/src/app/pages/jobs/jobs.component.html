@@ -376,11 +376,18 @@
           </section>
 
           <div class="detail-actions">
-            <a class="btn-apply" [href]="selectedJob.applyUrl" target="_blank" rel="noopener" *ngIf="selectedJob.applyUrl"
-               (click)="trackApplyClick()">
-              Apply now
-              <span class="material-icons">open_in_new</span>
-            </a>
+            <button class="btn-apply" type="button" *ngIf="isAirralJob(selectedJob); else externalApply"
+                    (click)="applyInAirral()" [disabled]="applying || hasApplied(selectedJob)">
+              <span class="material-icons">{{ hasApplied(selectedJob) ? 'check_circle' : 'send' }}</span>
+              {{ hasApplied(selectedJob) ? 'Applied' : applying ? 'Applying…' : 'Apply with your AIRRAL profile' }}
+            </button>
+            <ng-template #externalApply>
+              <a class="btn-apply" [href]="selectedJob.applyUrl" target="_blank" rel="noopener" *ngIf="selectedJob.applyUrl"
+                 (click)="trackApplyClick()">
+                Apply now
+                <span class="material-icons">open_in_new</span>
+              </a>
+            </ng-template>
             <button class="btn-save" type="button" [disabled]="savingJob" (click)="saveSelectedJob()">
               <span class="material-icons">{{ isSelectedJobSaved() ? 'bookmark' : 'bookmark_border' }}</span>
               {{ savingJob ? 'Saving...' : isSelectedJobSaved() ? 'Saved' : 'Save' }}
@@ -392,7 +399,10 @@
           </div>
 
           <p class="detail-action-message success" *ngIf="actionMessage">{{ actionMessage }}</p>
-          <p class="detail-action-message error" *ngIf="actionError">{{ actionError }}</p>
+          <p class="detail-action-message error" *ngIf="actionError">
+            {{ actionError }}
+            <a *ngIf="applyNeedsResume" routerLink="/resume">Upload your resume</a>
+          </p>
         </header>
 
         <section class="fit-result" *ngIf="fitResult">

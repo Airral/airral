@@ -88,7 +88,7 @@ export class VerifyEmailComponent implements OnInit {
       },
       error: (error) => {
         this.state = 'error';
-        this.message = error?.error?.message ?? 'We could not verify your email right now. Please try again.';
+        this.message = error?.message || 'We could not verify your email right now. Please try again.';
         this.refresh();
       },
     });

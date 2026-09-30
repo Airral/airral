@@ -51,6 +51,10 @@ public class Organization {
     private String companySizeRange;
     private String industry;
     private String logoUrl;
+    /** The company's own website, shown on its jobs. */
+    private String website;
+    /** A few lines about the company, shown on its jobs. */
+    private String about;
     private String brandPrimaryColor;
     private String brandSecondaryColor;
     private String subscriptionPlanPreference;

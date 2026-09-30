@@ -257,124 +257,6 @@ select:focus {
 	flex-shrink: 0;
 }
 
-.integration-section {
-	margin-top: 20px;
-	padding: 16px;
-	border-radius: 12px;
-	background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
-	border: 1px solid #bae6fd;
-}
-
-.integration-header {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	margin-bottom: 14px;
-}
-
-.integration-icon {
-	width: 44px;
-	height: 44px;
-	border-radius: 10px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex-shrink: 0;
-}
-
-.integration-icon.linkedin {
-	background: #0077b5;
-	color: #ffffff;
-}
-
-.integration-info {
-	flex: 1;
-}
-
-.integration-info h4 {
-	margin: 0;
-	font-size: 14px;
-	font-weight: 600;
-	color: #0c4a6e;
-}
-
-.integration-info .status {
-	margin: 4px 0 0;
-	font-size: 12px;
-	display: flex;
-	align-items: center;
-	gap: 4px;
-}
-
-.status.connected {
-	color: #15803d;
-	font-weight: 600;
-}
-
-.status.disconnected {
-	color: #9ca3af;
-	font-weight: 500;
-}
-
-.btn-linkedin {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	background: #0077b5;
-	color: #ffffff;
-	border: none;
-	border-radius: 10px;
-	padding: 10px 16px;
-	font-size: 13px;
-	font-weight: 600;
-	cursor: pointer;
-	transition: all 0.2s;
-}
-
-.btn-linkedin:hover {
-	background: #005885;
-	transform: translateY(-1px);
-	box-shadow: 0 4px 12px rgba(0, 119, 181, 0.3);
-}
-
-.checkbox-label {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 12px;
-	background: #ffffff;
-	border-radius: 10px;
-	border: 1px solid #e0f2fe;
-	cursor: pointer;
-	transition: all 0.15s;
-}
-
-.checkbox-label:hover {
-	border-color: #0ea5e9;
-	background: #f8fafc;
-}
-
-.checkbox-label input[type="checkbox"] {
-	width: 18px;
-	height: 18px;
-	cursor: pointer;
-	accent-color: #0077b5;
-}
-
-.checkbox-text {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 13px;
-	font-weight: 500;
-	color: #334155;
-}
-
-.checkbox-text svg {
-	color: #0077b5;
-	flex-shrink: 0;
-}
-
 @media (max-width: 880px) {
 	.modal-grid {
 		grid-template-columns: 1fr;
@@ -390,4 +272,11 @@ select:focus {
 		width: 100%;
 		justify-content: center;
 	}
+}
+
+.label-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
 }

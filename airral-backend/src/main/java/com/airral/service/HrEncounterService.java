@@ -35,8 +35,10 @@ public class HrEncounterService {
     /**
      * Create a new encounter
      */
-    public Mono<EncounterResponse> createEncounter(CreateEncounterRequest request, Long organizationId, Long userId) {
+    public Mono<EncounterResponse> createEncounter(CreateEncounterRequest request, Long organizationId, Long userId,
+                                                   JobScope scope) {
         return applicationRepository.findByIdAndOrganizationId(request.getApplicationId(), organizationId)
+                .filter(application -> scope.allows(application.getJobId()))
                 .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
                 .flatMap(application -> {
                     HrEncounter encounter = HrEncounter.builder()
@@ -68,49 +70,63 @@ public class HrEncounterService {
     /**
      * Get all encounters for organization
      */
-    public Flux<EncounterResponse> getAllEncounters(Long organizationId) {
+    public Flux<EncounterResponse> getAllEncounters(Long organizationId, JobScope scope) {
         return encounterRepository.findByOrganizationId(organizationId)
+                .filter(encounter -> scope.allows(encounter.getJobId()))
                 .flatMap(this::toEncounterResponse);
     }
 
     /**
      * Get encounters for an application (timeline)
      */
-    public Flux<EncounterResponse> getEncountersByApplication(Long applicationId, Long organizationId) {
+    public Flux<EncounterResponse> getEncountersByApplication(Long applicationId, Long organizationId, JobScope scope) {
         return encounterRepository.findByApplicationIdAndOrganizationId(applicationId, organizationId)
+                .filter(encounter -> scope.allows(encounter.getJobId()))
                 .flatMap(this::toEncounterResponse);
     }
 
     /**
      * Get encounters for a job
      */
-    public Flux<EncounterResponse> getEncountersByJob(Long jobId, Long organizationId) {
+    public Flux<EncounterResponse> getEncountersByJob(Long jobId, Long organizationId, JobScope scope) {
+        if (!scope.allows(jobId)) {
+            return Flux.empty();
+        }
         return encounterRepository.findByJobIdAndOrganizationId(jobId, organizationId)
                 .flatMap(this::toEncounterResponse);
     }
 
+    /** How many of the company's recent encounters are read to find a hiring manager's own. */
+    static final int SCOPED_SCAN = 1000;
+
     /**
-     * Get recent encounters
+     * Get recent encounters. The limit counts what the caller may see: a hiring
+     * manager gets their own newest, not their share of the company's newest.
      */
-    public Flux<EncounterResponse> getRecentEncounters(Long organizationId, int limit) {
+    public Flux<EncounterResponse> getRecentEncounters(Long organizationId, int limit, JobScope scope) {
         LocalDateTime since = LocalDateTime.now().minusDays(30);
-        return encounterRepository.findRecentByOrganizationId(organizationId, since, limit)
-                .flatMap(this::toEncounterResponse);
+        return encounterRepository.findRecentByOrganizationId(organizationId, since,
+                        scope.isWholeCompany() ? limit : Math.max(limit, SCOPED_SCAN))
+                .filter(encounter -> scope.allows(encounter.getJobId()))
+                .take(limit)
+                .flatMapSequential(this::toEncounterResponse);
     }
 
     /**
      * Get encounters by type
      */
-    public Flux<EncounterResponse> getEncountersByType(Long organizationId, String encounterType) {
+    public Flux<EncounterResponse> getEncountersByType(Long organizationId, String encounterType, JobScope scope) {
         return encounterRepository.findByOrganizationIdAndEncounterType(organizationId, encounterType)
+                .filter(encounter -> scope.allows(encounter.getJobId()))
                 .flatMap(this::toEncounterResponse);
     }
 
     /**
      * Get encounter by ID
      */
-    public Mono<EncounterResponse> getEncounterById(Long id, Long organizationId) {
+    public Mono<EncounterResponse> getEncounterById(Long id, Long organizationId, JobScope scope) {
         return encounterRepository.findByIdAndOrganizationId(id, organizationId)
+                .filter(encounter -> scope.allows(encounter.getJobId()))
                 .switchIfEmpty(Mono.error(new NotFoundException("Encounter not found")))
                 .flatMap(this::toEncounterResponse);
     }

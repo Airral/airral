@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit, signal } from '@angula
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { CandidatePortalService } from '@airral/shared-api';
+import { ApplicationApiService, CandidatePortalService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
 import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, ResumeHealthScore } from '@airral/shared-types';
 import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
@@ -88,6 +88,12 @@ export class JobsComponent implements OnInit, OnDestroy {
   fittingJob = false;
   actionMessage = '';
   actionError = '';
+  /** The job an application is on its way for. Its answer is shown only while that job is open. */
+  applyingJobId: number | null = null;
+  /** Set when applying needs a resume first, to show the upload link. */
+  applyNeedsResume = false;
+  /** Internal ids of the HR-posted jobs this applicant has applied to. */
+  readonly appliedJobIds = signal<Set<number>>(new Set());
   fitResult: CandidateJobFitResult | null = null;
   descriptionView: JobDescriptionView = this.emptyDescriptionView();
   savedJobKeys = new Set<string>();
@@ -141,21 +147,24 @@ export class JobsComponent implements OnInit, OnDestroy {
     private readonly auth: AuthService,
     private readonly changeDetectorRef: ChangeDetectorRef,
     private readonly visitorSignals: VisitorSignalService,
-    private readonly analytics: GoogleAnalyticsService
+    private readonly analytics: GoogleAnalyticsService,
+    private readonly applicationApi: ApplicationApiService
   ) {}
 
   ngOnInit(): void {
     this.filtersExpanded = !this.isMobileViewport();
-    this.preparePostOnboardingSearch();
-    if (this.onboardingStartPending) {
-      return;
-    }
-
+    // Who the visitor is, and what they have applied to, whether or not the
+    // search waits for them to start it: arriving from onboarding, they are
+    // signed in, and their saves and applications count from the first job.
     this.signedIn.set(this.auth.isAuthenticated());
-    this.loadJobs();
+    this.loadMyApplications();
     this.loadResumeHealth();
     this.loadMatchProfile();
     this.checkProfileUpdate();
+    this.preparePostOnboardingSearch();
+    if (!this.onboardingStartPending) {
+      this.loadJobs();
+    }
   }
 
   ngOnDestroy(): void {
@@ -294,6 +303,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     this.detailError = false;
     this.actionMessage = '';
     this.actionError = '';
+    this.applyNeedsResume = false;
     this.fitResult = null;
     this.mobileDetailOpen = true;
 
@@ -503,6 +513,94 @@ export class JobsComponent implements OnInit, OnDestroy {
    * application page. Signed in, it is tied to their account for the admin
    * launch funnel; otherwise it is an anonymous count.
    */
+  /** A job a company posted on AIRRAL: applied to here, not on another site. */
+  isAirralJob(job: CandidateJobSummary | CandidateJobDetail | null): boolean {
+    return job?.sourceType === 'AIRRAL_INTERNAL';
+  }
+
+  hasApplied(job: CandidateJobSummary | CandidateJobDetail | null): boolean {
+    const jobId = this.internalJobId(job);
+    return jobId !== null && this.appliedJobIds().has(jobId);
+  }
+
+  /** Whether an application is on its way for the job on screen. */
+  get applying(): boolean {
+    return this.applyingJobId !== null && this.applyingJobId === this.internalJobId(this.selectedJob);
+  }
+
+  applyInAirral(): void {
+    const job = this.selectedJob;
+    const jobId = this.internalJobId(job);
+    if (!job || jobId === null || this.applyingJobId !== null || this.hasApplied(job)) return;
+    if (!this.requireAccount('apply to this job')) return;
+    const user = this.auth.getCurrentUser();
+    if (!user?.email) return;
+
+    this.applyingJobId = jobId;
+    this.actionMessage = '';
+    this.actionError = '';
+    this.applyNeedsResume = false;
+    const name = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email;
+    // The answer belongs to this job: shown only if it is still the one open.
+    const stillOpen = () => this.internalJobId(this.selectedJob) === jobId;
+
+    this.applicationApi
+      .submitApplication({ jobId, applicantName: name, applicantEmail: user.email })
+      .pipe(finalize(() => {
+        this.applyingJobId = null;
+        this.changeDetectorRef.markForCheck();
+      }))
+      .subscribe({
+        next: () => {
+          this.markApplied(jobId);
+          if (stillOpen()) {
+            this.actionMessage = `Applied. ${job.companyName || 'The company'} can see your resume and profile now.`;
+          }
+          this.visitorSignals.track('apply_in_airral', '/jobs', 'applicant');
+          this.analytics.event('apply_in_airral');
+        },
+        error: (error: { status?: number; message?: string }) => {
+          if (error?.status === 409) {
+            this.markApplied(jobId);
+          }
+          if (!stillOpen()) return;
+          if (error?.status === 409) {
+            this.actionMessage = "You've already applied to this job.";
+          } else if (error?.status === 400 && /resume/i.test(error?.message ?? '')) {
+            this.applyNeedsResume = true;
+            this.actionError = 'Upload your resume first. The company reviews it with your application.';
+          } else if (error?.status === 404) {
+            this.actionError = 'This job is no longer taking applications.';
+          } else {
+            this.actionError = 'Your application did not go through. Try again in a minute.';
+          }
+        },
+      });
+  }
+
+  /** Which HR-posted jobs this applicant has applied to, so those show as Applied. */
+  private loadMyApplications(): void {
+    const user = this.auth.getCurrentUser();
+    if (!this.signedIn() || !user?.id) return;
+    this.applicationApi.getMyApplications(user.id).pipe(catchError(() => of([]))).subscribe((applications) => {
+      this.appliedJobIds.set(new Set(applications.map((application) => application.jobId)));
+      this.changeDetectorRef.markForCheck();
+    });
+  }
+
+  private markApplied(jobId: number): void {
+    const next = new Set(this.appliedJobIds());
+    next.add(jobId);
+    this.appliedJobIds.set(next);
+  }
+
+  /** An HR-posted job's AIRRAL job id, carried in the catalogue as its external id. */
+  private internalJobId(job: CandidateJobSummary | CandidateJobDetail | null): number | null {
+    if (!this.isAirralJob(job)) return null;
+    const id = Number(job?.externalJobId);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
+
   trackApplyClick(): void {
     this.visitorSignals.track('apply_click', '/jobs', 'applicant');
     this.analytics.event('apply_click');

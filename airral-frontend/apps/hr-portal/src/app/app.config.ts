@@ -5,6 +5,7 @@ import {
 import { provideRouter, withInMemoryScrolling } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { appRoutes } from './app.routes';
+import { redrawAfterResponseInterceptor } from '@airral/shared-api';
 import { authTokenInterceptor, PORTAL_ID } from '@airral/shared-auth';
 
 export const appConfig: ApplicationConfig = {
@@ -19,6 +20,7 @@ export const appConfig: ApplicationConfig = {
         anchorScrolling: 'enabled'
       })
     ),
-    provideHttpClient(withInterceptors([authTokenInterceptor])),
+    // Zoneless: a response redraws the pages that handle it (see the interceptor).
+    provideHttpClient(withInterceptors([authTokenInterceptor, redrawAfterResponseInterceptor])),
   ],
 };

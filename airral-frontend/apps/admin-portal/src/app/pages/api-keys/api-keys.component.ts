@@ -100,7 +100,7 @@ export class ApiKeysComponent {
         },
         error: (err) => {
           this.error.set(
-            err?.error?.message ??
+            err?.message ||
               'Could not issue the key. The account may not exist, or may be inactive.'
           );
           this.issuing.set(false);

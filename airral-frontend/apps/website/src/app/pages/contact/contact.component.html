@@ -29,6 +29,7 @@
             </span>
             Thanks — your message is with us. We will be in touch.
           </p>
+          <p class="note note--error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
         </div>
 
         <form class="form" (ngSubmit)="onSubmit()">
@@ -41,6 +42,7 @@
               [(ngModel)]="formData.name"
               name="name"
               placeholder="Your name"
+              maxlength="100"
               required
             />
           </p>
@@ -54,6 +56,7 @@
               [(ngModel)]="formData.email"
               name="email"
               placeholder="you@example.com"
+              maxlength="255"
               required
             />
           </p>
@@ -67,6 +70,7 @@
               [(ngModel)]="formData.subject"
               name="subject"
               placeholder="What is this about?"
+              maxlength="150"
             />
           </p>
 
@@ -79,12 +83,13 @@
               name="message"
               placeholder="As much detail as you like."
               rows="6"
+              maxlength="5000"
               required
             ></textarea>
           </p>
 
           <div class="cta-row form__cta">
-            <button class="btn" type="submit">Send message</button>
+            <button class="btn" type="submit" [disabled]="sending">{{ sending ? 'Sending…' : 'Send message' }}</button>
           </div>
         </form>
       </div>

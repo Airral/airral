@@ -53,9 +53,10 @@ export const roleGuard: CanActivateFn = (route) => {
 
   const normalizedRoles = requiredRoles.map((role) => role.toUpperCase());
 
-  // Map HR segment access to both ADMIN and HR_MANAGER backend roles
+  // The HR segment is the HR manager role. ADMIN is AIRRAL's own staff role and
+  // belongs to the admin portal, not to a company.
   if (normalizedRoles.includes('HR')) {
-    normalizedRoles.push('ADMIN', 'HR_MANAGER');
+    normalizedRoles.push('HR_MANAGER');
     normalizedRoles.splice(normalizedRoles.indexOf('HR'), 1); // Remove 'HR'
   }
 

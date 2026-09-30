@@ -1,9 +1,13 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ApplicationApiService } from '@airral/shared-api';
-import { Application, Offer, OfferStatus, CreateOfferRequest } from '@airral/shared-types';
-import { forkJoin } from 'rxjs';
+import { ActivatedRoute } from '@angular/router';
+import { ApiError, ApplicationApiService } from '@airral/shared-api';
+import { Application, ApplicationStatus, Offer, OfferStatus, CreateOfferRequest } from '@airral/shared-types';
+import { Observable, finalize, forkJoin } from 'rxjs';
+
+/** Applications that no longer take an offer. */
+const CLOSED: string[] = [ApplicationStatus.HIRED, ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN];
 
 @Component({
   selector: 'app-offers',
@@ -16,7 +20,10 @@ export class OffersComponent implements OnInit {
   offers: Offer[] = [];
   applications: Application[] = [];
   loading = false;
+  /** An offer step is on its way to the server: its buttons wait, so a second click cannot repeat it. */
+  busy = false;
   error: string | null = null;
+  notice: string | null = null;
 
   showCreateForm = false;
   showOfferDetail = false;
@@ -29,6 +36,9 @@ export class OffersComponent implements OnInit {
   offerForm: FormGroup;
   private applicationApiService = inject(ApplicationApiService);
   private formBuilder = inject(FormBuilder);
+  private route = inject(ActivatedRoute);
+  /** The candidate the Candidates page sent us here for, once. */
+  private requestedApplicationId: number | null = null;
 
   constructor() {
     this.offerForm = this.formBuilder.group({
@@ -43,6 +53,8 @@ export class OffersComponent implements OnInit {
   }
 
   ngOnInit() {
+    const requested = Number(this.route.snapshot.queryParamMap.get('applicationId'));
+    this.requestedApplicationId = Number.isInteger(requested) && requested > 0 ? requested : null;
     this.loadData();
   }
 
@@ -62,6 +74,7 @@ export class OffersComponent implements OnInit {
         this.applications = applications;
         this.offers = offers;
         this.loading = false;
+        this.openRequestedApplication();
       },
       error: () => {
         this.error = 'Failed to load offers data';
@@ -70,9 +83,65 @@ export class OffersComponent implements OnInit {
     });
   }
 
+  /**
+   * From "Make an offer" or "See the offer" on the Candidates page: the
+   * candidate's offer still being made, else a new one for them, else their
+   * latest.
+   */
+  private openRequestedApplication() {
+    const applicationId = this.requestedApplicationId;
+    if (applicationId === null) return;
+    this.requestedApplicationId = null;
+    const theirs = this.offers
+      .filter((offer) => offer.applicationId === applicationId)
+      .sort((a, b) => b.id - a.id);
+    const open = theirs.find((offer) => this.isOpen(offer));
+    if (open) {
+      this.viewOffer(open);
+    } else if (this.offerableApplications.some((application) => application.id === applicationId)) {
+      this.openCreateForm();
+      this.offerForm.patchValue({ applicationId: String(applicationId) });
+    } else if (theirs[0]) {
+      this.viewOffer(theirs[0]);
+    }
+  }
+
+  /** A draft, or a sent offer still waiting for an answer. */
+  private isOpen(offer: Offer): boolean {
+    return offer.status === OfferStatus.DRAFT || offer.status === OfferStatus.SENT;
+  }
+
+  /** Candidates who can be made an offer: still in the running, with none already being made. */
+  get offerableApplications(): Application[] {
+    return this.applications.filter(
+      (application) =>
+        !CLOSED.includes(application.status) &&
+        !this.offers.some((offer) => offer.applicationId === application.id && this.isOpen(offer)),
+    );
+  }
+
   openCreateForm() {
     this.showCreateForm = true;
     this.selectedOffer = null;
+  }
+
+  /**
+   * One offer step at a time. A conflict means the offer changed elsewhere
+   * (withdrawn in another tab, answered by the candidate), so the list is read
+   * again to show where it stands.
+   */
+  private step(request: Observable<Offer>, done: (offer: Offer) => void, failed: string) {
+    if (this.busy) return;
+    this.busy = true;
+    this.error = null;
+    this.notice = null;
+    request.pipe(finalize(() => (this.busy = false))).subscribe({
+      next: done,
+      error: (err: ApiError) => {
+        this.error = err?.message || failed;
+        if (err?.status === 409) this.loadData();
+      },
+    });
   }
 
   cancelForm() {
@@ -98,17 +167,11 @@ export class OffersComponent implements OnInit {
       contingencies: formValue.contingencies
     };
 
-    this.applicationApiService.createOffer(request).subscribe({
-      next: (offer) => {
-        this.offers.push(offer);
-        this.showCreateForm = false;
-        this.offerForm.reset({ currency: 'USD', offerLetter: 'We are pleased to offer you this position...' });
-        this.error = null;
-      },
-      error: (err) => {
-        this.error = 'Failed to create offer';
-      }
-    });
+    this.step(this.applicationApiService.createOffer(request), (offer) => {
+      this.offers.push(offer);
+      this.showCreateForm = false;
+      this.offerForm.reset({ currency: 'USD', offerLetter: 'We are pleased to offer you this position...' });
+    }, 'The offer could not be saved.');
   }
 
   viewOffer(offer: Offer) {
@@ -122,31 +185,48 @@ export class OffersComponent implements OnInit {
   }
 
   sendOffer(offer: Offer) {
-    this.applicationApiService.sendOffer({ offerId: offer.id, expiresInDays: 14 }).subscribe({
-      next: (updatedOffer) => {
-        const index = this.offers.findIndex(o => o.id === offer.id);
-        if (index >= 0) this.offers[index] = updatedOffer;
-        this.error = null;
-      },
-      error: (err) => {
-        this.error = 'Failed to send offer';
-      }
-    });
+    this.step(this.applicationApiService.sendOffer({ offerId: offer.id, expiresInDays: 14 }), (updatedOffer) => {
+      this.replaceOffer(updatedOffer);
+      this.notice = updatedOffer.candidateHasAccount
+        ? `Sent. ${updatedOffer.candidateName || 'The candidate'} answers on AIRRAL by the end of ${this.formatDate(updatedOffer.expiresAt)}.`
+        : `Sent. ${updatedOffer.candidateName || 'The candidate'} has no AIRRAL account, so record their answer here when you have it.`;
+    }, 'The offer could not be sent.');
+  }
+
+  /** For a candidate HR added by hand: they have no account, so HR records their answer. */
+  recordAnswer(offer: Offer, accepted: boolean) {
+    const name = offer.candidateName || 'the candidate';
+    if (!confirm(accepted ? `Record that ${name} accepted? They will be marked hired.` : `Record that ${name} declined?`)) return;
+    const answer$ = accepted
+      ? this.applicationApiService.acceptOffer(offer.id)
+      : this.applicationApiService.declineOffer(offer.id);
+    this.step(answer$, (updatedOffer) => {
+      this.replaceOffer(updatedOffer);
+      this.notice = accepted ? `${name} is marked hired.` : `Recorded that ${name} declined.`;
+    }, 'The answer could not be recorded.');
+  }
+
+  canRecordAnswer(offer: Offer): boolean {
+    return offer.status === OfferStatus.SENT && offer.candidateHasAccount === false;
+  }
+
+  awaitingCandidate(offer: Offer): boolean {
+    return offer.status === OfferStatus.SENT && offer.candidateHasAccount === true;
+  }
+
+  private replaceOffer(updated: Offer) {
+    const index = this.offers.findIndex(o => o.id === updated.id);
+    if (index >= 0) this.offers[index] = updated;
+    if (this.selectedOffer?.id === updated.id) this.selectedOffer = updated;
   }
 
   withdrawOffer(offer: Offer) {
     if (!confirm('Are you sure you want to withdraw this offer?')) return;
 
-    this.applicationApiService.withdrawOffer(offer.id).subscribe({
-      next: (updatedOffer) => {
-        const index = this.offers.findIndex(o => o.id === offer.id);
-        if (index >= 0) this.offers[index] = updatedOffer;
-        this.error = null;
-      },
-      error: (err) => {
-        this.error = 'Failed to withdraw offer';
-      }
-    });
+    this.step(this.applicationApiService.withdrawOffer(offer.id), (updatedOffer) => {
+      this.replaceOffer(updatedOffer);
+      this.notice = 'Offer withdrawn.';
+    }, 'The offer could not be withdrawn.');
   }
 
   getFilteredOffers(): Offer[] {

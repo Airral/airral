@@ -296,7 +296,8 @@ class ClientIpConfigTest {
                 authService, loginThrottle, mock(TokenVersionCache.class), mock(JwtTokenProvider.class),
                 verification,
                 mock(com.airral.repository.UserRepository.class),
-                mock(com.airral.repository.OrganizationRepository.class));
+                mock(com.airral.repository.OrganizationRepository.class),
+                mock(com.airral.service.UserService.class));
 
         // A leftover chain on the request must not outrank the stamp. In
         // production it is stripped before a handler runs; here it stands in for

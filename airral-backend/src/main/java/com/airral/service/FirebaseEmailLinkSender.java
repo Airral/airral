@@ -87,10 +87,29 @@ public class FirebaseEmailLinkSender {
     }
 
     public Mono<Void> send(User user, Purpose purpose) {
+        String continueUrl = continueUrl(user, purpose);
+        return sendLink(user.getEmail(), continueUrl, purpose.name().toLowerCase(), "user " + user.getId(), continueUrl);
+    }
+
+    /**
+     * An invitation to join a company. The link lands on the HR portal's page
+     * for this invitation, and following it proves the invitee owns the
+     * address. The invitation's token is in that address, so it is not logged.
+     */
+    public Mono<Void> sendInvitation(Long invitationId, String email, String invitationToken) {
+        return sendLink(email, invitationUrl(invitationToken), "invitation",
+                "invitation " + invitationId, hrUrl + "/accept-invitation");
+    }
+
+    /** Where an invitation's link lands: the HR portal's page for that invitation. */
+    String invitationUrl(String invitationToken) {
+        return hrUrl + "/accept-invitation/" + invitationToken;
+    }
+
+    private Mono<Void> sendLink(String email, String continueUrl, String what, String who, String landsOn) {
         if (!StringUtils.hasText(projectId)) {
             return Mono.error(new IllegalStateException("airral.auth.firebase.project-id is not set"));
         }
-        String continueUrl = continueUrl(user, purpose);
         return accessToken()
                 .flatMap(token -> webClient.post()
                         .uri("/v1/projects/{project}/accounts:sendOobCode", projectId)
@@ -100,7 +119,7 @@ public class FirebaseEmailLinkSender {
                         .header("x-goog-user-project", projectId)
                         .bodyValue(Map.of(
                                 "requestType", "EMAIL_SIGNIN",
-                                "email", user.getEmail(),
+                                "email", email,
                                 "continueUrl", continueUrl,
                                 "canHandleCodeInApp", true,
                                 "returnOobLink", !deliver))
@@ -108,18 +127,16 @@ public class FirebaseEmailLinkSender {
                         .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
                                 .defaultIfEmpty("")
                                 .map(body -> new IllegalStateException("Firebase refused to send the "
-                                        + purpose.name().toLowerCase() + " link (HTTP "
+                                        + what + " link (HTTP "
                                         + response.statusCode().value() + "): " + body)))
                         .bodyToMono(Map.class)
                         .defaultIfEmpty(Map.of()))
                 .timeout(Duration.ofSeconds(15))
                 .doOnNext(response -> {
                     if (deliver) {
-                        log.info("Sent {} link to user {} (lands on {})",
-                                purpose.name().toLowerCase(), user.getId(), continueUrl);
+                        log.info("Sent {} link to {} (lands on {})", what, who, landsOn);
                     } else {
-                        log.info("Email delivery is off; {} link for user {}: {}",
-                                purpose.name().toLowerCase(), user.getId(), response.get("oobLink"));
+                        log.info("Email delivery is off; {} link for {}: {}", what, who, response.get("oobLink"));
                     }
                 })
                 .then();

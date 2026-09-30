@@ -1,8 +1,10 @@
 package com.airral.controller;
 
-import com.airral.domain.UserInvitation;
+import com.airral.dto.request.ChangeRoleRequest;
 import com.airral.dto.request.InviteUserRequest;
+import com.airral.dto.request.SetActiveRequest;
 import com.airral.dto.request.UpdateUserRequest;
+import com.airral.dto.response.InvitationResponse;
 import com.airral.dto.response.UserResponse;
 import com.airral.exception.BadRequestException;
 import com.airral.security.JwtTokenProvider;
@@ -65,8 +67,14 @@ public class UserController {
      */
     @GetMapping("/team/{managerId}")
     @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'MANAGER', 'ADMIN')")
-    public Mono<ResponseEntity<Flux<UserResponse>>> getTeamMembers(@PathVariable Long managerId) {
-        return Mono.just(ResponseEntity.ok(userService.getTeamMembers(managerId)));
+    public Mono<ResponseEntity<Flux<UserResponse>>> getTeamMembers(
+            @PathVariable Long managerId,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+
+        return Mono.just(ResponseEntity.ok(userService.getTeamMembers(managerId, organizationId)));
     }
 
     /**
@@ -74,7 +82,7 @@ public class UserController {
      * PUT /api/users/{id}
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN', 'EMPLOYEE')")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN', 'MANAGER', 'EMPLOYEE')")
     public Mono<ResponseEntity<UserResponse>> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request,
@@ -83,7 +91,47 @@ public class UserController {
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
-        return userService.updateUser(id, request, organizationId)
+        return userService.updateUser(id, request, organizationId,
+                        jwtTokenProvider.getUserIdFromToken(token),
+                        jwtTokenProvider.getRoleFromToken(token))
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * Change a member's role
+     * PUT /api/users/{id}/role
+     */
+    @PutMapping("/{id}/role")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<UserResponse>> changeRole(
+            @PathVariable Long id,
+            @Valid @RequestBody ChangeRoleRequest request,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+
+        return userService.changeRole(id, request.getRole(),
+                        jwtTokenProvider.getOrganizationIdFromToken(token),
+                        jwtTokenProvider.getUserIdFromToken(token))
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * Deactivate or reactivate a member
+     * PUT /api/users/{id}/active
+     */
+    @PutMapping("/{id}/active")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<UserResponse>> setActive(
+            @PathVariable Long id,
+            @Valid @RequestBody SetActiveRequest request,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+
+        return userService.setActive(id, request.getActive(),
+                        jwtTokenProvider.getOrganizationIdFromToken(token),
+                        jwtTokenProvider.getUserIdFromToken(token))
                 .map(ResponseEntity::ok);
     }
 
@@ -93,7 +141,7 @@ public class UserController {
      */
     @PostMapping("/invite")
     @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
-    public Mono<ResponseEntity<UserInvitation>> inviteUser(
+    public Mono<ResponseEntity<InvitationResponse>> inviteUser(
             @Valid @RequestBody InviteUserRequest request,
             @RequestHeader("Authorization") String authHeader) {
         
@@ -111,13 +159,47 @@ public class UserController {
      */
     @GetMapping("/invitations")
     @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
-    public Mono<ResponseEntity<Flux<UserInvitation>>> getPendingInvitations(
+    public Mono<ResponseEntity<Flux<InvitationResponse>>> getPendingInvitations(
             @RequestHeader("Authorization") String authHeader) {
         
         String token = extractToken(authHeader);
         Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
 
         return Mono.just(ResponseEntity.ok(userService.getPendingInvitations(organizationId)));
+    }
+
+    /**
+     * Send an invitation's email again
+     * POST /api/users/invitations/{id}/resend
+     */
+    @PostMapping("/invitations/{id}/resend")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<InvitationResponse>> resendInvitation(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+
+        return userService.resendInvitation(id, organizationId)
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * Cancel a pending invitation
+     * DELETE /api/users/invitations/{id}
+     */
+    @DeleteMapping("/invitations/{id}")
+    @PreAuthorize("hasAnyAuthority('HR_MANAGER', 'ADMIN')")
+    public Mono<ResponseEntity<Void>> cancelInvitation(
+            @PathVariable Long id,
+            @RequestHeader("Authorization") String authHeader) {
+
+        String token = extractToken(authHeader);
+        Long organizationId = jwtTokenProvider.getOrganizationIdFromToken(token);
+
+        return userService.cancelInvitation(id, organizationId)
+                .thenReturn(ResponseEntity.noContent().<Void>build());
     }
 
     /**

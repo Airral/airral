@@ -5,13 +5,12 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
 import { AuthService, PORTAL_ID, SessionExpiry, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { AuthResponse, User } from '@airral/shared-types';
-import { GoogleAuthButtonComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES, USER_ROLES } from '@airral/shared-utils';
 
 @Component({
   selector: 'app-hr-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, GoogleAuthButtonComponent],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
 })
@@ -25,7 +24,6 @@ export class LoginComponent {
   email = '';
   password = '';
   isLoading = false;
-  googleLoading = false;
   errorMessage = '';
   readonly portalRoutes = PORTAL_ROUTES;
 
@@ -36,7 +34,7 @@ export class LoginComponent {
   }
 
   onSubmit(): void {
-    if (!this.email || !this.password || this.isLoading || this.googleLoading) {
+    if (!this.email || !this.password || this.isLoading) {
       return;
     }
 
@@ -52,33 +50,12 @@ export class LoginComponent {
     });
   }
 
-  handleGoogleCredential(credential: string): void {
-    if (this.googleLoading || this.isLoading) {
-      return;
-    }
-
-    this.googleLoading = true;
-    this.errorMessage = '';
-
-    this.authApi.googleLogin({ credential }).subscribe({
-      next: (response) => this.handleAuthSuccess(response),
-      error: () => {
-        // The backend rejects the credential outright when no client id is
-        // configured, so say which half is missing rather than blaming the
-        // account.
-        this.errorMessage = 'Google sign-in is unavailable right now. Use your email and password.';
-        this.googleLoading = false;
-      },
-    });
-  }
-
   private handleAuthSuccess(response: AuthResponse): void {
     const role = response.role || USER_ROLES.APPLICANT;
     const email = response.email || response.userEmail || this.email;
     const user = userFromAuthResponse(response, { email });
 
     this.isLoading = false;
-    this.googleLoading = false;
     this.redirectByRole(role, user, response.token, sessionExpiryFromResponse(response.expiresInSeconds));
   }
 

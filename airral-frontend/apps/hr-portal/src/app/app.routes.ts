@@ -1,4 +1,4 @@
-import { ForgotPasswordComponent, ResetPasswordComponent, VerifyEmailComponent } from '@airral/shared-ui';
+import { AcceptInvitationComponent, ForgotPasswordComponent, ResetPasswordComponent, VerifyEmailComponent } from '@airral/shared-ui';
 import { Route } from '@angular/router';
 import { authGuard, roleGuard } from '@airral/shared-auth';
 import { ROUTE_ACCESS } from './feature-config';
@@ -44,6 +44,10 @@ export const appRoutes: Route[] = [
     component: ResetPasswordComponent,
   },
   {
+    path: 'accept-invitation/:token',
+    component: AcceptInvitationComponent,
+  },
+  {
     path: '',
     ...internalAccess,
     loadComponent: () =>
@@ -73,8 +77,10 @@ export const appRoutes: Route[] = [
       import('./pages/offers/offers.component').then((m) => m.OffersComponent),
   },
   {
+    // Managers see only the candidates for jobs they are hiring manager on;
+    // the API scopes every list and action on this page.
     path: 'candidates',
-    ...hrAccess,
+    ...managerAccess,
     loadComponent: () =>
       import('./pages/candidates/candidates.component').then((m) => m.CandidatesComponent),
   },
@@ -83,6 +89,12 @@ export const appRoutes: Route[] = [
     ...managerAccess,
     loadComponent: () =>
       import('./pages/interviews/interviews.component').then((m) => m.InterviewsComponent),
+  },
+  {
+    path: 'my-interviews',
+    ...internalAccess,
+    loadComponent: () =>
+      import('./pages/my-interviews/my-interviews.component').then((m) => m.MyInterviewsComponent),
   },
   {
     path: 'interviews/scorecard',
@@ -103,16 +115,22 @@ export const appRoutes: Route[] = [
       import('./pages/settings/settings.component').then((m) => m.SettingsComponent),
   },
   {
-    path: 'settings/integrations',
+    path: 'settings/company',
     ...hrAccess,
     loadComponent: () =>
-      import('./pages/settings/integrations/integrations.component').then((m) => m.IntegrationsComponent),
+      import('./pages/settings/company/company.component').then((m) => m.CompanyComponent),
   },
   {
-    path: 'settings/hiring-stages',
+    path: 'settings/team',
     ...hrAccess,
     loadComponent: () =>
-      import('./pages/settings/hiring-stages/hiring-stages.component').then((m) => m.HiringStagesComponent),
+      import('./pages/settings/team/team.component').then((m) => m.TeamComponent),
+  },
+  {
+    path: 'settings/departments',
+    ...hrAccess,
+    loadComponent: () =>
+      import('./pages/settings/departments/departments.component').then((m) => m.DepartmentsComponent),
   },
   {
     path: 'settings/interview-kits',

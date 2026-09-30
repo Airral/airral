@@ -9,6 +9,10 @@ export interface Job {
   description: string;
   departmentId?: number;
   department?: string;
+  hiringManagerId?: number | null;
+  /** One of the company's interview kits, or none for the standard criteria. */
+  interviewKitId?: number | null;
+  hiringManagerName?: string | null;
   location?: string;               // e.g., "San Francisco, CA (Remote)"
   employmentType?: string;         // "Full-time", "Part-time", "Contract", "Internship"
   salaryMin?: number;              // Minimum salary
@@ -49,6 +53,8 @@ export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
 export interface Application {
   id: number;
   jobId: number;
+  /** Whether the applicant's resume is attached, for the company to open. */
+  resumeOnFile?: boolean;
   jobTitle?: string;               // Denormalized job title
   job?: Job;
   applicantId?: number;            // Applicant user ID (if registered)
@@ -65,8 +71,16 @@ export interface Application {
 
   // ATS Scoring (calculated when application submitted)
   atsScore: number;                // 0-100%
-  atsMatchedKeywords: string[];    // Which keywords matched
-  atsMissingKeywords: string[];    // Which keywords didn't match
+  /** The job's keywords, or the skills its description names, found in the resume or note. Null when there were none to look for. */
+  atsMatchedKeywords?: string[] | null;
+  /** The ones not found. Null when there were none to look for. */
+  atsMissingKeywords?: string[] | null;
+  /**
+   * What the keywords were looked for in: the resume and the note, only the note
+   * (a candidate added with a resume link), or only the note because the resume's
+   * text could not be read. Null for applications made before it was recorded.
+   */
+  alignmentSource?: 'RESUME_AND_NOTE' | 'NOTE' | 'UNREADABLE_RESUME' | null;
   atsMatchDetails?: Record<string, boolean>; // Detailed match per keyword
 
   // HR visibility control
@@ -119,6 +133,9 @@ export interface CreateJobRequest {
   description: string;
   departmentId?: number;
   department?: string;
+  hiringManagerId?: number | null;
+  /** One of the company's interview kits, or none for the standard criteria. */
+  interviewKitId?: number | null;
   location?: string;
   employmentType?: string;
   salaryMin?: number;
@@ -137,10 +154,35 @@ export interface UpdateJobRequest extends Partial<CreateJobRequest> {
 }
 
 // For submitting applications (applicant-side)
+/** Where an application stands, as the applicant sees it. */
+export type ApplicantStage =
+  | 'APPLIED'
+  | 'IN_REVIEW'
+  | 'INTERVIEWING'
+  | 'OFFER'
+  | 'HIRED'
+  | 'NOT_SELECTED'
+  | 'WITHDRAWN';
+
+/** One of the signed-in applicant's own applications on AIRRAL. */
+export interface MyApplication {
+  id: number;
+  jobId: number;
+  jobTitle: string;
+  companyName?: string;
+  stage: ApplicantStage;
+  appliedAt: string;
+  updatedAt?: string;
+}
+
 export interface SubmitApplicationRequest {
   jobId: number;
-  coverLetter: string;
-  resumeUrl: string;
+  applicantName: string;
+  applicantEmail: string;
+  applicantPhone?: string;
+  coverLetter?: string;
+  /** Only for a candidate HR adds by hand. An applicant's own resume is attached from their profile. */
+  resumeUrl?: string;
 }
 
 // For HR viewing applicants with ATS filters
@@ -204,13 +246,28 @@ export interface CreateEncounterRequest {
   metadata?: string;
 }
 
+/** A teammate on an interview. */
+export interface InterviewerSummary {
+  id: number;
+  name: string;
+}
+
 export interface Interview {
   id: number;
   applicationId: number;
+  jobId?: number;
   candidateName?: string;
   candidateEmail?: string;
   jobTitle?: string;
+  /** Wall-clock time in timeZone, when there is one. See wallTimeToDate. */
   interviewDate: string;
+  durationMinutes?: number;
+  timeZone?: string;
+  interviewers?: InterviewerSummary[];
+  scheduledBy?: string;
+  notes?: string;
+  /** On My interviews only: the viewer's own scorecard, DRAFT or SUBMITTED, or absent before they start one. */
+  myScorecardStatus?: 'DRAFT' | 'SUBMITTED' | null;
   interviewType?: string;
   status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
   feedback?: string;
@@ -219,6 +276,106 @@ export interface Interview {
   scheduledByName?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface KitQuestion {
+  text: string;
+  category?: string | null;
+}
+
+/** Something interviewers rate a candidate on; weight 1 to 3 is how much it counts. */
+export interface KitCriterion {
+  name: string;
+  category?: string | null;
+  weight: number;
+}
+
+export interface InterviewKit {
+  id: number;
+  name: string;
+  description?: string | null;
+  durationMinutes: number;
+  questions: KitQuestion[];
+  /** Empty means the standard criteria. */
+  criteria: KitCriterion[];
+  updatedAt?: string;
+}
+
+export interface InterviewKitRequest {
+  name: string;
+  description?: string;
+  durationMinutes?: number;
+  questions: KitQuestion[];
+  criteria: KitCriterion[];
+}
+
+export type Recommendation = 'STRONG_HIRE' | 'HIRE' | 'NO_HIRE' | 'STRONG_NO_HIRE';
+
+export interface ScoreRating {
+  criterion: string;
+  category?: string | null;
+  weight?: number | null;
+  /** 1 to 5, or null before it is rated. */
+  rating?: number | null;
+  notes?: string | null;
+}
+
+/** One interviewer's scorecard, with what it is about. */
+export interface Scorecard {
+  id?: number | null;
+  interviewId: number;
+  applicationId: number;
+  interviewerId: number;
+  interviewerName: string;
+  candidateName?: string;
+  jobTitle?: string;
+  interviewDate?: string;
+  durationMinutes?: number;
+  timeZone?: string | null;
+  kitName?: string | null;
+  questions: KitQuestion[];
+  ratings: ScoreRating[];
+  overallNotes?: string | null;
+  recommendation?: Recommendation | null;
+  status: 'DRAFT' | 'SUBMITTED';
+  submittedAt?: string | null;
+  weightedScore?: number | null;
+}
+
+export interface ScorecardRequest {
+  ratings: { criterion: string; rating?: number | null; notes?: string | null }[];
+  overallNotes?: string;
+  recommendation?: Recommendation | null;
+  submit: boolean;
+}
+
+/** Wrapping up a job once someone is hired. Each step is optional. */
+export interface CloseOutRequest {
+  markFilled?: boolean;
+  /** Turn down the candidates still in progress. Anyone with an offer out is left alone. */
+  turnDownOthers?: boolean;
+  notifyCandidates?: boolean;
+}
+
+export interface CloseOutResult {
+  markedFilled: boolean;
+  turnedDown: number;
+  withOpenOffers: number;
+}
+
+export interface ScheduleInterviewRequest {
+  applicationId: number;
+  /** Wall-clock time in timeZone. */
+  interviewDate: string;
+  notes?: string;
+  /** Email the candidate the day and time. */
+  notifyCandidate?: boolean;
+  /** Email each interviewer an invitation with a calendar file. */
+  notifyInterviewers?: boolean;
+  interviewerIds?: number[];
+  durationMinutes?: number;
+  /** The booker's IANA time zone. */
+  timeZone?: string;
 }
 
 export interface ActivityFeedItem {

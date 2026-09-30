@@ -18,4 +18,7 @@ public class UpdateUserRequest {
     private String jobTitle;
     private Long departmentId;
     private Long managerId;
+
+    /** HR only: take the person out of their department. */
+    private Boolean clearDepartment;
 }

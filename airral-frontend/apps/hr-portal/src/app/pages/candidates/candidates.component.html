@@ -5,9 +5,16 @@
       <h1>Candidates</h1>
       <p class="page-copy">Review evidence, coordinate interviews, and move every applicant toward a clear decision.</p>
     </div>
-    <button type="button" class="icon-action" title="Refresh candidates" aria-label="Refresh candidates" (click)="load()">
-      <span class="material-icons" aria-hidden="true">refresh</span>
-    </button>
+    <div class="header-actions">
+      @if (canAddCandidates) {
+        <button type="button" class="primary-button" [disabled]="addingCandidate" (click)="openAddCandidate()">
+          <span class="material-icons" aria-hidden="true">person_add</span>Add candidate
+        </button>
+      }
+      <button type="button" class="icon-action" title="Refresh candidates" aria-label="Refresh candidates" (click)="load()">
+        <span class="material-icons" aria-hidden="true">refresh</span>
+      </button>
+    </div>
   </header>
 
   <section class="metrics" aria-label="Candidate pipeline summary">
@@ -26,6 +33,43 @@
     <div class="notice success-notice" role="status">
       <span class="material-icons" aria-hidden="true">check_circle</span>{{ success }}
     </div>
+  }
+
+  @if (addingCandidate) {
+    <section class="add-candidate" aria-labelledby="add-candidate-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">Add by hand</p><h3 id="add-candidate-title">Add a candidate</h3></div>
+        <button type="button" class="icon-action compact" title="Close" aria-label="Close" (click)="cancelAddCandidate()">
+          <span class="material-icons" aria-hidden="true">close</span>
+        </button>
+      </div>
+      <p class="field-help">For someone you found yourself. They are not signed up to AIRRAL, and nobody emails them that you added them.</p>
+      @if (jobs.length === 0) {
+        <p class="field-help">Post a job first. A candidate is always added to one of your jobs.</p>
+      }
+      <form class="add-grid" (ngSubmit)="addCandidate()">
+        <label>Job
+          <select name="jobId" [(ngModel)]="newCandidate.jobId" required>
+            <option value="" disabled>Choose a job</option>
+            @for (job of jobs; track job.id) {
+              <option [value]="job.id">{{ job.title }}</option>
+            }
+          </select>
+        </label>
+        <label>Name<input name="name" [(ngModel)]="newCandidate.name" maxlength="255" required autocomplete="off" /></label>
+        <label>Email<input name="email" type="email" [(ngModel)]="newCandidate.email" maxlength="255" required autocomplete="off" /></label>
+        <label>Phone <span class="optional">Optional</span><input name="phone" type="tel" [(ngModel)]="newCandidate.phone" maxlength="50" autocomplete="off" /></label>
+        <label class="wide">Resume link <span class="optional">Optional</span>
+          <input name="resumeUrl" type="url" [(ngModel)]="newCandidate.resumeUrl" maxlength="500" placeholder="https://" autocomplete="off" />
+        </label>
+        <div class="add-actions wide">
+          <button type="submit" class="primary-button" [disabled]="!canSubmitCandidate">
+            <span class="material-icons" aria-hidden="true">person_add</span>{{ saving ? 'Adding…' : 'Add candidate' }}
+          </button>
+          <button type="button" class="secondary-button" (click)="cancelAddCandidate()">Cancel</button>
+        </div>
+      </form>
+    </section>
   }
 
   <section class="workspace">
@@ -126,9 +170,26 @@
               </button>
             }
             @if (application.status !== statuses.HIRED && application.status !== statuses.REJECTED && application.status !== statuses.WITHDRAWN) {
-              <button type="button" class="secondary-button danger" [disabled]="saving" (click)="reject(application)">Reject</button>
+              <button type="button" class="secondary-button danger" [disabled]="saving || confirmingReject" (click)="reject()">Reject</button>
             }
           </div>
+
+          @if (confirmingReject) {
+            <div class="reject-confirm" role="group" aria-label="Confirm rejection">
+              <strong>Reject {{ application.applicantName || application.applicantEmail }}?</strong>
+              <label class="check">
+                <input type="checkbox" [(ngModel)]="emailOnReject" />
+                Email {{ firstName(application) }} that you are not moving forward
+              </label>
+              @if (emailOnReject && companyVerified === false) {
+                <p class="field-help">Emails to candidates start once AIRRAL has verified your company.</p>
+              }
+              <div class="confirm-actions">
+                <button type="button" class="secondary-button danger" [disabled]="saving" (click)="confirmReject(application)">Reject</button>
+                <button type="button" class="secondary-button" (click)="cancelReject()">Cancel</button>
+              </div>
+            </div>
+          }
 
           <div class="detail-body">
             @if (detailLoading) {
@@ -141,24 +202,40 @@
                 <span class="evidence-note">Directional evidence, never a visibility gate</span>
               </div>
 
-              <div class="evidence-grid">
-                <div>
-                  <h4><span class="material-icons positive" aria-hidden="true">check_circle</span>Found in application</h4>
-                  <div class="keyword-list">
-                    @for (keyword of application.atsMatchedKeywords || []; track keyword) {
-                      <span class="keyword matched">{{ keyword }}</span>
-                    } @empty { <span class="muted">No keyword evidence recorded.</span> }
+              @if (application.atsMatchedKeywords?.length || application.atsMissingKeywords?.length) {
+                @if (resumeUnreadable(application)) {
+                  <p class="alignment-warning" role="note">
+                    <span class="material-icons" aria-hidden="true">warning_amber</span>
+                    <span>We couldn't read the text of this resume. It may be a scanned image. Open it to look for the keywords
+                    below yourself.@if (application.coverLetter) { Only the note was checked. }</span>
+                  </p>
+                } @else {
+                  <p class="field-help evidence-source">
+                    The job's keywords, or the skills its description names, looked for in
+                    {{ readsResume(application) ? 'the resume and the note' : 'the note' }}.
+                  </p>
+                }
+                <div class="evidence-grid">
+                  <div>
+                    <h4><span class="material-icons positive" aria-hidden="true">check_circle</span>Found in {{ readsResume(application) ? 'the resume or note' : 'the note' }}</h4>
+                    <div class="keyword-list">
+                      @for (keyword of application.atsMatchedKeywords || []; track keyword) {
+                        <span class="keyword matched">{{ keyword }}</span>
+                      } @empty { <span class="muted">{{ resumeUnreadable(application) && !application.coverLetter ? 'There is no note to check.' : 'None of them.' }}</span> }
+                    </div>
+                  </div>
+                  <div>
+                    <h4><span class="material-icons neutral" aria-hidden="true">help_outline</span>{{ resumeUnreadable(application) ? 'To look for in the resume' : 'Not found: worth asking about' }}</h4>
+                    <div class="keyword-list">
+                      @for (keyword of application.atsMissingKeywords || []; track keyword) {
+                        <span class="keyword missing">{{ keyword }}</span>
+                      } @empty { <span class="muted">Nothing: every one was found.</span> }
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <h4><span class="material-icons neutral" aria-hidden="true">help_outline</span>Needs validation</h4>
-                  <div class="keyword-list">
-                    @for (keyword of application.atsMissingKeywords || []; track keyword) {
-                      <span class="keyword missing">{{ keyword }}</span>
-                    } @empty { <span class="muted">No outstanding keyword gaps.</span> }
-                  </div>
-                </div>
-              </div>
+              } @else {
+                <p class="muted">The job names no keywords or known skills to look for. Add keywords to the job to see them checked here.</p>
+              }
 
               <div class="cover-letter">
                 <h4>Candidate note</h4>
@@ -166,12 +243,70 @@
               </div>
             </section>
 
+            @if (canCloseOut(application)) {
+              <section class="detail-section action-section close-out" aria-labelledby="close-out-heading">
+                <div class="section-heading"><div><p class="eyebrow">Hired</p><h3 id="close-out-heading">Close out {{ jobTitle(application) }}</h3></div></div>
+                @if (!jobFilled(application)) {
+                  <label class="check"><input type="checkbox" [(ngModel)]="closeOut.markFilled" /> Mark the job filled, so it stops taking applications</label>
+                }
+                @if (othersInProgress(application) > 0) {
+                  <label class="check">
+                    <input type="checkbox" [(ngModel)]="closeOut.turnDownOthers" />
+                    Turn down the {{ othersInProgress(application) }} other candidate{{ othersInProgress(application) === 1 ? '' : 's' }} still in progress
+                  </label>
+                  @if (closeOut.turnDownOthers) {
+                    <label class="check indent"><input type="checkbox" [(ngModel)]="closeOut.notifyCandidates" /> Email them that you are not moving forward</label>
+                    @if (closeOut.notifyCandidates && companyVerified === false) {
+                      <p class="field-help">Emails to candidates start once AIRRAL has verified your company.</p>
+                    }
+                  }
+                }
+                @if (offersOut(application) > 0) {
+                  <p class="field-help">{{ offersOut(application) }} candidate{{ offersOut(application) === 1 ? ' has' : 's have' }} an offer out and {{ offersOut(application) === 1 ? 'is' : 'are' }} left as they are. Withdraw the offer on the Offers page first.</p>
+                }
+                <button type="button" class="primary-button" [disabled]="closingOut || (!(closeOut.markFilled && !jobFilled(application)) && !(closeOut.turnDownOthers && othersInProgress(application) > 0))" (click)="runCloseOut(application)">
+                  <span class="material-icons" aria-hidden="true">task_alt</span>{{ closingOut ? 'Closing out…' : 'Close out' }}
+                </button>
+              </section>
+            }
+
             @if (application.status === statuses.SHORTLISTED) {
               <section class="detail-section action-section">
                 <div class="section-heading"><div><p class="eyebrow">Next step</p><h3>Schedule interview</h3></div></div>
                 <div class="form-grid">
                   <label>Date and time<input type="datetime-local" [(ngModel)]="interviewDate" /></label>
-                  <label class="wide">Panel notes<textarea rows="3" [(ngModel)]="interviewNotes" placeholder="Focus areas, panel, or meeting link"></textarea></label>
+                  <label>Length
+                    <select [(ngModel)]="interviewDuration">
+                      @for (minutes of durations; track minutes) {
+                        <option [ngValue]="minutes">{{ minutes }} minutes</option>
+                      }
+                    </select>
+                  </label>
+                  <fieldset class="interviewer-picker">
+                    <legend>Interviewers</legend>
+                    @for (teammate of teammates; track teammate.id) {
+                      <label class="check">
+                        <input type="checkbox" [checked]="interviewerIds.has(teammate.id)" (change)="toggleInterviewer(teammate.id)" />
+                        {{ teammateName(teammate) }} <span class="muted">{{ teammateRole(teammate) }}</span>
+                      </label>
+                    } @empty {
+                      <p class="field-help">Invite teammates in Settings, then add them here.</p>
+                    }
+                  </fieldset>
+                  @if (interviewerIds.size > 0) {
+                    <label class="check">
+                      <input type="checkbox" [(ngModel)]="inviteInterviewers" />
+                      Send the interviewers a calendar invite
+                    </label>
+                  }
+                  <label class="wide">Panel notes<textarea rows="3" [(ngModel)]="interviewNotes" placeholder="Focus areas, panel, or meeting link. The candidate does not see these."></textarea></label>
+                  <label class="check">
+                    <input type="checkbox" [(ngModel)]="emailInterview" />
+                    Email {{ firstName(application) }} the day and time
+                  </label>
+                  @if (emailInterview && companyVerified === false) {
+                    <p class="field-help">Emails to candidates start once AIRRAL has verified your company.</p>
+                  }
                 </div>
                 <button type="button" class="primary-button" [disabled]="!interviewDate || saving" (click)="scheduleInterview()">
                   <span class="material-icons" aria-hidden="true">event</span>Schedule interview
@@ -190,6 +325,30 @@
                 @if (!selectedInterviewId) { <p class="field-help">No scheduled interview was found for this application.</p> }
               </section>
             }
+
+            <section class="detail-section" aria-labelledby="scorecards-heading">
+              <div class="section-heading">
+                <div><p class="eyebrow">Interview team</p><h3 id="scorecards-heading">Scorecards</h3></div>
+                <span class="evidence-note">Only submitted scorecards show here</span>
+              </div>
+              @for (card of scorecards; track card.id) {
+                <div class="scorecard-summary">
+                  <div class="scorecard-top">
+                    <strong>{{ card.interviewerName }}</strong>
+                    <span class="recommendation" [attr.data-recommendation]="card.recommendation">{{ recommendationLabel(card.recommendation) }}</span>
+                    @if (card.weightedScore) { <span class="muted">{{ card.weightedScore }} of 5</span> }
+                  </div>
+                  <div class="keyword-list">
+                    @for (rating of card.ratings; track rating.criterion) {
+                      <span class="keyword">{{ rating.criterion }} · {{ rating.rating || '–' }}</span>
+                    }
+                  </div>
+                  @if (card.overallNotes) { <p>{{ card.overallNotes }}</p> }
+                </div>
+              } @empty {
+                <span class="muted">No scorecards yet. Interviewers submit theirs from My interviews.</span>
+              }
+            </section>
 
             <section class="detail-section history-section">
               <div class="section-heading"><div><p class="eyebrow">Team context</p><h3>Notes and activity</h3></div></div>

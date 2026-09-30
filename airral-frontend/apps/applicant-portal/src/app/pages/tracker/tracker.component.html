@@ -2,7 +2,7 @@
   <header class="tracker-header">
     <div>
       <h1>Application Tracker</h1>
-      <p *ngIf="!loading">{{ totalJobs }} jobs tracked</p>
+      <p *ngIf="!loading">{{ totalJobs }} {{ totalJobs === 1 ? 'job' : 'jobs' }} tracked</p>
     </div>
   </header>
 
@@ -11,29 +11,83 @@
     <button type="button" (click)="loadSavedJobs()">Retry</button>
   </div>
 
+  <section class="offers" aria-labelledby="offers-heading" *ngIf="!loading && offers.length">
+    <h2 id="offers-heading">Your offers</h2>
+    <p class="offer-message success" *ngIf="offerMessage" role="status">{{ offerMessage }}</p>
+    <p class="offer-message error" *ngIf="offerError" role="alert">{{ offerError }}</p>
+
+    <article class="offer-card" *ngFor="let offer of offers" [attr.data-status]="offer.status">
+      <header class="offer-head">
+        <div>
+          <span class="offer-company">{{ offer.companyName || 'Company' }}</span>
+          <h3>{{ offer.jobTitle }}</h3>
+        </div>
+        <span class="offer-status" [attr.data-status]="offer.status">{{ offerStatusLabel(offer) }}</span>
+      </header>
+
+      <dl class="offer-terms">
+        <div><dt>Pay</dt><dd>{{ money(offer) }}</dd></div>
+        <div *ngIf="offer.startDate"><dt>Start date</dt><dd>{{ offer.startDate | date: 'd MMM y' }}</dd></div>
+        <div *ngIf="offer.status === 'SENT' && offer.expiresAt"><dt>Answer by</dt><dd>{{ offer.expiresAt | date: 'EEE d MMM' }}</dd></div>
+      </dl>
+
+      <details class="offer-details" *ngIf="offer.offerLetter || offer.benefits || offer.contingencies">
+        <summary>Read the full offer</summary>
+        <p class="offer-text" *ngIf="offer.offerLetter">{{ offer.offerLetter }}</p>
+        <ng-container *ngIf="offer.benefits"><h4>Benefits</h4><p class="offer-text">{{ offer.benefits }}</p></ng-container>
+        <ng-container *ngIf="offer.contingencies"><h4>Conditions</h4><p class="offer-text">{{ offer.contingencies }}</p></ng-container>
+      </details>
+
+      <div class="offer-actions" *ngIf="offer.status === 'SENT'">
+        <ng-container *ngIf="confirming?.offerId !== offer.id; else confirmAnswer">
+          <button type="button" class="btn-accept" (click)="askToAnswer(offer, true)">Accept offer</button>
+          <button type="button" class="btn-decline" (click)="askToAnswer(offer, false)">Decline</button>
+        </ng-container>
+        <ng-template #confirmAnswer>
+          <p class="confirm-text">
+            {{ confirming?.accept
+              ? 'Accept this offer? ' + (offer.companyName || 'The company') + ' will be told you are joining.'
+              : 'Decline this offer? This ends your application for the job.' }}
+          </p>
+          <button type="button" [class]="confirming?.accept ? 'btn-accept' : 'btn-decline'" [disabled]="answering === offer.id" (click)="answer(offer)">
+            {{ answering === offer.id ? 'Sending…' : confirming?.accept ? 'Yes, accept' : 'Yes, decline' }}
+          </button>
+          <button type="button" class="btn-decline" [disabled]="answering === offer.id" (click)="cancelAnswer()">Not yet</button>
+        </ng-template>
+      </div>
+    </article>
+  </section>
+
   <div class="tracker-board" *ngIf="!loading">
     <div class="tracker-column" [ngClass]="'status-' + col.status.toLowerCase()" *ngFor="let col of columns">
       <div class="column-header">
         <span class="material-icons">{{ col.icon }}</span>
         <span class="column-label">{{ col.label }}</span>
-        <span class="column-count">{{ col.jobs.length }}</span>
+        <span class="column-count">{{ col.cards.length }}</span>
       </div>
 
       <div class="column-body">
-        <div class="tracker-card" *ngFor="let job of col.jobs">
+        <div class="tracker-card" *ngFor="let card of col.cards; trackBy: trackCard">
           <div class="tracker-card-top">
-            <span class="tracker-company">{{ job.job?.companyName || 'Unknown' }}</span>
+            <span class="tracker-company">{{ card.company }}</span>
+            <span class="tracker-stage" *ngIf="card.application as application" [attr.data-stage]="application.stage">
+              {{ stageLabel(application.stage) }}
+            </span>
           </div>
-          <h3 class="tracker-title">{{ job.job?.title || 'Untitled' }}</h3>
-          <p class="tracker-note" *ngIf="job.nextStep">{{ job.nextStep }}</p>
-          <div class="tracker-card-actions">
+          <h3 class="tracker-title">{{ card.title }}</h3>
+          <p class="tracker-note" *ngIf="card.note">{{ card.note }}</p>
+          <p class="tracker-note" *ngIf="card.application as application">
+            Applied on AIRRAL {{ application.appliedAt | date: 'MMM d' }}<ng-container
+              *ngIf="application.updatedAt && application.stage !== 'APPLIED'"> · updated {{ application.updatedAt | date: 'MMM d' }}</ng-container>
+          </p>
+          <div class="tracker-card-actions" *ngIf="card.saved as job">
             <button class="tracker-action" (click)="removeJob(job)" title="Remove">
               <span class="material-icons">close</span>
             </button>
           </div>
         </div>
 
-        <div class="column-empty" *ngIf="col.jobs.length === 0">
+        <div class="column-empty" *ngIf="col.cards.length === 0">
           <span class="material-icons">inbox</span>
           <span>No jobs here</span>
         </div>

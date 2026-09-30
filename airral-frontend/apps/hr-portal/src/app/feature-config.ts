@@ -7,8 +7,10 @@ export interface HrNavItem {
 
 export type RoleSegment = 'HR' | 'MANAGER' | 'EMPLOYEE' | 'APPLICANT';
 
+// ADMIN is AIRRAL's own staff role, and AIRRAL admins use the admin portal.
+// It is not a company role, so it is not an HR manager here.
 export const ROLE_GROUPS = {
-  HR: ['ADMIN', 'HR_MANAGER'],
+  HR: ['HR_MANAGER'],
   MANAGER: ['MANAGER'],
   EMPLOYEE: ['EMPLOYEE'],
   APPLICANT: ['APPLICANT']
@@ -27,24 +29,25 @@ const NAV_BY_SEGMENT: Record<RoleSegment, HrNavItem[]> = {
     { label: 'Jobs', path: '/jobs', icon: 'work_outline' },
     { label: 'Candidates', path: '/candidates', icon: 'group' },
     { label: 'Interviews', path: '/interviews', icon: 'event' },
+    { label: 'My interviews', path: '/my-interviews', icon: 'rate_review' },
     { label: 'Offers', path: '/offers', icon: 'description' },
     { label: 'Settings', path: '/settings', icon: 'settings' }
   ],
+  // For launch a company's team is its hiring team: a MANAGER is the hiring
+  // manager for their jobs and an EMPLOYEE interviews. Internal jobs,
+  // referrals and benefits stay out of the menus until they are built out.
   MANAGER: [
     { label: 'Home', path: '/', icon: 'home' },
-    { label: 'My Team Reviews', path: '/team-review', icon: 'fact_check' },
+    { label: 'Candidates', path: '/candidates', icon: 'group' },
     { label: 'Interviews', path: '/interviews', icon: 'event' },
-    { label: 'Internal Jobs', path: '/jobs', icon: 'work_outline' },
-    { label: 'Referrals', path: '/referrals', icon: 'handshake' },
-    { label: 'My Profile', path: '/profile', icon: 'person_outline' },
-    { label: 'My Benefits', path: '/benefits', icon: 'redeem' }
+    { label: 'My interviews', path: '/my-interviews', icon: 'rate_review' },
+    { label: 'My Team Reviews', path: '/team-review', icon: 'fact_check' },
+    { label: 'My Profile', path: '/profile', icon: 'person_outline' }
   ],
   EMPLOYEE: [
     { label: 'Home', path: '/', icon: 'home' },
-    { label: 'Internal Jobs', path: '/jobs', icon: 'work_outline' },
-    { label: 'Referrals', path: '/referrals', icon: 'handshake' },
-    { label: 'My Profile', path: '/profile', icon: 'person_outline' },
-    { label: 'My Benefits', path: '/benefits', icon: 'redeem' }
+    { label: 'My interviews', path: '/my-interviews', icon: 'rate_review' },
+    { label: 'My Profile', path: '/profile', icon: 'person_outline' }
   ],
   APPLICANT: [{ label: 'Home', path: '/', icon: 'home' }],
 };

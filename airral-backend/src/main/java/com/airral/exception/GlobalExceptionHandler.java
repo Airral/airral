@@ -1,5 +1,10 @@
 package com.airral.exception;
 
+import com.airral.config.ServerErrorAlertFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -7,14 +12,18 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ApiException.class)
     public Mono<ResponseEntity<Map<String, Object>>> handleApiException(ApiException ex) {
@@ -50,6 +59,9 @@ public class GlobalExceptionHandler {
         );
         
         errorResponse.put("validationErrors", validationErrors);
+        // Clients show "message"; without one they fall back to a raw HTTP error.
+        ex.getFieldErrors().stream().findFirst()
+                .ifPresent(error -> errorResponse.put("message", error.getDefaultMessage()));
         
         return Mono.just(ResponseEntity.badRequest().body(errorResponse));
     }
@@ -105,25 +117,55 @@ public class GlobalExceptionHandler {
         return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse));
     }
 
-    @ExceptionHandler(RuntimeException.class)
-    public Mono<ResponseEntity<Map<String, Object>>> handleRuntimeException(RuntimeException ex) {
+    /**
+     * Two saves of the same thing at once, settled by the database: a failed
+     * version check (the row changed since it was read), or a duplicate of
+     * something only one may exist of, such as a candidate's open offer. The
+     * caller lost the race; that is a conflict to reload from, not a fault.
+     */
+    @ExceptionHandler({OptimisticLockingFailureException.class, DuplicateKeyException.class})
+    public Mono<ResponseEntity<Map<String, Object>>> handleConcurrentChange(RuntimeException ex, ServerWebExchange exchange) {
+        log.info("{} on {} {}", ex.getClass().getSimpleName(), exchange.getRequest().getMethod(),
+                ServerErrorAlertFilter.routeOf(exchange));
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", LocalDateTime.now());
-        errorResponse.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        errorResponse.put("error", "Internal Server Error");
-        errorResponse.put("message", ex.getMessage());
-        
-        return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse));
+        errorResponse.put("status", HttpStatus.CONFLICT.value());
+        errorResponse.put("error", "Conflict");
+        errorResponse.put("message", "This was changed at the same moment somewhere else. Reload the page and try again.");
+        return Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse));
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public Mono<ResponseEntity<Map<String, Object>>> handleRuntimeException(RuntimeException ex, ServerWebExchange exchange) {
+        return serverError(ex, exchange, "Internal Server Error");
     }
 
     @ExceptionHandler(Exception.class)
-    public Mono<ResponseEntity<Map<String, Object>>> handleGenericException(Exception ex) {
+    public Mono<ResponseEntity<Map<String, Object>>> handleGenericException(Exception ex, ServerWebExchange exchange) {
+        return serverError(ex, exchange, "Unexpected Error");
+    }
+
+    /**
+     * A failure nobody planned for. The exception went unlogged and its message
+     * went to the caller, which could be anything from an SQL error to a null
+     * pointer. Now it is logged with a short reference, the caller gets a plain
+     * message with that reference, and ServerErrorAlertFilter can name it in its
+     * Slack alert.
+     */
+    private Mono<ResponseEntity<Map<String, Object>>> serverError(Exception ex, ServerWebExchange exchange, String error) {
+        String reference = UUID.randomUUID().toString().substring(0, 8);
+        log.error("{} on {} {} (ref {})", ex.getClass().getSimpleName(), exchange.getRequest().getMethod(),
+                ServerErrorAlertFilter.routeOf(exchange), reference, ex);
+        exchange.getAttributes().put(ServerErrorAlertFilter.ERROR_TYPE, ex.getClass().getSimpleName());
+        exchange.getAttributes().put(ServerErrorAlertFilter.ERROR_REFERENCE, reference);
+
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", LocalDateTime.now());
         errorResponse.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        errorResponse.put("error", "Unexpected Error");
-        errorResponse.put("message", ex.getMessage());
-        
+        errorResponse.put("error", error);
+        errorResponse.put("message", "Something went wrong on our side. Try again, and if it keeps happening, "
+                + "email contact@airral.com with reference " + reference + ".");
+        errorResponse.put("reference", reference);
         return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse));
     }
 }

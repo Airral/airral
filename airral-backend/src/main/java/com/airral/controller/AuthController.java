@@ -1,5 +1,8 @@
 package com.airral.controller;
 
+import com.airral.service.UserService;
+import com.airral.dto.response.InvitationPreviewResponse;
+import com.airral.dto.request.AcceptInvitationRequest;
 import com.airral.config.ClientIpConfig;
 import com.airral.dto.request.LoginRequest;
 import com.airral.dto.request.GoogleAuthRequest;
@@ -37,6 +40,7 @@ public class AuthController {
     private final AccountVerificationService accountVerificationService;
     private final UserRepository userRepository;
     private final OrganizationRepository organizationRepository;
+    private final UserService userService;
 
     public AuthController(AuthService authService,
                           LoginThrottle loginThrottle,
@@ -44,7 +48,8 @@ public class AuthController {
                           JwtTokenProvider jwtTokenProvider,
                           AccountVerificationService accountVerificationService,
                           UserRepository userRepository,
-                          OrganizationRepository organizationRepository) {
+                          OrganizationRepository organizationRepository,
+                          UserService userService) {
         this.authService = authService;
         this.loginThrottle = loginThrottle;
         this.tokenVersionCache = tokenVersionCache;
@@ -52,6 +57,7 @@ public class AuthController {
         this.accountVerificationService = accountVerificationService;
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
+        this.userService = userService;
     }
 
     /** One answer for every forgot-password request, whether or not the address has an account. */
@@ -176,6 +182,51 @@ public class AuthController {
      * <p>Signs the account out everywhere on success; the caller signs in again
      * with the new password.
      */
+    /**
+     * What an invitation is for, before the invitee accepts it.
+     * GET /api/auth/invitations/{token}
+     *
+     * <p>Public: the token is the link's secret, and the answer names only the
+     * address the invitation was sent to and the company.
+     */
+    @GetMapping("/invitations/{token}")
+    public Mono<ResponseEntity<InvitationPreviewResponse>> describeInvitation(
+            @PathVariable String token,
+            ServerWebExchange exchange) {
+
+        String address = clientAddress(exchange);
+        return loginThrottle.checkAddress(address)
+                .then(loginThrottle.recordAddressAttempt(address))
+                .then(userService.describeInvitation(token))
+                .map(ResponseEntity::ok);
+    }
+
+    /**
+     * Accept an invitation and set a password.
+     * POST /api/auth/invitations/{token}/accept
+     *
+     * <p>No session is needed: the body carries the Firebase ID token from the
+     * invitation email's link, which proves the invitee owns the address. The
+     * portal signs in with the new password straight after.
+     */
+    @PostMapping("/invitations/{token}/accept")
+    public Mono<ResponseEntity<Map<String, Object>>> acceptInvitation(
+            @PathVariable String token,
+            @Valid @RequestBody AcceptInvitationRequest request,
+            ServerWebExchange exchange) {
+
+        String address = clientAddress(exchange);
+
+        return loginThrottle.checkAddress(address)
+                .then(loginThrottle.recordAddressAttempt(address))
+                .then(accountVerificationService.acceptInvitation(token, request.getIdToken(),
+                        request.getPassword(), request.getFirstName(), request.getLastName()))
+                .map(user -> ResponseEntity.status(HttpStatus.CREATED).body(Map.<String, Object>of(
+                        "accepted", true,
+                        "email", user.getEmail(),
+                        "message", "Your account is ready.")));
+    }
+
     @PostMapping("/reset-password")
     public Mono<ResponseEntity<Map<String, Object>>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request,

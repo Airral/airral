@@ -79,7 +79,7 @@ export class App {
     // The account pages render without the workspace shell: the person on them
     // may not be signed in at all.
     const url = this.router.url;
-    return ['/login', '/verify-email', '/forgot-password', '/reset-password'].some((p) => url.startsWith(p));
+    return ['/login', '/verify-email', '/forgot-password', '/reset-password', '/accept-invitation'].some((p) => url.startsWith(p));
   }
 
   private get primaryRole(): string {
