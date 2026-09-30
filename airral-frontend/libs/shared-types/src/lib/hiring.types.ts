@@ -75,6 +75,12 @@ export interface Application {
   atsMatchedKeywords?: string[] | null;
   /** The ones not found. Null when there were none to look for. */
   atsMissingKeywords?: string[] | null;
+  /**
+   * What the keywords were looked for in: the resume and the note, only the note
+   * (a candidate added with a resume link), or only the note because the resume's
+   * text could not be read. Null for applications made before it was recorded.
+   */
+  alignmentSource?: 'RESUME_AND_NOTE' | 'NOTE' | 'UNREADABLE_RESUME' | null;
   atsMatchDetails?: Record<string, boolean>; // Detailed match per keyword
 
   // HR visibility control

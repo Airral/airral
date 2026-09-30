@@ -143,6 +143,8 @@ label.check input { accent-color: #087f70; }
 .close-out .primary-button { justify-self: start; margin-top: 4px; }
 label.check.indent { margin-left: 24px; }
 .evidence-source { margin: -6px 0 14px; }
+.alignment-warning { display: flex; align-items: flex-start; gap: 8px; margin: -4px 0 14px; padding: 10px 12px; border: 1px solid #e5d49b; border-radius: 6px; color: #6d5a1d; background: #fffaf0; font-size: 12px; line-height: 1.5; }
+.alignment-warning .material-icons { font-size: 17px; color: #97791d; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 980px) {
   .pipeline-page { padding: 22px 20px 40px; }

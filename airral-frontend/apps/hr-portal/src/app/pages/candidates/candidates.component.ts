@@ -373,6 +373,18 @@ export class CandidatesComponent implements OnInit {
     this.updateStatus(application, ApplicationStatus.REJECTED, this.emailOnReject);
   }
 
+  /** Whether the job alignment read the resume. Older applications did when one was attached. */
+  readsResume(application: Application): boolean {
+    return application.alignmentSource
+      ? application.alignmentSource === 'RESUME_AND_NOTE'
+      : !!application.resumeOnFile;
+  }
+
+  /** A resume is attached, but its text could not be read, so its keywords were not looked for. */
+  resumeUnreadable(application: Application): boolean {
+    return application.alignmentSource === 'UNREADABLE_RESUME';
+  }
+
   recommendationLabel(value?: Recommendation | null): string {
     const labels: Record<Recommendation, string> = {
       STRONG_HIRE: 'Strong hire',

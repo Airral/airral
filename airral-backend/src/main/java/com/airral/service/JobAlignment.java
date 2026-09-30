@@ -31,6 +31,20 @@ final class JobAlignment {
     record Result(List<String> matched, List<String> missing, int score) {
     }
 
+    /** What an application's keywords were looked for in. */
+    enum Source {
+        /** The attached resume, and the note. */
+        RESUME_AND_NOTE,
+        /** Only the note: no resume document, as for a candidate added with a link. */
+        NOTE,
+        /** Only the note, because the attached resume's text could not be read. */
+        UNREADABLE_RESUME
+    }
+
+    /** The text an application is read against, and where it came from. */
+    record Text(String value, Source source) {
+    }
+
     private JobAlignment() {
     }
 

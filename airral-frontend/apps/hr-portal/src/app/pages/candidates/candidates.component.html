@@ -203,21 +203,29 @@
               </div>
 
               @if (application.atsMatchedKeywords?.length || application.atsMissingKeywords?.length) {
-                <p class="field-help evidence-source">
-                  The job's keywords, or the skills its description names, looked for in
-                  {{ application.resumeOnFile ? 'the resume and the note' : 'the note' }}.
-                </p>
+                @if (resumeUnreadable(application)) {
+                  <p class="alignment-warning" role="note">
+                    <span class="material-icons" aria-hidden="true">warning_amber</span>
+                    <span>We couldn't read the text of this resume. It may be a scanned image. Open it to look for the keywords
+                    below yourself.@if (application.coverLetter) { Only the note was checked. }</span>
+                  </p>
+                } @else {
+                  <p class="field-help evidence-source">
+                    The job's keywords, or the skills its description names, looked for in
+                    {{ readsResume(application) ? 'the resume and the note' : 'the note' }}.
+                  </p>
+                }
                 <div class="evidence-grid">
                   <div>
-                    <h4><span class="material-icons positive" aria-hidden="true">check_circle</span>Found in {{ application.resumeOnFile ? 'the resume or note' : 'the note' }}</h4>
+                    <h4><span class="material-icons positive" aria-hidden="true">check_circle</span>Found in {{ readsResume(application) ? 'the resume or note' : 'the note' }}</h4>
                     <div class="keyword-list">
                       @for (keyword of application.atsMatchedKeywords || []; track keyword) {
                         <span class="keyword matched">{{ keyword }}</span>
-                      } @empty { <span class="muted">None of them.</span> }
+                      } @empty { <span class="muted">{{ resumeUnreadable(application) && !application.coverLetter ? 'There is no note to check.' : 'None of them.' }}</span> }
                     </div>
                   </div>
                   <div>
-                    <h4><span class="material-icons neutral" aria-hidden="true">help_outline</span>Not found: worth asking about</h4>
+                    <h4><span class="material-icons neutral" aria-hidden="true">help_outline</span>{{ resumeUnreadable(application) ? 'To look for in the resume' : 'Not found: worth asking about' }}</h4>
                     <div class="keyword-list">
                       @for (keyword of application.atsMissingKeywords || []; track keyword) {
                         <span class="keyword missing">{{ keyword }}</span>

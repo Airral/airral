@@ -130,6 +130,29 @@ class ApplicationCreationRulesTest {
         assertThat(saved.getAtsMatchedKeywords()).containsExactly("Inventory Management", "Excel");
         assertThat(saved.getAtsMissingKeywords()).containsExactly("Forklift");
         assertThat(saved.getAtsScore()).isEqualTo(66);
+        assertThat(saved.getAlignmentSource()).isEqualTo("RESUME_AND_NOTE");
+    }
+
+    @Test
+    @DisplayName("a resume whose text could not be read is recorded as unreadable, and only the note is checked")
+    void unreadableResume() {
+        when(jobs.findById(JOB)).thenReturn(Mono.just(Job.builder().id(JOB).title("Store manager")
+                .organizationId(OUR_COMPANY).status(JobStatus.OPEN)
+                .atsKeywords(new String[] {"Inventory Management", "Excel", "Forklift"}).build()));
+        when(organizations.findById(OUR_COMPANY)).thenReturn(Mono.just(Organization.builder().id(OUR_COMPANY)
+                .isActive(true).verificationStatus(CompanyVerificationService.VERIFIED).build()));
+        // A scanned resume: the parser kept no text and found no skills.
+        when(resumes.findByIdAndUserId(70L, 7L)).thenReturn(Mono.just(CandidateResumeDocument.builder().id(70L).userId(7L)
+                .parseStatus("PARSE_FAILED").parsedSkills(io.r2dbc.postgresql.codec.Json.of("[]")).build()));
+        SubmitApplicationRequest withNote = request();
+        withNote.setCoverLetter("I have driven a forklift for years.");
+
+        service.applyAsApplicant(withNote, 7L, "amy@example.com").block();
+
+        Application saved = saved();
+        assertThat(saved.getAlignmentSource()).isEqualTo("UNREADABLE_RESUME");
+        assertThat(saved.getAtsMatchedKeywords()).containsExactly("Forklift");
+        assertThat(saved.getAtsMissingKeywords()).containsExactly("Inventory Management", "Excel");
     }
 
     @Test
@@ -217,6 +240,8 @@ class ApplicationCreationRulesTest {
         assertThat(saved.getApplicantId()).isNull();
         assertThat(saved.getApplicantEmail()).isEqualTo("someone-else@example.com");
         assertThat(saved.getResumeUrl()).isNull();
+        // Added with a link, not a document: only a note could be read.
+        assertThat(saved.getAlignmentSource()).isEqualTo("NOTE");
         // They did not apply, so nothing tells them they did.
         verifyNoInteractions(emails);
     }
@@ -271,7 +296,7 @@ class ApplicationCreationRulesTest {
         when(jwt.getEmailFromToken("tok")).thenReturn("amy@example.com");
         when(stub.applyAsApplicant(any(), any(), any())).thenReturn(Mono.just(com.airral.dto.response.ApplicationResponse.builder()
                 .id(55L).jobId(JOB).atsScore(66).atsMatchedKeywords(java.util.List.of("Excel"))
-                .atsMissingKeywords(java.util.List.of("Forklift")).visibleToHr(false).build()));
+                .atsMissingKeywords(java.util.List.of("Forklift")).visibleToHr(false).alignmentSource("RESUME_AND_NOTE").build()));
 
         var body = new ApplicationController(stub, jwt, mock(HiringScope.class), mock(CandidateProfileService.class),
                 mock(ScorecardService.class)).submitApplication(request(), "Bearer tok").block().getBody();
@@ -281,6 +306,7 @@ class ApplicationCreationRulesTest {
         assertThat(body.getAtsMatchedKeywords()).isNull();
         assertThat(body.getAtsMissingKeywords()).isNull();
         assertThat(body.getVisibleToHr()).isNull();
+        assertThat(body.getAlignmentSource()).isNull();
     }
 
     @Test

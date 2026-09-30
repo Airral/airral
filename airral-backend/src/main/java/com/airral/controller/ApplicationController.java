@@ -249,6 +249,7 @@ public class ApplicationController {
         response.setVisibleToHr(null);
         response.setReviewedBy(null);
         response.setReviewedByHrAt(null);
+        response.setAlignmentSource(null);
         return response;
     }
 

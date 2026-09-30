@@ -44,6 +44,8 @@ public class Application {
     private Integer atsScore;
     private String[] atsMatchedKeywords;
     private String[] atsMissingKeywords;
+    /** What the job alignment could read: RESUME_AND_NOTE, NOTE or UNREADABLE_RESUME. */
+    private String alignmentSource;
     private Json atsMatchDetails;
     private Boolean visibleToHr;
 

@@ -1,6 +1,7 @@
 package com.airral.service;
 
 import com.airral.domain.Application;
+import com.airral.domain.CandidateResumeDocument;
 import com.airral.domain.Job;
 import com.airral.domain.Organization;
 import com.airral.domain.enums.ApplicantStage;
@@ -140,8 +141,9 @@ public class ApplicationService {
                 .zipWith(applicationText(resumeDocumentId, applicantId, request.getCoverLetter()))
                 .flatMap(found -> {
                     Job job = found.getT1();
+                    JobAlignment.Text text = found.getT2();
                     // What the job asks for, read against the resume and the cover letter.
-                    JobAlignment.Result alignment = JobAlignment.of(job, found.getT2());
+                    JobAlignment.Result alignment = JobAlignment.of(job, text.value());
                     int atsScore = alignment.score();
 
                     Application application = Application.builder()
@@ -152,6 +154,7 @@ public class ApplicationService {
                             .applicantPhone(request.getApplicantPhone())
                             .resumeUrl(resumeUrl)
                             .resumeDocumentId(resumeDocumentId)
+                            .alignmentSource(text.source().name())
                             .coverLetter(request.getCoverLetter())
                             .status(ApplicationStatus.SUBMITTED)
                             .atsScore(atsScore)
@@ -261,20 +264,33 @@ public class ApplicationService {
      * cover letter. When resume text is not kept (file.upload.store-extracted-text
      * off), the skills parsed from the resume stand in for it. A candidate HR
      * added by hand has a link, not a document, so only their note is read.
+     *
+     * <p>A resume whose text could not be read (the parser found too few words,
+     * as in a scanned image) is recorded as unreadable, so the team is not told
+     * its keywords are missing when nobody could look for them.
      */
-    private Mono<String> applicationText(Long resumeDocumentId, Long applicantId, String coverLetter) {
+    private Mono<JobAlignment.Text> applicationText(Long resumeDocumentId, Long applicantId, String coverLetter) {
         String note = coverLetter == null ? "" : coverLetter;
         if (resumeDocumentId == null || applicantId == null) {
-            return Mono.just(note);
+            return Mono.just(new JobAlignment.Text(note, JobAlignment.Source.NOTE));
         }
         return resumeDocumentRepository.findByIdAndUserId(resumeDocumentId, applicantId)
                 .map(document -> {
                     String resume = document.getExtractedText() != null && !document.getExtractedText().isBlank()
                             ? document.getExtractedText()
-                            : document.getParsedSkills() != null ? document.getParsedSkills().asString() : "";
-                    return resume + "\n" + note;
+                            : parsedSkills(document);
+                    return resume.isBlank()
+                            ? new JobAlignment.Text(note, JobAlignment.Source.UNREADABLE_RESUME)
+                            : new JobAlignment.Text(resume + "\n" + note, JobAlignment.Source.RESUME_AND_NOTE);
                 })
-                .defaultIfEmpty(note);
+                .defaultIfEmpty(new JobAlignment.Text(note, JobAlignment.Source.UNREADABLE_RESUME));
+    }
+
+    /** The skills parsed from a resume, as the JSON list they are kept in, or blank when there are none. */
+    private static String parsedSkills(CandidateResumeDocument document) {
+        if (document.getParsedSkills() == null) return "";
+        String skills = document.getParsedSkills().asString();
+        return skills == null || skills.replaceAll("[\\[\\]\\s\"]", "").isEmpty() ? "" : skills;
     }
 
     /**
@@ -300,6 +316,7 @@ public class ApplicationService {
                                     .applicantPhone(application.getApplicantPhone())
                                     .resumeUrl(application.getResumeUrl())
                                     .resumeOnFile(application.getResumeDocumentId() != null)
+                                    .alignmentSource(application.getAlignmentSource())
                                     .coverLetter(application.getCoverLetter())
                                     .status(application.getStatus())
                                     .atsScore(application.getAtsScore())

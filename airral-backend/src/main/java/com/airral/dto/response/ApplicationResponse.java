@@ -35,6 +35,8 @@ public class ApplicationResponse {
     private Integer atsScore;
     private List<String> atsMatchedKeywords;
     private List<String> atsMissingKeywords;
+    /** What the keywords were looked for in: RESUME_AND_NOTE, NOTE or UNREADABLE_RESUME. Null before it was recorded. */
+    private String alignmentSource;
     private Boolean visibleToHr;
     
     private String reviewedBy;

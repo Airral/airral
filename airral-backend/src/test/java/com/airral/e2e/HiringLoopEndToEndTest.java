@@ -197,6 +197,7 @@ class HiringLoopEndToEndTest {
                 .filter(node -> node.get("id").asLong() == applicationId).findFirst().orElseThrow();
         assertThat(evidence.get("atsMatchedKeywords").get(0).asText()).isEqualTo("Inventory Management");
         assertThat(evidence.get("atsMissingKeywords").get(0).asText()).isEqualTo("Forklift");
+        assertThat(evidence.get("alignmentSource").asText()).isEqualTo("RESUME_AND_NOTE");
         byte[] resume = web.get().uri("/api/applications/" + applicationId + "/resume")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + hr)
                 .exchange().expectStatus().isOk()
