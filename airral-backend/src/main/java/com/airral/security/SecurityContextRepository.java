@@ -24,16 +24,22 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
      */
     public static final String KEY_REJECTION_ATTRIBUTE = "airral.apiKeyRejection";
 
+    /** The request's resolved context, so it is worked out once per request. */
+    private static final String CONTEXT_ATTRIBUTE = "airral.securityContext";
+
     private final AuthenticationManager authenticationManager;
     private final ApiKeyAuthenticationManager apiKeyAuthenticationManager;
     private final ApiKeyStore apiKeyStore;
+    private final AiAccessPolicy aiAccessPolicy;
 
     public SecurityContextRepository(AuthenticationManager authenticationManager,
                                      ApiKeyAuthenticationManager apiKeyAuthenticationManager,
-                                     ApiKeyStore apiKeyStore) {
+                                     ApiKeyStore apiKeyStore,
+                                     AiAccessPolicy aiAccessPolicy) {
         this.authenticationManager = authenticationManager;
         this.apiKeyAuthenticationManager = apiKeyAuthenticationManager;
         this.apiKeyStore = apiKeyStore;
+        this.aiAccessPolicy = aiAccessPolicy;
     }
 
     @Override
@@ -54,8 +60,25 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
      * <p>Both managers produce the same principal shape, so nothing downstream
      * of here knows or cares which branch ran.
      */
+    /**
+     * Resolved once per request, then replayed.
+     *
+     * <p>Spring subscribes to this each time something asks for the security
+     * context -- ApiKeyReachFilter, authorisation, and McpController each do --
+     * and for an API key every subscription counted a call against its rate
+     * limit. Caching the result on the exchange makes one request one call.
+     */
     @Override
     public Mono<SecurityContext> load(ServerWebExchange exchange) {
+        Mono<SecurityContext> cached = exchange.getAttribute(CONTEXT_ATTRIBUTE);
+        if (cached == null) {
+            cached = resolve(exchange).cache();
+            exchange.getAttributes().put(CONTEXT_ATTRIBUTE, cached);
+        }
+        return cached;
+    }
+
+    private Mono<SecurityContext> resolve(ServerWebExchange exchange) {
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -78,7 +101,7 @@ public class SecurityContextRepository implements ServerSecurityContextRepositor
                     // so the indexed lookup every successful request makes is
                     // untouched.
                     .switchIfEmpty(Mono.defer(() -> apiKeyStore
-                            .explainMiss(ApiKeyFormat.sha256(presented))
+                            .explainMiss(ApiKeyFormat.sha256(presented), aiAccessPolicy::includes)
                             .doOnNext(reason -> exchange.getAttributes()
                                     .put(KEY_REJECTION_ATTRIBUTE, reason))
                             .then(Mono.empty())));

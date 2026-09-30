@@ -11,12 +11,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
 import com.airral.exception.ApiKeyRejectedException;
+import com.airral.security.ApiKeyReachFilter;
 import com.airral.security.ApiKeyStore;
 import com.airral.security.SecurityContextRepository;
 import reactor.core.publisher.Mono;
@@ -102,6 +104,9 @@ public class SecurityConfig {
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .authenticationManager(authenticationManager)
                 .securityContextRepository(securityContextRepository)
+                // API keys reach /mcp and nothing else. Before authorisation, so
+                // a key never gets as far as a role rule it would pass.
+                .addFilterBefore(new ApiKeyReachFilter(), SecurityWebFiltersOrder.AUTHORIZATION)
                 .authorizeExchange(exchanges -> exchanges
                     .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Public endpoints
@@ -190,11 +195,11 @@ public class SecurityConfig {
                         // the story is on SeoController.getRobotsTxt.
                         .pathMatchers(HttpMethod.GET, "/robots.txt").permitAll()
 
-                        // Key management is admin-only, and reached with a
-                        // session token rather than an API key: issuing
-                        // credentials from a credential would let a leaked
-                        // admin key mint its own replacements, so revoking it
-                        // would no longer be final.
+                        // Admin-only, and reached with a session token: an API key
+                        // never gets here, ApiKeyReachFilter refuses it first.
+                        // Issuing credentials from a credential would let a
+                        // leaked admin key mint its own replacements, so revoking
+                        // it would no longer be final.
                         .pathMatchers("/api/admin/**").hasAuthority("ADMIN")
 
                         // MCP falls through to authenticated() below. The
