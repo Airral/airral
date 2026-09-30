@@ -21,8 +21,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuples;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Arrays;
 
@@ -105,18 +107,10 @@ public class JobService {
     }
 
     /**
-     * Get open jobs (public - for job board)
-     */
-    public Flux<JobResponse> getOpenJobs() {
-        return jobRepository.findOpenJobs()
-                .flatMap(this::toJobResponse);
-    }
-
-    /**
      * Get open jobs for public pages without internal hiring configuration.
      */
     public Flux<JobResponse> getPublicOpenJobs() {
-        return jobRepository.findOpenJobs()
+        return jobRepository.findPublishedOpenJobs()
                 .flatMap(this::toPublicJobResponse);
     }
 
@@ -135,7 +129,7 @@ public class JobService {
         } else if (normalizedDepartment != null) {
             jobs = jobRepository.findOpenJobsByDepartment(normalizedDepartment);
         } else {
-            jobs = jobRepository.findOpenJobs();
+            jobs = jobRepository.findPublishedOpenJobs();
         }
 
         return jobs.flatMap(this::toPublicJobResponse);
@@ -224,9 +218,15 @@ public class JobService {
     public Mono<JobResponse> updateJob(Long id, CreateJobRequest request, Long organizationId) {
         return jobRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Job not found")))
-                .zipWith(hiringManagerCheck(request.getHiringManagerId(), organizationId)
+                // The hiring manager is checked when it changes. One who has since left
+                // hiring no longer blocks every other edit to the job (and stops being
+                // its hiring manager when HR changes their role or account).
+                .flatMap(job -> (Objects.equals(job.getHiringManagerId(), request.getHiringManagerId())
+                                ? Mono.<Void>empty()
+                                : hiringManagerCheck(request.getHiringManagerId(), organizationId))
                         .then(interviewKitCheck(request.getInterviewKitId(), organizationId))
-                        .then(companyDepartment(request.getDepartmentId(), organizationId)))
+                        .then(companyDepartment(request.getDepartmentId(), organizationId))
+                        .map(department -> Tuples.of(job, department)))
                 .flatMap(found -> {
                     Job job = found.getT1();
                     Optional<Department> department = found.getT2();

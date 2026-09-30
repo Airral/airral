@@ -335,6 +335,35 @@ class HiringLoopEndToEndTest {
         call(HttpMethod.PUT, "/api/users/" + hanaId + "/role", hr, Map.of("role", "EMPLOYEE"), HttpStatus.BAD_REQUEST);
     }
 
+    @Test
+    @DisplayName("a company AIRRAL has not verified keeps its open jobs off the public board and pages")
+    void unverifiedCompanysJobsStayPrivate() {
+        String title = "Night auditor " + run;
+        JsonNode hana = call(HttpMethod.POST, "/api/auth/register", null, Map.of(
+                "email", "hana@initech-" + run + ".test", "password", PASSWORD, "firstName", "Hana", "lastName", "Hill",
+                "companyName", "Initech E2E " + run), HttpStatus.CREATED);
+        String hr = hana.get("token").asText();
+        proveAddress("hana@initech-" + run + ".test");
+        long publicJobs = call(HttpMethod.GET, "/api/jobs/statistics/public", null, null, HttpStatus.OK)
+                .get("totalJobs").asLong();
+
+        long jobId = call(HttpMethod.POST, "/api/jobs", hr, Map.of(
+                "title", title, "description", "Balance the books overnight.", "status", "OPEN"), HttpStatus.CREATED)
+                .get("id").asLong();
+
+        // HR works on it; nobody else can find it until AIRRAL approves the company.
+        call(HttpMethod.GET, "/api/jobs/" + jobId, hr, null, HttpStatus.OK);
+        web.get().uri("/api/jobs/" + jobId).exchange().expectStatus().isNotFound();
+        assertThat(ids(call(HttpMethod.GET, "/api/jobs/open?q=" + run, null, null, HttpStatus.OK))).doesNotContain(jobId);
+        assertThat(ids(call(HttpMethod.GET, "/api/jobs/open", null, null, HttpStatus.OK))).doesNotContain(jobId);
+        assertThat(call(HttpMethod.GET, "/api/jobs/statistics/public", null, null, HttpStatus.OK)
+                .get("totalJobs").asLong()).isEqualTo(publicJobs);
+
+        companyReview.approve(hana.get("organizationId").asLong(), "End-to-end test").block();
+        assertThat(ids(call(HttpMethod.GET, "/api/jobs/open?q=" + run, null, null, HttpStatus.OK))).contains(jobId);
+        web.get().uri("/api/jobs/" + jobId).exchange().expectStatus().isOk();
+    }
+
     /** Follow the verification link Firebase would have emailed. */
     private void proveAddress(String email) {
         String link = "link-" + email;

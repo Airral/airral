@@ -10,6 +10,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * What a job asks for, and which of it an application shows.
@@ -81,19 +83,41 @@ final class JobAlignment {
     }
 
     /**
-     * Whether the text mentions the keyword. A keyword that is exactly a known
-     * skill, under any of its names, is found under all of them; anything else
-     * is found as the same words in the same order.
+     * Skills whose name is also an everyday word. The catalog leaves such names
+     * out of its own patterns ("golang", not "go"), so as a keyword they count
+     * only written as a name: "Go", not "go-live"; "Epic", not "an epic".
+     */
+    private static final Set<String> EVERYDAY_WORDS = Set.of("Go", "Epic");
+
+    /**
+     * Whether the text mentions the keyword. A keyword that is a known skill,
+     * under any of its names, is found under all of them, and also as its own
+     * words: the catalog's patterns leave some names out ("Leadership" looks for
+     * "team leadership"), and a resume saying "leadership" still says it.
+     * Anything else is found as the same words in the same order.
      */
     static boolean mentions(String text, String keyword) {
         if (text == null || text.isBlank() || keyword == null || keyword.isBlank()) {
             return false;
         }
         String wanted = keyword.strip();
-        return ResumeSkillCatalog.signals().stream()
+        Optional<ResumeSkillCatalog.SkillSignal> known = ResumeSkillCatalog.signals().stream()
                 .filter(signal -> signal.canonical().equalsIgnoreCase(wanted) || signal.pattern().matcher(wanted).matches())
-                .findFirst()
-                .map(signal -> signal.pattern().matcher(text).find())
-                .orElseGet(() -> ResumeSkillCatalog.containsPhrase(text, wanted));
+                .findFirst();
+        if (known.isEmpty()) {
+            return ResumeSkillCatalog.containsPhrase(text, wanted);
+        }
+        ResumeSkillCatalog.SkillSignal signal = known.get();
+        if (signal.pattern().matcher(text).find()) {
+            return true;
+        }
+        return EVERYDAY_WORDS.contains(signal.canonical())
+                ? writtenAsAName(text, signal.canonical())
+                : ResumeSkillCatalog.containsPhrase(text, wanted) || ResumeSkillCatalog.containsPhrase(text, signal.canonical());
+    }
+
+    /** The name as a whole word, capitalized as written. */
+    private static boolean writtenAsAName(String text, String name) {
+        return Pattern.compile("(^|[^A-Za-z0-9])" + Pattern.quote(name) + "(?=$|[^A-Za-z0-9])").matcher(text).find();
     }
 }

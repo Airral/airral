@@ -96,14 +96,20 @@ public class HrEncounterService {
                 .flatMap(this::toEncounterResponse);
     }
 
+    /** How many of the company's recent encounters are read to find a hiring manager's own. */
+    static final int SCOPED_SCAN = 1000;
+
     /**
-     * Get recent encounters
+     * Get recent encounters. The limit counts what the caller may see: a hiring
+     * manager gets their own newest, not their share of the company's newest.
      */
     public Flux<EncounterResponse> getRecentEncounters(Long organizationId, int limit, JobScope scope) {
         LocalDateTime since = LocalDateTime.now().minusDays(30);
-        return encounterRepository.findRecentByOrganizationId(organizationId, since, limit)
+        return encounterRepository.findRecentByOrganizationId(organizationId, since,
+                        scope.isWholeCompany() ? limit : Math.max(limit, SCOPED_SCAN))
                 .filter(encounter -> scope.allows(encounter.getJobId()))
-                .flatMap(this::toEncounterResponse);
+                .take(limit)
+                .flatMapSequential(this::toEncounterResponse);
     }
 
     /**

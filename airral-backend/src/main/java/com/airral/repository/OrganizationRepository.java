@@ -10,7 +10,7 @@ import reactor.core.publisher.Mono;
 public interface OrganizationRepository extends R2dbcRepository<Organization, Long> {
 
     // Count total organizations that have at least one open job (public - for statistics)
-    @Query("SELECT COUNT(DISTINCT organization_id) FROM jobs WHERE status = 'OPEN'")
+    @Query("SELECT COUNT(DISTINCT j.organization_id) FROM jobs j " + JobRepository.PUBLISHED + "WHERE j.status = 'OPEN'")
     Mono<Long> countOrganizationsWithOpenJobs();
 
     /**

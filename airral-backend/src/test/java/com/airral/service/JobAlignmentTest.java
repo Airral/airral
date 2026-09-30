@@ -65,4 +65,26 @@ class JobAlignmentTest {
         assertThat(JobAlignment.keywordsFor(withKeywords("Excel", " excel ", "", "EXCEL", "Payroll")))
                 .containsExactly("Excel", "Payroll");
     }
+
+    @Test
+    @DisplayName("a known skill whose catalog names leave its own name out is still found by that name")
+    void skillsByTheirOwnName() {
+        String resume = "Led operations for a 40-person team and owned people development: leadership by example. "
+                + "Built REST APIs and Vue front ends to WCAG 2.1. Oracle and Postgres. Wrote Go services; "
+                + "Epic certified.";
+
+        for (String keyword : new String[] {"Leadership", "Operations", "REST APIs", "Vue", "Accessibility",
+                "Oracle", "Go", "golang", "Epic"}) {
+            assertThat(JobAlignment.mentions(resume, keyword)).as(keyword).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("a skill named like an everyday word is not found in the everyday word")
+    void everydayWordsAreNotSkills() {
+        String resume = "Ready to go-live on day one; planned each epic with the team.";
+
+        assertThat(JobAlignment.mentions(resume, "Go")).isFalse();
+        assertThat(JobAlignment.mentions(resume, "Epic")).isFalse();
+    }
 }

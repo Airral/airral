@@ -4,6 +4,7 @@ import com.airral.domain.Application;
 import com.airral.domain.Job;
 import com.airral.domain.Offer;
 import com.airral.domain.User;
+import com.airral.domain.enums.UserRole;
 import com.airral.domain.enums.OfferStatus;
 import com.airral.repository.JobRepository;
 import com.airral.repository.OrganizationRepository;
@@ -89,11 +90,18 @@ public class HiringTeamEmails {
                 + button(hrPortalUrl + "/candidates", "Open Candidates");
     }
 
-    /** The company's active HR managers, and the job's hiring manager, each once. */
+    /**
+     * The company's active HR managers, and the job's hiring manager, each once.
+     * A hiring manager named on the job before they moved to another company or
+     * role, or out of hiring, is not told about its candidates.
+     */
     private Flux<User> team(Job job) {
         Flux<User> hiringManager = job.getHiringManagerId() == null ? Flux.empty()
                 : userRepository.findById(job.getHiringManagerId())
-                        .filter(user -> Boolean.TRUE.equals(user.getIsActive()))
+                        .filter(user -> Boolean.TRUE.equals(user.getIsActive())
+                                && job.getOrganizationId() != null
+                                && job.getOrganizationId().equals(user.getOrganizationId())
+                                && (user.getRole() == UserRole.MANAGER || user.getRole() == UserRole.HR_MANAGER))
                         .flux();
         return Flux.concat(userRepository.findActiveHrManagers(job.getOrganizationId()), hiringManager)
                 .filter(user -> user.getEmail() != null && !user.getEmail().isBlank())

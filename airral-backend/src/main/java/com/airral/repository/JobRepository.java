@@ -20,15 +20,25 @@ public interface JobRepository extends R2dbcRepository<Job, Long> {
     @Query("SELECT * FROM jobs WHERE organization_id = :organizationId AND status = :status ORDER BY created_at DESC")
     Flux<Job> findByOrganizationIdAndStatus(Long organizationId, JobStatus status);
 
-    // Find open jobs (public - for job board)
+    /**
+     * The join that limits a public query to jobs candidates may see: at a
+     * company AIRRAL has verified and not switched off, as
+     * CompanyVerificationService.isPublishable has it. Applying already checked
+     * this; the job board and a job's own page did not.
+     */
+    String PUBLISHED = "JOIN organizations o ON o.id = j.organization_id "
+            + "AND o.is_active = true AND o.verification_status = 'VERIFIED' ";
+
+    /** Every open job, published or not: the catalog projection decides what to publish. */
     @Query("SELECT * FROM jobs WHERE status = 'OPEN' ORDER BY created_at DESC")
     Flux<Job> findOpenJobs();
 
+    /** Open jobs for the public job board and sitemap. */
+    @Query("SELECT j.* FROM jobs j " + PUBLISHED + "WHERE j.status = 'OPEN' ORDER BY j.created_at DESC")
+    Flux<Job> findPublishedOpenJobs();
+
     // Search open jobs (public - for job board)
-    @Query("""
-            SELECT j.*
-            FROM jobs j
-            LEFT JOIN organizations o ON o.id = j.organization_id
+    @Query("SELECT j.* FROM jobs j " + PUBLISHED + """
             WHERE j.status = 'OPEN'
               AND (
                 LOWER(COALESCE(j.title, '')) LIKE :query
@@ -42,20 +52,15 @@ public interface JobRepository extends R2dbcRepository<Job, Long> {
     Flux<Job> searchOpenJobs(String query);
 
     // Filter open jobs by department (public - for job board)
-    @Query("""
-            SELECT *
-            FROM jobs
-            WHERE status = 'OPEN'
-              AND LOWER(COALESCE(department, '')) = :department
-            ORDER BY created_at DESC
+    @Query("SELECT j.* FROM jobs j " + PUBLISHED + """
+            WHERE j.status = 'OPEN'
+              AND LOWER(COALESCE(j.department, '')) = :department
+            ORDER BY j.created_at DESC
             """)
     Flux<Job> findOpenJobsByDepartment(String department);
 
     // Search open jobs within a department (public - for job board)
-    @Query("""
-            SELECT j.*
-            FROM jobs j
-            LEFT JOIN organizations o ON o.id = j.organization_id
+    @Query("SELECT j.* FROM jobs j " + PUBLISHED + """
             WHERE j.status = 'OPEN'
               AND LOWER(COALESCE(j.department, '')) = :department
               AND (
@@ -69,7 +74,7 @@ public interface JobRepository extends R2dbcRepository<Job, Long> {
     Flux<Job> searchOpenJobsByDepartment(String query, String department);
 
     // Find one open job for public job detail pages
-    @Query("SELECT * FROM jobs WHERE id = :id AND status = 'OPEN'")
+    @Query("SELECT j.* FROM jobs j " + PUBLISHED + "WHERE j.id = :id AND j.status = 'OPEN'")
     Mono<Job> findOpenJobById(Long id);
 
     // Find job by ID and organization (security check)
@@ -85,7 +90,7 @@ public interface JobRepository extends R2dbcRepository<Job, Long> {
     Mono<Long> countOpenJobsByOrganizationId(Long organizationId);
 
     // Count total open jobs (public - for statistics)
-    @Query("SELECT COUNT(*) FROM jobs WHERE status = 'OPEN'")
+    @Query("SELECT COUNT(*) FROM jobs j " + PUBLISHED + "WHERE j.status = 'OPEN'")
     Mono<Long> countOpenJobs();
 
     /** Keeps the department name copied on jobs in step with a renamed department. */

@@ -33,6 +33,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -223,6 +224,48 @@ class HiringManagerScopeTest {
                     assertThat(response.getHiringManagerId()).isEqualTo(MIA);
                     assertThat(response.getHiringManagerName()).isEqualTo(mia.getFullName());
                 })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("a job whose hiring manager has since left hiring can still be edited; a new one is checked")
+    void staleHiringManagerDoesNotBlockEdits() {
+        User movedOn = User.builder().id(30L).organizationId(ACME).role(UserRole.EMPLOYEE).isActive(true).build();
+        JobService service = jobServiceWith(movedOn);
+        Job job = Job.builder().id(MIAS_JOB).organizationId(ACME).title("Backend engineer").hiringManagerId(30L).build();
+        when(jobs.findByIdAndOrganizationId(MIAS_JOB, ACME)).thenReturn(Mono.just(job));
+        when(jobs.save(any(Job.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(organizations.findById(ACME)).thenReturn(Mono.just(Organization.builder().id(ACME).name("Acme").build()));
+
+        CreateJobRequest retitled = jobManagedBy(30L);
+        retitled.setTitle("Senior backend engineer");
+        StepVerifier.create(service.updateJob(MIAS_JOB, retitled, ACME))
+                .assertNext(response -> assertThat(response.getTitle()).isEqualTo("Senior backend engineer"))
+                .verifyComplete();
+
+        User employee = User.builder().id(33L).organizationId(ACME).role(UserRole.EMPLOYEE).isActive(true).build();
+        when(users.findById(33L)).thenReturn(Mono.just(employee));
+        StepVerifier.create(service.updateJob(MIAS_JOB, jobManagedBy(33L), ACME))
+                .expectError(BadRequestException.class)
+                .verify();
+    }
+
+    @Test
+    @DisplayName("a manager's recent notes are their own newest, not their share of the company's newest")
+    void recentNotesLimitAfterScope() {
+        when(encounters.findRecentByOrganizationId(eq(ACME), any(), eq(HrEncounterService.SCOPED_SCAN)))
+                .thenReturn(Flux.just(note(503L, 101L, OTHER_JOB), note(502L, 101L, OTHER_JOB),
+                        note(501L, 100L, MIAS_JOB), note(500L, 100L, MIAS_JOB)));
+
+        StepVerifier.create(encounterService.getRecentEncounters(ACME, 2, MIAS_SCOPE))
+                .assertNext(response -> assertThat(response.getId()).isEqualTo(501L))
+                .assertNext(response -> assertThat(response.getId()).isEqualTo(500L))
+                .verifyComplete();
+
+        when(encounters.findRecentByOrganizationId(eq(ACME), any(), eq(2)))
+                .thenReturn(Flux.just(note(503L, 101L, OTHER_JOB), note(502L, 101L, OTHER_JOB)));
+        StepVerifier.create(encounterService.getRecentEncounters(ACME, 2, JobScope.wholeCompany()))
+                .expectNextCount(2)
                 .verifyComplete();
     }
 }
