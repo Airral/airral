@@ -135,6 +135,13 @@ airral:
     # create an admin, so the first one has to come from somewhere; the
     # alternative was hand-run SQL against production. Blank disables it.
     bootstrap-admin-email: ${AIRRAL_BOOTSTRAP_ADMIN_EMAIL:}
+    turnstile:
+      # Cloudflare Turnstile's secret key. Employer sign-ups must carry a token
+      # the widget on airral.com/sign-up issued to a person, checked against
+      # Cloudflare. Blank switches the check off (local, and until the keys
+      # exist); it is only ever set together with TURNSTILE_SITE_KEY on the
+      # website, or employer sign-ups would all be refused.
+      secret: ${AIRRAL_TURNSTILE_SECRET:}
     firebase:
       # The Firebase project whose ID tokens prove an email address was
       # followed from a link it sent. Not a secret: it is the audience every

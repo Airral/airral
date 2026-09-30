@@ -97,3 +97,8 @@
     padding-top: 44px;
   }
 }
+
+/* Cloudflare's check: takes no room until it loads, or when its keys are not set. */
+.form__turnstile:empty {
+  display: none;
+}

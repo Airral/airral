@@ -233,51 +233,82 @@ public class UserService {
         // so the endpoint cannot be used to look addresses up for free.
         return requireVerifiedInviter(invitedById)
                 .then(Mono.defer(() -> withinInvitationBudget(organizationId)))
-                .then(Mono.defer(() -> userRepository.findByEmail(email)
+                // A company AIRRAL has not approved yet keeps its invitations: they are
+                // saved, and emailed on approval, so a company nobody has checked cannot
+                // use AIRRAL's address to email strangers.
+                .then(Mono.defer(() -> companyApproved(organizationId)))
+                .flatMap(approved -> userRepository.findByEmail(email)
                         .map(Optional::of)
-                        .defaultIfEmpty(Optional.empty())))
-                .flatMap(existingUser -> {
-                    if (existingUser.isPresent()) {
-                        // One answer for any account outside this company: whether an
-                        // address is a job seeker's, or another company's, is not the
-                        // inviting company's business.
-                        return Mono.<UserInvitation>error(new ConflictException(
-                                organizationId.equals(existingUser.get().getOrganizationId())
-                                        ? email + " is already on your team"
-                                        : "That address already has an AIRRAL account, so it can't be invited. "
-                                                + "Ask them for another work address."));
-                    }
-                    return invitationRepository.findUnacceptedByEmailAndOrganization(email, organizationId)
-                            .map(Optional::of)
-                            .defaultIfEmpty(Optional.empty())
-                            .flatMap(unaccepted -> {
-                                if (unaccepted.isPresent() && isOpen(unaccepted.get())) {
-                                    return Mono.<UserInvitation>error(new ConflictException(
-                                            "Invitation already sent. Resend it from your invitations if it went astray."));
-                                }
-                                return companyDepartment(request.getDepartmentId(), organizationId)
-                                        .flatMap(department -> {
-                                            // An expired invitation is renewed rather than added
-                                            // to: the address can hold one unaccepted invitation.
-                                            UserInvitation invitation = unaccepted.orElseGet(() -> UserInvitation.builder()
-                                                    .organizationId(organizationId)
-                                                    .email(email)
-                                                    .isAccepted(false)
-                                                    .createdAt(LocalDateTime.now())
-                                                    .build());
-                                            invitation.setInvitedById(invitedById);
-                                            invitation.setRole(request.getRole());
-                                            invitation.setDepartmentId(department.map(Department::getId).orElse(null));
-                                            invitation.setDepartment(department.map(Department::getName).orElse(null));
-                                            invitation.setFirstName(request.getFirstName());
-                                            invitation.setLastName(request.getLastName());
-                                            invitation.setInvitationToken(UUID.randomUUID().toString());
-                                            invitation.setExpiresAt(LocalDateTime.now().plusDays(INVITATION_DAYS));
-                                            return invitationRepository.save(invitation);
-                                        });
-                            });
+                        .defaultIfEmpty(Optional.empty())
+                        .flatMap(existingUser -> {
+                            if (existingUser.isPresent()) {
+                                // One answer for any account outside this company: whether an
+                                // address is a job seeker's, or another company's, is not the
+                                // inviting company's business.
+                                return Mono.<UserInvitation>error(new ConflictException(
+                                        organizationId.equals(existingUser.get().getOrganizationId())
+                                                ? email + " is already on your team"
+                                                : "That address already has an AIRRAL account, so it can't be invited. "
+                                                        + "Ask them for another work address."));
+                            }
+                            return invitationRepository.findUnacceptedByEmailAndOrganization(email, organizationId)
+                                    .map(Optional::of)
+                                    .defaultIfEmpty(Optional.empty())
+                                    .flatMap(unaccepted -> {
+                                        if (unaccepted.isPresent() && isOpen(unaccepted.get())) {
+                                            return Mono.<UserInvitation>error(new ConflictException(approved
+                                                    ? "Invitation already sent. Resend it from your invitations if it went astray."
+                                                    : email + " is already invited. The invitation goes out when AIRRAL "
+                                                            + "approves your company."));
+                                        }
+                                        return companyDepartment(request.getDepartmentId(), organizationId)
+                                                .flatMap(department -> {
+                                                    // An expired invitation is renewed rather than added
+                                                    // to: the address can hold one unaccepted invitation.
+                                                    UserInvitation invitation = unaccepted.orElseGet(() -> UserInvitation.builder()
+                                                            .organizationId(organizationId)
+                                                            .email(email)
+                                                            .isAccepted(false)
+                                                            .createdAt(LocalDateTime.now())
+                                                            .build());
+                                                    invitation.setInvitedById(invitedById);
+                                                    invitation.setRole(request.getRole());
+                                                    invitation.setDepartmentId(department.map(Department::getId).orElse(null));
+                                                    invitation.setDepartment(department.map(Department::getName).orElse(null));
+                                                    invitation.setFirstName(request.getFirstName());
+                                                    invitation.setLastName(request.getLastName());
+                                                    invitation.setInvitationToken(UUID.randomUUID().toString());
+                                                    invitation.setExpiresAt(LocalDateTime.now().plusDays(INVITATION_DAYS));
+                                                    // Not sent until it is: approval sends every unsent one.
+                                                    invitation.setSentAt(null);
+                                                    return invitationRepository.save(invitation);
+                                                });
+                                    });
+                        })
+                        .flatMap(invitation -> approved
+                                ? sendInvitationEmail(invitation)
+                                : Mono.just(toInvitationResponse(invitation, null, true))));
+    }
+
+    /** Whether AIRRAL has approved the company, so its invitations may go out. */
+    private Mono<Boolean> companyApproved(Long organizationId) {
+        return organizationRepository.findById(organizationId)
+                .map(CompanyVerificationService::isPublishable)
+                .defaultIfEmpty(false);
+    }
+
+    /**
+     * Emails the invitations a company made while it waited for review, each
+     * with a fresh week to accept. Called when AIRRAL approves the company.
+     */
+    public Mono<Long> sendHeldInvitations(Long organizationId) {
+        return invitationRepository.findHeldByOrganizationId(organizationId)
+                .concatMap(invitation -> {
+                    invitation.setExpiresAt(LocalDateTime.now().plusDays(INVITATION_DAYS));
+                    return invitationRepository.save(invitation).flatMap(this::sendInvitationEmail);
                 })
-                .flatMap(this::sendInvitationEmail);
+                .filter(response -> Boolean.TRUE.equals(response.getEmailSent()))
+                .count();
     }
 
     /**
@@ -296,9 +327,12 @@ public class UserService {
      * Get pending invitations
      */
     public Flux<InvitationResponse> getPendingInvitations(Long organizationId) {
-        // Expired ones included, marked as such, so HR can renew or cancel them.
-        return invitationRepository.findUnacceptedByOrganizationId(organizationId)
-                .map(invitation -> toInvitationResponse(invitation, null));
+        // Expired ones included, marked as such, so HR can renew or cancel them;
+        // and held ones, which go out when AIRRAL approves the company.
+        return companyApproved(organizationId).flatMapMany(approved -> invitationRepository
+                .findUnacceptedByOrganizationId(organizationId)
+                .map(invitation -> toInvitationResponse(invitation, null,
+                        !approved && invitation.getSentAt() == null)));
     }
 
     /**
@@ -306,6 +340,10 @@ public class UserService {
      */
     public Mono<InvitationResponse> resendInvitation(Long invitationId, Long organizationId) {
         return pendingInvitation(invitationId, organizationId)
+                .flatMap(invitation -> companyApproved(organizationId).flatMap(approved -> approved
+                        ? Mono.just(invitation)
+                        : Mono.<UserInvitation>error(new ConflictException(
+                                "This invitation goes out when AIRRAL approves your company."))))
                 .flatMap(invitation -> withinInvitationBudget(organizationId).then(Mono.defer(() -> {
                     invitation.setExpiresAt(LocalDateTime.now().plusDays(INVITATION_DAYS));
                     return invitationRepository.save(invitation);
@@ -369,14 +407,22 @@ public class UserService {
      */
     private Mono<InvitationResponse> sendInvitationEmail(UserInvitation invitation) {
         return linkSender.sendInvitation(invitation.getId(), invitation.getEmail(), invitation.getInvitationToken())
-                .thenReturn(toInvitationResponse(invitation, true))
+                .thenReturn(true)
                 .onErrorResume(error -> {
                     log.warn("Invitation {} saved but its email was not sent: {}", invitation.getId(), error.getMessage());
-                    return Mono.just(toInvitationResponse(invitation, false));
-                });
+                    return Mono.just(false);
+                })
+                .flatMap(sent -> !sent ? Mono.just(toInvitationResponse(invitation, false, false))
+                        : invitationRepository.markSent(invitation.getId(), LocalDateTime.now())
+                                .onErrorResume(error -> {
+                                    log.warn("Invitation {} was emailed but not marked sent: {}",
+                                            invitation.getId(), error.toString());
+                                    return Mono.just(0);
+                                })
+                                .thenReturn(toInvitationResponse(invitation, true, false)));
     }
 
-    private static InvitationResponse toInvitationResponse(UserInvitation invitation, Boolean emailSent) {
+    private static InvitationResponse toInvitationResponse(UserInvitation invitation, Boolean emailSent, boolean held) {
         return InvitationResponse.builder()
                 .id(invitation.getId())
                 .email(invitation.getEmail())
@@ -386,6 +432,7 @@ public class UserService {
                 .department(invitation.getDepartment())
                 .expiresAt(invitation.getExpiresAt())
                 .expired(!isOpen(invitation))
+                .held(held)
                 .createdAt(invitation.getCreatedAt())
                 .emailSent(emailSent)
                 .build();

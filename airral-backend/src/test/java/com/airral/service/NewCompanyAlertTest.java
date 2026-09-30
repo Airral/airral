@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -30,8 +31,8 @@ import static org.mockito.Mockito.when;
 class NewCompanyAlertTest {
 
     @Test
-    @DisplayName("a new company tells the team it is waiting for review")
-    void signupAlertsTheTeam() {
+    @DisplayName("signing up creates the company and its first HR manager, and tells nobody yet")
+    void signupCreatesTheCompany() {
         UserRepository users = mock(UserRepository.class);
         OrganizationRepository organizations = mock(OrganizationRepository.class);
         PasswordEncoder encoder = mock(PasswordEncoder.class);
@@ -60,7 +61,7 @@ class NewCompanyAlertTest {
                 Organization.builder().id(4L).name("Acme").tier(OrganizationTier.QUICK_HIRE).build()));
 
         AuthService auth = new AuthService(users, organizations, mock(CandidateProfileRepository.class), encoder,
-                mock(JwtTokenProvider.class), new ObjectMapper(), mock(GoogleIdentityService.class), alerts, departments);
+                mock(JwtTokenProvider.class), new ObjectMapper(), mock(GoogleIdentityService.class), departments);
 
         RegisterRequest request = new RegisterRequest();
         request.setEmail("amy@acme.io");
@@ -71,9 +72,9 @@ class NewCompanyAlertTest {
 
         StepVerifier.create(auth.register(request)).expectNextCount(1).verifyComplete();
 
-        verify(alerts).newCompany(
-                argThat(org -> "Acme".equals(org.getName())),
-                argThat(user -> "amy@acme.io".equals(user.getEmail())));
+        // The team hears once the address is proven (NewCompanyAnnouncementTest):
+        // a bot's sign-up never gets that far.
+        verifyNoInteractions(alerts);
         // The first HR manager is filed under the company's first department.
         verify(departments).save(argThat(department -> "Human Resources".equals(department.getName())
                 && Long.valueOf(4L).equals(department.getOrganizationId())));

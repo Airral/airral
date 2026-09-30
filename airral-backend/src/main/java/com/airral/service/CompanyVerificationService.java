@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
@@ -69,15 +70,24 @@ public class CompanyVerificationService {
     private final OrganizationRepository organizationRepository;
     private final JobRepository jobRepository;
     private final InternalJobCatalogProjectionService projectionService;
+    private final TeamAlerts teamAlerts;
+    private final UserService userService;
     private final boolean approveWorkDomains;
+    private final int unverifiedDays;
 
     public CompanyVerificationService(OrganizationRepository organizationRepository,
                                       JobRepository jobRepository,
                                       @Lazy InternalJobCatalogProjectionService projectionService,
-                                      @Value("${airral.company-review.approve-work-domains:false}") boolean approveWorkDomains) {
+                                      TeamAlerts teamAlerts,
+                                      @Lazy UserService userService,
+                                      @Value("${airral.company-review.approve-work-domains:false}") boolean approveWorkDomains,
+                                      @Value("${airral.company-review.unverified-days:7}") int unverifiedDays) {
         this.organizationRepository = organizationRepository;
         this.jobRepository = jobRepository;
         this.projectionService = projectionService;
+        this.teamAlerts = teamAlerts;
+        this.userService = userService;
+        this.unverifiedDays = Math.max(1, unverifiedDays);
         this.approveWorkDomains = approveWorkDomains;
     }
 
@@ -146,8 +156,51 @@ public class CompanyVerificationService {
                 })
                 .doOnNext(org -> log.info("Company {} ({}) verified by domain via user {}",
                         org.getId(), org.getDomain(), user.getId()))
-                .flatMap(this::republish)
+                .flatMap(org -> republish(org).then(sendHeldInvitations(org)))
                 .then();
+    }
+
+    /**
+     * Someone proved the address a company signed up with: the team hears about
+     * the new company now, not at sign-up. A bot's made-up inbox never gets this
+     * far, so it never reaches Slack. A company already approved (by its domain,
+     * a moment ago) is not announced as waiting.
+     */
+    public Mono<Void> announceNewCompany(User user) {
+        if (user == null || user.getOrganizationId() == null) {
+            return Mono.empty();
+        }
+        return organizationRepository.findById(user.getOrganizationId())
+                .filter(org -> PENDING.equals(org.getVerificationStatus()))
+                .doOnNext(org -> teamAlerts.newCompany(org, user))
+                .then();
+    }
+
+    /**
+     * Closes the sign-ups nobody finished: companies still waiting whose people
+     * never proved an address within {@code airral.company-review.unverified-days}.
+     * They move to Rejected with a note, so the review queue shows real sign-ups
+     * only, and an admin can still approve one from there. Runs every few hours;
+     * the update only ever touches rows that still qualify, so any instance may run it.
+     */
+    @Scheduled(fixedDelayString = "${airral.company-review.close-unverified-every:PT6H}",
+            initialDelayString = "${airral.company-review.close-unverified-after-start:PT10M}")
+    public void closeUnverifiedSignups() {
+        closeUnverifiedBefore(LocalDateTime.now().minusDays(unverifiedDays))
+                .subscribe(
+                        closed -> {
+                            if (closed != null && closed > 0) {
+                                log.info("Closed {} company sign-up(s) whose address was not verified within {} days",
+                                        closed, unverifiedDays);
+                            }
+                        },
+                        error -> log.warn("Could not close unverified company sign-ups: {}", error.toString()));
+    }
+
+    /** Closes waiting companies created before {@code cutoff} whose people never proved an address. */
+    public Mono<Long> closeUnverifiedBefore(LocalDateTime cutoff) {
+        return organizationRepository.closeUnverifiedSignups(cutoff, LocalDateTime.now(),
+                "Closed automatically: the sign-up address was not verified within " + unverifiedDays + " days.");
     }
 
     /** Admin review. Publishes the company's open jobs straight away. */
@@ -172,7 +225,25 @@ public class CompanyVerificationService {
                     return organizationRepository.save(org);
                 })
                 .doOnNext(org -> log.warn("Company {} set to {} by admin review", org.getId(), status))
-                .flatMap(org -> republish(org).thenReturn(org));
+                .flatMap(org -> republish(org)
+                        .then(VERIFIED.equals(status) ? sendHeldInvitations(org) : Mono.empty())
+                        .thenReturn(org));
+    }
+
+    /**
+     * Emails the invitations the company made while it waited. Approval stands
+     * even if they cannot go out; HR can resend them from the Team page.
+     */
+    private Mono<Void> sendHeldInvitations(Organization organization) {
+        return userService.sendHeldInvitations(organization.getId())
+                .doOnNext(sent -> {
+                    if (sent > 0) log.info("Sent {} held invitation(s) for company {}", sent, organization.getId());
+                })
+                .onErrorResume(error -> {
+                    log.warn("Held invitations for company {} were not sent: {}", organization.getId(), error.toString());
+                    return Mono.just(0L);
+                })
+                .then();
     }
 
     /**

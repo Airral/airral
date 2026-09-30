@@ -123,8 +123,9 @@ export class TeamComponent implements OnInit {
           // Inviting an address whose invitation expired renews that one, so it
           // replaces its row rather than adding a second.
           this.invitations = [invitation, ...this.invitations.filter((item) => item.id !== invitation.id)];
-          this.inviteMessage =
-            invitation.emailSent === false
+          this.inviteMessage = invitation.held
+            ? `Saved. ${invitation.email} gets the invitation as soon as AIRRAL approves your company.`
+            : invitation.emailSent === false
               ? `Invitation saved for ${invitation.email}, but the email didn't go out. Use Resend below.`
               : `Invitation sent to ${invitation.email}.`;
           this.form = { email: '', firstName: '', lastName: '', role: this.form.role, departmentId: this.form.departmentId };

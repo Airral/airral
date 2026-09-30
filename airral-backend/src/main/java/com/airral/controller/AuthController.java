@@ -18,11 +18,13 @@ import com.airral.exception.UnauthorizedException;
 import com.airral.security.JwtTokenProvider;
 import com.airral.security.LoginThrottle;
 import com.airral.security.TokenVersionCache;
+import com.airral.security.TurnstileVerifier;
 import com.airral.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -41,6 +43,7 @@ public class AuthController {
     private final UserRepository userRepository;
     private final OrganizationRepository organizationRepository;
     private final UserService userService;
+    private final TurnstileVerifier turnstileVerifier;
 
     public AuthController(AuthService authService,
                           LoginThrottle loginThrottle,
@@ -49,7 +52,8 @@ public class AuthController {
                           AccountVerificationService accountVerificationService,
                           UserRepository userRepository,
                           OrganizationRepository organizationRepository,
-                          UserService userService) {
+                          UserService userService,
+                          TurnstileVerifier turnstileVerifier) {
         this.authService = authService;
         this.loginThrottle = loginThrottle;
         this.tokenVersionCache = tokenVersionCache;
@@ -58,6 +62,7 @@ public class AuthController {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
         this.userService = userService;
+        this.turnstileVerifier = turnstileVerifier;
     }
 
     /** One answer for every forgot-password request, whether or not the address has an account. */
@@ -306,7 +311,12 @@ public class AuthController {
 
         return loginThrottle.checkAddress(address)
                 .then(loginThrottle.recordAddressAttempt(address))
-                .then(authService.register(request))
+                // An employer sign-up proves a person filled in the form (Turnstile,
+                // once its keys are set), before any account or company exists.
+                .then(StringUtils.hasText(request.getCompanyName())
+                        ? turnstileVerifier.check(request.getTurnstileToken(), address)
+                        : Mono.<Void>empty())
+                .then(Mono.defer(() -> authService.register(request)))
                 // Sign-up does not prove the address, so the link goes out now,
                 // while the person is looking at their inbox. It cannot fail the
                 // sign-up; the portal banner has "Resend link".

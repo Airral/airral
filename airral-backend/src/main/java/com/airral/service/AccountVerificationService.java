@@ -18,6 +18,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 import java.util.Locale;
 
 import java.time.Duration;
@@ -97,7 +99,12 @@ public class AccountVerificationService {
                             boolean already = user.isEmailVerified();
                             markVerified(user);
                             return userRepository.save(user)
-                                    .flatMap(saved -> companyVerificationService.onEmailProven(saved).thenReturn(saved))
+                                    .flatMap(saved -> companyVerificationService.onEmailProven(saved)
+                                            // A new company is announced to the team once its
+                                            // address is proven, which a bot's inbox never is.
+                                            .then(already ? Mono.<Void>empty()
+                                                    : companyVerificationService.announceNewCompany(saved))
+                                            .thenReturn(saved))
                                     .doOnNext(saved -> log.info("Email verified for user {}{}", saved.getId(),
                                             already ? " (already verified)" : ""))
                                     .thenReturn(new VerifyResult(true, proof.email(), "Your email address is verified."));
@@ -118,19 +125,24 @@ public class AccountVerificationService {
                                 "No AIRRAL account uses " + proof.email() + ". Sign up with it instead.")))
                         .flatMap(user -> {
                             if (!user.isActive()) {
-                                return Mono.<User>error(new UnauthorizedException("Account is deactivated"));
+                                return Mono.<Tuple2<User, Boolean>>error(new UnauthorizedException("Account is deactivated"));
                             }
+                            boolean already = user.isEmailVerified();
                             user.setPasswordHash(passwordEncoder.encode(newPassword));
                             user.setPasswordProvenAt(LocalDateTime.now());
                             markVerified(user);
-                            return userRepository.save(user);
+                            return userRepository.save(user).map(saved -> Tuples.of(saved, already));
                         }))
-                .flatMap(user -> tokenVersionCache.revokeAll(user.getId())
-                        // Whoever just proved they own the inbox should not stay
-                        // locked out by failed attempts from before they did.
-                        .then(loginThrottle.recordSuccess(user.getEmail()))
-                        .then(companyVerificationService.onEmailProven(user))
-                        .doOnSuccess(ignored -> log.info("Password reset completed for user {}", user.getId())))
+                .flatMap(proven -> {
+                    User user = proven.getT1();
+                    return tokenVersionCache.revokeAll(user.getId())
+                            // Whoever just proved they own the inbox should not stay
+                            // locked out by failed attempts from before they did.
+                            .then(loginThrottle.recordSuccess(user.getEmail()))
+                            .then(companyVerificationService.onEmailProven(user))
+                            .then(proven.getT2() ? Mono.<Void>empty() : companyVerificationService.announceNewCompany(user))
+                            .doOnSuccess(ignored -> log.info("Password reset completed for user {}", user.getId()));
+                })
                 .then();
     }
 

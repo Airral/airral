@@ -117,6 +117,12 @@
             />
           </div>
 
+          <app-turnstile
+            class="form__turnstile"
+            (token)="turnstileToken = $event"
+            (unavailable)="turnstileUnavailable = true"
+          ></app-turnstile>
+
           <p class="error" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
 
           <button

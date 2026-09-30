@@ -61,7 +61,6 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
     private final GoogleIdentityService googleIdentityService;
-    private final TeamAlerts teamAlerts;
     private final DepartmentRepository departmentRepository;
 
     public AuthService(UserRepository userRepository,
@@ -71,7 +70,6 @@ public class AuthService {
                       JwtTokenProvider jwtTokenProvider,
                       ObjectMapper objectMapper,
                       GoogleIdentityService googleIdentityService,
-                      TeamAlerts teamAlerts,
                       DepartmentRepository departmentRepository) {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
@@ -80,7 +78,6 @@ public class AuthService {
         this.jwtTokenProvider = jwtTokenProvider;
         this.objectMapper = objectMapper;
         this.googleIdentityService = googleIdentityService;
-        this.teamAlerts = teamAlerts;
         this.departmentRepository = departmentRepository;
     }
 
@@ -421,9 +418,9 @@ public class AuthService {
                                             user.setDepartmentId(department.getId());
                                             return userRepository.save(user);
                                         })
-                                        // Every new company waits for review, so someone at
-                                        // AIRRAL has to hear about it.
-                                        .doOnNext(savedUser -> teamAlerts.newCompany(savedOrg, savedUser))
+                                        // AIRRAL hears about the company once its address is
+                                        // proven (CompanyVerificationService.announceNewCompany),
+                                        // not now: a bot's sign-up never gets that far.
                                         .flatMap(savedUser -> buildAuthResponse(savedUser, "Organization and account created successfully", true));
                             });
                 });

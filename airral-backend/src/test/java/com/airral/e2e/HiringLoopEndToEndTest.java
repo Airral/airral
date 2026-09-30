@@ -36,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -52,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -362,6 +364,44 @@ class HiringLoopEndToEndTest {
         companyReview.approve(hana.get("organizationId").asLong(), "End-to-end test").block();
         assertThat(ids(call(HttpMethod.GET, "/api/jobs/open?q=" + run, null, null, HttpStatus.OK))).contains(jobId);
         web.get().uri("/api/jobs/" + jobId).exchange().expectStatus().isOk();
+    }
+
+    @Test
+    @DisplayName("a company waiting for review keeps its invitations until approval, and sign-ups nobody verified close")
+    void waitingCompaniesAreHeldBack() {
+        String domain = "umbrella-" + run + ".test";
+        JsonNode hana = call(HttpMethod.POST, "/api/auth/register", null, Map.of(
+                "email", "hana@" + domain, "password", PASSWORD, "firstName", "Hana", "lastName", "Hill",
+                "companyName", "Umbrella E2E " + run), HttpStatus.CREATED);
+        String hr = hana.get("token").asText();
+        long companyId = hana.get("organizationId").asLong();
+        proveAddress("hana@" + domain);
+
+        // A sign-up nobody verified, made at the same moment.
+        JsonNode ghost = call(HttpMethod.POST, "/api/auth/register", null, Map.of(
+                "email", "ghost@ghost-" + run + ".test", "password", PASSWORD, "firstName", "Gus", "lastName", "Ghost",
+                "companyName", "Ghost E2E " + run), HttpStatus.CREATED);
+
+        // Waiting for review: the invitation is kept, and nobody is emailed.
+        String teammate = "mia@" + domain;
+        assertThat(call(HttpMethod.POST, "/api/users/invite", hr, Map.of("email", teammate, "role", "MANAGER"),
+                HttpStatus.CREATED).get("held").asBoolean()).isTrue();
+        assertThat(call(HttpMethod.GET, "/api/users/invitations", hr, null, HttpStatus.OK).get(0).get("held").asBoolean())
+                .isTrue();
+        verify(links, never()).sendInvitation(anyLong(), eq(teammate), any());
+
+        // The clean-up closes the unverified sign-up and leaves the verified one waiting.
+        assertThat(companyReview.closeUnverifiedBefore(LocalDateTime.now().plusMinutes(1)).block()).isGreaterThanOrEqualTo(1L);
+        assertThat(call(HttpMethod.GET, "/api/auth/me", ghost.get("token").asText(), null, HttpStatus.OK)
+                .get("organizationVerificationStatus").asText()).isEqualTo("REJECTED");
+        assertThat(call(HttpMethod.GET, "/api/auth/me", hr, null, HttpStatus.OK)
+                .get("organizationVerificationStatus").asText()).isEqualTo("PENDING");
+
+        // Approval sends the held invitation.
+        companyReview.approve(companyId, "End-to-end test").block();
+        verify(links).sendInvitation(anyLong(), eq(teammate), any());
+        assertThat(call(HttpMethod.GET, "/api/users/invitations", hr, null, HttpStatus.OK).get(0).get("held").asBoolean())
+                .isFalse();
     }
 
     /** Follow the verification link Firebase would have emailed. */

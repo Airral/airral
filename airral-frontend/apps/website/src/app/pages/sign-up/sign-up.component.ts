@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
@@ -8,11 +8,12 @@ import { RegisterRequest } from '@airral/shared-types';
 import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
+import { TurnstileWidgetComponent, turnstileSiteKey } from '../../shared/turnstile-widget.component';
 
 @Component({
   selector: 'app-sign-up',
   standalone: true,
-  imports: [CommonModule, FormsModule, HeaderComponent, FooterComponent],
+  imports: [CommonModule, FormsModule, HeaderComponent, FooterComponent, TurnstileWidgetComponent],
   templateUrl: './sign-up.component.html',
   styleUrl: './sign-up.component.css',
 })
@@ -24,6 +25,10 @@ export class SignUpComponent {
   password = '';
   isLoading = false;
   errorMessage = '';
+  /** Cloudflare Turnstile's proof that a person is filling this in. */
+  turnstileToken = '';
+  turnstileUnavailable = false;
+  @ViewChild(TurnstileWidgetComponent) private turnstile?: TurnstileWidgetComponent;
 
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
@@ -48,6 +53,12 @@ export class SignUpComponent {
       this.errorMessage = 'Enter your first and last name.';
       return;
     }
+    if (turnstileSiteKey() && !this.turnstileToken) {
+      this.errorMessage = this.turnstileUnavailable
+        ? "The check that you're not a robot didn't load. Try another browser, or email contact@airral.com."
+        : "Wait a moment for the check just above the button to finish, then try again.";
+      return;
+    }
     this.isLoading = true;
 
     const emailDomain = this.workEmail.includes('@') ? this.workEmail.split('@')[1] : undefined;
@@ -59,6 +70,7 @@ export class SignUpComponent {
       phone: this.phone,
       companyName: this.companyName,
       companyDomain: emailDomain,
+      turnstileToken: this.turnstileToken || undefined,
     };
 
     this.authApi.register(payload).subscribe({
@@ -94,6 +106,9 @@ export class SignUpComponent {
         this.errorMessage = (error?.status === 400 || error?.status === 409) && error?.message
           ? error.message
           : 'Unable to create employer account right now. Please try again.';
+        // A token works once: the next try needs a fresh one.
+        this.turnstileToken = '';
+        this.turnstile?.reset();
         this.isLoading = false;
       },
     });

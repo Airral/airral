@@ -62,7 +62,7 @@ class AuthGoogleRouteTest {
                 mock(com.airral.service.AccountVerificationService.class),
                 mock(com.airral.repository.UserRepository.class),
                 mock(com.airral.repository.OrganizationRepository.class),
-                mock(com.airral.service.UserService.class));
+                mock(com.airral.service.UserService.class), com.airral.security.TurnstileVerifier.off());
     }
 
     private ServerWebExchange exchangeFrom(String forwardedFor) {

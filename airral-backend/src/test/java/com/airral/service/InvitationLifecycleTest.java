@@ -29,6 +29,7 @@ import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -65,9 +66,23 @@ class InvitationLifecycleTest {
             }
             return Mono.just(saved);
         });
+        // Acme is approved, so its invitations go out; the held ones below use a
+        // company still waiting for review.
+        when(organizations.findById(ACME)).thenReturn(Mono.just(approvedAcme()));
+        when(invitations.markSent(anyLong(), any())).thenReturn(Mono.just(1));
         when(throttle.invitationEmailAllowed(ACME)).thenReturn(Mono.just(true));
         when(throttle.recordInvitationEmail(ACME)).thenReturn(Mono.empty());
         when(linkSender.sendInvitation(any(), any(), any())).thenReturn(Mono.empty());
+    }
+
+    private static Organization approvedAcme() {
+        return Organization.builder().id(ACME).name("Acme").isActive(true).verificationStatus("VERIFIED").build();
+    }
+
+    /** Acme before AIRRAL has reviewed it. */
+    private void waitingForReview() {
+        when(organizations.findById(ACME)).thenReturn(Mono.just(
+                Organization.builder().id(ACME).name("Acme").isActive(true).verificationStatus("PENDING").build()));
     }
 
     private static InviteUserRequest invite(String email) {
@@ -76,7 +91,8 @@ class InvitationLifecycleTest {
 
     private static UserInvitation pending(long id, long company, LocalDateTime expiresAt) {
         return UserInvitation.builder().id(id).organizationId(company).email("ben@acme.io").role(UserRole.EMPLOYEE)
-                .invitationToken("tok-" + id).expiresAt(expiresAt).isAccepted(false).build();
+                .invitationToken("tok-" + id).expiresAt(expiresAt).isAccepted(false)
+                .sentAt(expiresAt.minusDays(7)).build();
     }
 
     @Test
@@ -92,6 +108,7 @@ class InvitationLifecycleTest {
         ArgumentCaptor<String> token = ArgumentCaptor.forClass(String.class);
         verify(linkSender).sendInvitation(eq(30L), eq("ben@acme.io"), token.capture());
         assertThat(token.getValue()).isNotBlank();
+        verify(invitations).markSent(eq(30L), any());
         assertThat(Arrays.stream(InvitationResponse.class.getDeclaredFields()).map(Field::getName))
                 .doesNotContain("invitationToken");
     }
@@ -193,6 +210,70 @@ class InvitationLifecycleTest {
                 .assertNext(response -> assertThat(response.getExpired()).isFalse())
                 .verifyComplete();
         assertThat(invitation.getExpiresAt()).isAfter(LocalDateTime.now().plusDays(6));
+    }
+
+    @Test
+    @DisplayName("a company waiting for review keeps its invitations: saved, not emailed")
+    void heldUntilApproval() {
+        waitingForReview();
+
+        StepVerifier.create(service.inviteUser(invite("ben@acme.io"), ACME, 7L))
+                .assertNext(response -> {
+                    assertThat(response.getHeld()).isTrue();
+                    assertThat(response.getEmailSent()).isNull();
+                })
+                .verifyComplete();
+        ArgumentCaptor<UserInvitation> saved = ArgumentCaptor.forClass(UserInvitation.class);
+        verify(invitations).save(saved.capture());
+        assertThat(saved.getValue().getSentAt()).isNull();
+        verify(linkSender, never()).sendInvitation(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("an invitation held for review cannot be resent early, and asking again says when it goes out")
+    void heldCannotBeHurried() {
+        waitingForReview();
+        UserInvitation held = pending(30L, ACME, LocalDateTime.now().plusDays(3));
+        held.setSentAt(null);
+        when(invitations.findById(30L)).thenReturn(Mono.just(held));
+        when(invitations.findUnacceptedByEmailAndOrganization("ben@acme.io", ACME)).thenReturn(Mono.just(held));
+
+        StepVerifier.create(service.resendInvitation(30L, ACME))
+                .expectErrorSatisfies(error -> assertThat(error).isInstanceOf(ConflictException.class)
+                        .hasMessageContaining("when AIRRAL approves your company"))
+                .verify();
+        StepVerifier.create(service.inviteUser(invite("ben@acme.io"), ACME, 7L))
+                .expectErrorSatisfies(error -> assertThat(error).isInstanceOf(ConflictException.class)
+                        .hasMessageContaining("goes out when AIRRAL approves your company"))
+                .verify();
+        verify(linkSender, never()).sendInvitation(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("the invitations list marks the ones held for review")
+    void listMarksHeldInvitations() {
+        waitingForReview();
+        UserInvitation held = pending(31L, ACME, LocalDateTime.now().plusDays(3));
+        held.setSentAt(null);
+        when(invitations.findUnacceptedByOrganizationId(ACME)).thenReturn(Flux.just(held));
+
+        StepVerifier.create(service.getPendingInvitations(ACME))
+                .assertNext(listed -> assertThat(listed.getHeld()).isTrue())
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("approval sends the held invitations, each with a fresh week")
+    void approvalSendsHeldInvitations() {
+        UserInvitation held = pending(32L, ACME, LocalDateTime.now().minusDays(1));
+        held.setSentAt(null);
+        when(invitations.findHeldByOrganizationId(ACME)).thenReturn(Flux.just(held));
+
+        StepVerifier.create(service.sendHeldInvitations(ACME)).expectNext(1L).verifyComplete();
+
+        verify(linkSender).sendInvitation(32L, "ben@acme.io", "tok-32");
+        verify(invitations).markSent(eq(32L), any());
+        assertThat(held.getExpiresAt()).isAfter(LocalDateTime.now().plusDays(6));
     }
 
     @Test

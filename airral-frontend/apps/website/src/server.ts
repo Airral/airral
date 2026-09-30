@@ -65,13 +65,14 @@ function setSecurityHeaders(res: ServerResponse): void {
   res.setHeader(
     'Content-Security-Policy-Report-Only',
     "default-src 'self'; " +
-      "script-src 'self' https://accounts.google.com https://apis.google.com https://www.googletagmanager.com; " +
+      "script-src 'self' https://accounts.google.com https://apis.google.com https://www.googletagmanager.com " +
+        "https://challenges.cloudflare.com; " +
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
       "font-src 'self' https://fonts.gstatic.com data:; " +
       "img-src 'self' data: https:; " +
       "connect-src 'self' https://api.airral.com https://accounts.google.com " +
         "https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; " +
-      "frame-src https://accounts.google.com; frame-ancestors 'none'; " +
+      "frame-src https://accounts.google.com https://challenges.cloudflare.com; frame-ancestors 'none'; " +
       "base-uri 'self'; form-action 'self'"
   );
 }
@@ -107,7 +108,8 @@ function runtimeConfigScript(): string {
     `  applicantUrl: ${quote('AIRRAL_APPLICANT_URL')},`,
     `  hrUrl: ${quote('AIRRAL_HR_URL')},`,
     `  adminUrl: ${quote('AIRRAL_ADMIN_URL')},`,
-    `  googleClientId: ${quote('GOOGLE_OAUTH_CLIENT_ID')}`,
+    `  googleClientId: ${quote('GOOGLE_OAUTH_CLIENT_ID')},`,
+    `  turnstileSiteKey: ${quote('TURNSTILE_SITE_KEY')}`,
     '};',
     '',
   ].join('\n');

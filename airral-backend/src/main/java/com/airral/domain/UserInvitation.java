@@ -36,6 +36,8 @@ public class UserInvitation {
     private String invitationToken;
     private LocalDateTime expiresAt;
     private LocalDateTime acceptedAt;
+    /** When its email went out; null while it is held for the company's review (V46). */
+    private LocalDateTime sentAt;
 
     // Status
     private Boolean isAccepted;
