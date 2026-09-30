@@ -14,148 +14,155 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   padding: 0 20px;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: color-mix(in srgb, var(--ap-page) 86%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--ap-hair);
 }
 
 .nav-left {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 24px;
+  min-width: 0;
 }
 
 .nav-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   text-decoration: none;
+  color: var(--ap-ink);
 }
 
+/* A teal tile with an open ring: the mark, without the old "AR" text. */
 .brand-mark {
-  width: 32px;
-  height: 32px;
+  position: relative;
+  width: 26px;
+  height: 26px;
   border-radius: 8px;
-  background: #007C6D;
-  color: #ffffff;
-  display: grid;
-  place-items: center;
-  font-family: 'Sora', 'Manrope', sans-serif;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+  background: var(--ap-tint);
+  flex: none;
+}
+
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  border: 2.5px solid #ffffff;
+  border-right-color: transparent;
 }
 
 .brand-name {
   font-family: 'Sora', 'Manrope', sans-serif;
-  font-size: 16px;
-  font-weight: 800;
-  color: #101828;
-  letter-spacing: 0.03em;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
 
+/* Segmented control, like a native tab switcher. */
 .nav-links {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--ap-fill);
 }
 
 .nav-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 5px 14px;
   border-radius: 8px;
   text-decoration: none;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
-  color: #6b7280;
-  transition: color 0.12s, background 0.12s, box-shadow 0.12s;
-}
-
-.nav-link .material-icons {
-  font-size: 18px;
+  color: var(--ap-ink-2);
+  white-space: nowrap;
+  transition: color 0.12s, background 0.12s;
 }
 
 .nav-link:hover {
-  color: #111827;
-  background: #f3f4f6;
+  color: var(--ap-ink);
 }
 
 .nav-link.active {
-  color: #007C6D;
-  background: #e6f7f5;
+  color: var(--ap-ink);
+  background: var(--ap-surface);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12);
   font-weight: 700;
-  box-shadow: inset 0 0 0 1.5px #99d6cd;
 }
 
-.nav-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.nav-badge,
+.tab-badge {
+  display: inline-grid;
+  place-items: center;
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
   border-radius: 9px;
-  background: #be3144;
+  background: var(--ap-orange);
   color: #ffffff;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1;
-  margin-left: 4px;
 }
 
 .nav-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+}
+
+.nav-free {
+  font-size: 12px;
+  color: var(--ap-ink-3);
+  white-space: nowrap;
 }
 
 .nav-avatar {
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  border: 0;
-  background: #007C6D;
+  background: var(--ap-tint);
   color: #ffffff;
-  font: inherit;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 700;
-  cursor: pointer;
   display: grid;
   place-items: center;
   text-decoration: none;
   transition: background 0.14s;
-  box-shadow: inset 0 -3px 0 rgba(173, 107, 5, 0.5);
 }
 
 .nav-avatar:hover {
-  background: #005f54;
+  background: var(--ap-tint-hover);
 }
 
 .nav-sign-out {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #6b7280;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--ap-ink-3);
   cursor: pointer;
   display: grid;
   place-items: center;
-  transition: background 0.14s, border-color 0.14s, color 0.14s;
+  transition: background 0.14s, color 0.14s;
 }
 
 .nav-sign-out:hover {
-  background: #fff4dc;
-  border-color: #f1d394;
-  color: #111827;
+  background: var(--ap-fill);
+  color: var(--ap-ink);
 }
 
 .nav-sign-out .material-icons {
-  font-size: 18px;
+  font-size: 19px;
 }
 
 /* Signed-out entry points. The jobs page has no sign-in of its own, so these
@@ -166,36 +173,34 @@
   align-items: center;
   height: 34px;
   padding: 0 14px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   text-decoration: none;
   white-space: nowrap;
-  transition: background 0.14s, border-color 0.14s, color 0.14s;
+  transition: background 0.14s, color 0.14s;
 }
 
 .nav-signin {
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #374151;
+  color: var(--ap-tint-text);
 }
 
 .nav-signin:hover {
-  background: #fff4dc;
-  border-color: #f1d394;
-  color: #111827;
+  background: var(--ap-tint-soft);
 }
 
 .nav-signup {
-  border: 1px solid #007C6D;
-  background: #007C6D;
+  background: var(--ap-tint);
   color: #ffffff;
-  box-shadow: inset 0 -3px 0 rgba(173, 107, 5, 0.5);
 }
 
 .nav-signup:hover {
-  background: #005f54;
-  border-color: #005f54;
+  background: var(--ap-tint-hover);
+}
+
+:is(.nav-link, .nav-brand, .nav-avatar, .nav-sign-out, .nav-signin, .nav-signup, .tab):focus-visible {
+  outline: 3px solid var(--ap-tint);
+  outline-offset: 2px;
 }
 
 /* ── Main content area ────────────────────────────── */
@@ -208,67 +213,86 @@
      It read as "the description will not scroll". */
   box-sizing: border-box;
   min-height: 100vh;
-  background: #f9fafb;
+  background: var(--ap-page);
 }
 
 .app-main.with-nav {
   padding-top: 56px;
 }
 
-/* ── Responsive ───────────────────────────────────── */
+/* ── Phone tab bar ────────────────────────────────── */
+.tabbar {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .app-nav {
-    height: 50px;
-    padding: 0 12px;
+    height: 52px;
+    padding: 0 14px;
   }
 
-  .brand-name {
+  .nav-links,
+  .nav-free {
     display: none;
-  }
-
-  .nav-links {
-    gap: 2px;
-  }
-
-  .nav-link {
-    padding: 7px 10px;
-    font-size: 12px;
-  }
-
-  .nav-link .material-icons {
-    font-size: 18px;
-  }
-
-  .nav-avatar {
-    width: 30px;
-    height: 30px;
-    font-size: 11px;
   }
 
   .nav-signin,
   .nav-signup {
-    height: 30px;
-    padding: 0 10px;
-    font-size: 12px;
-  }
-
-  .nav-sign-out {
-    width: 30px;
-    height: 30px;
+    height: 32px;
+    padding: 0 12px;
+    font-size: 12.5px;
   }
 
   .app-main.with-nav {
-    padding-top: 50px;
-  }
-}
-
-@media (max-width: 480px) {
-  .nav-label {
-    display: none;
+    padding-top: 52px;
   }
 
-  .nav-link {
-    padding: 8px;
-    border-radius: 10px;
+  .app-main.with-tabbar {
+    padding-bottom: calc(var(--ap-tabbar-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    min-height: var(--ap-tabbar-height);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--ap-surface) 92%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-top: 1px solid var(--ap-hair);
+  }
+
+  .tab {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 2px;
+    text-decoration: none;
+    color: var(--ap-ink-3);
+    font-size: 10.5px;
+    font-weight: 650;
+  }
+
+  .tab .material-icons {
+    font-size: 24px;
+  }
+
+  .tab.active {
+    color: var(--ap-tint);
+  }
+
+  .tab-badge {
+    position: absolute;
+    top: 2px;
+    left: calc(50% + 6px);
+    min-width: 16px;
+    height: 16px;
+    font-size: 10px;
   }
 }

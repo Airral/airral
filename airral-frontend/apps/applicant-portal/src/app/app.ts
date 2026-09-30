@@ -17,6 +17,13 @@ export class App implements OnInit {
   protected title = 'applicant-portal';
   trackerBadge = 0;
 
+  readonly navItems = [
+    { path: '/jobs', label: 'Jobs', icon: 'work_outline' },
+    { path: '/tracker', label: 'Applications', icon: 'inbox' },
+    { path: '/resume', label: 'Resume', icon: 'description' },
+    { path: '/profile', label: 'Profile', icon: 'person_outline' },
+  ];
+
   constructor(
     protected readonly auth: AuthService,
     private readonly router: Router,

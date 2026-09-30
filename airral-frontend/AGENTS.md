@@ -33,22 +33,13 @@ Deferred until user feedback proves demand:
 
 These can remain as backend foundations or lightly linked support modules, but they should not dominate navigation, first-screen UI, or the launch roadmap.
 
-Use this visual rule:
+Use this visual rule (full detail in `docs/applicant-portal-design-system.md`, Theme Contract and Color Rules):
 
-- 90% white / off-white / near-black / neutral gray
-- 8% AIRRAL teal-green for primary actions, selected states, and success signals
-- 2% blue or accent color for trust/review/support signals
-
-Core theme:
-
-- Background: `#ffffff`, `#fbfbfa`, `#f6f7f6`
-- Cards: `#ffffff`
-- Main text: `#111827`
-- Secondary text: `#4b5563`, `#667789`
-- Border: `#e1e5e9`, `#d9dee3`
-- Primary teal-green: `#007C6D`
-- Dark teal support: `#006B5B`
-- Signal blue: `#3a63d6`
+- Light only: a light gray page (`#f4f5f7`), borderless white surfaces, near-black text. No dark theme, dark panels or decorative gradients.
+- AIRRAL teal `#007C6D` is the brand and the one primary action per screen, plus selected states.
+- Color carries meaning, never decoration: the verdict (green Apply, orange Check first, gray Likely skip), scores (green / orange / red), application statuses, and the small colored icon tiles on job facts.
+- Use the `--ap-*` tokens in `apps/applicant-portal/src/styles.css`, not hex values.
+- Company logos come from `components/company-logo.component.ts`, which falls back to a colored letter tile.
 
 Default applicant journey:
 

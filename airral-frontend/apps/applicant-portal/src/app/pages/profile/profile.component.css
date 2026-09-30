@@ -1,7 +1,7 @@
 :host {
   display: block;
   min-height: calc(100vh - 56px);
-  background: #f9fafb;
+  background: var(--ap-fill-soft);
 }
 
 :host * {
@@ -29,7 +29,7 @@
 .profile-summary,
 .resume-review-link,
 .form-section {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 8px;
   background: #ffffff;
 }
@@ -38,21 +38,21 @@
   display: grid;
   gap: 16px;
   padding: 18px;
-  border-top: 4px solid #007C6D;
+  border-top: 4px solid var(--ap-tint);
 }
 
 .hero-avatar {
   width: 58px;
   height: 58px;
   border-radius: 14px;
-  background: #007C6D;
+  background: var(--ap-tint);
   color: #ffffff;
   display: grid;
   place-items: center;
   font-size: 19px;
   font-weight: 900;
   letter-spacing: 0;
-  box-shadow: inset 0 -4px 0 rgba(49, 91, 220, 0.42);
+  box-shadow: none;
 }
 
 .profile-identity {
@@ -63,7 +63,7 @@
 
 .profile-identity h1 {
   margin: 0;
-  color: #111827;
+  color: var(--ap-ink);
   font-size: 20px;
   line-height: 1.2;
   font-weight: 900;
@@ -71,13 +71,13 @@
 
 .profile-identity p {
   margin: 0;
-  color: #4b5563;
+  color: var(--ap-ink-2);
   font-size: 13.5px;
   line-height: 1.45;
 }
 
 .profile-identity span {
-  color: #667789;
+  color: var(--ap-ink-2);
   font-size: 12.5px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -90,7 +90,7 @@
   gap: 12px;
   align-items: center;
   padding-top: 14px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--ap-hair-2);
 }
 
 .completion-ring {
@@ -106,7 +106,7 @@
   height: 42px;
   border-radius: 999px;
   background: #ffffff;
-  color: #007C6D;
+  color: var(--ap-tint);
   display: grid;
   place-items: center;
   font-size: 12px;
@@ -116,7 +116,7 @@
 .completion-row strong,
 .summary-item strong,
 .resume-review-link strong {
-  color: #111827;
+  color: var(--ap-ink);
   font-size: 13px;
   font-weight: 900;
   line-height: 1.25;
@@ -126,7 +126,7 @@
 .summary-item p,
 .resume-review-link small {
   margin: 2px 0 0;
-  color: #667789;
+  color: var(--ap-ink-2);
   font-size: 12.5px;
   line-height: 1.35;
 }
@@ -154,20 +154,20 @@
   height: 28px;
   border-radius: 7px;
   background: #edf3ff;
-  color: #007C6D;
+  color: var(--ap-tint);
   display: grid;
   place-items: center;
   font-size: 17px;
 }
 
 .summary-item:nth-child(2) .material-icons {
-  background: #dff5eb;
-  color: #007C6D;
+  background: var(--ap-tint-soft);
+  color: var(--ap-tint);
 }
 
 .summary-item:nth-child(3) .material-icons {
   background: #fff4dc;
-  color: #ad6b05;
+  color: var(--ap-orange);
 }
 
 .summary-item:nth-child(4) .material-icons {
@@ -198,16 +198,16 @@
 }
 
 .resume-review-link:hover {
-  border-color: #007C6D;
-  background: #f8fdfb;
+  border-color: var(--ap-tint);
+  background: var(--ap-tint-soft);
 }
 
 .resume-review-link > .material-icons:first-child {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: #e6f7f5;
-  color: #007C6D;
+  background: var(--ap-tint-soft);
+  color: var(--ap-tint);
   display: grid;
   place-items: center;
   font-size: 19px;
@@ -220,7 +220,7 @@
 }
 
 .resume-review-link .arrow {
-  color: #7a8490;
+  color: var(--ap-ink-2);
   font-size: 18px;
 }
 
@@ -237,7 +237,7 @@
 
 .eyebrow {
   margin: 0;
-  color: #007C6D;
+  color: var(--ap-tint);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0;
@@ -246,7 +246,7 @@
 
 .page-heading h2 {
   margin: 0;
-  color: #111827;
+  color: var(--ap-ink);
   font-size: 24px;
   line-height: 1.2;
   font-weight: 900;
@@ -265,14 +265,14 @@
 
 .success-banner {
   border: 1px solid #cceade;
-  background: #e6f7f5;
-  color: #005f54;
+  background: var(--ap-tint-soft);
+  color: var(--ap-tint-hover);
 }
 
 .error-banner {
   border: 1px solid #fde68a;
   background: #fffbeb;
-  color: #92400e;
+  color: var(--ap-orange);
 }
 
 .success-banner .material-icons,
@@ -293,15 +293,15 @@
 }
 
 .form-section:nth-of-type(1) {
-  border-top-color: #007C6D;
+  border-top-color: var(--ap-tint);
 }
 
 .form-section:nth-of-type(2) {
-  border-top-color: #007C6D;
+  border-top-color: var(--ap-tint);
 }
 
 .form-section:nth-of-type(3) {
-  border-top-color: #ad6b05;
+  border-top-color: var(--ap-orange);
 }
 
 .section-heading {
@@ -316,25 +316,25 @@
   height: 34px;
   border-radius: 8px;
   background: #edf3ff;
-  color: #007C6D;
+  color: var(--ap-tint);
   display: grid;
   place-items: center;
   font-size: 19px;
 }
 
 .form-section:nth-of-type(2) .section-heading > .material-icons {
-  background: #dff5eb;
-  color: #007C6D;
+  background: var(--ap-tint-soft);
+  color: var(--ap-tint);
 }
 
 .form-section:nth-of-type(3) .section-heading > .material-icons {
   background: #fff4dc;
-  color: #ad6b05;
+  color: var(--ap-orange);
 }
 
 .section-heading h3 {
   margin: 0;
-  color: #111827;
+  color: var(--ap-ink);
   font-size: 16px;
   font-weight: 900;
   line-height: 1.25;
@@ -342,7 +342,7 @@
 
 .section-heading p {
   margin: 3px 0 0;
-  color: #667789;
+  color: var(--ap-ink-2);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -364,7 +364,7 @@
 }
 
 label {
-  color: #374151;
+  color: var(--ap-ink);
   font-size: 12.5px;
   font-weight: 800;
 }
@@ -374,10 +374,10 @@ textarea,
 select {
   width: 100%;
   min-height: 42px;
-  border: 1px solid #d9dee3;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 8px;
   background: #ffffff;
-  color: #111827;
+  color: var(--ap-ink);
   font: inherit;
   font-size: 14px;
   padding: 0 12px;
@@ -400,14 +400,14 @@ select {
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: #007C6D;
+  border-color: var(--ap-tint);
   background: #ffffff;
   box-shadow: 0 0 0 3px rgba(0, 124, 109, 0.1);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #9ca3af;
+  color: var(--ap-ink-3);
 }
 
 .toggle-line {
@@ -415,7 +415,7 @@ textarea::placeholder {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  color: #374151;
+  color: var(--ap-ink);
   font-size: 13px;
   font-weight: 800;
 }
@@ -431,7 +431,7 @@ textarea::placeholder {
   width: 40px;
   height: 22px;
   border-radius: 999px;
-  background: #d1d5db;
+  background: var(--ap-hair-2);
   transition: background 0.2s;
 }
 
@@ -447,7 +447,7 @@ textarea::placeholder {
 }
 
 .toggle-line input:checked + .toggle-track {
-  background: #007C6D;
+  background: var(--ap-tint);
 }
 
 .toggle-line input:checked + .toggle-track::after {
@@ -466,24 +466,24 @@ textarea::placeholder {
   grid-template-columns: auto 1fr;
   gap: 8px;
   align-items: center;
-  border: 1px solid #e1e5e9;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 8px;
   background: #ffffff;
-  color: #4b5563;
+  color: var(--ap-ink-2);
   cursor: pointer;
   padding: 9px 10px;
   transition: border-color 0.14s, background 0.14s, color 0.14s;
 }
 
 .preference-toggle:hover {
-  border-color: #d1d5db;
+  border-color: var(--ap-hair-2);
   background: #ffffff;
 }
 
 .preference-toggle:has(input:checked) {
   border-color: #b7ddd4;
-  background: #f2fbf8;
-  color: #005f54;
+  background: var(--ap-tint-soft);
+  color: var(--ap-tint-hover);
 }
 
 .preference-toggle input {
@@ -494,12 +494,12 @@ textarea::placeholder {
 }
 
 .preference-toggle .material-icons {
-  color: #667789;
+  color: var(--ap-ink-2);
   font-size: 18px;
 }
 
 .preference-toggle:has(input:checked) .material-icons {
-  color: #007C6D;
+  color: var(--ap-tint);
 }
 
 .preference-toggle strong {
@@ -516,7 +516,7 @@ textarea::placeholder {
   display: flex;
   justify-content: flex-end;
   padding: 12px 0 0;
-  background: linear-gradient(180deg, rgba(244, 248, 247, 0), #f9fafb 40%);
+  background: linear-gradient(180deg, rgba(244, 248, 247, 0), var(--ap-fill-soft) 40%);
 }
 
 .btn-save-profile {
@@ -526,7 +526,7 @@ textarea::placeholder {
   gap: 7px;
   border: 0;
   border-radius: 8px;
-  background: #007C6D;
+  background: var(--ap-tint);
   color: #ffffff;
   cursor: pointer;
   font: inherit;
@@ -537,7 +537,7 @@ textarea::placeholder {
 }
 
 .btn-save-profile:hover:not(:disabled) {
-  background: #005f54;
+  background: var(--ap-tint-hover);
 }
 
 .btn-save-profile:disabled {
@@ -560,7 +560,7 @@ textarea::placeholder {
 .skeleton-hero,
 .skeleton-section {
   border-radius: 8px;
-  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background: linear-gradient(90deg, var(--ap-fill-soft) 25%, var(--ap-hair-2) 50%, var(--ap-fill-soft) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
 }
@@ -585,12 +585,12 @@ textarea::placeholder {
   display: grid;
   justify-items: center;
   gap: 12px;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   text-align: center;
 }
 
 .profile-empty .material-icons {
-  color: #9ca3af;
+  color: var(--ap-ink-3);
   font-size: 36px;
 }
 
@@ -648,7 +648,7 @@ textarea::placeholder {
   margin-top: 32px;
   padding: 24px;
   background: #ffffff;
-  border: 1.5px solid #e1e5e9;
+  border: 1.5px solid var(--ap-hair-2);
   border-radius: 12px;
 }
 
@@ -661,25 +661,25 @@ textarea::placeholder {
 
 .notification-section .section-heading .material-icons {
   font-size: 22px;
-  color: #007C6D;
+  color: var(--ap-tint);
   margin-top: 2px;
 }
 
 .notification-section .section-heading h3 {
   margin: 0;
   font-size: 16px;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .notification-section .section-heading p {
   margin: 2px 0 0;
   font-size: 13px;
-  color: #667789;
+  color: var(--ap-ink-2);
 }
 
 .notif-save-msg {
   font-size: 12px;
-  color: #007C6D;
+  color: var(--ap-tint);
   font-weight: 600;
   margin: 0 0 12px;
 }
@@ -691,11 +691,11 @@ textarea::placeholder {
  */
 .notif-inactive {
   font-size: 12px;
-  color: #667789;
+  color: var(--ap-ink-2);
   line-height: 1.5;
   margin: 0 0 12px;
   padding: 8px 10px;
-  background: #F4F6F8;
+  background: var(--ap-fill-soft);
   border-radius: 6px;
 }
 
@@ -724,7 +724,7 @@ textarea::placeholder {
   align-items: center;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--ap-fill-soft);
   cursor: pointer;
 }
 
@@ -739,7 +739,7 @@ textarea::placeholder {
 .notif-toggle .toggle-track {
   width: 36px;
   height: 20px;
-  background: #d1d5db;
+  background: var(--ap-hair-2);
   border-radius: 10px;
   position: relative;
   transition: background 0.2s;
@@ -758,7 +758,7 @@ textarea::placeholder {
 }
 
 .notif-toggle input:checked + .toggle-track {
-  background: #007C6D;
+  background: var(--ap-tint);
 }
 
 .notif-toggle input:checked + .toggle-track::after {
@@ -773,12 +773,12 @@ textarea::placeholder {
 
 .notif-toggle div strong {
   font-size: 13px;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .notif-toggle div span {
   font-size: 12px;
-  color: #667789;
+  color: var(--ap-ink-2);
 }
 
 /* ── Preference controls ──────────────────────────── */
@@ -793,7 +793,7 @@ textarea::placeholder {
   border: 0;
   background: none;
   padding: 0;
-  color: #007C6D;
+  color: var(--ap-tint);
   font: inherit;
   font-size: 12px;
   font-weight: 800;
@@ -802,19 +802,19 @@ textarea::placeholder {
 }
 
 .btn-inline-clear:disabled {
-  color: #9ca3af;
+  color: var(--ap-ink-3);
   cursor: default;
 }
 
 .field-help {
-  color: #667789;
+  color: var(--ap-ink-2);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.45;
 }
 
 .field-help strong {
-  color: #4b5563;
+  color: var(--ap-ink-2);
   font-weight: 800;
 }
 
@@ -824,21 +824,21 @@ textarea::placeholder {
   gap: 14px;
   align-items: center;
   padding: 14px;
-  border: 1px solid #e1e5e9;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 8px;
-  background: #fbfbfc;
+  background: var(--ap-fill-soft);
 }
 
-.clear-copy strong {
+.clear-copy > strong {
   display: block;
-  color: #111827;
+  color: var(--ap-ink);
   font-size: 13px;
   font-weight: 900;
 }
 
 .clear-copy p {
   margin: 4px 0 0;
-  color: #667789;
+  color: var(--ap-ink-2);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -862,26 +862,26 @@ textarea::placeholder {
 }
 
 .btn-clear-prefs {
-  border: 1px solid #d9dee3;
+  border: 1px solid var(--ap-hair-2);
   background: #ffffff;
-  color: #374151;
+  color: var(--ap-ink);
 }
 
 .btn-clear-prefs.confirm {
-  border-color: #ad6b05;
-  background: #ad6b05;
+  border-color: var(--ap-orange);
+  background: var(--ap-orange);
   color: #ffffff;
 }
 
 .btn-clear-cancel {
   border: 1px solid transparent;
   background: none;
-  color: #4b5563;
+  color: var(--ap-ink-2);
 }
 
 .btn-clear-prefs:disabled {
-  color: #9ca3af;
-  background: #f3f4f6;
+  color: var(--ap-ink-3);
+  background: var(--ap-fill-soft);
   cursor: default;
 }
 
@@ -889,4 +889,47 @@ textarea::placeholder {
   .clear-preferences {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Applicant refresh ───────────────────────────────
+   Same language as Jobs and Applications: borderless white surfaces on the
+   light page, fields as soft wells, no colored rules across the tops of cards. */
+.profile-card,
+.profile-summary,
+.form-section,
+.notification-section,
+.resume-review-link {
+  border: 0;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.form-section,
+.form-section:nth-of-type(n) {
+  border-top: 0;
+}
+
+.field input,
+.field textarea,
+.field select {
+  border: 0;
+  border-radius: 10px;
+  background: var(--ap-fill-soft);
+  box-shadow: inset 0 0 0 1.5px var(--ap-hair-2);
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  box-shadow: inset 0 0 0 2px var(--ap-tint);
+}
+
+.page-heading h1 {
+  letter-spacing: -0.03em;
+}
+
+/* The label and its note sat inline with no space between them. */
+.completion-row > div:last-child > strong,
+.completion-row > div:last-child > span {
+  display: block;
 }
