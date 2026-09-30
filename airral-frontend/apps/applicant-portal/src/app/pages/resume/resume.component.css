@@ -1,8 +1,8 @@
 :host {
   display: block;
   min-height: calc(100vh - 56px);
-  background: #f9fafb;
-  color: #111827;
+  background: var(--ap-fill-soft);
+  color: var(--ap-ink);
 }
 
 :host * {
@@ -33,7 +33,7 @@ textarea {
 .panel-label,
 .section-step {
   margin: 0;
-  color: #006d60;
+  color: var(--ap-tint-hover);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -51,7 +51,7 @@ textarea {
 .header-copy {
   max-width: 640px;
   margin: 0;
-  color: #5b6472;
+  color: var(--ap-ink-2);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -64,7 +64,7 @@ textarea {
   gap: 8px;
   flex: 0 0 auto;
   padding: 9px 14px;
-  border: 1px solid #cfd6dd;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 7px;
   background: #ffffff;
   color: #25313d;
@@ -75,19 +75,19 @@ textarea {
 }
 
 .upload-button:hover {
-  border-color: #007c6d;
-  color: #006d60;
-  background: #f5fbfa;
+  border-color: var(--ap-tint);
+  color: var(--ap-tint-hover);
+  background: var(--ap-tint-soft);
 }
 
 .upload-button.primary {
-  border-color: #007c6d;
-  background: #007c6d;
+  border-color: var(--ap-tint);
+  background: var(--ap-tint);
   color: #ffffff;
 }
 
 .upload-button.primary:hover {
-  background: #006d60;
+  background: var(--ap-tint-hover);
   color: #ffffff;
 }
 
@@ -120,8 +120,8 @@ textarea {
 
 .message.success {
   border-color: #9bd8cc;
-  background: #effaf7;
-  color: #075e52;
+  background: var(--ap-tint-soft);
+  color: var(--ap-tint-hover);
 }
 
 .message.error {
@@ -136,11 +136,11 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: #4b5563;
+  color: var(--ap-ink-2);
 }
 
 .loading-state > .material-icons {
-  color: #007c6d;
+  color: var(--ap-tint);
   font-size: 28px;
 }
 
@@ -150,7 +150,7 @@ textarea {
 }
 
 .loading-state strong {
-  color: #111827;
+  color: var(--ap-ink);
   font-size: 14px;
 }
 
@@ -173,7 +173,7 @@ textarea {
   align-items: center;
   justify-content: center;
   padding: 44px 24px;
-  border: 1px solid #e1e5e9;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 8px;
   background: #ffffff;
   text-align: center;
@@ -187,8 +187,8 @@ textarea {
   margin-bottom: 16px;
   border: 1px solid #a9dcd5;
   border-radius: 8px;
-  background: #effaf7;
-  color: #007c6d;
+  background: var(--ap-tint-soft);
+  color: var(--ap-tint);
 }
 
 .empty-icon .material-icons {
@@ -203,14 +203,14 @@ textarea {
 .empty-state p {
   max-width: 510px;
   margin: 0 0 22px;
-  color: #5b6472;
+  color: var(--ap-ink-2);
   font-size: 14px;
   line-height: 1.55;
 }
 
 .empty-state small {
   margin-top: 9px;
-  color: #7a8490;
+  color: var(--ap-ink-2);
   font-size: 11px;
 }
 
@@ -221,7 +221,7 @@ textarea {
   justify-content: center;
   gap: 13px;
   padding: 28px;
-  border: 1px solid #e1e5e9;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 8px;
   background: #ffffff;
 }
@@ -238,7 +238,7 @@ textarea {
 
 .analysis-error-state p {
   margin: 3px 0 0;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 12px;
 }
 
@@ -258,7 +258,7 @@ textarea {
 
 .rail-panel {
   padding: 16px;
-  border: 1px solid #e1e5e9;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 8px;
   background: #ffffff;
 }
@@ -286,7 +286,7 @@ textarea {
 
 .status-icon.good {
   background: #e8f7f3;
-  color: #007c6d;
+  color: var(--ap-tint);
 }
 
 .status-icon.mid {
@@ -296,7 +296,7 @@ textarea {
 
 .status-icon.low {
   background: #fff0f2;
-  color: #b52f43;
+  color: var(--ap-red);
 }
 
 .panel-title-row h2,
@@ -320,7 +320,7 @@ textarea {
 
 .confidence-row span,
 .parsed-date {
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 11px;
 }
 
@@ -338,9 +338,9 @@ textarea {
   border-radius: inherit;
 }
 
-.confidence-track .good { background: #007c6d; }
+.confidence-track .good { background: var(--ap-tint); }
 .confidence-track .mid { background: #d49218; }
-.confidence-track .low { background: #be3144; }
+.confidence-track .low { background: var(--ap-red); }
 
 .parsed-date {
   margin: 9px 0 0;
@@ -389,13 +389,13 @@ textarea {
 }
 
 .clean-panel > .material-icons {
-  color: #007c6d;
+  color: var(--ap-tint);
   font-size: 21px;
 }
 
 .clean-panel p {
   margin: 3px 0 0;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 11.5px;
   line-height: 1.45;
 }
@@ -412,7 +412,7 @@ textarea {
   font-weight: 850;
 }
 
-.health-score.good { border-color: #55b8a8; color: #006d60; background: #effaf7; }
+.health-score.good { border-color: #55b8a8; color: var(--ap-tint-hover); background: var(--ap-tint-soft); }
 .health-score.mid { border-color: #e1b452; color: #855800; background: #fffaf0; }
 .health-score.low { border-color: #df7886; color: #a22739; background: #fff4f5; }
 
@@ -422,9 +422,9 @@ textarea {
   gap: 1px;
   margin: 15px 0 0;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 6px;
-  background: #e5e7eb;
+  background: var(--ap-hair-2);
 }
 
 .health-metrics div {
@@ -433,7 +433,7 @@ textarea {
 }
 
 .health-metrics dt {
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -441,7 +441,7 @@ textarea {
 
 .health-metrics dd {
   margin: 2px 0 0;
-  color: #111827;
+  color: var(--ap-ink);
   font-size: 14px;
   font-weight: 800;
 }
@@ -449,20 +449,20 @@ textarea {
 .top-fixes {
   margin-top: 15px;
   padding-top: 13px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--ap-hair-2);
 }
 
 .resume-editor {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #dfe4e8;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 8px;
   background: #ffffff;
 }
 
 .editor-section {
   padding: 24px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--ap-hair-2);
 }
 
 .section-heading {
@@ -486,7 +486,7 @@ textarea {
 }
 
 .section-heading > span {
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 11.5px;
   line-height: 1.4;
   text-align: right;
@@ -514,7 +514,7 @@ textarea {
 .field > span,
 .field legend,
 .tag-section > label {
-  color: #344054;
+  color: var(--ap-ink);
   font-size: 12px;
   font-weight: 750;
 }
@@ -523,10 +523,10 @@ textarea {
 .field textarea,
 .tag-input-row input {
   width: 100%;
-  border: 1px solid #ccd3da;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 6px;
   background: #ffffff;
-  color: #111827;
+  color: var(--ap-ink);
   outline: none;
   transition: border-color 120ms, box-shadow 120ms;
 }
@@ -547,7 +547,7 @@ textarea {
 .field input:focus,
 .field textarea:focus,
 .tag-input-row input:focus {
-  border-color: #007c6d;
+  border-color: var(--ap-tint);
   box-shadow: 0 0 0 3px rgba(0, 124, 109, 0.1);
 }
 
@@ -570,7 +570,7 @@ textarea {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   padding: 3px;
-  border: 1px solid #ccd3da;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 7px;
   background: #f4f6f7;
 }
@@ -589,7 +589,7 @@ textarea {
 
 .segmented-control button.active {
   background: #ffffff;
-  color: #006d60;
+  color: var(--ap-tint-hover);
   box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12), inset 0 0 0 1px #9bd8cc;
 }
 
@@ -624,7 +624,7 @@ textarea {
   border: 1px solid #a9dcd5;
   border-radius: 6px;
   background: #eaf8f5;
-  color: #075e52;
+  color: var(--ap-tint-hover);
   font-size: 11.5px;
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -633,7 +633,7 @@ textarea {
 .tag.neutral {
   border-color: #d5dbe0;
   background: #ffffff;
-  color: #344054;
+  color: var(--ap-ink);
 }
 
 .tag button,
@@ -685,10 +685,10 @@ textarea {
 .tag-input-row button {
   width: 30px;
   height: 30px;
-  border: 1px solid #cfd6dd;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 6px;
   background: #ffffff;
-  color: #007c6d;
+  color: var(--ap-tint);
 }
 
 .tag-input-row button:disabled {
@@ -710,10 +710,10 @@ textarea {
   align-items: center;
   gap: 5px;
   padding: 7px 10px;
-  border: 1px solid #cfd6dd;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 6px;
   background: #ffffff;
-  color: #344054;
+  color: var(--ap-ink);
   font-size: 11.5px;
   font-weight: 750;
   cursor: pointer;
@@ -721,8 +721,8 @@ textarea {
 
 .section-action:hover {
   border-color: #8fcfc5;
-  color: #006d60;
-  background: #f5fbfa;
+  color: var(--ap-tint-hover);
+  background: var(--ap-tint-soft);
 }
 
 .section-action .material-icons {
@@ -733,7 +733,7 @@ textarea {
   position: relative;
   margin: 0;
   padding: 17px;
-  border: 1px solid #dfe4e8;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 7px;
   background: #fcfcfc;
 }
@@ -744,7 +744,7 @@ textarea {
 
 .entry-row legend {
   padding: 0 7px;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 10.5px;
   font-weight: 800;
   text-transform: uppercase;
@@ -757,12 +757,12 @@ textarea {
   width: 30px;
   height: 30px;
   border-radius: 6px;
-  color: #7a8490;
+  color: var(--ap-ink-2);
 }
 
 .remove-entry:hover {
   background: #fff0f2;
-  color: #b52f43;
+  color: var(--ap-red);
 }
 
 .remove-entry .material-icons {
@@ -775,7 +775,7 @@ textarea {
   align-items: center;
   gap: 7px;
   grid-column: 1 / -1;
-  color: #4b5563;
+  color: var(--ap-ink-2);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -803,8 +803,8 @@ textarea {
 }
 
 .current-role input:checked + .check-box {
-  border-color: #007c6d;
-  background: #007c6d;
+  border-color: var(--ap-tint);
+  background: var(--ap-tint);
   color: #ffffff;
 }
 
@@ -824,7 +824,7 @@ textarea {
   gap: 9px;
   border: 1px dashed #cbd2d9;
   border-radius: 7px;
-  color: #6b7280;
+  color: var(--ap-ink-2);
 }
 
 .empty-section > .material-icons {
@@ -840,7 +840,7 @@ textarea {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #007c6d;
+  color: var(--ap-tint);
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
@@ -857,7 +857,7 @@ textarea {
   min-height: 72px;
   padding: 13px 18px;
   background: rgba(255, 255, 255, 0.97);
-  border-top: 1px solid #dfe4e8;
+  border-top: 1px solid var(--ap-hair-2);
   box-shadow: 0 -8px 18px rgba(16, 24, 40, 0.04);
 }
 
@@ -871,7 +871,7 @@ textarea {
 }
 
 .save-bar > div:first-child span {
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 11px;
 }
 
@@ -882,14 +882,14 @@ textarea {
 }
 
 .save-actions a {
-  color: #4b5563;
+  color: var(--ap-ink-2);
   font-size: 12px;
   font-weight: 750;
   text-decoration: none;
 }
 
 .save-actions a:hover {
-  color: #111827;
+  color: var(--ap-ink);
   text-decoration: underline;
 }
 
@@ -899,9 +899,9 @@ textarea {
   align-items: center;
   gap: 7px;
   padding: 9px 14px;
-  border: 1px solid #007c6d;
+  border: 1px solid var(--ap-tint);
   border-radius: 7px;
-  background: #007c6d;
+  background: var(--ap-tint);
   color: #ffffff;
   font-size: 12px;
   font-weight: 800;
@@ -909,7 +909,7 @@ textarea {
 }
 
 .save-actions button:hover:not(:disabled) {
-  background: #006d60;
+  background: var(--ap-tint-hover);
 }
 
 .save-actions button:disabled {
@@ -1050,4 +1050,58 @@ textarea {
   .spin {
     animation: none;
   }
+}
+
+/* ── Applicant refresh ───────────────────────────────
+   Borderless white surfaces on the light page, fields as soft wells, and the
+   health score as a solid tile whose color is the verdict: green 70 and up,
+   orange 50 to 69, red below 50. */
+.rail-panel,
+.resume-editor {
+  border: 0;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.editor-section {
+  border-bottom-color: var(--ap-hair);
+}
+
+.resume-header h1 {
+  letter-spacing: -0.03em;
+}
+
+.field input,
+.field textarea,
+.tag-input-row input {
+  border: 0;
+  border-radius: 10px;
+  background: var(--ap-fill-soft);
+  box-shadow: inset 0 0 0 1.5px var(--ap-hair-2);
+}
+
+.field input:focus,
+.field textarea:focus,
+.tag-input-row input:focus {
+  box-shadow: inset 0 0 0 2px var(--ap-tint);
+}
+
+.health-score {
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 16px;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.health-score.good { background: var(--ap-green); color: #ffffff; }
+.health-score.mid { background: var(--ap-orange); color: #ffffff; }
+.health-score.low { background: var(--ap-red); color: #ffffff; }
+
+.upload-button {
+  border: 0;
+  border-radius: 12px;
+  background: var(--ap-fill);
+  color: var(--ap-ink);
 }

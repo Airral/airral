@@ -321,7 +321,11 @@ export class ProfileComponent implements OnInit {
 
   get completionRingBackground(): string {
     const degrees = Math.max(0, Math.min(100, this.completionPercent)) * 3.6;
-    return `conic-gradient(#4f46e5 ${degrees}deg, #e5e7eb ${degrees}deg)`;
+    // Colored like every other score in the portal: green is ready, orange is
+    // getting there, red is missing most of what ranking needs.
+    const percent = this.completionPercent;
+    const color = percent >= 80 ? 'var(--ap-green)' : percent >= 50 ? 'var(--ap-orange)' : 'var(--ap-red)';
+    return `conic-gradient(${color} ${degrees}deg, var(--ap-fill) ${degrees}deg)`;
   }
 
   private normalizeProfile(profile: CandidateProfile, user?: User): CandidateProfile {
@@ -334,6 +338,11 @@ export class ProfileComponent implements OnInit {
       experience: profile.experience ?? [],
       education: profile.education ?? [],
       matchPreferences: profile.matchPreferences ?? {},
+      // A null here matches none of the <option>s, so the select rendered blank
+      // instead of "Any". The empty string is the "Any" option's value.
+      // The shared type has no member for "Any", which the form writes as ''.
+      preferredWorkMode: profile.preferredWorkMode ?? ('' as unknown as CandidateProfile['preferredWorkMode']),
+      preferredEmploymentType: profile.preferredEmploymentType ?? ('' as unknown as CandidateProfile['preferredEmploymentType']),
     };
     this.hydrateTextFields(normalized);
     return normalized;

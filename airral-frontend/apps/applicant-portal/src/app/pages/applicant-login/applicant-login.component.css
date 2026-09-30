@@ -13,7 +13,7 @@
   padding: 40px 16px;
   display: grid;
   place-items: center;
-  background: #f9fafb;
+  background: var(--ap-fill-soft);
 }
 
 /* ── Two-column card shell ────────────────────────── */
@@ -24,7 +24,7 @@
   grid-template-columns: minmax(300px, 0.9fr) minmax(380px, 1fr);
   border-radius: 18px;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--ap-hair-2);
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.07),
     0 8px 24px rgba(0, 0, 0, 0.09),
@@ -32,9 +32,11 @@
 }
 
 /* ── Left brand panel ─────────────────────────────── */
+/* Light, like the rest of the portal: a soft teal wash instead of the dark
+   indigo gradient and floating orbs it replaced. */
 .auth-story {
   padding: 44px 40px;
-  background: linear-gradient(145deg, #1e1b4b 0%, #312e81 40%, #007C6D 100%);
+  background: color-mix(in srgb, var(--ap-tint) 8%, #ffffff);
   display: grid;
   align-content: space-between;
   gap: 48px;
@@ -43,67 +45,29 @@
   overflow: hidden;
 }
 
-/* Animated gradient orbs */
-.auth-story::before,
-.auth-story::after {
-  content: '';
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(40px);
-  opacity: 0.7;
-  animation: float 8s ease-in-out infinite;
-}
-
-.auth-story::before {
-  width: 320px;
-  height: 320px;
-  background: radial-gradient(circle, #a78bfa 0%, #007C6D 60%);
-  top: -60px;
-  right: -40px;
-  animation-delay: 0s;
-}
-
-.auth-story::after {
-  width: 280px;
-  height: 280px;
-  background: radial-gradient(circle, #818cf8 0%, #007C6D 60%);
-  bottom: -40px;
-  left: -30px;
-  animation-delay: -4s;
-}
-
-@keyframes float {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(20px, -25px) scale(1.08); }
-  50% { transform: translate(-15px, 10px) scale(0.95); }
-  75% { transform: translate(10px, 20px) scale(1.04); }
-}
-
 .brand-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  position: relative;
-  z-index: 1;
 }
 
+/* The same mark as the header: a teal tile with an open ring. */
 .brand-mark {
+  position: relative;
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #ffffff;
-  display: grid;
-  place-items: center;
+  background: var(--ap-tint);
   flex: 0 0 auto;
-  font-family: 'Sora', 'Manrope', sans-serif;
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  backdrop-filter: blur(8px);
-  position: relative;
-  z-index: 1;
+}
+
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  border: 3.5px solid #ffffff;
+  border-right-color: transparent;
 }
 
 .brand-row strong,
@@ -112,7 +76,7 @@
 }
 
 .brand-row strong {
-  color: #ffffff;
+  color: var(--ap-ink);
   font-family: 'Sora', 'Manrope', sans-serif;
   font-size: 17px;
   font-weight: 800;
@@ -121,83 +85,84 @@
 
 .brand-row span {
   margin-top: 2px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--ap-ink-2);
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.02em;
 }
 
 .login-copy {
   display: grid;
   gap: 0;
-  position: relative;
-  z-index: 1;
 }
 
 .eyebrow {
   margin: 0;
-  color: #a5b4fc;
-  font-size: 11px;
+  color: var(--ap-tint-text);
+  font-size: 11.5px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .login-copy h1 {
-  margin: 14px 0 0;
-  color: #ffffff;
+  margin: 12px 0 0;
+  color: var(--ap-ink);
   font-family: 'Sora', 'Manrope', sans-serif;
   font-size: 36px;
-  line-height: 1.13;
+  line-height: 1.12;
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .login-copy p:not(.eyebrow) {
   margin: 12px 0 0;
-  color: rgba(255, 255, 255, 0.76);
+  color: var(--ap-ink-2);
   font-size: 14.5px;
   line-height: 1.55;
 }
 
 .value-list {
   list-style: none;
-  margin: 30px 0 0;
+  margin: 28px 0 0;
   padding: 0;
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .value-list li {
   display: flex;
   align-items: center;
   gap: 11px;
-  min-height: 38px;
-  padding: 9px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(4px);
-  color: rgba(255, 255, 255, 0.9);
+  min-height: 40px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  color: var(--ap-ink);
   font-size: 13.5px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.3;
-  position: relative;
-  z-index: 1;
 }
 
+/* Each promise gets its own color, the way the portal colors its facts. */
 .value-list .material-icons {
-  font-size: 17px;
-  color: #99d6cd;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
+  background: var(--ap-green);
+  color: #ffffff;
+  font-size: 15px;
 }
 
 .value-list li:nth-child(2) .material-icons {
-  color: #a5b4fc;
+  background: var(--ap-purple);
 }
 
 .value-list li:nth-child(3) .material-icons {
-  color: #e9d5ff;
+  background: var(--ap-blue);
 }
 
 /* ── Right form panel ─────────────────────────────── */
@@ -215,9 +180,9 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   padding: 3px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 10px;
-  background: #f9fafb;
+  background: var(--ap-fill-soft);
 }
 
 .mode-switch button,
@@ -231,7 +196,7 @@
 .mode-switch button {
   min-height: 36px;
   border-radius: 8px;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 13px;
   font-weight: 600;
   transition: color 0.12s;
@@ -239,9 +204,9 @@
 
 .mode-switch button.active {
   background: #ffffff;
-  color: #007C6D;
+  color: var(--ap-tint);
   font-weight: 700;
-  box-shadow: inset 0 0 0 1.5px #99d6cd, 0 1px 4px rgba(79, 70, 229, 0.1);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ap-tint) 35%, #ffffff), 0 1px 4px rgba(0, 124, 109, 0.1);
 }
 
 /* ── Form heading ─────────────────────────────────── */
@@ -255,7 +220,7 @@
 }
 
 .login-card h2 {
-  color: #111827;
+  color: var(--ap-ink);
   font-family: 'Sora', 'Manrope', sans-serif;
   font-size: 24px;
   font-weight: 700;
@@ -263,7 +228,7 @@
 }
 
 .card-note {
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -273,7 +238,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #9ca3af;
+  color: var(--ap-ink-3);
   font-size: 11.5px;
   font-weight: 600;
   text-transform: uppercase;
@@ -285,7 +250,7 @@
   content: '';
   height: 1px;
   flex: 1;
-  background: #e5e7eb;
+  background: var(--ap-hair-2);
 }
 
 /* ── Fields ───────────────────────────────────────── */
@@ -301,23 +266,23 @@
 }
 
 label {
-  color: #374151;
+  color: var(--ap-ink);
   font-size: 13px;
   font-weight: 600;
 }
 
 label span {
-  color: #9ca3af;
+  color: var(--ap-ink-3);
   font-weight: 500;
 }
 
 input {
   width: 100%;
   min-height: 48px;
-  border: 1.5px solid #e5e7eb;
+  border: 1.5px solid var(--ap-hair-2);
   border-radius: 10px;
   background: #ffffff;
-  color: #111827;
+  color: var(--ap-ink);
   font: inherit;
   font-size: 14.5px;
   outline: none;
@@ -326,16 +291,16 @@ input {
 }
 
 input::placeholder {
-  color: #9ca3af;
+  color: var(--ap-ink-3);
 }
 
 input:hover {
-  border-color: #99d6cd;
+  border-color: color-mix(in srgb, var(--ap-tint) 35%, #ffffff);
 }
 
 input:focus {
-  border-color: #007C6D;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  border-color: var(--ap-tint);
+  box-shadow: 0 0 0 3px rgba(0, 124, 109, 0.1);
 }
 
 /* ── Password reveal ──────────────────────────────── */
@@ -357,7 +322,7 @@ input:focus {
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #9ca3af;
+  color: var(--ap-ink-3);
   cursor: pointer;
   display: inline-grid;
   place-items: center;
@@ -365,8 +330,8 @@ input:focus {
 }
 
 .password-toggle:hover {
-  background: #e6f7f5;
-  color: #374151;
+  background: var(--ap-tint-soft);
+  color: var(--ap-ink);
 }
 
 .password-toggle .material-icons {
@@ -374,7 +339,7 @@ input:focus {
 }
 
 .password-hint {
-  color: #9ca3af;
+  color: var(--ap-ink-3);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -388,7 +353,7 @@ input:focus {
 .session-notice {
   border: 1px solid #cfd8e3;
   border-radius: 9px;
-  background: #f4f6f8;
+  background: var(--ap-fill-soft);
   color: #43536b;
   padding: 10px 13px;
   font-size: 13px;
@@ -411,7 +376,7 @@ input:focus {
   min-height: 50px;
   border: 0;
   border-radius: 12px;
-  background: #007C6D;
+  background: var(--ap-tint);
   color: #ffffff;
   cursor: pointer;
   font: inherit;
@@ -419,18 +384,18 @@ input:focus {
   font-weight: 700;
   letter-spacing: 0.01em;
   transition: background 0.14s, transform 0.1s, box-shadow 0.14s;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 124, 109, 0.3);
 }
 
 .primary-action:hover:not(:disabled) {
-  background: #005f54;
+  background: var(--ap-tint-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 124, 109, 0.35);
 }
 
 .primary-action:active:not(:disabled) {
   transform: scale(0.98);
-  box-shadow: 0 1px 4px rgba(79, 70, 229, 0.2);
+  box-shadow: 0 1px 4px rgba(0, 124, 109, 0.2);
 }
 
 /* ── Focus rings ──────────────────────────────────── */
@@ -438,7 +403,7 @@ input:focus {
 .mode-switch button:focus-visible,
 .helper button:focus-visible,
 .password-toggle:focus-visible {
-  outline: 3px solid rgba(79, 70, 229, 0.4);
+  outline: 3px solid rgba(0, 124, 109, 0.4);
   outline-offset: 2px;
 }
 
@@ -449,13 +414,13 @@ input:focus {
 
 /* ── Helper & footer ──────────────────────────────── */
 .helper {
-  color: #6b7280;
+  color: var(--ap-ink-2);
   text-align: center;
   font-size: 13px;
 }
 
 .helper button {
-  color: #007C6D;
+  color: var(--ap-tint);
   font-weight: 700;
 }
 
@@ -464,9 +429,9 @@ input:focus {
 }
 
 .portal-note {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--ap-hair-2);
   padding-top: 14px;
-  color: #9ca3af;
+  color: var(--ap-ink-3);
   text-align: center;
   font-size: 12px;
   line-height: 1.4;
@@ -508,7 +473,7 @@ input:focus {
 @media (max-width: 560px) {
   .login-page {
     padding: 0;
-    background: #f9fafb;
+    background: var(--ap-fill-soft);
     place-items: start center;
   }
 
@@ -555,7 +520,7 @@ input:focus {
 }
 
 .forgot-link a {
-  color: #007C6D;
+  color: var(--ap-tint);
   text-decoration: none;
 }
 

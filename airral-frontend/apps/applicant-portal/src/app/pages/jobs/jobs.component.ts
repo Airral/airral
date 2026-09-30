@@ -8,6 +8,7 @@ import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, Candida
 import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
 import { GoogleAnalyticsService, VisitorSignalService } from '@airral/shared-utils';
 import { getOnboardingJobSearchSeed, OnboardingJobSearchSeed } from '../../utils/job-search-seed';
+import { CompanyLogoComponent } from '../../components/company-logo.component';
 
 interface JobDescriptionSection {
   title: string;
@@ -53,7 +54,7 @@ interface RequirementGap {
 @Component({
   selector: 'app-jobs',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, CompanyLogoComponent],
   templateUrl: './jobs.component.html',
   styleUrl: './jobs.component.css',
 })
@@ -110,7 +111,9 @@ export class JobsComponent implements OnInit, OnDestroy {
   filterSalaryPosted = false;
   filterVisaFriendly = false;
   filterExperience: 'all' | 'entry' | 'mid' | 'senior' | 'staff' = 'all';
-  filtersExpanded = true;
+  // Collapsed on every screen: the quick-filter chips cover the common cases,
+  // and the full panel opens on demand instead of pushing the jobs down.
+  filtersExpanded = false;
 
   // Resume health banner
   resumeHealth: ResumeHealthScore | null = null;
@@ -152,7 +155,6 @@ export class JobsComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.filtersExpanded = !this.isMobileViewport();
     // Who the visitor is, and what they have applied to, whether or not the
     // search waits for them to start it: arriving from onboarding, they are
     // signed in, and their saves and applications count from the first job.
@@ -627,7 +629,7 @@ export class JobsComponent implements OnInit, OnDestroy {
       next: () => {
         this.savedJobKeys.add(sourceJobKey);
         this.savingJob = false;
-        this.actionMessage = 'Saved to your tracker.';
+        this.actionMessage = 'Saved to Applications.';
         // Same zoneless gap as runFitForSelectedJob below: nothing schedules a
         // repaint after an HTTP callback, so the button stayed on "Saving..."
         // and the confirmation never appeared until an unrelated click.
@@ -654,6 +656,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     this.fitResult = null;
     this.actionMessage = '';
     this.actionError = '';
+    this.applyNeedsResume = false;
 
     this.candidateApi.runJobFit({ sourceJobKey }).subscribe({
       next: (result) => {
@@ -669,9 +672,20 @@ export class JobsComponent implements OnInit, OnDestroy {
         // reads as a run that failed.
         this.changeDetectorRef.detectChanges();
       },
-      error: () => {
+      error: (error: { status?: number; message?: string }) => {
         this.fittingJob = false;
-        this.actionError = 'Upload a resume first, then run fit for this job.';
+        // Every failure used to read "upload a resume first", including the
+        // common one where the resume is there but the employer's posting could
+        // not be read -- which sent people to re-upload a resume that was fine.
+        const message = error?.message || '';
+        if (/resume/i.test(message)) {
+          this.applyNeedsResume = true;
+          this.actionError = 'Upload a resume first, then check it against this job.';
+        } else if (/unable to load/i.test(message) || error?.status === 404) {
+          this.actionError = 'AIRRAL couldn\u2019t read this posting from the employer\u2019s site just now, so the check didn\u2019t run. It may have closed. Try again later, or check another job.';
+        } else {
+          this.actionError = 'The resume check didn\u2019t run. Try again in a moment.';
+        }
         this.changeDetectorRef.detectChanges();
       },
     });
@@ -1132,6 +1146,90 @@ export class JobsComponent implements OnInit, OnDestroy {
     return `decision-${this.getDecisionTier(job)}`;
   }
 
+  /** The verdict as the redesigned cards and detail show it: a word and a color. */
+  getVerdict(job: CandidateJobSummary | null): { tier: 'apply' | 'review' | 'skip'; label: string; headline: string } {
+    const tier = this.getDecisionTier(job);
+    const label = tier === 'apply' ? 'Apply' : tier === 'skip' ? 'Likely skip' : 'Check first';
+    const cautions = this.getCautionReasons(job);
+    const reasons = this.getApplyReasons(job);
+    let headline: string;
+    if (tier === 'apply') {
+      headline = reasons[0] ? `Worth applying. ${reasons[0]}.` : 'Worth applying.';
+    } else if (cautions.length) {
+      headline = cautions.length === 1 ? `${cautions[0]}.` : `${cautions[0]}, and ${cautions.length - 1} more to check.`;
+    } else {
+      headline = 'No red flags in the posting. Check your fit before applying.';
+    }
+    return { tier, label, headline };
+  }
+
+  /**
+   * Pay as a figure worth reading at a glance: the currency prefix is dropped
+   * for US dollars, where the dollar sign already says it, and ranges get an en
+   * dash. Anything else passes through untouched.
+   */
+  formatPay(job: CandidateJobSummary | null): string {
+    if (!job || !this.hasPostedSalary(job)) {
+      return 'Pay not listed';
+    }
+    const label = this.getSalaryLabel(job).replace(/^USD\s+/i, '');
+    // "$21.3" is a rounding artifact; money is written with two decimals.
+    const cents = label.replace(/(\d)\.(\d)(?![\dkKmM])/g, '$1.$20');
+    return cents.startsWith('$')
+      ? cents.replace(/\s*-\s*\$?/g, '–$')
+      : cents.replace(/\s*-\s*/g, '–');
+  }
+
+  /**
+   * How much work the application is, from where it happens. Workday and the
+   * enterprise suites make you create an account; the startup ATSs are a short
+   * form. Stated as "usually" because the employer can change either.
+   */
+  getApplyEffort(job: CandidateJobSummary | null): { label: string; detail: string } {
+    if (!job) {
+      return { label: '', detail: '' };
+    }
+    if (this.isAirralJob(job)) {
+      return { label: 'On AIRRAL', detail: 'Uses your AIRRAL profile' };
+    }
+    if (job.easyApplyAvailable) {
+      return { label: 'Easy apply', detail: 'Short form, no account' };
+    }
+    const source = `${job.sourceType || ''} ${job.sourceName || ''} ${job.applyUrl || ''}`.toLowerCase();
+    if (/workday|icims|taleo|successfactors|oraclecloud|ultipro|adp/.test(source)) {
+      return { label: 'Longer form', detail: 'Usually needs an account' };
+    }
+    if (/greenhouse|lever|ashby|smartrecruiters|workable|recruitee/.test(source)) {
+      return { label: 'Short form', detail: 'Usually no account' };
+    }
+    return { label: 'On their site', detail: 'Opens the employer\u2019s page' };
+  }
+
+  isFresh(job: CandidateJobSummary): boolean {
+    const days = this.getPostedDaysAgo(job.sourceUpdatedAt);
+    return days !== null ? days <= 1 : this.isFreshJob(job);
+  }
+
+  /**
+   * "3d ago" reads as "Posted 3d ago". Labels that already say how they were
+   * posted or updated ("Just updated", "Posted by employer") pass through.
+   */
+  getPostedPhrase(job: CandidateJobSummary): string {
+    const label = this.getPostedLabel(job);
+    return /updated|today|^posted/i.test(label) ? label : `Posted ${label.toLowerCase()}`;
+  }
+
+  getMetaLine(job: CandidateJobSummary | null): string {
+    if (!job) {
+      return '';
+    }
+    return [
+      this.getExperienceLabel(job),
+      job.employmentType,
+      this.getWorkModeLabel(job) || 'Work mode not stated',
+    ].filter(Boolean).join(' · ');
+  }
+
   getApplyReasons(job: CandidateJobSummary | null): string[] {
     if (!job) {
       return [];
@@ -1214,7 +1312,9 @@ export class JobsComponent implements OnInit, OnDestroy {
       return 'Run resume fit before applying so AIRRAL can catch missing keywords.';
     }
 
-    return 'Review the caution list before spending time on this application.';
+    return this.getCautionReasons(job).length
+      ? 'Review the caution list before spending time on this application.'
+      : 'Check your resume against this posting before you apply.';
   }
 
   getFitChecklist(): string[] {
