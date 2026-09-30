@@ -3,7 +3,7 @@ import { CommonModule, DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
-import { AuthService, EmailLinkService, emailLinkErrorMessage } from '@airral/shared-auth';
+import { AuthService, EmailLinkService, PORTAL_ID, emailLinkErrorMessage } from '@airral/shared-auth';
 import { captureEmailLink } from './email-link-landing';
 
 /**
@@ -27,6 +27,14 @@ export class VerifyEmailComponent implements OnInit {
   private readonly emailLink = inject(EmailLinkService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly doc = inject(DOCUMENT);
+  private readonly portal = inject(PORTAL_ID, { optional: true });
+
+  /** What a proven address unlocks in this portal. */
+  get nowYouCan(): string {
+    return this.portal === 'hr'
+      ? 'You can now invite teammates to your company.'
+      : 'You can now upload your resume, check your fit against a job, and turn on job alerts.';
+  }
 
   private linkUrl = '';
 

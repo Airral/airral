@@ -2,7 +2,7 @@
   <span class="material-icons verify-icon" aria-hidden="true">mark_email_unread</span>
   <div class="verify-text">
     <strong>Verify your email to finish setting up.</strong>
-    <span *ngIf="!sentTo">We sent a link to {{ email }}. You'll need it to upload a resume, turn on alerts, or publish jobs.</span>
+    <span *ngIf="!sentTo">We sent a link to {{ email }}. {{ unlocks }}</span>
     <span *ngIf="sentTo">New link sent to {{ sentTo }}. Check spam if it's not there in a minute.</span>
     <span class="verify-error" *ngIf="errorMessage">{{ errorMessage }}</span>
   </div>
