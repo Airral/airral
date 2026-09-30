@@ -34,6 +34,8 @@ public class RegisterRequest {
 
     // For self-registration (creates new organization)
     private String companyName;
+    /** Cloudflare Turnstile's proof that a person filled in the employer sign-up form. */
+    private String turnstileToken;
     private String companyDomain;
     private String organizationTier; // QUICK_HIRE, PROFESSIONAL, ENTERPRISE
     private String primaryContactEmail;

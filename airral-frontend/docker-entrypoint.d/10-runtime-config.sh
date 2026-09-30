@@ -15,7 +15,8 @@ window.AIRRAL_RUNTIME_CONFIG = {
   applicantUrl: '${AIRRAL_APPLICANT_URL:-}',
   hrUrl: '${AIRRAL_HR_URL:-}',
   adminUrl: '${AIRRAL_ADMIN_URL:-}',
-  googleClientId: '${GOOGLE_OAUTH_CLIENT_ID:-}'
+  googleClientId: '${GOOGLE_OAUTH_CLIENT_ID:-}',
+  turnstileSiteKey: '${TURNSTILE_SITE_KEY:-}'
 };
 INNER
 

@@ -1,0 +1,27 @@
+<main class="check-inbox">
+  <section class="card" aria-labelledby="check-inbox-title">
+    <span class="material-icons icon" aria-hidden="true">mark_email_unread</span>
+    <h1 id="check-inbox-title">Check your inbox</h1>
+    <p>
+      We sent a link to <strong>{{ email }}</strong>. Click it to open your company's workspace on AIRRAL.
+      It can take a minute, and sometimes lands in spam.
+    </p>
+
+    <div class="actions">
+      <button type="button" class="primary" (click)="checkAgain()" [disabled]="checking()">
+        {{ checking() ? 'Checking…' : "I've clicked the link" }}
+      </button>
+      <button type="button" class="secondary" (click)="resend()" [disabled]="sending() || cooldown() > 0">
+        {{ sending() ? 'Sending…' : cooldown() > 0 ? 'Resend in ' + cooldown() + 's' : 'Resend link' }}
+      </button>
+    </div>
+
+    @if (message()) {
+      <p class="message" role="status">{{ message() }}</p>
+    }
+
+    <p class="footnote">
+      Wrong address? <button type="button" class="link" (click)="signOut()">Sign out</button> and sign up again with the right one.
+    </p>
+  </section>
+</main>

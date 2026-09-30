@@ -2,24 +2,26 @@ import { AcceptInvitationComponent, ForgotPasswordComponent, ResetPasswordCompon
 import { Route } from '@angular/router';
 import { authGuard, roleGuard } from '@airral/shared-auth';
 import { ROUTE_ACCESS } from './feature-config';
+import { verifiedEmailGuard } from './verified-email.guard';
 
+// Every workspace page waits for a proven address (verifiedEmailGuard).
 const internalAccess = {
-  canActivate: [authGuard, roleGuard],
+  canActivate: [authGuard, roleGuard, verifiedEmailGuard],
   data: { roles: ROUTE_ACCESS.internal },
 };
 
 const hrAccess = {
-  canActivate: [authGuard, roleGuard],
+  canActivate: [authGuard, roleGuard, verifiedEmailGuard],
   data: { roles: ROUTE_ACCESS.hr },
 };
 
 const managerAccess = {
-  canActivate: [authGuard, roleGuard],
+  canActivate: [authGuard, roleGuard, verifiedEmailGuard],
   data: { roles: ROUTE_ACCESS.manager },
 };
 
 const employeeAccess = {
-  canActivate: [authGuard, roleGuard],
+  canActivate: [authGuard, roleGuard, verifiedEmailGuard],
   data: { roles: ROUTE_ACCESS.employee },
 };
 
@@ -28,6 +30,13 @@ export const appRoutes: Route[] = [
     path: 'login',
     loadComponent: () =>
       import('./pages/login/login.component').then((m) => m.LoginComponent),
+  },
+  // Signed in, address not proven yet: the one page the workspace shows.
+  {
+    path: 'check-inbox',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./pages/check-inbox/check-inbox.component').then((m) => m.CheckInboxComponent),
   },
   // Outside the guards: an email link is often opened on another device, and a
   // person resetting a password cannot sign in. The Firebase link authorises them.

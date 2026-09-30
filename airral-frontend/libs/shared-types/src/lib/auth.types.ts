@@ -87,6 +87,8 @@ export interface RegisterRequest {
   companyName?: string;
   companyDomain?: string;
   organizationTier?: string;
+  /** Cloudflare Turnstile's token from the employer sign-up form. */
+  turnstileToken?: string;
 
   // Organization contact
   primaryContactEmail?: string;

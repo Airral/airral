@@ -19,7 +19,12 @@
   <p class="muted" *ngIf="loading()">Loading…</p>
   <p class="muted" *ngIf="!loading() && companies().length === 0 && !error()">Nothing here.</p>
 
-  <article class="card" *ngFor="let c of companies()">
+  <ng-container *ngFor="let c of companies(); let i = index">
+  <!-- Verified sign-ups come first (the API sorts them); the rest never proved an address. -->
+  <p class="muted group-note" *ngIf="status() === 'PENDING' && !c.contactVerified && (i === 0 || companies()[i - 1].contactVerified)">
+    Email not verified yet. These close on their own after 7 days unless the person clicks their link.
+  </p>
+  <article class="card">
     <div class="card-head">
       <h2>{{ c.name }}</h2>
       <span class="pill" [class.pill-warn]="!c.domain">{{ c.domain || 'personal email' }}</span>
@@ -45,4 +50,5 @@
       <button type="button" class="reject" *ngIf="status() === 'VERIFIED'" (click)="decide(c, 'reject')" [disabled]="busyId() !== null">Revoke approval</button>
     </div>
   </article>
+  </ng-container>
 </div>

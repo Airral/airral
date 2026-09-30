@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
+
 @Repository
 public interface UserInvitationRepository extends R2dbcRepository<UserInvitation, Long> {
 
@@ -28,6 +30,16 @@ public interface UserInvitationRepository extends R2dbcRepository<UserInvitation
     @Query("SELECT * FROM user_invitations WHERE organization_id = :organizationId AND accepted_at IS NULL " +
            "ORDER BY created_at DESC")
     Flux<UserInvitation> findUnacceptedByOrganizationId(Long organizationId);
+
+    /** Invitations saved while the company waited for review, not emailed yet. */
+    @Query("SELECT * FROM user_invitations WHERE organization_id = :organizationId AND accepted_at IS NULL " +
+           "AND sent_at IS NULL ORDER BY created_at")
+    Flux<UserInvitation> findHeldByOrganizationId(Long organizationId);
+
+    /** Records that the invitation's email went out. */
+    @Modifying
+    @Query("UPDATE user_invitations SET sent_at = :at WHERE id = :id")
+    Mono<Integer> markSent(Long id, LocalDateTime at);
 
     // Find all invitations for an organization
     @Query("SELECT * FROM user_invitations WHERE organization_id = :organizationId ORDER BY created_at DESC")

@@ -7,5 +7,6 @@ window.AIRRAL_RUNTIME_CONFIG = {
   applicantUrl: '',
   hrUrl: '',
   adminUrl: '',
-  googleClientId: ''
+  googleClientId: '',
+  turnstileSiteKey: ''
 };

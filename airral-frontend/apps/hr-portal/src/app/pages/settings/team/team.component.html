@@ -54,12 +54,13 @@
         <li class="row" *ngFor="let invitation of invitations">
           <div class="who">
             <strong>{{ displayName(invitation.firstName, invitation.lastName, invitation.email) }}</strong>
-            <span class="sub" *ngIf="!invitation.expired">{{ invitation.email }} · {{ roleLabel(invitation.role) }} · link works until {{ invitation.expiresAt | date: 'd MMM' }}</span>
-            <span class="sub" *ngIf="invitation.expired">{{ invitation.email }} · {{ roleLabel(invitation.role) }} · <strong class="expired">link expired {{ invitation.expiresAt | date: 'd MMM' }}</strong>. Resend sends a new one.</span>
+            <span class="sub" *ngIf="invitation.held">{{ invitation.email }} · {{ roleLabel(invitation.role) }} · sends when AIRRAL approves your company</span>
+            <span class="sub" *ngIf="!invitation.held && !invitation.expired">{{ invitation.email }} · {{ roleLabel(invitation.role) }} · link works until {{ invitation.expiresAt | date: 'd MMM' }}</span>
+            <span class="sub" *ngIf="!invitation.held && invitation.expired">{{ invitation.email }} · {{ roleLabel(invitation.role) }} · <strong class="expired">link expired {{ invitation.expiresAt | date: 'd MMM' }}</strong>. Resend sends a new one.</span>
             <span class="sub row-message" role="status" *ngIf="rowMessage[invitation.id]">{{ rowMessage[invitation.id] }}</span>
           </div>
           <div class="row-actions">
-            <button type="button" class="btn-quiet" (click)="resend(invitation)" [disabled]="busy.has(invitation.id)">Resend</button>
+            <button type="button" class="btn-quiet" *ngIf="!invitation.held" (click)="resend(invitation)" [disabled]="busy.has(invitation.id)">Resend</button>
             <button type="button" class="btn-quiet btn-danger" (click)="cancel(invitation)" [disabled]="busy.has(invitation.id)">Cancel invitation</button>
           </div>
         </li>

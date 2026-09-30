@@ -73,7 +73,8 @@ public class CompanyReviewAdminController {
                             LIMIT 1
                         ) contact ON true
                         WHERE o.verification_status = :status
-                        ORDER BY o.created_at DESC
+                        -- Sign-ups whose address was proven first: the ones a person finished.
+                        ORDER BY (contact.email_verified IS TRUE) DESC, o.created_at DESC
                         LIMIT 200
                         """)
                 .bind("status", wanted)

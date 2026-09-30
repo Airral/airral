@@ -38,6 +38,8 @@ export interface Invitation {
   expiresAt: string;
   /** Past its date: its link no longer works. Resend, or inviting the address again, renews it. */
   expired?: boolean | null;
+  /** Saved while AIRRAL reviews the company, and emailed once it is approved. */
+  held?: boolean | null;
   createdAt?: string | null;
   /** Whether the invitation email went out this time; null when nothing was sent. */
   emailSent?: boolean | null;

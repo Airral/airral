@@ -297,7 +297,7 @@ class ClientIpConfigTest {
                 verification,
                 mock(com.airral.repository.UserRepository.class),
                 mock(com.airral.repository.OrganizationRepository.class),
-                mock(com.airral.service.UserService.class));
+                mock(com.airral.service.UserService.class), com.airral.security.TurnstileVerifier.off());
 
         // A leftover chain on the request must not outrank the stamp. In
         // production it is stripped before a handler runs; here it stands in for

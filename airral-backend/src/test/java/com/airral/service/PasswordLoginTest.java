@@ -43,8 +43,7 @@ class PasswordLoginTest {
     @BeforeEach
     void setUp() {
         service = new AuthService(users, mock(OrganizationRepository.class), mock(CandidateProfileRepository.class),
-                encoder, mock(JwtTokenProvider.class), new ObjectMapper(), mock(GoogleIdentityService.class),
-                mock(TeamAlerts.class), mock(DepartmentRepository.class));
+                encoder, mock(JwtTokenProvider.class), new ObjectMapper(), mock(GoogleIdentityService.class), mock(DepartmentRepository.class));
         amy = User.builder().id(5L).email("amy@example.com").passwordHash("hash").role(UserRole.APPLICANT)
                 .isActive(true).tokenVersion(3).build();
         when(users.findByEmail("amy@example.com")).thenReturn(Mono.just(amy));
