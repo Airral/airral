@@ -41,9 +41,15 @@ export class SignUpComponent {
     }
 
     this.errorMessage = '';
+    const [firstName, ...last] = this.fullName.trim().split(/\s+/);
+    if (last.length === 0) {
+      // An employer account needs a first and a last name. Saying so here
+      // beats sending one word and showing the API's refusal as "try again".
+      this.errorMessage = 'Enter your first and last name.';
+      return;
+    }
     this.isLoading = true;
 
-    const [firstName, ...last] = this.fullName.trim().split(' ');
     const emailDomain = this.workEmail.includes('@') ? this.workEmail.split('@')[1] : undefined;
     const payload: RegisterRequest = {
       email: this.workEmail,
@@ -82,9 +88,10 @@ export class SignUpComponent {
         });
       },
       error: (error) => {
-        // A 409 carries a message worth showing as-is: "Email already
-        // registered", or that the company is already on AIRRAL.
-        this.errorMessage = error?.status === 409 && error?.message
+        // A 400 or 409 carries a message worth showing as-is: a field the API
+        // refused, "Email already registered", or that the company is already
+        // on AIRRAL. Anything else really is "try again".
+        this.errorMessage = (error?.status === 400 || error?.status === 409) && error?.message
           ? error.message
           : 'Unable to create employer account right now. Please try again.';
         this.isLoading = false;
