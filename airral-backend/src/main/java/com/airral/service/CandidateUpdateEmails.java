@@ -46,7 +46,8 @@ public class CandidateUpdateEmails {
     private static final DateTimeFormatter DAY_AND_TIME =
             DateTimeFormatter.ofPattern("EEEE d MMMM 'at' h:mm a", Locale.ENGLISH);
     private static final DateTimeFormatter ZONE = DateTimeFormatter.ofPattern("zzz", Locale.ENGLISH);
-    private static final DateTimeFormatter ANSWER_BY = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH);
+    /** "Tuesday 6 October, 11:59 PM EDT": the deadline is the end of a day in the company's zone. */
+    static final DateTimeFormatter ANSWER_BY = DateTimeFormatter.ofPattern("EEEE d MMMM, h:mm a z", Locale.ENGLISH);
     private static final DateTimeFormatter START_DATE = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
 
     private final CandidateEmailService email;
@@ -130,7 +131,8 @@ public class CandidateUpdateEmails {
     public void offerSent(Application application, Offer offer) {
         send(application, (job, company) -> {
             boolean hasAccount = application.getApplicantId() != null;
-            String answerBy = offer.getExpiresAt() == null ? null : ANSWER_BY.format(offer.getExpiresAt());
+            String answerBy = offer.getExpiresAt() == null ? null
+                    : ANSWER_BY.format(OfferDeadline.inCompanyZone(offer.getExpiresAt(), company));
             return new Message(
                     "Your offer from " + company.getName() + ": " + job.getTitle(),
                     greeting(application)

@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 @Builder
@@ -40,7 +41,8 @@ public class OfferResponse {
     private OfferStatus status;
     
     private LocalDateTime sentAt;
-    private LocalDateTime expiresAt;
+    /** With its offset: the end of a day in the company's zone, read the same by every browser. */
+    private OffsetDateTime expiresAt;
     private LocalDateTime respondedAt;
     
     private LocalDateTime createdAt;

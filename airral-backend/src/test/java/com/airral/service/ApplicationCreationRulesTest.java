@@ -59,7 +59,8 @@ class ApplicationCreationRulesTest {
 
     @BeforeEach
     void setUp() {
-        service = new ApplicationService(applications, jobs, mock(UserRepository.class), organizations, profiles, emails, resumes);
+        service = new ApplicationService(applications, jobs, mock(UserRepository.class), organizations, profiles, emails, resumes,
+                NoOffers.repository());
         // Amy's resume on file, as parsed when she uploaded it.
         when(resumes.findByIdAndUserId(70L, 7L)).thenReturn(Mono.just(CandidateResumeDocument.builder().id(70L).userId(7L)
                 .extractedText("Six years running retail stores: inventory management, scheduling, Excel.").build()));

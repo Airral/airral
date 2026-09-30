@@ -1,6 +1,8 @@
 package com.airral.service;
 
+import com.airral.domain.Application;
 import com.airral.domain.Offer;
+import com.airral.domain.Organization;
 import com.airral.domain.enums.ApplicationStatus;
 import com.airral.domain.enums.OfferStatus;
 import com.airral.dto.request.CreateOfferRequest;
@@ -18,6 +20,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.util.EnumSet;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * Offers, from draft to answer.
@@ -27,6 +33,11 @@ import java.time.LocalDateTime;
  * apply.airral.com, and nobody else can answer for them. A candidate the
  * company added by hand has no account, so HR records their answer instead.
  * Accepting marks the application hired; declining withdraws it.
+ *
+ * <p>Sending an offer is what puts an application at the offer stage, and an
+ * application that leaves that stage any other way takes its offer with it
+ * (see ApplicationService), so an offer is only ever answered by a candidate
+ * still being offered the job.
  */
 @Service
 public class OfferService {
@@ -54,14 +65,23 @@ public class OfferService {
         this.teamEmails = teamEmails;
     }
 
+    /** Stages an application does not come back from by way of an offer. */
+    static final Set<ApplicationStatus> CLOSED =
+            EnumSet.of(ApplicationStatus.HIRED, ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN);
+
     /**
      * Draft an offer for one of the company's candidates. It is always for the
-     * application's own job, and a candidate has one open offer at a time.
+     * application's own job, and a candidate has one open offer at a time: the
+     * database holds that rule too, so two drafts made at once cannot both land.
      */
+    @Transactional
     public Mono<OfferResponse> createOffer(CreateOfferRequest request, Long organizationId) {
+        LocalDateTime now = LocalDateTime.now();
         return applicationRepository.findByIdAndOrganizationId(request.getApplicationId(), organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
-                .flatMap(application -> offerRepository.existsOpenByApplicationId(application.getId())
+                .flatMap(application -> stillOpen(application).thenReturn(application))
+                .flatMap(application -> offerRepository.expireLapsed(application.getId(), now)
+                        .then(offerRepository.existsOpenByApplicationId(application.getId(), now))
                         .flatMap(open -> open
                                 ? Mono.<Offer>error(new ConflictException(
                                         "This candidate already has an open offer. Withdraw it before making another."))
@@ -105,8 +125,10 @@ public class OfferService {
     }
 
     /**
-     * Send a draft to the candidate. They have {@code daysToAnswer} days, and
-     * are emailed the offer when AIRRAL has verified the company.
+     * Send a draft to the candidate. They have until the end of the day
+     * {@code daysToAnswer} days from now, in the company's time zone, and are
+     * emailed the offer, once the change is saved, when AIRRAL has verified
+     * the company.
      */
     @Transactional
     public Mono<OfferResponse> sendOffer(Long id, Long organizationId, Integer daysToAnswer) {
@@ -120,22 +142,30 @@ public class OfferService {
                         ? Mono.<Offer>error(new ConflictException("Only a draft can be sent. This offer is "
                                 + offer.getStatus().name().toLowerCase() + "."))
                         : applicationRepository.findById(offer.getApplicationId())
-                                .flatMap(application -> {
-                                    LocalDateTime now = LocalDateTime.now();
-                                    offer.setStatus(OfferStatus.SENT);
-                                    offer.setSentAt(now);
-                                    offer.setExpiresAt(now.plusDays(days));
-                                    offer.setUpdatedAt(now);
-                                    application.setStatus(ApplicationStatus.OFFER_EXTENDED);
-                                    application.setUpdatedAt(now);
-                                    return applicationRepository.save(application)
-                                            .then(offerRepository.save(offer))
-                                            .doOnNext(sent -> candidateEmails.offerSent(application, sent));
-                                }))
+                                .flatMap(application -> stillOpen(application)
+                                        .then(companyOf(application))
+                                        .flatMap(company -> {
+                                            LocalDateTime now = LocalDateTime.now();
+                                            offer.setStatus(OfferStatus.SENT);
+                                            offer.setSentAt(now);
+                                            offer.setExpiresAt(OfferDeadline.endOfDay(days, company.orElse(null),
+                                                    ZonedDateTime.now()));
+                                            offer.setUpdatedAt(now);
+                                            application.setStatus(ApplicationStatus.OFFER_EXTENDED);
+                                            application.setUpdatedAt(now);
+                                            return offerRepository.save(offer)
+                                                    .flatMap(sent -> applicationRepository.save(application)
+                                                            .then(AfterCommit.run(() -> candidateEmails.offerSent(application, sent)))
+                                                            .thenReturn(sent));
+                                        })))
                 .flatMap(this::toOfferResponse);
     }
 
-    /** Take back an offer that has not been answered. */
+    /**
+     * Take back an offer that has not been answered. A candidate who had been
+     * sent it goes back to the stage before the offer.
+     */
+    @Transactional
     public Mono<OfferResponse> withdrawOffer(Long id, Long organizationId) {
         return offerRepository.findByIdAndOrganizationId(id, organizationId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Offer not found")))
@@ -144,21 +174,35 @@ public class OfferService {
                         return Mono.error(new ConflictException("This offer is already "
                                 + offer.getStatus().name().toLowerCase() + "."));
                     }
+                    boolean wasSent = offer.getStatus() == OfferStatus.SENT;
+                    LocalDateTime now = LocalDateTime.now();
                     offer.setStatus(OfferStatus.WITHDRAWN);
-                    offer.setUpdatedAt(LocalDateTime.now());
-                    return offerRepository.save(offer);
+                    offer.setUpdatedAt(now);
+                    return offerRepository.save(offer)
+                            .flatMap(withdrawn -> !wasSent ? Mono.just(withdrawn)
+                                    : applicationRepository.findById(withdrawn.getApplicationId())
+                                            .filter(application -> application.getStatus() == ApplicationStatus.OFFER_EXTENDED)
+                                            .flatMap(application -> {
+                                                application.setStatus(ApplicationStatus.INTERVIEWED);
+                                                application.setUpdatedAt(now);
+                                                return applicationRepository.save(application);
+                                            })
+                                            .thenReturn(withdrawn));
                 })
                 .flatMap(this::toOfferResponse);
     }
 
-    /** The applicant answers their own offer. */
+    /**
+     * The applicant answers their own offer. One they were never sent does not
+     * exist as far as they are concerned, withdrawn draft or not.
+     */
     @Transactional
     public Mono<OfferResponse> answerAsApplicant(Long id, Long applicantId, boolean accept) {
         return offerRepository.findById(id)
+                .filter(offer -> offer.getSentAt() != null)
                 .filterWhen(offer -> applicationRepository.findById(offer.getApplicationId())
                         .map(application -> applicantId != null && applicantId.equals(application.getApplicantId()))
                         .defaultIfEmpty(false))
-                .filter(offer -> offer.getStatus() != OfferStatus.DRAFT)
                 .switchIfEmpty(Mono.error(new NotFoundException("Offer not found")))
                 .flatMap(offer -> answer(offer, accept))
                 .flatMap(this::toOfferResponse);
@@ -190,17 +234,42 @@ public class OfferService {
             return Mono.error(new ConflictException("This offer expired and can no longer be answered."));
         }
         LocalDateTime now = LocalDateTime.now();
-        offer.setStatus(accept ? OfferStatus.ACCEPTED : OfferStatus.DECLINED);
-        offer.setRespondedAt(now);
-        offer.setUpdatedAt(now);
         return applicationRepository.findById(offer.getApplicationId())
                 .flatMap(application -> {
+                    // Leaving the offer stage closes the offer, so this holds already;
+                    // it is checked again because an answer cannot be taken back.
+                    if (application.getStatus() != ApplicationStatus.OFFER_EXTENDED) {
+                        return Mono.<Offer>error(new ConflictException(
+                                "This offer can no longer be answered: the application has moved on."));
+                    }
+                    offer.setStatus(accept ? OfferStatus.ACCEPTED : OfferStatus.DECLINED);
+                    offer.setRespondedAt(now);
+                    offer.setUpdatedAt(now);
                     application.setStatus(accept ? ApplicationStatus.HIRED : ApplicationStatus.WITHDRAWN);
                     application.setUpdatedAt(now);
-                    return applicationRepository.save(application)
-                            .then(offerRepository.save(offer))
-                            .doOnNext(answered -> teamEmails.offerAnswered(answered, application));
+                    // The offer first: if it changed since it was read (withdrawn a
+                    // moment ago), its version check fails and nothing is saved.
+                    return offerRepository.save(offer)
+                            .flatMap(answered -> applicationRepository.save(application)
+                                    .then(AfterCommit.run(() -> teamEmails.offerAnswered(answered, application)))
+                                    .thenReturn(answered));
                 });
+    }
+
+    /** Refuses an offer step for an application that is closed: hired, turned down or withdrawn. */
+    private static Mono<Void> stillOpen(Application application) {
+        return CLOSED.contains(application.getStatus())
+                ? Mono.error(new ConflictException("This candidate's application is "
+                        + application.getStatus().name().toLowerCase() + ", so it can't take an offer."))
+                : Mono.empty();
+    }
+
+    /** The company the application's job belongs to, for its time zone. */
+    private Mono<Optional<Organization>> companyOf(Application application) {
+        return jobRepository.findById(application.getJobId())
+                .flatMap(job -> organizationRepository.findById(job.getOrganizationId()))
+                .map(Optional::of)
+                .defaultIfEmpty(Optional.empty());
     }
 
     static boolean isExpired(Offer offer) {
@@ -232,7 +301,7 @@ public class OfferService {
                                         .status(offer.getStatus() == OfferStatus.SENT && isExpired(offer)
                                                 ? OfferStatus.EXPIRED : offer.getStatus())
                                         .sentAt(offer.getSentAt())
-                                        .expiresAt(offer.getExpiresAt())
+                                        .expiresAt(OfferDeadline.withOffset(offer.getExpiresAt()))
                                         .respondedAt(offer.getRespondedAt())
                                         .createdAt(offer.getCreatedAt())
                                         .updatedAt(offer.getUpdatedAt())

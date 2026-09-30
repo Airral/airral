@@ -3,6 +3,8 @@ package com.airral.exception;
 import com.airral.config.ServerErrorAlertFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -113,6 +115,24 @@ public class GlobalExceptionHandler {
         errorResponse.put("message", "You do not have permission to perform this action");
 
         return Mono.just(ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse));
+    }
+
+    /**
+     * Two saves of the same thing at once, settled by the database: a failed
+     * version check (the row changed since it was read), or a duplicate of
+     * something only one may exist of, such as a candidate's open offer. The
+     * caller lost the race; that is a conflict to reload from, not a fault.
+     */
+    @ExceptionHandler({OptimisticLockingFailureException.class, DuplicateKeyException.class})
+    public Mono<ResponseEntity<Map<String, Object>>> handleConcurrentChange(RuntimeException ex, ServerWebExchange exchange) {
+        log.info("{} on {} {}", ex.getClass().getSimpleName(), exchange.getRequest().getMethod(),
+                ServerErrorAlertFilter.routeOf(exchange));
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("timestamp", LocalDateTime.now());
+        errorResponse.put("status", HttpStatus.CONFLICT.value());
+        errorResponse.put("error", "Conflict");
+        errorResponse.put("message", "This was changed at the same moment somewhere else. Reload the page and try again.");
+        return Mono.just(ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse));
     }
 
     @ExceptionHandler(RuntimeException.class)

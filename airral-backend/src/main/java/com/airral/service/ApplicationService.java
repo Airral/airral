@@ -16,10 +16,12 @@ import com.airral.repository.ApplicationRepository;
 import com.airral.repository.CandidateProfileRepository;
 import com.airral.repository.CandidateResumeDocumentRepository;
 import com.airral.repository.JobRepository;
+import com.airral.repository.OfferRepository;
 import com.airral.repository.OrganizationRepository;
 import com.airral.exception.NotFoundException;
 import com.airral.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -37,6 +39,7 @@ public class ApplicationService {
     private final CandidateProfileRepository candidateProfileRepository;
     private final CandidateUpdateEmails candidateEmails;
     private final CandidateResumeDocumentRepository resumeDocumentRepository;
+    private final OfferRepository offerRepository;
 
     public ApplicationService(ApplicationRepository applicationRepository,
                             JobRepository jobRepository,
@@ -44,7 +47,8 @@ public class ApplicationService {
                             OrganizationRepository organizationRepository,
                             CandidateProfileRepository candidateProfileRepository,
                             CandidateUpdateEmails candidateEmails,
-                            CandidateResumeDocumentRepository resumeDocumentRepository) {
+                            CandidateResumeDocumentRepository resumeDocumentRepository,
+                            OfferRepository offerRepository) {
         this.applicationRepository = applicationRepository;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
@@ -52,6 +56,7 @@ public class ApplicationService {
         this.candidateProfileRepository = candidateProfileRepository;
         this.candidateEmails = candidateEmails;
         this.resumeDocumentRepository = resumeDocumentRepository;
+        this.offerRepository = offerRepository;
     }
 
     /**
@@ -226,13 +231,15 @@ public class ApplicationService {
 
     /**
      * Move an application to a stage. Turning a candidate down can email them,
-     * when the caller asks.
+     * when the caller asks, once the change is saved.
      */
+    @Transactional
     public Mono<ApplicationResponse> updateApplicationStatus(Long id, ApplicationStatus status,
                                                              Long organizationId, Long userId, JobScope scope) {
         return updateApplicationStatus(id, status, organizationId, userId, scope, false);
     }
 
+    @Transactional
     public Mono<ApplicationResponse> updateApplicationStatus(Long id, ApplicationStatus status,
                                                              Long organizationId, Long userId, JobScope scope,
                                                              boolean notifyCandidate) {
@@ -240,23 +247,65 @@ public class ApplicationService {
                 .filter(application -> scope.allows(application.getJobId()))
                 .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
                 .flatMap(application -> {
-                    boolean turnedDown = status == ApplicationStatus.REJECTED
-                            && application.getStatus() != ApplicationStatus.REJECTED;
-                    application.setStatus(status);
-                    application.setUpdatedAt(LocalDateTime.now());
-                    
-                    // Track who reviewed it
-                    if (status == ApplicationStatus.UNDER_REVIEW && application.getReviewedByHrId() == null) {
-                        application.setReviewedByHrId(userId);
-                        application.setReviewedByHrAt(LocalDateTime.now());
+                    ApplicationStatus previous = application.getStatus();
+                    if (previous == status) {
+                        return Mono.just(application);
                     }
-                    
-                    return applicationRepository.save(application)
-                            .doOnNext(saved -> {
-                                if (turnedDown && notifyCandidate) candidateEmails.notSelected(saved);
-                            });
+                    boolean turnedDown = status == ApplicationStatus.REJECTED;
+                    LocalDateTime now = LocalDateTime.now();
+                    return offersFollow(application, status, now).then(Mono.defer(() -> {
+                        application.setStatus(status);
+                        application.setUpdatedAt(now);
+
+                        // Track who reviewed it
+                        if (status == ApplicationStatus.UNDER_REVIEW && application.getReviewedByHrId() == null) {
+                            application.setReviewedByHrId(userId);
+                            application.setReviewedByHrAt(now);
+                        }
+
+                        return applicationRepository.save(application)
+                                .flatMap(saved -> turnedDown && notifyCandidate
+                                        ? AfterCommit.run(() -> candidateEmails.notSelected(saved)).thenReturn(saved)
+                                        : Mono.just(saved));
+                    }));
                 })
                 .flatMap(this::toApplicationResponse);
+    }
+
+    /**
+     * What a stage change means for the application's offers.
+     *
+     * <ul>
+     *   <li>The offer stage is reached by sending an offer, so that a candidate
+     *       at it always has one to answer.</li>
+     *   <li>While a sent offer waits for the candidate's answer, only that
+     *       answer hires them: HR marking them hired would accept it for them.</li>
+     *   <li>Turning a candidate down, their withdrawing, or hiring them closes
+     *       any open offer, drafts included.</li>
+     *   <li>Moving them back from the offer stage closes the offer they were sent.</li>
+     * </ul>
+     */
+    private Mono<Void> offersFollow(Application application, ApplicationStatus status, LocalDateTime now) {
+        ApplicationStatus previous = application.getStatus();
+        if (status == ApplicationStatus.OFFER_EXTENDED) {
+            return Mono.error(new BadRequestException(
+                    "Send the candidate an offer from the Offers page to move them to the offer stage."));
+        }
+        if (status == ApplicationStatus.HIRED) {
+            return offerRepository.existsAwaitingAnswer(application.getId(), now)
+                    .flatMap(awaiting -> awaiting
+                            ? Mono.<Void>error(new ConflictException(
+                                    "This candidate has an offer waiting for their answer. Accepting it hires them; "
+                                            + "to hire them another way, withdraw it first."))
+                            : offerRepository.closeOpen(application.getId(), now).then());
+        }
+        if (status == ApplicationStatus.REJECTED || status == ApplicationStatus.WITHDRAWN) {
+            return offerRepository.closeOpen(application.getId(), now).then();
+        }
+        if (previous == ApplicationStatus.OFFER_EXTENDED) {
+            return offerRepository.closeSent(application.getId(), now).then();
+        }
+        return Mono.empty();
     }
 
     /**

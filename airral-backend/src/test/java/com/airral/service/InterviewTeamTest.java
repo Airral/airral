@@ -199,4 +199,60 @@ class InterviewTeamTest {
         assertThat(saved.getValue().getNotes()).isEqualTo("Panel: ask about the outage");
         assertThat(saved.getValue().getFeedback()).isEqualTo("Strong on incident response");
     }
+
+    @Test
+    @DisplayName("an interviewer's list leaves out HR's own feedback and rating, so their scorecard is their own")
+    void myInterviewsHideHrFeedback() {
+        Interview booked = Interview.builder().id(900L).applicationId(100L).scheduledById(HANA)
+                .interviewDate(LocalDateTime.of(2026, 10, 1, 14, 0)).status("COMPLETED")
+                .feedback("Not convinced about the leadership examples").rating(2).build();
+        when(interviews.findByInterviewer(IVAN, ACME)).thenReturn(Flux.just(booked));
+
+        StepVerifier.create(service.getMyInterviews(IVAN, ACME))
+                .assertNext(mine -> {
+                    assertThat(mine.getFeedback()).isNull();
+                    assertThat(mine.getRating()).isNull();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("an interview is not booked for a candidate who was turned down, withdrew or was hired")
+    void closedApplicationsTakeNoInterview() {
+        for (ApplicationStatus closed : new ApplicationStatus[] {
+                ApplicationStatus.REJECTED, ApplicationStatus.WITHDRAWN, ApplicationStatus.HIRED}) {
+            amysApplication.setStatus(closed);
+            StepVerifier.create(service.scheduleInterview(booking(IVAN), ACME, HANA, JobScope.wholeCompany()))
+                    .expectError(com.airral.exception.ConflictException.class)
+                    .verify();
+        }
+        verify(interviews, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("an interview booked for a candidate at the offer stage leaves them there, offer and all")
+    void bookingNeverMovesBack() {
+        amysApplication.setStatus(ApplicationStatus.OFFER_EXTENDED);
+
+        StepVerifier.create(service.scheduleInterview(booking(IVAN), ACME, HANA, JobScope.wholeCompany()))
+                .expectNextCount(1)
+                .verifyComplete();
+        assertThat(amysApplication.getStatus()).isEqualTo(ApplicationStatus.OFFER_EXTENDED);
+        verify(applications, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("feedback written after the offer went out leaves the candidate at the offer stage")
+    void feedbackNeverMovesBack() {
+        amysApplication.setStatus(ApplicationStatus.OFFER_EXTENDED);
+        Interview booked = Interview.builder().id(900L).applicationId(100L).status("SCHEDULED").build();
+        when(interviews.findByIdAndOrganizationId(900L, ACME)).thenReturn(Mono.just(booked));
+        InterviewFeedbackRequest feedback = new InterviewFeedbackRequest();
+        feedback.setFeedback("Late notes");
+
+        service.submitFeedback(900L, feedback, ACME, JobScope.wholeCompany()).block();
+
+        assertThat(amysApplication.getStatus()).isEqualTo(ApplicationStatus.OFFER_EXTENDED);
+        verify(applications, never()).save(any());
+    }
 }

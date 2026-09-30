@@ -8,6 +8,7 @@ import com.airral.dto.request.CloseOutRequest;
 import com.airral.exception.NotFoundException;
 import com.airral.repository.ApplicationRepository;
 import com.airral.repository.JobRepository;
+import com.airral.repository.OfferRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,8 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -37,7 +40,8 @@ class JobCloseOutTest {
     private final ApplicationRepository applications = mock(ApplicationRepository.class);
     private final JobService jobService = mock(JobService.class);
     private final CandidateUpdateEmails emails = mock(CandidateUpdateEmails.class);
-    private final JobCloseOutService service = new JobCloseOutService(jobs, applications, jobService, emails);
+    private final OfferRepository offers = mock(OfferRepository.class);
+    private final JobCloseOutService service = new JobCloseOutService(jobs, applications, jobService, emails, offers);
 
     private final Job job = Job.builder().id(JOB).organizationId(ACME).title("Store manager").status(JobStatus.OPEN).build();
     private List<Application> pipeline;
@@ -56,6 +60,9 @@ class JobCloseOutTest {
         when(applications.findByJobIdAndOrganizationId(JOB, ACME)).thenReturn(Flux.fromIterable(pipeline));
         when(applications.save(any(Application.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         when(jobService.updateJobStatus(JOB, JobStatus.FILLED, ACME)).thenReturn(Mono.empty());
+        // Candidate 5 has an offer out, waiting for an answer.
+        when(offers.findApplicationIdsWithOpenOffers(eq(JOB), any())).thenReturn(Flux.just(5L));
+        when(offers.closeOpen(anyLong(), any())).thenReturn(Mono.just(0L));
     }
 
     private static Application candidate(long id, ApplicationStatus status) {
@@ -87,6 +94,26 @@ class JobCloseOutTest {
                 .containsEntry(7L, ApplicationStatus.WITHDRAWN);
         verify(emails, times(3)).notSelected(any());
         verify(jobService).updateJobStatus(JOB, JobStatus.FILLED, ACME);
+    }
+
+    @Test
+    @DisplayName("an offer still being drafted holds a candidate back; one that lapsed does not")
+    void liveOffersDecide() {
+        // Candidate 4 has a draft; candidate 5's offer lapsed unanswered.
+        when(offers.findApplicationIdsWithOpenOffers(eq(JOB), any())).thenReturn(Flux.just(4L));
+
+        StepVerifier.create(service.closeOut(JOB, ACME, JobScope.wholeCompany(),
+                        CloseOutRequest.builder().turnDownOthers(true).build()))
+                .assertNext(result -> {
+                    assertThat(result.getTurnedDown()).isEqualTo(3);
+                    assertThat(result.getWithOpenOffers()).isEqualTo(1);
+                })
+                .verifyComplete();
+        assertThat(statuses()).containsEntry(4L, ApplicationStatus.INTERVIEWED)
+                .containsEntry(5L, ApplicationStatus.REJECTED);
+        // The lapsed offer is recorded as closed along with the application.
+        verify(offers).closeOpen(eq(5L), any());
+        verify(offers, never()).closeOpen(eq(4L), any());
     }
 
     @Test

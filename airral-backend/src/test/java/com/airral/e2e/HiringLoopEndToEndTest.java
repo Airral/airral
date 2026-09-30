@@ -35,6 +35,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -227,19 +232,44 @@ class HiringLoopEndToEndTest {
         scorecard.put("ratings", ratings);
         scorecard.put("overallNotes", "Calm under pressure.");
         scorecard.put("recommendation", "HIRE");
+        // A draft first, then the submission: each save moves the row's version on.
+        scorecard.put("submit", false);
+        assertThat(call(HttpMethod.PUT, "/api/interviews/" + interviewId + "/scorecard", manager, scorecard, HttpStatus.OK)
+                .get("status").asText()).isEqualTo("DRAFT");
         scorecard.put("submit", true);
         assertThat(call(HttpMethod.PUT, "/api/interviews/" + interviewId + "/scorecard", manager, scorecard, HttpStatus.OK)
                 .get("status").asText()).isEqualTo("SUBMITTED");
+        scorecard.put("submit", false);
+        call(HttpMethod.PUT, "/api/interviews/" + interviewId + "/scorecard", manager, scorecard, HttpStatus.CONFLICT);
         JsonNode cards = call(HttpMethod.GET, "/api/applications/" + applicationId + "/scorecards", hr, null, HttpStatus.OK);
         assertThat(cards).hasSize(1);
         assertThat(cards.get(0).get("recommendation").asText()).isEqualTo("HIRE");
 
         // 10. HR sends an offer. Only Amy can accept it, and she does.
+        //     The offer stage comes from sending one, not from moving her there by hand.
+        call(HttpMethod.PUT, "/api/applications/" + applicationId + "/status?status=OFFER_EXTENDED", hr, Map.of(),
+                HttpStatus.BAD_REQUEST);
+        //     A first draft is withdrawn before it is sent: Amy never sees it.
+        long firstDraft = call(HttpMethod.POST, "/api/offers", hr, Map.of(
+                "applicationId", applicationId, "salary", 65000, "currency", "USD"), HttpStatus.CREATED).get("id").asLong();
+        call(HttpMethod.POST, "/api/offers", hr, Map.of(
+                "applicationId", applicationId, "salary", 66000, "currency", "USD"), HttpStatus.CONFLICT);
+        call(HttpMethod.POST, "/api/offers/" + firstDraft + "/withdraw", hr, Map.of(), HttpStatus.OK);
+        assertThat(ids(call(HttpMethod.GET, "/api/offers/mine", applicant, null, HttpStatus.OK))).isEmpty();
+        call(HttpMethod.POST, "/api/offers/" + firstDraft + "/accept", applicant, Map.of(), HttpStatus.NOT_FOUND);
+
         JsonNode offer = call(HttpMethod.POST, "/api/offers", hr, Map.of(
                 "applicationId", applicationId, "salary", 72000, "currency", "USD"), HttpStatus.CREATED);
         long offerId = offer.get("id").asLong();
-        assertThat(call(HttpMethod.POST, "/api/offers/" + offerId + "/send", hr, Map.of("expiresInDays", 14), HttpStatus.OK)
-                .get("status").asText()).isEqualTo("SENT");
+        JsonNode sent = call(HttpMethod.POST, "/api/offers/" + offerId + "/send", hr, Map.of("expiresInDays", 14), HttpStatus.OK);
+        assertThat(sent.get("status").asText()).isEqualTo("SENT");
+        //     Open until the end of the day, fourteen days on, in the company's zone (New York, from step 3).
+        ZonedDateTime deadline = OffsetDateTime.parse(sent.get("expiresAt").asText())
+                .atZoneSameInstant(ZoneId.of("America/New_York"));
+        assertThat(deadline.toLocalTime()).isEqualTo(LocalTime.of(23, 59, 59));
+        assertThat(deadline.toLocalDate()).isEqualTo(LocalDate.now(ZoneId.of("America/New_York")).plusDays(14));
+        //     While it waits for her answer, HR cannot mark her hired for her.
+        call(HttpMethod.PUT, "/api/applications/" + applicationId + "/status?status=HIRED", hr, Map.of(), HttpStatus.CONFLICT);
         call(HttpMethod.POST, "/api/offers/" + offerId + "/accept", hr, Map.of(), HttpStatus.CONFLICT);
         assertThat(ids(call(HttpMethod.GET, "/api/offers/mine", applicant, null, HttpStatus.OK))).containsExactly(offerId);
         assertThat(call(HttpMethod.POST, "/api/offers/" + offerId + "/accept", applicant, Map.of(), HttpStatus.OK)

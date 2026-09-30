@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
@@ -34,4 +35,7 @@ public class InterviewScorecard {
     private LocalDateTime submittedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    /** Bumped on every save, so a draft saved in one tab cannot overwrite a scorecard submitted in another. */
+    @Version
+    private Long version;
 }

@@ -1,5 +1,6 @@
 package com.airral.service;
 
+import com.airral.domain.Application;
 import com.airral.domain.Interview;
 import com.airral.domain.User;
 import com.airral.domain.enums.ApplicationStatus;
@@ -9,6 +10,7 @@ import com.airral.dto.request.ScheduleInterviewRequest;
 import com.airral.dto.response.InterviewResponse;
 import com.airral.dto.response.InterviewerSummary;
 import com.airral.exception.BadRequestException;
+import com.airral.exception.ConflictException;
 import com.airral.repository.ApplicationRepository;
 import com.airral.repository.InterviewRepository;
 import com.airral.repository.JobRepository;
@@ -35,6 +37,15 @@ public class InterviewService {
     /** Who can be on an interview: the company's hiring team. */
     static final Set<UserRole> INTERVIEWER_ROLES = EnumSet.of(UserRole.HR_MANAGER, UserRole.MANAGER, UserRole.EMPLOYEE);
     static final int DEFAULT_DURATION_MINUTES = 60;
+
+    /** Stages a booked interview moves a candidate forward from. */
+    static final Set<ApplicationStatus> BEFORE_OFFER = EnumSet.of(ApplicationStatus.SUBMITTED,
+            ApplicationStatus.UNDER_REVIEW, ApplicationStatus.SHORTLISTED,
+            ApplicationStatus.INTERVIEW_SCHEDULED, ApplicationStatus.INTERVIEWED);
+
+    /** Stages feedback on an interview moves a candidate forward from. */
+    static final Set<ApplicationStatus> BEFORE_INTERVIEWED = EnumSet.of(ApplicationStatus.SUBMITTED,
+            ApplicationStatus.UNDER_REVIEW, ApplicationStatus.SHORTLISTED, ApplicationStatus.INTERVIEW_SCHEDULED);
 
     private final InterviewRepository interviewRepository;
     private final ApplicationRepository applicationRepository;
@@ -71,6 +82,11 @@ public class InterviewService {
                 .findByIdAndOrganizationId(request.getApplicationId(), organizationId)
                 .filter(application -> scope.allows(application.getJobId()))
                 .switchIfEmpty(Mono.error(new NotFoundException("Application not found")))
+                .flatMap(application -> OfferService.CLOSED.contains(application.getStatus())
+                        ? Mono.<Application>error(new ConflictException("This candidate's application is "
+                                + application.getStatus().name().toLowerCase()
+                                + ". Move it back to a stage before booking an interview."))
+                        : Mono.just(application))
                 .flatMap(application -> checkInterviewers(interviewerIds, organizationId).thenReturn(application))
                 .flatMap(application -> {
                     Interview interview = Interview.builder()
@@ -86,23 +102,29 @@ public class InterviewService {
                             .updatedAt(LocalDateTime.now())
                             .build();
 
-                    // Update application status
-                    application.setStatus(ApplicationStatus.INTERVIEW_SCHEDULED);
-                    application.setUpdatedAt(LocalDateTime.now());
+                    // Booking moves a candidate forward to "interview scheduled", never
+                    // back: one at the offer stage keeps their offer.
+                    Mono<Application> staged = BEFORE_OFFER.contains(application.getStatus())
+                            ? Mono.defer(() -> {
+                                application.setStatus(ApplicationStatus.INTERVIEW_SCHEDULED);
+                                application.setUpdatedAt(LocalDateTime.now());
+                                return applicationRepository.save(application);
+                            })
+                            : Mono.just(application);
 
-                    return applicationRepository.save(application)
+                    return staged
                             .then(interviewRepository.save(interview))
                             .flatMap(saved -> Flux.fromIterable(interviewerIds)
                                     .concatMap(interviewerId -> interviewRepository.addInterviewer(saved.getId(), interviewerId))
                                     .then(Mono.just(saved)))
-                            .doOnNext(saved -> {
+                            .flatMap(saved -> AfterCommit.run(() -> {
                                 if (Boolean.TRUE.equals(request.getNotifyCandidate())) {
                                     candidateEmails.interviewBooked(application, saved);
                                 }
                                 if (Boolean.TRUE.equals(request.getNotifyInterviewers())) {
                                     interviewerEmails.invite(saved, application, interviewerIds);
                                 }
-                            });
+                            }).thenReturn(saved));
                 }))
                 .flatMap(this::toInterviewResponse);
     }
@@ -114,7 +136,14 @@ public class InterviewService {
      */
     public Flux<InterviewResponse> getMyInterviews(Long userId, Long organizationId) {
         return interviewRepository.findByInterviewer(userId, organizationId)
-                .concatMap(this::toInterviewResponse);
+                .concatMap(this::toInterviewResponse)
+                .map(interview -> {
+                    // HR's own feedback and rating, from before scorecards, are not the
+                    // interviewers' to read: each writes their scorecard unswayed.
+                    interview.setFeedback(null);
+                    interview.setRating(null);
+                    return interview;
+                });
     }
 
     /** Interviewers must be active members of the company's hiring team. */
@@ -200,8 +229,10 @@ public class InterviewService {
                     interview.setStatus("COMPLETED");
                     interview.setUpdatedAt(LocalDateTime.now());
 
-                    // Update application status to INTERVIEWED
+                    // Forward to "interviewed", never back: feedback written after an
+                    // offer went out, or after a decision, leaves the stage alone.
                     return applicationRepository.findById(interview.getApplicationId())
+                            .filter(application -> BEFORE_INTERVIEWED.contains(application.getStatus()))
                             .flatMap(application -> {
                                 application.setStatus(ApplicationStatus.INTERVIEWED);
                                 application.setUpdatedAt(LocalDateTime.now());

@@ -52,7 +52,8 @@ class CandidateStageUpdatesTest {
     private final CandidateUpdateEmails emails = mock(CandidateUpdateEmails.class);
 
     private final ApplicationService applicationService = new ApplicationService(applications, jobs, users,
-            organizations, mock(CandidateProfileRepository.class), emails, mock(com.airral.repository.CandidateResumeDocumentRepository.class));
+            organizations, mock(CandidateProfileRepository.class), emails, mock(com.airral.repository.CandidateResumeDocumentRepository.class),
+            NoOffers.repository());
     private final InterviewService interviewService = new InterviewService(interviews, applications, jobs, users, emails, mock(InterviewerEmails.class));
 
     @BeforeEach
