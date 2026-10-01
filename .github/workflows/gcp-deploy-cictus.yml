@@ -77,7 +77,7 @@ jobs:
           set -euo pipefail
           URL=$(gcloud run services describe "$SERVICE" --region "${{ vars.GCP_REGION }}" --format='value(status.url)')
           for i in $(seq 1 12); do
-            if curl -s "$URL/" | grep -q 'AIRRAL is a product of Cictus'; then
+            if curl -s "$URL/" | grep -q 'AIRRAL and Brie are products of Cictus'; then
               echo "cictus.com page served from $URL"
               exit 0
             fi
