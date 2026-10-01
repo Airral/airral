@@ -2,6 +2,7 @@ package com.airral.security;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Predicate;
 
 import io.r2dbc.spi.Parameters;
 import org.springframework.r2dbc.core.DatabaseClient;
@@ -33,20 +34,28 @@ public class ApiKeyStore {
             String role,
             List<String> scopes,
             Boolean isPlatformAdmin,
-            int ratePerMinute) {
+            int ratePerMinute,
+            boolean selfService) {
     }
 
     /**
      * Resolve a presented key.
      *
      * <p>Joins users for the email, because the principal the JWT path builds is
-     * keyed on email and the two must be interchangeable. Reads role and
-     * organisation from the key row rather than the user row: those were fixed
-     * at issuance, and a credential already sitting in someone's config file
-     * should not silently gain or lose reach because their user record changed.
+     * keyed on email. Role and organisation were fixed at issuance, and a key
+     * only resolves while they still match the person today: a key must never
+     * keep a role or a company its owner has lost. So a demoted HR manager's key,
+     * or a key from a company that left, stops working instead of carrying the
+     * old reach. Employer keys also need their company approved and active,
+     * the same bar its jobs need to reach candidates, so a company that was
+     * rejected cannot keep using AIRRAL through keys.
      *
-     * <p>Returns empty for a key that is unknown, revoked or expired, so the
-     * caller cannot accidentally treat one case as another.
+     * <p>A key someone made for themselves also has to come from a session
+     * that is still current (see V47): one made from a session that was
+     * revoked a moment earlier never works.
+     *
+     * <p>Returns empty for a key that is unknown, revoked, expired or out of
+     * date, so the caller cannot accidentally treat one case as another.
      */
     public Mono<ResolvedKey> resolve(String keyHash) {
         return databaseClient.sql("""
@@ -59,7 +68,8 @@ public class ApiKeyStore {
                             k.role,
                             k.scopes,
                             u.is_platform_admin,
-                            k.rate_per_minute
+                            k.rate_per_minute,
+                            k.session_version IS NOT NULL AS self_service
                         FROM api_keys k
                         JOIN users u ON u.id = k.user_id
                         LEFT JOIN organizations o ON o.id = k.organization_id
@@ -67,6 +77,11 @@ public class ApiKeyStore {
                           AND k.revoked_at IS NULL
                           AND (k.expires_at IS NULL OR k.expires_at > CURRENT_TIMESTAMP)
                           AND u.is_active = true
+                          AND k.role = u.role
+                          AND k.organization_id IS NOT DISTINCT FROM u.organization_id
+                          AND (k.organization_id IS NULL
+                               OR (o.is_active IS NOT FALSE AND o.verification_status = 'VERIFIED'))
+                          AND (k.session_version IS NULL OR k.session_version >= u.token_version)
                         """)
                 .bind("hash", keyHash)
                 .map((row, meta) -> {
@@ -82,7 +97,8 @@ public class ApiKeyStore {
                             row.get("role", String.class),
                             scopes == null ? List.of() : List.of(scopes),
                             platformAdmin != null && platformAdmin,
-                            rate == null ? 60 : rate);
+                            rate == null ? 60 : rate,
+                            Boolean.TRUE.equals(row.get("self_service", Boolean.class)));
                 })
                 .one();
     }
@@ -193,6 +209,64 @@ public class ApiKeyStore {
                 .one();
     }
 
+    /**
+     * Store a key someone made for themselves, only while the session that
+     * asked is still current. Empty when it is not: the session was revoked
+     * after it was checked, and the key must not outlive that.
+     */
+    public Mono<Long> insertSelfService(
+            Long userId,
+            Long organizationId,
+            String role,
+            List<String> scopes,
+            String keyHash,
+            String keyId,
+            String name,
+            int ratePerMinute,
+            LocalDateTime expiresAt,
+            int sessionVersion) {
+
+        return databaseClient.sql("""
+                        INSERT INTO api_keys (
+                            user_id, organization_id, role, scopes,
+                            key_hash, key_id, environment, name, issued_by,
+                            rate_per_minute, expires_at, session_version
+                        )
+                        SELECT :userId, :organizationId, :role, :scopes,
+                               :keyHash, :keyId, 'live', :name, :userId,
+                               :ratePerMinute, :expiresAt, :sessionVersion
+                        FROM users
+                        WHERE id = :userId AND token_version <= :sessionVersion
+                        RETURNING id
+                        """)
+                .bind("userId", userId)
+                .bind("organizationId", organizationId == null ? Parameters.in(Long.class) : Parameters.in(organizationId))
+                .bind("role", role)
+                .bind("scopes", scopes.toArray(new String[0]))
+                .bind("keyHash", keyHash)
+                .bind("keyId", keyId)
+                .bind("name", name)
+                .bind("ratePerMinute", ratePerMinute)
+                .bind("expiresAt", expiresAt)
+                .bind("sessionVersion", sessionVersion)
+                .map((row, meta) -> row.get("id", Long.class))
+                .one();
+    }
+
+    /**
+     * Hold this person's key issuing until the surrounding transaction ends, so
+     * two requests at once cannot both count two keys and both make a third.
+     */
+    public Mono<Void> lockForIssuance(Long userId) {
+        return databaseClient.sql("SELECT pg_advisory_xact_lock(:lockKey)")
+                // A namespace in the high bits keeps this apart from any other
+                // advisory lock taken on a user id.
+                .bind("lockKey", (0x41494B45L << 32) | (userId & 0xFFFFFFFFL))
+                .fetch()
+                .all()
+                .then();
+    }
+
     /** Every key belonging to one user, including revoked ones. */
     public Flux<KeySummary> listForUser(String email) {
         return databaseClient.sql("""
@@ -238,6 +312,103 @@ public class ApiKeyStore {
                 .rowsUpdated();
     }
 
+    /**
+     * The keys someone can still use or revoke: not revoked, newest first.
+     * Expired keys stay listed until they are revoked, so a key that quietly
+     * stopped working can be recognised and cleared away.
+     */
+    public Flux<KeySummary> listActiveForUser(Long userId) {
+        return databaseClient.sql("""
+                        SELECT key_id, name, role, scopes, environment,
+                               last_used_at, expires_at, revoked_at, created_at
+                        FROM api_keys
+                        WHERE user_id = :userId AND revoked_at IS NULL
+                        ORDER BY created_at DESC
+                        """)
+                .bind("userId", userId)
+                .map((row, meta) -> {
+                    String[] scopes = row.get("scopes", String[].class);
+                    return new KeySummary(
+                            row.get("key_id", String.class),
+                            row.get("name", String.class),
+                            row.get("role", String.class),
+                            scopes == null ? List.of() : List.of(scopes),
+                            row.get("environment", String.class),
+                            row.get("last_used_at", LocalDateTime.class),
+                            row.get("expires_at", LocalDateTime.class),
+                            row.get("revoked_at", LocalDateTime.class),
+                            row.get("created_at", LocalDateTime.class));
+                })
+                .all();
+    }
+
+    /** Keys that still work: not revoked and not expired. The cap counts these. */
+    public Mono<Long> countUsable(Long userId) {
+        return databaseClient.sql("""
+                        SELECT COUNT(*) AS n
+                        FROM api_keys
+                        WHERE user_id = :userId
+                          AND revoked_at IS NULL
+                          AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+                        """)
+                .bind("userId", userId)
+                .map((row, meta) -> row.get("n", Long.class))
+                .one()
+                .defaultIfEmpty(0L);
+    }
+
+    /**
+     * Revoke one of the caller's own keys. The owner is part of the WHERE, not
+     * a check before it: key ids are shown in the UI and are safe in logs, so a
+     * key id alone must never be enough to switch someone else's key off.
+     */
+    public Mono<Long> revokeOwned(String keyId, Long userId, String reason) {
+        return databaseClient.sql("""
+                        UPDATE api_keys
+                        SET revoked_at = CURRENT_TIMESTAMP,
+                            revoked_reason = :reason
+                        WHERE key_id = :keyId AND user_id = :userId AND revoked_at IS NULL
+                        """)
+                .bind("keyId", keyId)
+                .bind("userId", userId)
+                .bind("reason", reason)
+                .fetch()
+                .rowsUpdated();
+    }
+
+    /** Everything a person's own key request is decided on, read fresh. */
+    public record SelfServiceUser(
+            Long id,
+            String email,
+            String role,
+            Long organizationId,
+            boolean active,
+            boolean emailVerified,
+            String companyStatus,
+            boolean companyActive) {
+    }
+
+    public Mono<SelfServiceUser> findSelfServiceUser(Long userId) {
+        return databaseClient.sql("""
+                        SELECT u.id, u.email, u.role, u.organization_id, u.is_active, u.email_verified,
+                               o.verification_status, o.is_active AS company_active
+                        FROM users u
+                        LEFT JOIN organizations o ON o.id = u.organization_id
+                        WHERE u.id = :userId
+                        """)
+                .bind("userId", userId)
+                .map((row, meta) -> new SelfServiceUser(
+                        row.get("id", Long.class),
+                        row.get("email", String.class),
+                        row.get("role", String.class),
+                        row.get("organization_id", Long.class),
+                        Boolean.TRUE.equals(row.get("is_active", Boolean.class)),
+                        Boolean.TRUE.equals(row.get("email_verified", Boolean.class)),
+                        row.get("verification_status", String.class),
+                        !Boolean.FALSE.equals(row.get("company_active", Boolean.class))))
+                .one();
+    }
+
     /** The user a key is being issued for, and the role that fixes its scopes. */
     public Mono<UserForKey> findUser(String email) {
         return databaseClient.sql("""
@@ -258,7 +429,10 @@ public class ApiKeyStore {
     }
 
     /** Why a key that was presented did not resolve. */
-    public enum MissReason { UNKNOWN, REVOKED, EXPIRED, USER_INACTIVE }
+    public enum MissReason {
+        UNKNOWN, REVOKED, EXPIRED, USER_INACTIVE, ACCOUNT_CHANGED, COMPANY_NOT_APPROVED, SESSION_ENDED,
+        FEATURE_NOT_INCLUDED
+    }
 
     /**
      * Explain a failed lookup, for the error message only.
@@ -275,11 +449,18 @@ public class ApiKeyStore {
      * an attacker cannot produce a candidate to test -- while a holder of a real
      * key that quietly stopped working has no way to tell an expiry from a typo.
      */
-    public Mono<MissReason> explainMiss(String keyHash) {
+    public Mono<MissReason> explainMiss(String keyHash, Predicate<String> featureIncluded) {
         return databaseClient.sql("""
-                        SELECT k.revoked_at, k.expires_at, u.is_active
+                        SELECT k.revoked_at, k.expires_at, u.is_active, u.email,
+                               k.session_version IS NOT NULL AS self_service,
+                               (k.session_version IS NULL OR k.session_version >= u.token_version) AS session_ok,
+                               (k.role = u.role
+                                AND k.organization_id IS NOT DISTINCT FROM u.organization_id) AS still_matches,
+                               (k.organization_id IS NULL
+                                OR (o.is_active IS NOT FALSE AND o.verification_status = 'VERIFIED')) AS company_ok
                         FROM api_keys k
                         JOIN users u ON u.id = k.user_id
+                        LEFT JOIN organizations o ON o.id = k.organization_id
                         WHERE k.key_hash = :hash
                         """)
                 .bind("hash", keyHash)
@@ -294,6 +475,19 @@ public class ApiKeyStore {
                     Boolean active = row.get("is_active", Boolean.class);
                     if (active != null && !active) {
                         return MissReason.USER_INACTIVE;
+                    }
+                    if (Boolean.FALSE.equals(row.get("still_matches", Boolean.class))) {
+                        return MissReason.ACCOUNT_CHANGED;
+                    }
+                    if (Boolean.FALSE.equals(row.get("company_ok", Boolean.class))) {
+                        return MissReason.COMPANY_NOT_APPROVED;
+                    }
+                    if (Boolean.FALSE.equals(row.get("session_ok", Boolean.class))) {
+                        return MissReason.SESSION_ENDED;
+                    }
+                    if (Boolean.TRUE.equals(row.get("self_service", Boolean.class))
+                            && !featureIncluded.test(row.get("email", String.class))) {
+                        return MissReason.FEATURE_NOT_INCLUDED;
                     }
                     return MissReason.UNKNOWN;
                 })

@@ -18,18 +18,18 @@ import com.airral.security.AuthenticationManager.AuthenticationDetails;
 import reactor.core.publisher.Mono;
 
 /**
- * Turns a presented API key into the same principal a JWT would have produced.
+ * Turns a presented API key into a principal shaped like a session's: the same
+ * {@link AuthenticationDetails}, the role authority, and the key's scopes.
  *
- * <p>"The same" is the whole design. The authorities and
- * {@link AuthenticationDetails} built here are indistinguishable from the JWT
- * path's, so every existing controller, guard and authorization rule keeps
- * working untouched and cannot tell which credential arrived. The alternative --
- * a second, key-only API -- would give every endpoint two authorization paths
- * to keep in agreement, and they drift.
+ * <p>It is not interchangeable with a session, and must not be. Every key also
+ * carries {@link ApiKeyScopes#CREDENTIAL_AUTHORITY}, and SecurityConfig refuses
+ * that principal anywhere but /mcp. Without the marker, a key holding the ADMIN
+ * role passed {@code hasAuthority("ADMIN")} on /api/admin/** and could approve
+ * companies, and every other role-gated endpoint was one refactor away from
+ * accepting keys with their scopes ignored.
  *
- * <p>Scope authorities are added on top of the role authority, so a key can be
- * held to a narrower reach than the role alone would imply while role-based
- * rules continue to apply.
+ * <p>Scopes are cut to the role's current ceiling on every request, so narrowing
+ * a ceiling in ApiKeyScopes narrows keys that were already issued.
  */
 @Component
 public class ApiKeyAuthenticationManager implements ReactiveAuthenticationManager {
@@ -37,9 +37,11 @@ public class ApiKeyAuthenticationManager implements ReactiveAuthenticationManage
     private static final Logger log = LoggerFactory.getLogger(ApiKeyAuthenticationManager.class);
 
     private final ApiKeyStore apiKeyStore;
+    private final AiAccessPolicy aiAccessPolicy;
 
-    public ApiKeyAuthenticationManager(ApiKeyStore apiKeyStore) {
+    public ApiKeyAuthenticationManager(ApiKeyStore apiKeyStore, AiAccessPolicy aiAccessPolicy) {
         this.apiKeyStore = apiKeyStore;
+        this.aiAccessPolicy = aiAccessPolicy;
     }
 
     @Override
@@ -53,12 +55,16 @@ public class ApiKeyAuthenticationManager implements ReactiveAuthenticationManage
         String hash = ApiKeyFormat.sha256(presented);
 
         return apiKeyStore.resolve(hash)
+                // A key someone made for themselves is the paid feature, so it
+                // works only while the feature is on for them. An admin's grant
+                // is a deliberate bypass and is not checked.
+                .filter(key -> !key.selfService() || aiAccessPolicy.includes(key.email()))
                 .flatMap(this::enforceRateLimit)
                 .map(this::toAuthentication)
-                // An unknown, revoked or expired key resolves to empty, which
-                // Spring turns into a 401. Nothing about which of those it was
-                // is reported back: that distinction is useful to an attacker
-                // enumerating keys and to nobody else.
+                // An unknown, revoked, expired or out-of-date key resolves to
+                // empty, which Spring turns into a 401. SecurityContextRepository
+                // then works out which it was for the message (see
+                // ApiKeyStore.explainMiss for why that is safe to say).
                 //
                 // A throttled key is not an authentication failure and must not
                 // be flattened into one -- it has to reach the caller as a 429,
@@ -93,7 +99,8 @@ public class ApiKeyAuthenticationManager implements ReactiveAuthenticationManage
     private Authentication toAuthentication(ApiKeyStore.ResolvedKey key) {
         List<GrantedAuthority> authorities = new ArrayList<>();
         authorities.add(new SimpleGrantedAuthority(key.role()));
-        for (String scope : key.scopes()) {
+        authorities.add(new SimpleGrantedAuthority(ApiKeyScopes.CREDENTIAL_AUTHORITY));
+        for (String scope : ApiKeyScopes.effective(key.role(), key.scopes())) {
             authorities.add(new SimpleGrantedAuthority(ApiKeyScopes.authority(scope)));
         }
 

@@ -106,9 +106,12 @@ same conversation, because it has the postings in front of it.
 
 - `search_jobs` — search by keyword, optionally narrowed by location, work mode or company.
 - `get_job` — read one posting in full, description and all.
+- `list_company_jobs` — for HR managers and hiring managers: your company's own jobs and
+  how hiring is going on each, in numbers (applied, new, in review, interviewing, offers,
+  hired). Never an applicant's name or details. A manager sees the jobs they are hiring
+  manager on. Interviewers' keys get the first two tools only.
 
-That's the whole toolset. Both are read-only: nothing an assistant does here can change
-anything in AIRRAL.
+All three are read-only: nothing an assistant does here can change anything in AIRRAL.
 
 ### What a search actually returns
 
@@ -139,9 +142,16 @@ anything in AIRRAL.
 
 ### 1. Get a key
 
-Ask Harjit. Keys are issued from the admin portal and there's no self-serve sign-up for
-one. It'll look like `airral_ak_live_7X3VRCpG_…` and you only see it once, at the moment
-it's created.
+Connecting an AI assistant is a paid feature. Where it's on for your account, make your
+own key: in the applicant portal, **Profile → Connect an AI assistant**; in the company
+portal, **Settings → Connect an AI assistant** (or **My Profile** for managers and
+interviewers). Until plans exist it's on only for the accounts listed in the
+`AI_ACCESS_EMAILS` repository variable. An admin can still issue one from the admin
+portal.
+
+A key looks like `airral_ak_live_7X3VRCpG_…`, you see it only once, when it's made, and it
+works for 90 days. You can have three at a time and revoke any of them from the same
+page. A key made there works only while the feature is on for your account.
 
 ### 2. Add it to Claude Code
 
@@ -170,10 +180,10 @@ No commands to learn. Try any of these:
 - *"Search AIRRAL for product designer jobs that publish a salary, then tell me which pay best."*
 - *"Read this posting in full and tell me if I'm a fit — here's my resume."*
 
-> **Treat the key like a password.** It isn't limited to job search. The same key
-> authenticates against the whole AIRRAL API as whoever it was issued to, with their
-> permissions. Don't paste it into a shared config, a repo, or anywhere you wouldn't
-> paste a password.
+> **Treat the key like a password.** It works only with the MCP endpoint -- the rest of
+> the AIRRAL API refuses it -- but it is still yours. Don't paste it into a shared config,
+> a repo, or anywhere you wouldn't paste a password. It stops working when you revoke it,
+> reset your password, sign out everywhere, or your role or company changes.
 
 ### The limits, plainly
 
@@ -181,7 +191,7 @@ No commands to learn. Try any of these:
 | --- | --- |
 | Requests per minute | 60 |
 | How far back the search looks | 60 days |
-| Tools available | 2, both read-only |
+| Tools available | 2 for applicants and interviewers, 3 for HR managers and hiring managers, all read-only |
 | Can it apply to a job for you? | No |
 | Can it see your saved jobs or profile? | No |
 

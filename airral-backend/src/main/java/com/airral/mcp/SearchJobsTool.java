@@ -97,7 +97,7 @@ public class SearchJobsTool implements McpTool {
     }
 
     @Override
-    public Mono<String> call(JsonNode arguments) {
+    public Mono<String> call(McpCaller caller, JsonNode arguments) {
         String query = text(arguments, "query");
         if (query == null || query.isBlank()) {
             // Told plainly, because the model can fix this itself on the next

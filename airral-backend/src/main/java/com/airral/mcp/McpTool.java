@@ -41,6 +41,9 @@ public interface McpTool {
      * <p>Text rather than raw JSON because the consumer is a language model:
      * a compact, labelled rendering costs fewer tokens and gets reasoned over
      * more reliably than a deeply nested object it has to traverse.
+     *
+     * <p>{@code caller} is who the key belongs to. A tool over public data can
+     * ignore it; a tool over company data must scope to it.
      */
-    Mono<String> call(JsonNode arguments);
+    Mono<String> call(McpCaller caller, JsonNode arguments);
 }

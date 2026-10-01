@@ -89,4 +89,41 @@ class ApiKeyScopesTest {
     void authoritiesArePrefixed() {
         assertEquals("SCOPE_jobs:read", ApiKeyScopes.authority(ApiKeyScopes.JOBS_READ));
     }
+
+    @Test
+    @DisplayName("each employer role's ceiling matches what it can do in the HR portal")
+    void employerCeilingsFollowTheirRole() {
+        assertTrue(ApiKeyScopes.maximumFor("HR_MANAGER").contains(ApiKeyScopes.JOBS_WRITE));
+        assertEquals(java.util.Set.of(ApiKeyScopes.JOBS_READ, ApiKeyScopes.PIPELINE_READ),
+                ApiKeyScopes.maximumFor("MANAGER"));
+        assertEquals(java.util.Set.of(ApiKeyScopes.JOBS_READ), ApiKeyScopes.maximumFor("EMPLOYEE"));
+    }
+
+    @Test
+    @DisplayName("a key someone makes for themselves is read-only, and admins make none")
+    void selfServiceIsReadOnly() {
+        assertEquals(List.of(ApiKeyScopes.JOBS_READ), ApiKeyScopes.selfService("APPLICANT"));
+        assertEquals(List.of(ApiKeyScopes.JOBS_READ), ApiKeyScopes.selfService("EMPLOYEE"));
+        assertEquals(List.of(ApiKeyScopes.JOBS_READ, ApiKeyScopes.PIPELINE_READ),
+                ApiKeyScopes.selfService("HR_MANAGER"));
+        assertEquals(List.of(ApiKeyScopes.JOBS_READ, ApiKeyScopes.PIPELINE_READ),
+                ApiKeyScopes.selfService("MANAGER"));
+        assertTrue(ApiKeyScopes.selfService("ADMIN").isEmpty());
+        assertTrue(ApiKeyScopes.selfService(null).isEmpty());
+        for (String role : List.of("APPLICANT", "HR_MANAGER", "MANAGER", "EMPLOYEE")) {
+            assertTrue(ApiKeyScopes.maximumFor(role).containsAll(ApiKeyScopes.selfService(role)), role);
+            assertFalse(ApiKeyScopes.selfService(role).contains(ApiKeyScopes.PIPELINE_WRITE), role);
+            assertFalse(ApiKeyScopes.selfService(role).contains(ApiKeyScopes.JOBS_WRITE), role);
+        }
+    }
+
+    @Test
+    @DisplayName("a key issued before a ceiling narrowed is cut to the ceiling it has now")
+    void effectiveScopesFollowTodaysCeiling() {
+        // An employee key issued when every employer role had the full set.
+        List<String> held = List.of(ApiKeyScopes.JOBS_READ, ApiKeyScopes.PIPELINE_WRITE, ApiKeyScopes.JOBS_WRITE);
+        assertEquals(List.of(ApiKeyScopes.JOBS_READ), ApiKeyScopes.effective("EMPLOYEE", held));
+        assertTrue(ApiKeyScopes.effective("SOMETHING_NEW", held).isEmpty());
+        assertTrue(ApiKeyScopes.effective("APPLICANT", null).isEmpty());
+    }
 }

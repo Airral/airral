@@ -19,7 +19,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.airral.exception.ApiException;
 import com.airral.security.ApiKeyScopes;
+import com.airral.security.AuthenticationManager.AuthenticationDetails;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import reactor.core.publisher.Mono;
@@ -141,7 +143,9 @@ public class McpController {
                     error(id, INVALID_PARAMS, "Unknown tool: " + name)));
         }
 
-        return authorizedScopes().flatMap(scopes -> {
+        return Mono.zip(authorizedScopes(), currentCaller()).flatMap(granted -> {
+            Set<String> scopes = granted.getT1();
+            McpCaller caller = granted.getT2();
             if (!scopes.contains(tool.requiredScope())) {
                 // A tool-level error, not a JSON-RPC one: the request was
                 // well formed, and the model should read the reason and stop
@@ -152,9 +156,18 @@ public class McpController {
             }
 
             JsonNode arguments = params.get("arguments");
-            return tool.call(arguments)
+            return tool.call(caller, arguments)
                     .map(text -> ResponseEntity.ok(toolResult(id, text)))
                     .onErrorResume(failure -> {
+                        // A 4xx from a service underneath -- a job that is no
+                        // longer open, say -- is about the request, and its
+                        // message is written for people. Pass it on instead of
+                        // blaming AIRRAL.
+                        if (failure instanceof ApiException apiFailure
+                                && apiFailure.getStatus().is4xxClientError()) {
+                            log.info("MCP tool {} refused: {}", name, apiFailure.getMessage());
+                            return Mono.just(ResponseEntity.ok(toolError(id, apiFailure.getMessage())));
+                        }
                         // The message may name internal services or SQL, so the
                         // caller gets a stable sentence and the detail goes to
                         // the log.
@@ -184,6 +197,20 @@ public class McpController {
                         .map(authority -> authority.substring(ApiKeyScopes.AUTHORITY_PREFIX.length()))
                         .collect(Collectors.toSet()))
                 .defaultIfEmpty(Set.of());
+    }
+
+    /**
+     * Who the presented key belongs to. Empty fields for a caller without key
+     * details, which no company-scoped tool will serve.
+     */
+    private Mono<McpCaller> currentCaller() {
+        return ReactiveSecurityContextHolder.getContext()
+                .mapNotNull(context -> context.getAuthentication())
+                .mapNotNull(Authentication::getDetails)
+                .filter(AuthenticationDetails.class::isInstance)
+                .map(AuthenticationDetails.class::cast)
+                .map(details -> new McpCaller(details.getUserId(), details.getOrganizationId(), details.getRole()))
+                .defaultIfEmpty(new McpCaller(null, null, null));
     }
 
     // ── JSON-RPC envelopes ──

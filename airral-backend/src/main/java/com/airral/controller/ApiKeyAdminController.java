@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.airral.security.ApiKeyFormat;
 import com.airral.security.ApiKeyIssuanceService;
+import com.airral.security.ApiKeyScopes;
 import com.airral.security.ApiKeyStore;
 import com.airral.security.JwtTokenProvider;
 
@@ -38,11 +40,14 @@ public class ApiKeyAdminController {
 
     private final ApiKeyIssuanceService issuanceService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final String mcpUrl;
 
     public ApiKeyAdminController(ApiKeyIssuanceService issuanceService,
-                                 JwtTokenProvider jwtTokenProvider) {
+                                 JwtTokenProvider jwtTokenProvider,
+                                 @Value("${airral.mcp.public-url:https://mcp.airral.com/mcp}") String mcpUrl) {
         this.issuanceService = issuanceService;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.mcpUrl = mcpUrl;
     }
 
     public record IssueRequest(
@@ -89,8 +94,10 @@ public class ApiKeyAdminController {
                     body.put("warning",
                             "This is the only time the key is shown. Store it now; "
                                     + "it cannot be recovered, only replaced.");
-                    body.put("connect", "claude mcp add --transport http airral "
-                            + "https://mcp.airral.com/mcp --header \"Authorization: Bearer "
+                    // User scope, so it works in every folder, not only the one
+                    // the command was run in.
+                    body.put("connect", "claude mcp add --transport http --scope user airral "
+                            + mcpUrl + " --header \"Authorization: Bearer "
                             + issued.rawKey() + "\"");
                     return ResponseEntity.status(HttpStatus.CREATED).body(body);
                 });
@@ -130,7 +137,9 @@ public class ApiKeyAdminController {
         entry.put("name", key.name());
         entry.put("prefix", ApiKeyFormat.displayHint(key.environment(), key.keyId()));
         entry.put("role", key.role());
-        entry.put("scopes", key.scopes());
+        // What the key can do today; its role's ceiling may have narrowed.
+        entry.put("scopes", ApiKeyScopes.effective(key.role(), key.scopes()));
+        entry.put("issuedScopes", key.scopes());
         entry.put("lastUsedAt", key.lastUsedAt());
         entry.put("expiresAt", key.expiresAt());
         entry.put("createdAt", key.createdAt());

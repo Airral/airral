@@ -84,25 +84,47 @@ public class TokenVersionCache {
     }
 
     /**
-     * Invalidate every outstanding token for this user.
+     * Invalidate every outstanding token for this user, API keys included.
      *
-     * <p>Used on password change and on an explicit sign-out-everywhere. The
-     * local cache entry is dropped immediately so this instance stops honouring
-     * old tokens at once.
+     * <p>Used on password reset, sign-out-everywhere, a role change and
+     * deactivation. The local cache entry is dropped immediately so this
+     * instance stops honouring old tokens at once.
+     *
+     * <p>Keys go too, permanently. Otherwise a stolen session could mint a key
+     * that the owner's own recovery -- resetting the password, signing out
+     * everywhere -- would leave working. A key is revoked rather than versioned,
+     * because a key cannot be refreshed: the person makes a new one.
      */
     public Mono<Integer> revokeAll(Long userId) {
+        // One statement, so the version and the keys move together: two
+        // statements outside a transaction could bump the version and then fail
+        // before the keys, leaving them working after a password reset.
         return databaseClient.sql("""
+                        WITH keys AS (
+                            UPDATE api_keys
+                            SET revoked_at = CURRENT_TIMESTAMP,
+                                revoked_reason = 'Every sign-in ended: password reset, role change, deactivation or sign out everywhere'
+                            WHERE user_id = :id AND revoked_at IS NULL
+                            RETURNING id
+                        )
                         UPDATE users
                         SET token_version = token_version + 1
                         WHERE id = :id
-                        RETURNING token_version
+                        RETURNING token_version, (SELECT COUNT(*) FROM keys) AS keys_revoked
                         """)
                 .bind("id", userId)
-                .map((row, meta) -> row.get("token_version", Integer.class))
+                .map((row, meta) -> {
+                    Long keys = row.get("keys_revoked", Long.class);
+                    if (keys != null && keys > 0) {
+                        log.warn("Revoked {} API key(s) for user {} with their sessions", keys, userId);
+                    }
+                    return row.get("token_version", Integer.class);
+                })
                 .one()
-                .doOnNext(version -> {
-                    cache.remove(userId);
-                    log.warn("All sessions revoked for user {} (token_version now {})", userId, version);
-                });
+                // Dropped however the update ends, so a failure cannot leave
+                // this instance honouring an old version from its cache.
+                .doFinally(signal -> cache.remove(userId))
+                .doOnNext(version ->
+                        log.warn("All sessions revoked for user {} (token_version now {})", userId, version));
     }
 }

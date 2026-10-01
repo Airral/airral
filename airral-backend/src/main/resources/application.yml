@@ -192,6 +192,15 @@ airral:
     # deployment so mcp.airral.com behaves now the way it will once the MCP
     # endpoint becomes its own service.
     hostname: ${AIRRAL_MCP_HOSTNAME:}
+    # The address people put in their AI assistant, shown on the Connect an AI
+    # assistant page and in the admin portal's connect command. The local
+    # profile points it at the local API.
+    public-url: ${AIRRAL_MCP_PUBLIC_URL:https://mcp.airral.com/mcp}
+  ai-access:
+    # Connecting an AI assistant is a paid feature. Until plans exist it is on
+    # only for these accounts: emails separated by commas, semicolons or spaces.
+    # Blank means nobody can make their own key (admins can still issue one).
+    allowed-emails: ${AIRRAL_AI_ACCESS_EMAILS:}
   company-logos:
     # Public Brandfetch client id for browser-rendered company logo CDN URLs.
     # Leave blank to fall back to stored company logo URLs / monograms.

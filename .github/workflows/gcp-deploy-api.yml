@@ -192,6 +192,10 @@ jobs:
           # sign-up (secret only) or checks nothing (site key only). Create the
           # secret, grant airral-api@ access to it, then set the variable.
           #
+          # AI_ACCESS_EMAILS (repository variable) lists the accounts that may make
+          # their own key to connect an AI assistant. It is a paid feature, on for
+          # test accounts only until plans exist; unset means nobody can.
+          #
           # The failure is loud but it is not clean, which is the part worth
           # remembering: the truncated command is still a valid deploy, so it
           # succeeds first. gcloud run deploy without --set-env-vars is a partial
@@ -210,7 +214,7 @@ jobs:
             --max-instances 3 \
             --timeout 300 \
             --startup-probe httpGet.path=/actuator/health,initialDelaySeconds=10,periodSeconds=10,failureThreshold=30 \
-            --set-env-vars "^|^SPRING_PROFILES_ACTIVE=gcp|CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}|DB_NAME=${{ vars.DB_NAME }}|DB_USER=${{ vars.DB_USER }}|AIRRAL_RELEASE_VERSION=${{ inputs.version }}|GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}|AIRRAL_MCP_HOSTNAME=mcp.airral.com|AIRRAL_BOOTSTRAP_ADMIN_EMAIL=${{ vars.BOOTSTRAP_ADMIN_EMAIL }}|FILE_UPLOAD_STORAGE_PROVIDER=${{ vars.RESUME_BUCKET && 'GCS' || 'LOCAL' }}|FILE_UPLOAD_GCS_BUCKET=${{ vars.RESUME_BUCKET }}" \
+            --set-env-vars "^|^SPRING_PROFILES_ACTIVE=gcp|CLOUD_SQL_INSTANCE=${{ vars.CLOUD_SQL_INSTANCE }}|DB_NAME=${{ vars.DB_NAME }}|DB_USER=${{ vars.DB_USER }}|AIRRAL_RELEASE_VERSION=${{ inputs.version }}|GOOGLE_OAUTH_CLIENT_ID=${{ vars.GOOGLE_OAUTH_CLIENT_ID }}|AIRRAL_MCP_HOSTNAME=mcp.airral.com|AIRRAL_AI_ACCESS_EMAILS=${{ vars.AI_ACCESS_EMAILS }}|AIRRAL_BOOTSTRAP_ADMIN_EMAIL=${{ vars.BOOTSTRAP_ADMIN_EMAIL }}|FILE_UPLOAD_STORAGE_PROVIDER=${{ vars.RESUME_BUCKET && 'GCS' || 'LOCAL' }}|FILE_UPLOAD_GCS_BUCKET=${{ vars.RESUME_BUCKET }}" \
             --set-secrets "DB_PASSWORD=db-password:latest,JWT_ENCRYPTION_SECRET=jwt-encryption-secret:latest,CORS_ALLOWED_ORIGINS=cors-allowed-origins:latest,AIRRAL_SLACK_WEBHOOK_URL=slack-webhook-url:latest${{ vars.TURNSTILE_SITE_KEY && ',AIRRAL_TURNSTILE_SECRET=turnstile-secret:latest' || '' }}"
 
       - name: Smoke test
