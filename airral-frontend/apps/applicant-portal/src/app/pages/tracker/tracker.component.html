@@ -1,26 +1,41 @@
 <div class="tracker-page">
-  <header class="tracker-header">
+  <header class="page-head">
     <div>
-      <h1>Application Tracker</h1>
-      <p *ngIf="!loading">{{ totalJobs }} {{ totalJobs === 1 ? 'job' : 'jobs' }} tracked</p>
+      <h1>Applications</h1>
+      <p *ngIf="!loading">{{ totalJobs }} {{ totalJobs === 1 ? 'job' : 'jobs' }} · what to do next is at the top</p>
+    </div>
+    <div class="segmented" role="group" aria-label="View">
+      <button type="button" [attr.aria-pressed]="view === 'todo'" (click)="setView('todo')">To do</button>
+      <button type="button" [attr.aria-pressed]="view === 'board'" (click)="setView('board')">Board</button>
     </div>
   </header>
 
-  <div class="tracker-error" *ngIf="errorMessage">
+  <div class="alert" *ngIf="errorMessage" role="alert">
     <span>{{ errorMessage }}</span>
-    <button type="button" (click)="loadSavedJobs()">Retry</button>
+    <button type="button" class="btn btn-secondary btn-sm" (click)="loadSavedJobs()">Try again</button>
+  </div>
+
+  <p class="notice" [class.error]="noticeError" *ngIf="notice" role="status">{{ notice }}</p>
+
+  <!-- Progress you can learn from: how far applications get, not how busy you are. -->
+  <div class="funnel" *ngIf="!loading && totalJobs > 0">
+    <div class="f-saved"><b>{{ savedCount }}</b><span>Saved</span></div>
+    <div class="f-applied"><b>{{ appliedCount }}</b><span>Applied</span></div>
+    <div class="f-interview"><b>{{ interviewingCount }}</b><span>Interviewing</span></div>
+    <div class="f-offer"><b>{{ offerCount }}</b><span>Offers</span></div>
   </div>
 
   <section class="offers" aria-labelledby="offers-heading" *ngIf="!loading && offers.length">
-    <h2 id="offers-heading">Your offers</h2>
-    <p class="offer-message success" *ngIf="offerMessage" role="status">{{ offerMessage }}</p>
-    <p class="offer-message error" *ngIf="offerError" role="alert">{{ offerError }}</p>
+    <h2 id="offers-heading" class="group-title"><span class="dot dot-green" aria-hidden="true"></span>YOUR OFFERS</h2>
+    <p class="notice" *ngIf="offerMessage" role="status">{{ offerMessage }}</p>
+    <p class="notice error" *ngIf="offerError" role="alert">{{ offerError }}</p>
 
     <article class="offer-card" *ngFor="let offer of offers" [attr.data-status]="offer.status">
       <header class="offer-head">
-        <div>
-          <span class="offer-company">{{ offer.companyName || 'Company' }}</span>
+        <app-company-logo [name]="offer.companyName || 'Company'" [size]="40"></app-company-logo>
+        <div class="offer-title">
           <h3>{{ offer.jobTitle }}</h3>
+          <span>{{ offer.companyName || 'Company' }}</span>
         </div>
         <span class="offer-status" [attr.data-status]="offer.status">{{ offerStatusLabel(offer) }}</span>
       </header>
@@ -28,7 +43,7 @@
       <dl class="offer-terms">
         <div><dt>Pay</dt><dd>{{ money(offer) }}</dd></div>
         <div *ngIf="offer.startDate"><dt>Start date</dt><dd>{{ offer.startDate | date: 'd MMM y' }}</dd></div>
-        <div *ngIf="offer.status === 'SENT' && offer.expiresAt"><dt>Answer by</dt><dd>{{ offer.expiresAt | date: 'EEE d MMM' }}</dd></div>
+        <div *ngIf="offer.status === 'SENT' && offer.expiresAt"><dt>Answer by</dt><dd class="answer-by">{{ offer.expiresAt | date: 'EEE d MMM' }}</dd></div>
       </dl>
 
       <details class="offer-details" *ngIf="offer.offerLetter || offer.benefits || offer.contingencies">
@@ -40,8 +55,8 @@
 
       <div class="offer-actions" *ngIf="offer.status === 'SENT'">
         <ng-container *ngIf="confirming?.offerId !== offer.id; else confirmAnswer">
-          <button type="button" class="btn-accept" (click)="askToAnswer(offer, true)">Accept offer</button>
-          <button type="button" class="btn-decline" (click)="askToAnswer(offer, false)">Decline</button>
+          <button type="button" class="btn btn-primary btn-sm" (click)="askToAnswer(offer, true)">Accept offer</button>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="askToAnswer(offer, false)">Decline</button>
         </ng-container>
         <ng-template #confirmAnswer>
           <p class="confirm-text">
@@ -49,56 +64,115 @@
               ? 'Accept this offer? ' + (offer.companyName || 'The company') + ' will be told you are joining.'
               : 'Decline this offer? This ends your application for the job.' }}
           </p>
-          <button type="button" [class]="confirming?.accept ? 'btn-accept' : 'btn-decline'" [disabled]="answering === offer.id" (click)="answer(offer)">
+          <button type="button" class="btn btn-sm" [class.btn-primary]="confirming?.accept" [class.btn-danger]="!confirming?.accept"
+                  [disabled]="answering === offer.id" (click)="answer(offer)">
             {{ answering === offer.id ? 'Sending…' : confirming?.accept ? 'Yes, accept' : 'Yes, decline' }}
           </button>
-          <button type="button" class="btn-decline" [disabled]="answering === offer.id" (click)="cancelAnswer()">Not yet</button>
+          <button type="button" class="btn btn-secondary btn-sm" [disabled]="answering === offer.id" (click)="cancelAnswer()">Not yet</button>
         </ng-template>
       </div>
     </article>
   </section>
 
-  <div class="tracker-board" *ngIf="!loading">
-    <div class="tracker-column" [ngClass]="'status-' + col.status.toLowerCase()" *ngFor="let col of columns">
-      <div class="column-header">
-        <span class="material-icons">{{ col.icon }}</span>
-        <span class="column-label">{{ col.label }}</span>
-        <span class="column-count">{{ col.cards.length }}</span>
-      </div>
-
-      <div class="column-body">
-        <div class="tracker-card" *ngFor="let card of col.cards; trackBy: trackCard">
-          <div class="tracker-card-top">
-            <span class="tracker-company">{{ card.company }}</span>
-            <span class="tracker-stage" *ngIf="card.application as application" [attr.data-stage]="application.stage">
-              {{ stageLabel(application.stage) }}
-            </span>
-          </div>
-          <h3 class="tracker-title">{{ card.title }}</h3>
-          <p class="tracker-note" *ngIf="card.note">{{ card.note }}</p>
-          <p class="tracker-note" *ngIf="card.application as application">
-            Applied on AIRRAL {{ application.appliedAt | date: 'MMM d' }}<ng-container
-              *ngIf="application.updatedAt && application.stage !== 'APPLIED'"> · updated {{ application.updatedAt | date: 'MMM d' }}</ng-container>
-          </p>
-          <div class="tracker-card-actions" *ngIf="card.saved as job">
-            <button class="tracker-action" (click)="removeJob(job)" title="Remove">
-              <span class="material-icons">close</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="column-empty" *ngIf="col.cards.length === 0">
-          <span class="material-icons">inbox</span>
-          <span>No jobs here</span>
-        </div>
-      </div>
-    </div>
+  <div class="empty" *ngIf="!loading && totalJobs === 0 && !errorMessage">
+    <span class="empty-icon material-icons" aria-hidden="true">inbox</span>
+    <h2>Nothing here yet</h2>
+    <p>Save a job or apply to one and it shows up here, with a reminder when it is time to follow up.</p>
+    <a class="btn btn-primary" routerLink="/jobs" href="/jobs">Browse jobs</a>
   </div>
 
-  <div class="tracker-loading" *ngIf="loading">
-    <div class="skeleton-col" *ngFor="let i of [1,2,3,4,5,6]">
-      <div class="skeleton-header"></div>
-      <div class="skeleton-card-placeholder"></div>
-    </div>
+  <!-- To do: grouped by what needs doing. -->
+  <ng-container *ngIf="!loading && totalJobs > 0 && view === 'todo'">
+    <ng-container *ngTemplateOutlet="group; context: { title: 'UP NEXT', dot: 'dot-orange', list: upNext }"></ng-container>
+    <ng-container *ngTemplateOutlet="group; context: { title: 'WAITING TO HEAR BACK', dot: 'dot-teal', list: waiting }"></ng-container>
+    <ng-container *ngIf="closed.length">
+      <ng-container *ngIf="showClosed; else closedToggle">
+        <ng-container *ngTemplateOutlet="group; context: { title: 'CLOSED', dot: 'dot-gray', list: closed }"></ng-container>
+      </ng-container>
+      <ng-template #closedToggle>
+        <button type="button" class="show-closed" (click)="showClosed = true">
+          <span>Show {{ closed.length }} closed</span><span class="material-icons" aria-hidden="true">chevron_right</span>
+        </button>
+      </ng-template>
+    </ng-container>
+  </ng-container>
+
+  <ng-template #group let-title="title" let-dot="dot" let-list="list">
+    <section class="group" *ngIf="list.length">
+      <h2 class="group-title"><span class="dot" [ngClass]="dot" aria-hidden="true"></span>{{ title }}</h2>
+      <div class="list">
+        <div class="item" *ngFor="let card of list; trackBy: trackCard">
+          <div class="row">
+            <app-company-logo [name]="card.company" [logoUrl]="card.saved?.job?.companyLogoUrl" [domain]="card.saved?.job?.companyDomain"
+                              [url]="card.saved?.job?.jobUrl || card.saved?.job?.applyUrl" [size]="42"></app-company-logo>
+            <div class="row-text">
+              <div class="row-title">{{ card.title }}</div>
+              <div class="row-sub">{{ card.company }} · <span [class.due]="isOverdue(card)">{{ subtitle(card) }}</span></div>
+            </div>
+            <div class="row-actions">
+              <ng-container *ngIf="card.saved as saved; else stageTag">
+                <label class="sr-only" [for]="'status-' + card.key">Status</label>
+                <select class="select" [id]="'status-' + card.key" [value]="card.status" (change)="onStatusChange(card, $any($event.target).value)">
+                  <option *ngFor="let option of statusOptions" [value]="option.value" [selected]="option.value === card.status">{{ option.label }}</option>
+                </select>
+                <button type="button" class="btn btn-primary btn-sm" *ngIf="needsFollowUp(card)" (click)="copyFollowUp(card)">Copy follow-up</button>
+                <button type="button" class="btn btn-primary btn-sm" *ngIf="card.status === 'SAVED' && saved.job && !hasPay(saved)" (click)="copyPayQuestion(card)">Ask about pay</button>
+                <a class="btn btn-primary btn-sm" *ngIf="(card.status === 'SAVED' && (!saved.job || hasPay(saved))) || card.status === 'APPLYING'"
+                   [href]="applyLink(card)" target="_blank" rel="noopener" [class.disabled]="!applyLink(card)">
+                  {{ card.status === 'APPLYING' ? 'Finish' : 'Apply' }}
+                </a>
+                <button type="button" class="more" (click)="toggle(card)" [attr.aria-expanded]="expanded.has(card.key)"
+                        [attr.aria-label]="'Next step and notes for ' + card.title">
+                  <span class="material-icons">chevron_right</span>
+                </button>
+              </ng-container>
+              <ng-template #stageTag>
+                <span class="stage" *ngIf="card.application as application" [attr.data-stage]="application.stage">{{ stageLabel(application.stage) }}</span>
+              </ng-template>
+            </div>
+          </div>
+          <div class="details" *ngIf="card.saved && expanded.has(card.key)">
+            <label>Next step
+              <input type="text" [value]="card.saved.nextStep || ''" placeholder="e.g. Call the recruiter"
+                     (blur)="saveField(card, 'nextStep', $any($event.target).value)">
+            </label>
+            <label>Due
+              <input type="date" [value]="dateInput(card.saved.nextStepDueAt)"
+                     (change)="saveField(card, 'nextStepDueAt', $any($event.target).value)">
+            </label>
+            <label class="wide">Notes
+              <textarea rows="3" [value]="card.saved.notes || ''" placeholder="Who you talked to, what they asked"
+                        (blur)="saveField(card, 'notes', $any($event.target).value)"></textarea>
+            </label>
+            <button type="button" class="btn btn-link btn-sm remove" (click)="removeJob(card.saved)">Remove from Applications</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </ng-template>
+
+  <!-- Board: every stage side by side. -->
+  <div class="board" *ngIf="!loading && totalJobs > 0 && view === 'board'">
+    <section class="column" [ngClass]="'status-' + col.status.toLowerCase()" *ngFor="let col of columns">
+      <h2 class="column-head"><span class="dot" aria-hidden="true"></span>{{ col.label === 'Rejected' ? 'Not selected' : col.label }} <span class="count">{{ col.cards.length }}</span></h2>
+      <div class="board-card" *ngFor="let card of col.cards; trackBy: trackCard">
+        <div class="board-card-top">
+          <app-company-logo [name]="card.company" [logoUrl]="card.saved?.job?.companyLogoUrl" [domain]="card.saved?.job?.companyDomain"
+                            [url]="card.saved?.job?.jobUrl || card.saved?.job?.applyUrl" [size]="28"></app-company-logo>
+          <span class="board-company">{{ card.company }}</span>
+        </div>
+        <div class="board-title">{{ card.title }}</div>
+        <div class="board-sub" [class.due]="isOverdue(card)">{{ subtitle(card) }}</div>
+        <select class="select select-sm" *ngIf="card.saved" [attr.aria-label]="'Move ' + card.title"
+                (change)="onStatusChange(card, $any($event.target).value)">
+          <option *ngFor="let option of statusOptions" [value]="option.value" [selected]="option.value === card.status">{{ option.label }}</option>
+        </select>
+      </div>
+      <p class="column-empty" *ngIf="col.cards.length === 0">No jobs here</p>
+    </section>
+  </div>
+
+  <div class="loading" *ngIf="loading" aria-busy="true">
+    <div class="skeleton" *ngFor="let i of [1,2,3,4]"></div>
   </div>
 </div>

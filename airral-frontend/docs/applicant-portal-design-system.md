@@ -1,6 +1,6 @@
 # AIRRAL Applicant Portal Design System
 
-Last updated: 2026-05-27
+Last updated: 2026-09-30
 
 This is the current source of truth for applicant portal UI changes. It supersedes older dashboard and engagement experiments.
 
@@ -36,58 +36,49 @@ Defer:
 
 ## Theme Contract
 
-Use a white / off-white theme with near-black text.
+Light only. There is no dark theme for the applicant portal.
 
-- Background: `#ffffff`, `#fbfbfa`, `#f6f7f6`
-- Card surface: `#ffffff`
-- Main text: `#111827`
-- Secondary text: `#4b5563`, `#667789`
-- Neutral border: `#e1e5e9`, `#d9dee3`
-- Primary AIRRAL teal-green: `#007C6D`
-- Dark teal support: `#006B5B`
-- Soft teal background: `#E7F5F1`
-- Signal blue: `#3a63d6`
-- Sparse warm accent: `#b87911`
+The palette lives as `--ap-*` custom properties in `apps/applicant-portal/src/styles.css`. Use the tokens, not hex values, in component CSS.
 
-Theme ratio:
-
-- 90% white, off-white, near-black, and neutral gray
-- 8% AIRRAL teal-green
-- 2% blue or accent color
+- Page: `--ap-page` `#f4f5f7`
+- Surfaces and cards: `--ap-surface` `#ffffff`
+- Fills (inputs, segmented controls, soft wells): `--ap-fill` `#eceef2`, `--ap-fill-soft` `#f6f7f9`
+- Text: `--ap-ink` `#16181d`, `--ap-ink-2` `#5f6570`, `--ap-ink-3` `#8b919b`
+- Hairlines: `--ap-hair`, `--ap-hair-2` (translucent near-black)
+- Brand and main action: `--ap-tint` `#007C6D`, `--ap-tint-hover` `#006B5B`, `--ap-tint-soft` `#e3f3ef`
+- Meaning colors: `--ap-green`, `--ap-orange`, `--ap-gray` (verdicts); `--ap-blue`, `--ap-cyan`, `--ap-teal`, `--ap-purple`, `--ap-red`, `--ap-indigo`, `--ap-pink` (statuses and fact icons)
 
 ## Color Rules
 
-Do:
+Color says something, or it is not used. A gray-only screen was tried and rejected as lifeless; decoration was rejected as noise. The rule in between:
 
-- Use AIRRAL teal-green for primary CTAs, selected states, success states, and brand marks.
-- Use near-black headings and body text for strong readability.
-- Use neutral gray borders by default.
-- Use blue only for trust, review, or signal chips.
-- Keep cards white.
-- Keep selected job cards flat: use a clean teal-green border, not a raised shadow or glow.
+- Teal is the brand and the one primary action on a screen: Apply, Save profile, Check my resume. Selected states use the teal soft fill.
+- The verdict has fixed colors everywhere it appears: green = Apply, orange = Check first, gray = Likely skip. It shows as a colored dot and word on job cards and as a tinted answer block on the job detail.
+- Scores use the same scale: green is good, orange is getting there, red is weak (resume health tile, profile readiness ring).
+- Application statuses have fixed colors: blue saved, cyan applying, teal applied, purple interviewing, green offer, gray closed. Orange means "needs you now" (due dates, follow-ups).
+- The four job facts each carry a small colored icon tile: Pay green, Job orange, Applying blue, Source teal.
+- Company logos are real logos where we can find them, and a colored letter tile otherwise (see `components/company-logo.component.ts`). Never a generic globe.
 
 Do not:
 
-- Use a black or dark theme for the applicant portal.
-- Turn the page into a green UI.
-- Use green-tinted borders and backgrounds everywhere.
-- Add decorative gradients, orbs, or bokeh.
-- Use color to decorate sections that do not need semantic emphasis.
-- Use drop shadows or background glow as the selected-job state.
+- Add a dark theme, dark hero panels, or dark gradients.
+- Use gradients, orbs, bokeh or glows as decoration.
+- Introduce a color that means nothing, or reuse a meaning color for something else.
+- Use indigo or purple as a brand color. The brand is teal.
 
 ## Layout Rules
 
 The Jobs view is the main product surface.
 
-- Top nav stays compact.
+- Top nav is a compact segmented control: Jobs, Applications, Resume, Profile. On phones the same four are a bottom tab bar, and sign-out stays in the header.
 - Jobs appears before profile details.
-- Use a split layout: filters, compact job list, selected job detail.
-- Keep the list narrow enough to scan.
-- Keep the selected job detail readable and calm.
-- Put AIRRAL support hooks inside the selected job detail, not in a noisy top dashboard.
-- Avoid nested cards and stacked mini-panels.
-- Cards use 8px border radius unless a Material control requires otherwise.
-- On mobile, prioritize fast scanning: search, filters, job list, selected detail, and resume/application actions. Avoid secondary panels that push jobs below the fold.
+- Desktop: search and quick-filter chips, then a split of a compact job list and the selected job's detail. The full filter panel is collapsed until asked for.
+- Phones: the list is the page; a job opens full screen over it with a back button, and the Apply button is fixed at the bottom.
+- Job rows are separated by hairlines, not boxed. Surfaces are borderless white on the light page.
+- Keep the selected job detail readable and calm, with one Apply action pinned at the bottom of the panel.
+- Avoid nested cards and stacked mini-panels. Bordered boxes are only for the two things you act on in detail: resume fit and "Before you apply".
+- Radii: 10px for fields and small buttons, 12-16px for cards and panels, full pills for chips and verdict pills.
+- No horizontal page scroll at 375px wide. Only the Applications board scrolls sideways, inside its own container.
 
 ## Job Data Rules
 
@@ -151,47 +142,40 @@ Full descriptions are lazy-loaded only for the selected role. After the backend 
 
 ## Interaction Rules
 
+One filled button per screen or panel. Everything else is a quiet secondary button, a link or an icon button.
+
 Primary actions:
 
-- `Easy apply`
-- `Apply`
-- `Check resume fit`
-- `Save job`
+- `Apply on <company>'s site` (external) or `Apply with your AIRRAL profile` (AIRRAL employers)
+- `Check my resume` (resume fit for the selected job)
+- `Save` (icon button beside Apply)
 
-Support actions:
+The job detail reads in this order: company and title, the answer (verdict, reasons, next step), four facts (pay, job, applying effort, source), resume fit, "Before you apply", the description, the full posting behind an expand, sponsorship notes, job quality.
 
-- alerts
-- ask room
-- reserve event
-- create room
+Applications is a to-do list first (Up next, Waiting to hear back, Closed) and a board second. Status, next step, due date and notes are editable in place; a follow-up message can be copied after seven days without a reply.
 
-Avoid putting too many same-weight buttons in one section. One primary action should be obvious.
+Error messages say what actually happened. A failed resume check says whether the resume is missing or the posting could not be read, never one catch-all.
 
 ## Component Direction
 
-Current candidate dashboard structure:
+- `app.html` / `app.css`: shell, segmented top nav, phone tab bar.
+- `components/company-logo.component.ts`: company logo with fallback (API logo, then the domain's icon, then the company's own careers-site icon, then a letter tile). Skips ATS and airral.com hosts.
+- `pages/jobs`: the Jobs browser. The verdict helpers (`getVerdict`, `formatPay`, `getApplyEffort`) live in the component.
+- `pages/tracker`: Applications (to-do and board, offers).
+- `pages/resume`, `pages/profile`, `pages/onboarding`, `pages/applicant-login`: same palette, borderless surfaces.
 
-- `candidate-dashboard.component.*`: shell, top nav, view switching, journey messages for meaningful actions only
-- `candidate-dashboard.journey.css`: shared styles for non-job destination pages
-- `components/recommended-jobs`: main Jobs browser
-- `components/job-rooms`: later-stage support around selected jobs, companies, events, founder groups
-- `components/workspace-feed`: later-stage peer/news surface; should not dominate launch UX
-- `components/career-events`: later-stage events connected to job outcomes
-
-Do not reintroduce removed dashboard rails or command center components unless the product direction changes explicitly.
+Deferred surfaces (feed, rooms, events, founder spaces) stay out of the nav until real demand shows up. Do not reintroduce removed dashboard rails or command center components unless the product direction changes explicitly.
 
 ## Verification Checklist
 
 Before finishing applicant portal UI work:
 
-- Build passes.
-- Jobs screen opens first.
-- First screen is not dominated by profile data.
-- Main heading is near-black, not teal-green.
-- Cards are white.
-- Borders are neutral gray.
-- Teal-green is reserved for selected/action states.
-- No horizontal overflow on desktop or mobile.
+- Build passes (`nx build applicant-portal`) and lint has no new warnings.
+- Jobs screen opens first and shows jobs before any profile data.
+- Light only: no dark panels, no decorative gradients.
+- Teal is only the brand, the primary action and selection. Other colors match the meanings above.
+- Company logos render or fall back to a letter tile, never a blank box or globe.
+- No horizontal overflow at 375px on Jobs, Applications, Resume and Profile.
 - Heavy job data is absent from list cards and present only in selected detail.
-- Resume-to-job match and application readiness are easier to find than messaging, founder spaces, or feed.
-- Feed/news/rooms do not appear as the main value proposition on first load.
+- Resume fit and application readiness are easier to find than messaging, rooms or feed.
+- Check signed out and signed in: signed-out save shows the create-account prompt; signed-in save, status change and notes persist after a reload.

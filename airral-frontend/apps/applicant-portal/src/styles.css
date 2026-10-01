@@ -73,14 +73,45 @@
   --mat-sys-on-surface: #111827;
   --mat-sys-outline: #d9dee3;
   --mat-sys-outline-variant: #e1e5e9;
+
+  /* Applicant portal palette, light only. Color carries meaning: teal is the
+     brand and the main action, the verdict colors say apply / check / skip,
+     and the category colors tell industries and statuses apart at a glance. */
+  --ap-page: #f4f5f7;
+  --ap-surface: #ffffff;
+  --ap-fill: #eceef2;
+  --ap-fill-soft: #f6f7f9;
+  --ap-ink: #16181d;
+  --ap-ink-2: #5f6570;
+  --ap-ink-3: #8b919b;
+  --ap-hair: rgba(16, 24, 40, 0.09);
+  --ap-hair-2: rgba(16, 24, 40, 0.16);
+  --ap-tint: #007c6d;
+  --ap-tint-hover: #006b5b;
+  --ap-tint-soft: #e3f3ef;
+  --ap-tint-text: #006b5b;
+  --ap-red: #d93a30;
+  --ap-orange: #c8680a;
+  --ap-green: #248a45;
+  --ap-cyan: #1a82b8;
+  --ap-blue: #2f6feb;
+  --ap-indigo: #5856d6;
+  --ap-purple: #9245c4;
+  --ap-pink: #d12f67;
+  --ap-teal: #0f8479;
+  --ap-gray: #8b919b;
+  --ap-radius: 14px;
+  --ap-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 14px 40px rgba(16, 24, 40, 0.12);
+  --ap-tabbar-height: 64px;
 }
 
 html, body {
   height: 100%;
   margin: 0;
   font-family: 'Manrope', Roboto, 'Helvetica Neue', sans-serif;
-  background: var(--airral-app-canvas);
-  color: var(--airral-text-primary);
+  background: var(--ap-page);
+  color: var(--ap-ink);
+  -webkit-font-smoothing: antialiased;
 }
 
 .applicant-theme-page {

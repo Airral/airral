@@ -20,9 +20,9 @@ Current applicant portal direction:
 - Real job coverage across industries is more important than feed, messaging, founder spaces, or events. Prioritize active roles from official/cached sources, salary/work-mode/freshness/source-quality signals, and broad coverage beyond tech.
 - Resume-to-job match is the core "wow" path: upload resume, select a job, show match score, missing skills, weak bullets, keywords, and concrete fixes.
 - Application readiness comes before community: save jobs, resume fit, apply checklist, follow-up reminders, application tracking, and interview prep notes.
-- White/off-white theme with near-black text.
-- AIRRAL teal-green only for primary actions, selected states, brand marks, and success signals.
-- Neutral gray borders and white cards by default.
+- Light only: light gray page, borderless white surfaces, near-black text. No dark theme.
+- AIRRAL teal-green for the brand, the one primary action per screen, and selected states.
+- Color carries meaning, never decoration: verdict colors (apply / check first / skip), score colors, status colors and fact icon tiles, as set out in the design system's Color Rules.
 - Glassdoor-like split for jobs: filters, compact list, selected job detail.
 - Heavy job data belongs in selected detail, not list cards.
 - Mobile-first scanning matters: the applicant should land on useful jobs quickly, with compact controls and no noisy dashboard/social feed.
