@@ -402,7 +402,7 @@ textarea:focus,
 select:focus {
   border-color: var(--ap-tint);
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(0, 124, 109, 0.1);
+  box-shadow: 0 0 0 3px rgba(91, 61, 245, 0.1);
 }
 
 input::placeholder,

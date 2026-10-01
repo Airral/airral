@@ -14,17 +14,17 @@
   --ap-ink-3: #8b919b;
   --ap-hair: rgba(16, 24, 40, 0.09);
   --ap-hair-2: rgba(16, 24, 40, 0.16);
-  --ap-tint: #007c6d;
-  --ap-tint-hover: #006b5b;
-  --ap-tint-soft: #e3f3ef;
-  --ap-tint-text: #006b5b;
+  --ap-tint: #5b3df5;
+  --ap-tint-hover: #4a2bd1;
+  --ap-tint-soft: #eeebff;
+  --ap-tint-text: #4a2bd1;
   --ap-red: #d93a30;
   --ap-orange: #c8680a;
   --ap-green: #248a45;
   --ap-cyan: #1a82b8;
   --ap-blue: #2f6feb;
   --ap-indigo: #5856d6;
-  --ap-purple: #9245c4;
+  --ap-magenta: #b0278f;
   --ap-pink: #d12f67;
   --ap-teal: #0f8479;
   --ap-gray: #8b919b;
@@ -188,7 +188,7 @@ textarea {
 }
 
 .t-blue { --c: var(--ap-blue); }
-.t-purple { --c: var(--ap-purple); }
+.t-magenta { --c: var(--ap-magenta); }
 .t-green { --c: var(--ap-green); }
 .t-teal { --c: var(--ap-teal); }
 .t-orange { --c: var(--ap-orange); }
@@ -208,7 +208,7 @@ textarea {
 .stage[data-stage='SUBMITTED'] { --c: var(--ap-blue); }
 .stage[data-stage='UNDER_REVIEW'] { --c: var(--ap-cyan); }
 .stage[data-stage='SHORTLISTED'] { --c: var(--ap-teal); }
-.stage[data-stage='INTERVIEW_SCHEDULED'] { --c: var(--ap-purple); }
+.stage[data-stage='INTERVIEW_SCHEDULED'] { --c: var(--ap-magenta); }
 .stage[data-stage='INTERVIEWED'] { --c: var(--ap-orange); }
 .stage[data-stage='OFFER_EXTENDED'],
 .stage[data-stage='HIRED'] { --c: var(--ap-green); }

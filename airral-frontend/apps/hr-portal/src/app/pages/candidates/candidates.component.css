@@ -1,5 +1,5 @@
 /* Candidates: a list and a detail, like Mail. Stage colors match the rest of
-   the portal: New blue, In review cyan, Shortlisted teal, Interview purple,
+   the portal: New blue, In review cyan, Shortlisted teal, Interview magenta,
    Decision orange (needs you), Offer and Hired green, Closed gray. */
 
 :host { display: block; color: var(--ap-ink); }

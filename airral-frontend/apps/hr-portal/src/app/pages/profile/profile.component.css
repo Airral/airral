@@ -139,7 +139,7 @@
 .form-input:focus {
   outline: none;
   border-color: var(--ap-tint);
-  box-shadow: 0 0 0 3px rgba(15, 157, 120, 0.1);
+  box-shadow: 0 0 0 3px rgba(91, 61, 245, 0.1);
 }
 
 @media (max-width: 768px) {

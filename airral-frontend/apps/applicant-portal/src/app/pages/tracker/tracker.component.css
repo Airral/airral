@@ -1,5 +1,5 @@
 /* Applications: a to-do list first, a board second. Light only. The status
-   colors match everywhere: blue saved, cyan applying, teal applied, purple
+   colors match everywhere: blue saved, cyan applying, teal applied, magenta
    interviewing, green offer, gray closed; orange means "needs you now". */
 
 :host {
@@ -194,7 +194,7 @@
 
 .f-saved b { color: var(--ap-blue); }
 .f-applied b { color: var(--ap-teal); }
-.f-interview b { color: var(--ap-purple); }
+.f-interview b { color: var(--ap-magenta); }
 .f-offer b { color: var(--ap-green); }
 
 /* ── Groups and rows ──────────────────────────────── */
@@ -316,7 +316,7 @@
   white-space: nowrap;
 }
 
-.stage[data-stage="INTERVIEWING"] { background: color-mix(in srgb, var(--ap-purple) 13%, transparent); color: var(--ap-purple); }
+.stage[data-stage="INTERVIEWING"] { background: color-mix(in srgb, var(--ap-magenta) 13%, transparent); color: var(--ap-magenta); }
 .stage[data-stage="OFFER"],
 .stage[data-stage="HIRED"] { background: color-mix(in srgb, var(--ap-green) 13%, transparent); color: var(--ap-green); }
 .stage[data-stage="NOT_SELECTED"],
@@ -556,7 +556,7 @@
 .status-saved { --c: var(--ap-blue); }
 .status-applying { --c: var(--ap-cyan); }
 .status-applied { --c: var(--ap-teal); }
-.status-interviewing { --c: var(--ap-purple); }
+.status-interviewing { --c: var(--ap-magenta); }
 .status-offer { --c: var(--ap-green); }
 .status-rejected { --c: var(--ap-gray); }
 

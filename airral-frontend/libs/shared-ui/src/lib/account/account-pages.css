@@ -60,9 +60,9 @@
 }
 
 .reset-card input:focus {
-  outline: 2px solid #007C6D;
+  outline: 2px solid var(--ap-tint, #5b3df5);
   outline-offset: 1px;
-  border-color: #007C6D;
+  border-color: var(--ap-tint, #5b3df5);
 }
 
 .reset-password-control {
@@ -92,7 +92,7 @@
   font-size: 15px;
   font-weight: 600;
   color: #FFFFFF;
-  background: #007C6D;
+  background: var(--ap-tint, #5b3df5);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -136,7 +136,7 @@
 
 .reset-done {
   font-weight: 600;
-  color: #007C6D !important;
+  color: var(--ap-tint, #5b3df5) !important;
 }
 
 .reset-error {
@@ -150,5 +150,5 @@
 }
 
 .reset-links a {
-  color: #007C6D;
+  color: var(--ap-tint, #5b3df5);
 }

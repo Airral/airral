@@ -2,25 +2,25 @@
 
 /* AIRRAL brand override for Angular Material tokens */
 :root {
-  --airral-primary: #007C6D;
+  --airral-primary: #5B3DF5;
   --airral-primary-hover: #005f54;
   --airral-primary-dark: #004d44;
   --airral-primary-soft: #e6f7f5;
-  --airral-focus-ring: rgba(0, 124, 109, 0.12);
+  --airral-focus-ring: rgba(91, 61, 245, 0.14);
   --airral-ink: #101828;
   --airral-canvas: #f9fafb;
   --airral-canvas-warm: #fafafa;
   --airral-mint-50: #e6f7f5;
   --airral-mint-100: #ccece7;
-  --airral-blue: #007C6D;
+  --airral-blue: #5B3DF5;
   --airral-blue-soft: #e6f7f5;
-  --airral-sky: #007C6D;
+  --airral-sky: #5B3DF5;
   --airral-sky-soft: #e6f7f5;
   --airral-amber: #92400e;
   --airral-amber-soft: #fffbeb;
   --airral-rose: #be3144;
   --airral-rose-soft: #fff1f3;
-  --airral-lilac: #007C6D;
+  --airral-lilac: #5B3DF5;
   --airral-lilac-soft: #f0faf9;
   --airral-brand-900: #003d35;
   --airral-brand-700: var(--airral-primary);
@@ -86,17 +86,17 @@
   --ap-ink-3: #8b919b;
   --ap-hair: rgba(16, 24, 40, 0.09);
   --ap-hair-2: rgba(16, 24, 40, 0.16);
-  --ap-tint: #007c6d;
-  --ap-tint-hover: #006b5b;
-  --ap-tint-soft: #e3f3ef;
-  --ap-tint-text: #006b5b;
+  --ap-tint: #5b3df5;
+  --ap-tint-hover: #4a2bd1;
+  --ap-tint-soft: #eeebff;
+  --ap-tint-text: #4a2bd1;
   --ap-red: #d93a30;
   --ap-orange: #c8680a;
   --ap-green: #248a45;
   --ap-cyan: #1a82b8;
   --ap-blue: #2f6feb;
   --ap-indigo: #5856d6;
-  --ap-purple: #9245c4;
+  --ap-magenta: #b0278f;
   --ap-pink: #d12f67;
   --ap-teal: #0f8479;
   --ap-gray: #8b919b;
@@ -291,7 +291,7 @@ html, body {
 }
 
 .workspace-feed .topic-list button.active {
-  border-color: rgba(0, 124, 109, 0.36);
+  border-color: rgba(91, 61, 245, 0.36);
   background: var(--color-teal-soft);
   color: var(--color-teal-strong);
 }

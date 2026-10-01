@@ -32,7 +32,7 @@ export class SeoService {
     this.title.setTitle(config.title);
     this.updateMeta('name', 'description', config.description);
     this.updateMeta('name', 'robots', robots);
-    this.updateMeta('name', 'theme-color', '#007C6D');
+    this.updateMeta('name', 'theme-color', '#5B3DF5');
     this.updateMeta('property', 'og:site_name', this.siteName);
     this.updateMeta('property', 'og:title', config.title);
     this.updateMeta('property', 'og:description', config.description);

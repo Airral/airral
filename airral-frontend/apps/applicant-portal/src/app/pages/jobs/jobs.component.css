@@ -175,7 +175,7 @@
 .fi-orange { --c: var(--ap-orange); }
 .fi-blue { --c: var(--ap-blue); }
 .fi-teal { --c: var(--ap-teal); }
-.fi-purple { --c: var(--ap-purple); }
+.fi-magenta { --c: var(--ap-magenta); }
 
 .note {
   display: flex;
@@ -1513,7 +1513,7 @@
 }
 
 .posting-body-content ::ng-deep a {
-  color: #007C6D;
+  color: var(--ap-tint);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -1607,7 +1607,7 @@
 .posting-body-content ::ng-deep a:focus-visible,
 .posting-body-content ::ng-deep pre:focus-visible,
 .posting-body-content ::ng-deep table:focus-visible {
-  outline: 2px solid #007C6D;
+  outline: 2px solid var(--ap-tint);
   outline-offset: 2px;
 }
 

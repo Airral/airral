@@ -1,7 +1,7 @@
 :host {
   --ink: #14141c; --ink-2: #55555f; --ink-3: #8a8a95; --bg: #f6f6f8; --surface: #ffffff;
   --edge: rgba(20, 20, 28, 0.1); --grid: rgba(20, 20, 28, 0.06);
-  --data: #007c6d; --data-wash: rgba(0, 124, 109, 0.1);
+  --data: #5b3df5; --data-wash: rgba(91, 61, 245, 0.1);
   --danger: #b4241f; --warn: #a24b06; --warn-wash: rgba(162, 75, 6, 0.1);
   display: block; background: var(--bg); min-height: 100vh; color: var(--ink);
   font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;

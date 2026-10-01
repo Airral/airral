@@ -20,7 +20,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
       [attr.aria-label]="label || null"
       focusable="false"
     >
-      <rect width="512" height="512" rx="112" fill="#007C6D" />
+      <rect width="512" height="512" rx="112" fill="#5B3DF5" />
       <path fill="#fff" d="M113 352 221 128h70l108 224h-67l-20-45H199l-20 45h-66Zm108-96h68l-34-77-34 77Z" />
     </svg>
   `,

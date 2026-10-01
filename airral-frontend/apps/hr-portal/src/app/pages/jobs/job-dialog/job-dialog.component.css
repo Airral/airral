@@ -42,7 +42,7 @@
   display: grid;
   place-items: center;
   border-radius: 10px;
-  background: var(--ap-teal);
+  background: var(--ap-tint);
   color: #ffffff;
   font-size: 19px;
 }

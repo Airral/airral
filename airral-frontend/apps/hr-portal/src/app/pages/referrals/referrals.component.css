@@ -15,7 +15,7 @@
 }
 .btn-submit:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(15, 157, 120, 0.3);
+  box-shadow: 0 6px 16px rgba(91, 61, 245, 0.3);
 }
 
 .stats-grid {
@@ -91,7 +91,7 @@
 .filter-select:focus {
   outline: none;
   border-color: var(--ap-tint);
-  box-shadow: 0 0 0 3px rgba(15, 157, 120, 0.1);
+  box-shadow: 0 0 0 3px rgba(91, 61, 245, 0.1);
 }
 
 .referrals-list {

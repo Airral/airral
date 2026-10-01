@@ -366,7 +366,7 @@
 .btn-upgrade:hover {
   background: var(--ap-tint);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(15, 157, 120, 0.3);
+  box-shadow: 0 6px 16px rgba(91, 61, 245, 0.3);
 }
 
 @media (max-width: 768px) {
