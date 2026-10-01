@@ -1,9 +1,7 @@
 <header class="site-header" [class.is-scrolled]="scrolled()" [class.is-open]="menuOpen()">
   <div class="header-inner">
     <a class="brand" [routerLink]="'/'" (click)="closeMenu()">
-      <span class="brand-mark" aria-hidden="true">
-        <span class="brand-initials">AR</span>
-      </span>
+      <airral-logo [size]="28" />
       <span class="brand-text">
         <span class="brand-name">{{ brand }}</span>
         <span class="brand-tagline">{{ tagline }}</span>

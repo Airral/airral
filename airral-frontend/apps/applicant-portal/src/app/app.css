@@ -38,23 +38,6 @@
 }
 
 /* A teal tile with an open ring: the mark, without the old "AR" text. */
-.brand-mark {
-  position: relative;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: var(--ap-tint);
-  flex: none;
-}
-
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  inset: 7px;
-  border-radius: 50%;
-  border: 2.5px solid #ffffff;
-  border-right-color: transparent;
-}
 
 .brand-name {
   font-family: 'Sora', 'Manrope', sans-serif;

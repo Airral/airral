@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
+import { AirralLogoComponent } from '../brand/airral-logo.component';
 export interface FooterLink {
   label: string;
   path: string;
@@ -16,7 +17,7 @@ export interface FooterColumn {
 @Component({
   selector: 'airral-footer',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, AirralLogoComponent],
   templateUrl: './footer.component.html',
   styleUrls: ['./footer.component.css'],
 })

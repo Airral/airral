@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, HostListener, Input, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 
+import { AirralLogoComponent } from '../brand/airral-logo.component';
 export interface HeaderNavLink {
   label: string;
   path: string;
@@ -21,7 +22,7 @@ export interface HeaderCta {
 @Component({
   selector: 'airral-header',
   standalone: true,
-  imports: [CommonModule, RouterLink, RouterLinkActive],
+  imports: [CommonModule, RouterLink, RouterLinkActive, AirralLogoComponent],
   templateUrl: './header.component.html',
   styleUrls: ['./header.component.css'],
 })

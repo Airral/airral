@@ -52,23 +52,6 @@
 }
 
 /* The same mark as the header: a teal tile with an open ring. */
-.brand-mark {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--ap-tint);
-  flex: 0 0 auto;
-}
-
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  inset: 12px;
-  border-radius: 50%;
-  border: 3.5px solid #ffffff;
-  border-right-color: transparent;
-}
 
 .brand-row strong,
 .brand-row span {
