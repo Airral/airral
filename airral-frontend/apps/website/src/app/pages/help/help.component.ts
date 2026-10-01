@@ -28,10 +28,10 @@ export class HelpComponent {
     {
       question: 'Do I need an account to look around?',
       answer:
-        'No. You can browse open roles and read the detail on any of them without signing up. An account is what lets Airral keep looking on your behalf.',
+        'No. You can browse open roles and read the detail on any of them without signing up. An account is what lets AIRRAL keep looking on your behalf.',
     },
     {
-      question: 'How does Airral decide what to show me?',
+      question: 'How does AIRRAL decide what to show me?',
       answer:
         'You tell it what you are after once. It keeps watching what is open and speaks up when something fits, and every suggestion comes with the reason behind it.',
     },

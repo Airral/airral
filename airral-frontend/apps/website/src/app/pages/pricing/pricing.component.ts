@@ -41,7 +41,7 @@ export class PricingComponent {
   readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 
   /**
-   * Plans are for companies hiring on Airral. Candidates never pay —
+   * Plans are for companies hiring on AIRRAL. Candidates never pay —
    * see the free-for-candidates section on the page.
    */
   readonly plans: Plan[] = [
@@ -100,7 +100,7 @@ export class PricingComponent {
 
   readonly faqs: Faq[] = [
     {
-      question: 'Is Airral free for job seekers?',
+      question: 'Is AIRRAL free for job seekers?',
       answer:
         'Yes. Browsing jobs, applying and tracking your applications cost nothing, and there is no paid tier for candidates.',
     },
