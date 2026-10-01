@@ -53,6 +53,15 @@ restyle buttons or pills themselves:
 - Candidates is a list and a detail, like Mail. How the resume matches the job
   is labelled as a guide. It never hides or ranks out a candidate.
 
+## Connect an AI assistant
+
+- `/profile/ai`, reachable by everyone on the team: a Settings card for HR managers, a
+  link on My Profile for managers and interviewers. Both show only when the paid
+  feature is on for the account (`GET /api/account/api-keys` says `included`).
+- The page wraps the shared `airral-ai-connect` component (`libs/shared-ui`), also used
+  by the applicant portal. It shows a new key once, from memory only, and never puts it
+  in the address, title, storage or console.
+
 ## Words
 
 - Sentence case everywhere, with verbs for actions: "New job", "Schedule

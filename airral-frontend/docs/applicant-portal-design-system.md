@@ -166,6 +166,15 @@ Error messages say what actually happened. A failed resume check says whether th
 
 Deferred surfaces (feed, rooms, events, founder spaces) stay out of the nav until real demand shows up. Do not reintroduce removed dashboard rails or command center components unless the product direction changes explicitly.
 
+## Connect an AI assistant
+
+A paid feature, reached from a link row on Profile (`/profile/ai`) and shown only when
+it is on for the account. No nav item: the nav stays four items. The page wraps the
+shared `airral-ai-connect` component (`libs/shared-ui`), which the company portal uses
+too. It shows a new key once, from memory only, and lists Claude Code, Claude Desktop
+and other MCP apps. The claude.ai website, the phone apps and ChatGPT wait for "Sign in
+with AIRRAL".
+
 ## Verification Checklist
 
 Before finishing applicant portal UI work:

@@ -10,6 +10,15 @@
       </div>
       <a class="configure" [routerLink]="section.route">Open</a>
     </article>
+    @if (aiAccessIncluded()) {
+      <article>
+        <div>
+          <h3>Connect an AI assistant</h3>
+          <p>Your own key, so Claude and other AI apps can see your company's jobs and how hiring is going. Each person makes their own.</p>
+        </div>
+        <a class="configure" routerLink="/profile/ai">Open</a>
+      </article>
+    }
   </div>
 
   <p class="plan">Plan: {{ planName }}. To change it, email contact&#64;airral.com.</p>

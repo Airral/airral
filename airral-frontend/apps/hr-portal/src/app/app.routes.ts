@@ -166,6 +166,14 @@ export const appRoutes: Route[] = [
       import('./pages/profile/profile.component').then((m) => m.ProfileComponent),
   },
   {
+    // Connecting an AI assistant. A personal key, so everyone on the team can
+    // reach it, not only HR: from Settings for HR, from My Profile for the rest.
+    path: 'profile/ai',
+    ...internalAccess,
+    loadComponent: () =>
+      import('./pages/ai-connect/ai-connect-page.component').then((m) => m.AiConnectPageComponent),
+  },
+  {
     path: 'benefits',
     ...internalAccess,
     loadComponent: () =>

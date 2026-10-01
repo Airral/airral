@@ -17,6 +17,12 @@
     </div>
   </div>
 
+  <a *ngIf="aiAccessIncluded()" class="ai-link" routerLink="/profile/ai">
+    <span class="material-icons" aria-hidden="true">smart_toy</span>
+    <span><strong>Connect an AI assistant</strong><small>Use AIRRAL from Claude and other AI apps, with your own key</small></span>
+    <span class="material-icons" aria-hidden="true">arrow_forward</span>
+  </a>
+
   <div *ngIf="profile" class="profile-content">
 
     <!-- Personal Information -->

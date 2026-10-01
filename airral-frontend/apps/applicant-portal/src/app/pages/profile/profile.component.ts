@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { CandidatePortalService } from '@airral/shared-api';
+import { AiAccessApiService, CandidatePortalService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
 import { CandidateProfile, User, NotificationPreferences } from '@airral/shared-types';
 import { catchError, finalize, of, timeout } from 'rxjs';
@@ -34,13 +34,22 @@ export class ProfileComponent implements OnInit {
   /** Second click required before a clear runs, so the button cannot be a slip. */
   clearConfirmPending = false;
 
+  /** A paid feature: the link shows when it's on, or while old keys remain to revoke. */
+  aiAccessIncluded = false;
+
   constructor(
     private readonly candidateApi: CandidatePortalService,
     private readonly auth: AuthService,
-    private readonly changeDetectorRef: ChangeDetectorRef
+    private readonly changeDetectorRef: ChangeDetectorRef,
+    private readonly aiAccess: AiAccessApiService
   ) {}
 
   ngOnInit(): void {
+    this.aiAccess.overview().pipe(catchError(() => of(null))).subscribe((overview) => {
+      this.aiAccessIncluded = !!overview?.included || !!overview?.keys?.length;
+      this.changeDetectorRef.markForCheck();
+    });
+
     const user = this.auth.getCurrentUser();
     if (!user?.email) {
       this.profile = null;

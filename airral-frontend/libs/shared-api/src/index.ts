@@ -13,3 +13,4 @@ export * from './lib/company-api.service';
 export * from './lib/department-api.service';
 export * from './lib/interview-kit-api.service';
 export * from './lib/redraw-after-response.interceptor';
+export * from './lib/ai-access-api.service';

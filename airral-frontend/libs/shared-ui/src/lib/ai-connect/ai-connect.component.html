@@ -1,0 +1,196 @@
+@if (loading() && !overview()) {
+  <p class="aic-muted">Loading…</p>
+} @else if (loadError() && !overview()) {
+  <p class="aic-alert" role="alert">{{ loadError() }}</p>
+  <button type="button" class="aic-btn aic-quiet" (click)="load()">Try again</button>
+} @else if (overview(); as o) {
+  @if (!o.included) {
+    <div class="aic-panel">
+      <h2>A paid feature</h2>
+      <p>{{ o.message || "Connecting an AI assistant is a paid feature, and it isn't on your account yet." }}</p>
+      @if (o.keys.length) {
+        <p class="aic-fine">Keys you made before still show below, so you can revoke them. They no longer work.</p>
+      }
+    </div>
+  } @else {
+    <div class="aic-panel aic-intro">
+      <p>Make a personal key, add AIRRAL to your AI assistant with it, and then just ask. For example:</p>
+      <ul class="aic-examples">
+        @for (example of examples(); track example) {
+          <li>“{{ example }}”</li>
+        }
+      </ul>
+      <p class="aic-fine">
+        A key can only read. It can't apply, change anything, or see anyone's personal details.
+        Keys you make here work for {{ o.keyLifetimeDays }} days, up to 60 requests a minute.
+      </p>
+    </div>
+
+    @if (!o.available && o.message) {
+      <p class="aic-warn" role="status">{{ o.message }}</p>
+    }
+  }
+
+  @if (error()) {
+    <p class="aic-alert" role="alert">{{ error() }}</p>
+  }
+  @if (refreshError()) {
+    <p class="aic-alert" role="alert">{{ refreshError() }}</p>
+  }
+  @if (notice()) {
+    <p class="aic-ok" role="status">{{ notice() }}</p>
+  }
+
+  @if (issued(); as k) {
+    <div class="aic-panel aic-new" role="status">
+      <h2>Your new key, “{{ k.name }}”</h2>
+      <p class="aic-warn-line">
+        Copy it now. It is shown only once: AIRRAL keeps a fingerprint of it, not the key. Treat it like a password.
+      </p>
+      <div class="aic-secret">
+        <code>{{ k.key }}</code>
+        <button type="button" class="aic-btn aic-primary" (click)="copy(k.key, 'key')">
+          {{ copied() === 'key' ? 'Copied' : 'Copy key' }}
+        </button>
+      </div>
+      <p class="aic-fine">It can: {{ scopeLabels(k.scopes) }}.</p>
+    </div>
+  }
+
+  @if (o.included || o.keys.length) {
+    <div class="aic-panel">
+      <h2>Your keys <span class="aic-count">{{ activeKeys().length }} of {{ o.maxKeys }}</span></h2>
+      @if (!o.keys.length) {
+        <p class="aic-muted">No keys yet. Make one below.</p>
+      } @else {
+        <ul class="aic-keys">
+          @for (key of o.keys; track key.keyId) {
+            <li>
+              <div class="aic-key-main">
+                <strong>{{ key.name }}</strong>
+                <span class="aic-key-meta">
+                  <code>{{ key.prefix }}</code> · Made {{ key.createdAt | date: 'MMM d, y' }} ·
+                  {{ key.lastUsedAt ? 'Last used ' + (key.lastUsedAt | date: 'MMM d, h:mm a') : 'Not used yet' }}
+                  @if (key.expired) {
+                    · <span class="aic-expired">Expired</span>
+                  } @else if (key.expiresAt) {
+                    · Works until {{ key.expiresAt | date: 'MMM d, y' }}
+                  } @else {
+                    · No end date
+                  }
+                </span>
+                @if (key.scopes.length) {
+                  <span class="aic-key-meta">{{ scopeLabels(key.scopes) }}</span>
+                }
+              </div>
+              <div class="aic-key-actions">
+                @if (confirmingRevoke() === key.keyId) {
+                  <span class="aic-confirm">Revoke “{{ key.name }}”? Anything using it stops working at once.</span>
+                  <button type="button" class="aic-btn aic-danger" [disabled]="busy()" (click)="revoke(key)">Revoke</button>
+                  <button type="button" class="aic-btn aic-quiet" (click)="confirmingRevoke.set(null)">Keep it</button>
+                } @else {
+                  <button type="button" class="aic-btn aic-quiet" [disabled]="busy()" (click)="revoke(key)">Revoke</button>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (o.available) {
+        @if (atLimit()) {
+          <p class="aic-muted">You have {{ o.maxKeys }} keys, the most you can have. Revoke one to make another.</p>
+        } @else {
+          <form class="aic-create" (ngSubmit)="create()">
+            <label for="aic-name">Name the key after where you'll use it</label>
+            <div class="aic-create-row">
+              <input
+                id="aic-name"
+                name="name"
+                maxlength="80"
+                autocomplete="off"
+                placeholder="My laptop"
+                [ngModel]="name()"
+                (ngModelChange)="name.set($event)"
+              />
+              <button type="submit" class="aic-btn aic-primary" [disabled]="busy()">
+                {{ busy() ? 'Making…' : 'Make a key' }}
+              </button>
+            </div>
+          </form>
+        }
+      }
+    </div>
+  }
+
+  @if (o.included) {
+    <div class="aic-panel">
+      <h2>Add AIRRAL to your assistant</h2>
+      <div class="aic-tabs" role="group" aria-label="Where you use AI">
+        <button type="button" [attr.aria-pressed]="tab() === 'claude-code'" (click)="tab.set('claude-code')">Claude Code</button>
+        <button type="button" [attr.aria-pressed]="tab() === 'claude-desktop'" (click)="tab.set('claude-desktop')">Claude Desktop</button>
+        <button type="button" [attr.aria-pressed]="tab() === 'other'" (click)="tab.set('other')">Cursor and VS Code</button>
+      </div>
+
+      @if (!issued()) {
+        <p class="aic-fine">Replace YOUR_AIRRAL_KEY with your key. Right after you make a key, it is filled in for you.</p>
+      }
+
+      @switch (tab()) {
+        @case ('claude-code') {
+          <p>Run this in a terminal. It adds AIRRAL for every folder you use Claude Code in. Then ask Claude Code about jobs.</p>
+          <div class="aic-code">
+            <pre>{{ claudeCodeCommand() }}</pre>
+            <button type="button" class="aic-btn aic-quiet" (click)="copy(claudeCodeCommand(), 'code')">
+              {{ copied() === 'code' ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+          <p class="aic-fine">Replacing an older key? Run <code>{{ claudeCodeReplace }}</code> first.</p>
+        }
+        @case ('claude-desktop') {
+          <p>
+            In Claude Desktop, open Settings, then Developer, then Edit Config. In the file, find
+            <code>"mcpServers"</code> and add this entry inside it, after any that are already there (put a comma
+            between entries). If the file has no <code>"mcpServers"</code> yet, write
+            <code>{{ '{ "mcpServers": { … } }' }}</code> with this entry in place of the dots. Save, then quit Claude
+            completely and open it again. It needs Node.js, and uses the open-source mcp-remote bridge.
+          </p>
+          <div class="aic-code">
+            <pre>{{ claudeDesktopEntry() }}</pre>
+            <button type="button" class="aic-btn aic-quiet" (click)="copy(claudeDesktopEntry(), 'desktop')">
+              {{ copied() === 'desktop' ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+        }
+        @case ('other') {
+          <p>Cursor: put this in <code>~/.cursor/mcp.json</code>.</p>
+          <div class="aic-code">
+            <pre>{{ cursorConfig() }}</pre>
+            <button type="button" class="aic-btn aic-quiet" (click)="copy(cursorConfig(), 'cursor')">
+              {{ copied() === 'cursor' ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+          <p>VS Code: run “MCP: Open User Configuration” and put this in the file.</p>
+          <div class="aic-code">
+            <pre>{{ vsCodeConfig() }}</pre>
+            <button type="button" class="aic-btn aic-quiet" (click)="copy(vsCodeConfig(), 'vscode')">
+              {{ copied() === 'vscode' ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+          <p class="aic-fine">
+            Any other app that connects to MCP servers over HTTP and lets you add a header works too: use the address
+            {{ mcpUrl() }} and the header Authorization: Bearer followed by your key.
+          </p>
+        }
+      }
+      <p class="aic-fine">
+        The claude.ai website, the Claude phone apps and ChatGPT need “Sign in with AIRRAL” instead of a key.
+        That is coming.
+      </p>
+
+      @if (issued()) {
+        <button type="button" class="aic-btn aic-quiet aic-done" (click)="saved()">I've saved my key</button>
+      }
+    </div>
+  }
+}

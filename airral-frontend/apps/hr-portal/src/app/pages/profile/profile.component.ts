@@ -1,7 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { UserApiService } from '@airral/shared-api';
+import { RouterLink } from '@angular/router';
+import { AiAccessApiService, UserApiService } from '@airral/shared-api';
+import { catchError, of } from 'rxjs';
 import { AuthService } from '@airral/shared-auth';
 
 interface EmployeeProfile {
@@ -26,13 +28,17 @@ interface EmployeeProfile {
 @Component({
   selector: 'app-employee-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.css',
 })
 export class ProfileComponent implements OnInit {
   private readonly authService = inject(AuthService);
   private readonly userApi = inject(UserApiService);
+  private readonly aiAccess = inject(AiAccessApiService);
+
+  /** A paid feature: the link shows when it is on, or while old keys remain to revoke. */
+  readonly aiAccessIncluded = signal(false);
 
   profile: EmployeeProfile | null = null;
   loading = true;
@@ -40,6 +46,9 @@ export class ProfileComponent implements OnInit {
   error: string | null = null;
 
   ngOnInit(): void {
+    this.aiAccess.overview().pipe(catchError(() => of(null)))
+      .subscribe((overview) => this.aiAccessIncluded.set(!!overview?.included || !!overview?.keys?.length));
+
     this.loadProfile();
   }
 
