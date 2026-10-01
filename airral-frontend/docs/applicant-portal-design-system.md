@@ -45,17 +45,17 @@ The palette lives as `--ap-*` custom properties in `apps/applicant-portal/src/st
 - Fills (inputs, segmented controls, soft wells): `--ap-fill` `#eceef2`, `--ap-fill-soft` `#f6f7f9`
 - Text: `--ap-ink` `#16181d`, `--ap-ink-2` `#5f6570`, `--ap-ink-3` `#8b919b`
 - Hairlines: `--ap-hair`, `--ap-hair-2` (translucent near-black)
-- Brand and main action: `--ap-tint` `#007C6D`, `--ap-tint-hover` `#006B5B`, `--ap-tint-soft` `#e3f3ef`
-- Meaning colors: `--ap-green`, `--ap-orange`, `--ap-gray` (verdicts); `--ap-blue`, `--ap-cyan`, `--ap-teal`, `--ap-purple`, `--ap-red`, `--ap-indigo`, `--ap-pink` (statuses and fact icons)
+- Brand and main action: `--ap-tint` `#5B3DF5`, `--ap-tint-hover` `#4A2BD1`, `--ap-tint-soft` `#EEEBFF`
+- Meaning colors: `--ap-green`, `--ap-orange`, `--ap-gray` (verdicts); `--ap-blue`, `--ap-cyan`, `--ap-teal`, `--ap-magenta`, `--ap-red`, `--ap-indigo`, `--ap-pink` (statuses and fact icons)
 
 ## Color Rules
 
 Color says something, or it is not used. A gray-only screen was tried and rejected as lifeless; decoration was rejected as noise. The rule in between:
 
-- Teal is the brand and the one primary action on a screen: Apply, Save profile, Check my resume. Selected states use the teal soft fill.
+- Violet is the brand and the one primary action on a screen: Apply, Save profile, Check my resume. Selected states use the violet soft fill.
 - The verdict has fixed colors everywhere it appears: green = Apply, orange = Check first, gray = Likely skip. It shows as a colored dot and word on job cards and as a tinted answer block on the job detail.
 - Scores use the same scale: green is good, orange is getting there, red is weak (resume health tile, profile readiness ring).
-- Application statuses have fixed colors: blue saved, cyan applying, teal applied, purple interviewing, green offer, gray closed. Orange means "needs you now" (due dates, follow-ups).
+- Application statuses have fixed colors: blue saved, cyan applying, teal applied, magenta interviewing, green offer, gray closed. Orange means "needs you now" (due dates, follow-ups).
 - The four job facts each carry a small colored icon tile: Pay green, Job orange, Applying blue, Source teal.
 - Company logos are real logos where we can find them, and a colored letter tile otherwise (see `components/company-logo.component.ts`). Never a generic globe.
 
@@ -64,7 +64,7 @@ Do not:
 - Add a dark theme, dark hero panels, or dark gradients.
 - Use gradients, orbs, bokeh or glows as decoration.
 - Introduce a color that means nothing, or reuse a meaning color for something else.
-- Use indigo or purple as a brand color. The brand is teal.
+- Use teal or green as the brand color: it reads as another green job site. The brand is violet `#5B3DF5`.
 
 ## Layout Rules
 
@@ -182,7 +182,7 @@ Before finishing applicant portal UI work:
 - Build passes (`nx build applicant-portal`) and lint has no new warnings.
 - Jobs screen opens first and shows jobs before any profile data.
 - Light only: no dark panels, no decorative gradients.
-- Teal is only the brand, the primary action and selection. Other colors match the meanings above.
+- Violet is only the brand, the primary action and selection. Other colors match the meanings above.
 - Company logos render or fall back to a letter tile, never a blank box or globe.
 - No horizontal overflow at 375px on Jobs, Applications, Resume and Profile.
 - Heavy job data is absent from list cards and present only in selected detail.

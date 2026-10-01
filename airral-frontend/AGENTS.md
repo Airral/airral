@@ -36,7 +36,7 @@ These can remain as backend foundations or lightly linked support modules, but t
 Use this visual rule (full detail in `docs/applicant-portal-design-system.md`, Theme Contract and Color Rules):
 
 - Light only: a light gray page (`#f4f5f7`), borderless white surfaces, near-black text. No dark theme, dark panels or decorative gradients.
-- AIRRAL teal `#007C6D` is the brand and the one primary action per screen, plus selected states.
+- AIRRAL violet `#5B3DF5` (hover and text `#4A2BD1`, soft fill `#EEEBFF`) is the brand and the one primary action per screen, plus selected states. The logo, favicons and the website accent use it too.
 - Color carries meaning, never decoration: the verdict (green Apply, orange Check first, gray Likely skip), scores (green / orange / red), application statuses, and the small colored icon tiles on job facts.
 - Use the `--ap-*` tokens in `apps/applicant-portal/src/styles.css`, not hex values.
 - Company logos come from `components/company-logo.component.ts`, which falls back to a colored letter tile.
@@ -51,7 +51,7 @@ Default applicant journey:
 - Show reviews, applicants, interview notes, deeper company insight, resume fit, and application checklist only in the selected job panel.
 - Rooms, Messages, Events, and Founder should be hidden/lightweight secondary destinations until the launch job/resume/application loop is strong.
 
-When in doubt, make the UI calmer and more focused. Teal-green should mean action or selection, not decoration.
+When in doubt, make the UI calmer and more focused. Violet should mean action or selection, not decoration.
 
 ## Product Safety Guardrails
 

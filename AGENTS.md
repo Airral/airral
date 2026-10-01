@@ -21,7 +21,7 @@ Current applicant portal direction:
 - Resume-to-job match is the core "wow" path: upload resume, select a job, show match score, missing skills, weak bullets, keywords, and concrete fixes.
 - Application readiness comes before community: save jobs, resume fit, apply checklist, follow-up reminders, application tracking, and interview prep notes.
 - Light only: light gray page, borderless white surfaces, near-black text. No dark theme.
-- AIRRAL teal-green for the brand, the one primary action per screen, and selected states.
+- AIRRAL violet (`#5B3DF5`) for the brand, the one primary action per screen, and selected states. It replaced teal, which sat next to the green job sites; teal now only means Shortlisted.
 - Color carries meaning, never decoration: verdict colors (apply / check first / skip), score colors, status colors and fact icon tiles, as set out in the design system's Color Rules.
 - Glassdoor-like split for jobs: filters, compact list, selected job detail.
 - Heavy job data belongs in selected detail, not list cards.

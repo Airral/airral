@@ -88,14 +88,14 @@ Current source of truth: `docs/applicant-portal-design-system.md`.
 
 Company palette:
 
-- Primary: AIRRAL teal-green `#007C6D` for primary actions, selected states, and success signals only
+- Primary: AIRRAL violet `#5B3DF5` for primary actions and selected states only (success is green)
 - Secondary: action blue `#3a63d6`
 - Warm accent: amber `#b87911`
 - Ink: near-black `#111827`
 - Surface: `#ffffff`, `#fbfbfa`, `#f6f7f6`
 - Border: neutral `#e1e5e9`, not green-tinted by default
 
-Theme ratio: 90% white/black/gray, 8% AIRRAL teal-green, 2% blue/accent.
+Theme ratio: 90% white/black/gray, 8% AIRRAL violet, 2% meaning colors.
 
 Angular Material is used for toolbar, buttons, icons, cards, chips, toggles, and progress bars. Local CSS should tune hierarchy, spacing, and brand feeling without fighting Material's accessibility defaults.
 
