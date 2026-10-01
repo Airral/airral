@@ -470,7 +470,12 @@
         <button class="icon-btn icon-btn-lg desktop-only" type="button" (click)="copyJobReport()" aria-label="Copy job report" title="Copy report">
           <span class="material-icons">ios_share</span>
         </button>
-        <p class="apply-note">{{ getApplyEffort(selectedJob).label }} · {{ getApplyEffort(selectedJob).detail }}</p>
+        <p class="apply-note bar-status" [class.error]="barError" *ngIf="barMessage; else applyEffort" role="status">
+          <span class="material-icons" aria-hidden="true">{{ barError ? 'error_outline' : 'check_circle' }}</span>{{ barMessage }}
+        </p>
+        <ng-template #applyEffort>
+          <p class="apply-note">{{ getApplyEffort(selectedJob).label }} · {{ getApplyEffort(selectedJob).detail }}</p>
+        </ng-template>
       </div>
     </section>
 

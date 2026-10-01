@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { ApplicationApiService, CandidatePortalService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
-import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, ResumeHealthScore } from '@airral/shared-types';
+import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, CandidateSavedJob, ResumeHealthScore } from '@airral/shared-types';
 import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
 import { GoogleAnalyticsService, VisitorSignalService } from '@airral/shared-utils';
 import { getOnboardingJobSearchSeed, OnboardingJobSearchSeed } from '../../utils/job-search-seed';
@@ -98,6 +98,16 @@ export class JobsComponent implements OnInit, OnDestroy {
   fitResult: CandidateJobFitResult | null = null;
   descriptionView: JobDescriptionView = this.emptyDescriptionView();
   savedJobKeys = new Set<string>();
+  /**
+   * The person's saved jobs by source key, loaded when the page opens. Without
+   * it a job saved on an earlier visit showed an empty bookmark, and pressing it
+   * only saved it again -- so saving looked like it never worked.
+   */
+  private savedJobsByKey = new Map<string, CandidateSavedJob>();
+  /** Feedback shown in the apply bar, beside the buttons that caused it. */
+  barMessage = '';
+  barError = false;
+  private barTimer: ReturnType<typeof setTimeout> | null = null;
   searchQuery = '';
   onboardingStartPending = false;
   onboardingSearchSeed: OnboardingJobSearchSeed | null = null;
@@ -160,6 +170,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     // signed in, and their saves and applications count from the first job.
     this.signedIn.set(this.auth.isAuthenticated());
     this.loadMyApplications();
+    this.loadSavedJobs();
     this.loadResumeHealth();
     this.loadMatchProfile();
     this.checkProfileUpdate();
@@ -171,6 +182,9 @@ export class JobsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.jobsRequest?.unsubscribe();
+    if (this.barTimer) {
+      clearTimeout(this.barTimer);
+    }
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
     }
@@ -590,6 +604,43 @@ export class JobsComponent implements OnInit, OnDestroy {
     });
   }
 
+  private loadSavedJobs(): void {
+    if (!this.signedIn()) return;
+    this.candidateApi.getSavedJobs().pipe(catchError(() => of([] as CandidateSavedJob[]))).subscribe((saved) => {
+      this.savedJobsByKey = new Map(saved.map((job) => [job.sourceJobKey, job]));
+      this.savedJobKeys = new Set(this.savedJobsByKey.keys());
+      this.changeDetectorRef.markForCheck();
+    });
+  }
+
+  private rememberSaved(job: CandidateSavedJob): void {
+    this.savedJobsByKey.set(job.sourceJobKey, job);
+    this.savedJobKeys = new Set(this.savedJobsByKey.keys());
+  }
+
+  private forgetSaved(sourceJobKey: string): void {
+    this.savedJobsByKey.delete(sourceJobKey);
+    this.savedJobKeys = new Set(this.savedJobsByKey.keys());
+  }
+
+  /** A short answer in the apply bar, where the person is looking. */
+  private sayInBar(message: string, isError = false): void {
+    this.barMessage = message;
+    this.barError = isError;
+    if (this.barTimer) clearTimeout(this.barTimer);
+    this.barTimer = setTimeout(() => {
+      this.barMessage = '';
+      this.barTimer = null;
+      this.changeDetectorRef.detectChanges();
+    }, 5000);
+    this.changeDetectorRef.detectChanges();
+  }
+
+  private static readonly SAVED_STATUS_LABELS: Record<string, string> = {
+    APPLYING: 'Applying', APPLIED: 'Applied', INTERVIEWING: 'Interviewing', OFFER: 'Offer',
+    REJECTED: 'Not selected', ARCHIVED: 'Archived',
+  };
+
   private markApplied(jobId: number): void {
     const next = new Set(this.appliedJobIds());
     next.add(jobId);
@@ -608,39 +659,71 @@ export class JobsComponent implements OnInit, OnDestroy {
     this.analytics.event('apply_click');
   }
 
+  /**
+   * The bookmark: saves the job, or unsaves it when it is only saved. A job the
+   * person has moved on with (applied, interviewing...) is never removed from
+   * here, because its notes and next steps live in Applications.
+   */
   saveSelectedJob(): void {
     if (!this.requireAccount('save this job so it is still here when you come back')) {
       return;
     }
     const sourceJobKey = this.getSelectedSourceJobKey();
-    if (!sourceJobKey || this.savingJob) {
+    if (!sourceJobKey) {
+      this.sayInBar('This job can\u2019t be saved yet. Open it from the list and try again.', true);
+      return;
+    }
+    if (this.savingJob) {
+      return;
+    }
+
+    const existing = this.savedJobsByKey.get(sourceJobKey);
+    if (existing && (existing.status || 'SAVED') !== 'SAVED') {
+      const label = JobsComponent.SAVED_STATUS_LABELS[existing.status] ?? existing.status;
+      this.sayInBar(`This job is in Applications as ${label}. Change or remove it there.`);
       return;
     }
 
     this.savingJob = true;
-    this.actionMessage = '';
-    this.actionError = '';
+    // Same zoneless gap as runFitForSelectedJob below: nothing schedules a
+    // repaint after an HTTP callback, so every branch ends in detectChanges.
+    if (existing) {
+      this.candidateApi.deleteSavedJob(existing.id).subscribe({
+        next: () => {
+          this.forgetSaved(sourceJobKey);
+          this.savingJob = false;
+          this.sayInBar('Removed from Applications.');
+        },
+        error: (failure: { status?: number; message?: string }) => {
+          this.savingJob = false;
+          this.sayInBar(this.refusal(failure, 'Could not remove this job. Try again in a moment.'), true);
+        },
+      });
+      return;
+    }
 
     this.candidateApi.saveCandidateJob({
       sourceJobKey,
       status: 'SAVED',
       nextStep: 'Check resume fit',
     }).subscribe({
-      next: () => {
-        this.savedJobKeys.add(sourceJobKey);
+      next: (saved) => {
+        this.rememberSaved(saved ?? ({ id: 0, sourceJobKey, status: 'SAVED' } as CandidateSavedJob));
         this.savingJob = false;
-        this.actionMessage = 'Saved to Applications.';
-        // Same zoneless gap as runFitForSelectedJob below: nothing schedules a
-        // repaint after an HTTP callback, so the button stayed on "Saving..."
-        // and the confirmation never appeared until an unrelated click.
-        this.changeDetectorRef.detectChanges();
+        this.sayInBar('Saved to Applications.');
       },
-      error: () => {
+      error: (failure: { status?: number; message?: string }) => {
         this.savingJob = false;
-        this.actionError = 'Could not save this job. Try again in a moment.';
-        this.changeDetectorRef.detectChanges();
+        this.sayInBar(this.refusal(failure, 'Could not save this job. Try again in a moment.'), true);
       },
     });
+  }
+
+  /** The server's own words for a refusal it explained, otherwise the fallback. */
+  private refusal(failure: { status?: number; message?: string } | null, fallback: string): string {
+    const message = failure?.message;
+    return failure?.status && failure.status >= 400 && failure.status < 500 && failure.status !== 404
+      && message && !message.startsWith('Http failure') ? message : fallback;
   }
 
   runFitForSelectedJob(): void {
@@ -660,7 +743,9 @@ export class JobsComponent implements OnInit, OnDestroy {
 
     this.candidateApi.runJobFit({ sourceJobKey }).subscribe({
       next: (result) => {
-        this.savedJobKeys.add(sourceJobKey);
+        // Checking fit saves the job on the server; read it back so the
+        // bookmark can also unsave it.
+        this.loadSavedJobs();
         this.fitResult = result;
         this.fittingJob = false;
         this.actionMessage = 'Resume fit is ready.';
