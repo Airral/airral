@@ -1,38 +1,28 @@
-/* Login. A redirect shim, so the only local job is centring one
-   pane and giving it enough height not to sit under the header. */
+/* Sign in: a heading and the two ways in, side by side. */
 
 .auth {
   padding-top: 150px;
-  display: flex;
-  justify-content: center;
+  display: grid;
+  gap: 40px;
 }
 
-.auth__pane {
-  width: min(100%, 560px);
+.auth__head {
   text-align: center;
 }
 
 .auth__h1 {
   margin: 16px auto 0;
   font-size: clamp(30px, 3.8vw, 44px);
-  max-width: 20ch;
+  max-width: 22ch;
 }
 
 .auth__lede {
-  margin: 20px auto 0;
-}
-
-.auth__cta {
-  justify-content: center;
-  margin-top: 34px;
-}
-
-.auth__fine {
-  margin-top: 24px;
+  margin: 18px auto 0;
 }
 
 @media (max-width: 900px) {
   .auth {
     padding-top: 112px;
+    gap: 28px;
   }
 }

@@ -30,12 +30,12 @@ export class BlogComponent {
   readonly pointers: Pointer[] = [
     {
       title: 'How it works',
-      what: 'What Airral does with what you tell it, step by step.',
+      what: 'What AIRRAL does with what you tell it, step by step.',
       path: '/how-it-works',
     },
     {
       title: 'Open roles',
-      what: 'Everything on Airral that is open right now.',
+      what: 'Everything on AIRRAL that is open right now.',
       path: '/jobs',
     },
     {

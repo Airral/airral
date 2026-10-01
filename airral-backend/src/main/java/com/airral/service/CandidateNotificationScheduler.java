@@ -99,7 +99,7 @@ public class CandidateNotificationScheduler {
                             // COUNT(*) over created_at, so every candidate was being sent
                             // the same number described as being about them. The count is
                             // real; only the claim attached to it was not.
-                            String subject = newJobCount + " new roles added to Airral";
+                            String subject = newJobCount + " new roles added to AIRRAL";
                             String body = buildJobAlertBody(user, newJobCount, pref.getUnsubscribeToken());
                             return emailService.sendEmail(user.getEmail(), subject, body)
                                     .then(updateLastSent(pref, "jobAlert"));
@@ -153,7 +153,7 @@ public class CandidateNotificationScheduler {
                   Tip: Run resume fit on your top picks to see where you stand before applying.
                 </p>
                 """.formatted(firstName, newJobCount, newJobCount, appBaseUrl);
-        return emailService.wrapInTemplate("New roles on Airral", bodyHtml, unsubscribeToken);
+        return emailService.wrapInTemplate("New roles on AIRRAL", bodyHtml, unsubscribeToken);
     }
 
     // ==================== 2. FOLLOW-UP REMINDERS (Daily 10:00 AM) ====================

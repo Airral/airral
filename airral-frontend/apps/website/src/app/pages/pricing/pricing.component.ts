@@ -8,7 +8,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
-import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
+import { WEBSITE_HEADER_LINKS, EMPLOYER_HEADER_CTAS } from '../../shared/header-config';
 
 interface Plan {
   name: string;
@@ -36,12 +36,12 @@ interface Faq {
 })
 export class PricingComponent {
   readonly headerLinks = WEBSITE_HEADER_LINKS;
-  readonly headerCtas = WEBSITE_HEADER_CTAS;
+  readonly headerCtas = EMPLOYER_HEADER_CTAS;
 
   readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 
   /**
-   * Plans are for companies hiring on Airral. Candidates never pay —
+   * Plans are for companies hiring on AIRRAL. Candidates never pay —
    * see the free-for-candidates section on the page.
    */
   readonly plans: Plan[] = [
@@ -100,7 +100,7 @@ export class PricingComponent {
 
   readonly faqs: Faq[] = [
     {
-      question: 'Is Airral free for job seekers?',
+      question: 'Is AIRRAL free for job seekers?',
       answer:
         'Yes. Browsing jobs, applying and tracking your applications cost nothing, and there is no paid tier for candidates.',
     },

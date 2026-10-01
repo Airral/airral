@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthApiService } from '@airral/shared-api';
 import { AuthService, EmailLinkService, PORTAL_ID, PortalId, clearSessionEndReason, noticeForSessionEndReason, readSessionEndReason, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { AuthResponse, RegisterRequest } from '@airral/shared-types';
-import { USER_ROLES } from '@airral/shared-utils';
+import { USER_ROLES, PORTAL_ROUTES } from '@airral/shared-utils';
 import { GoogleAuthButtonComponent, AirralLogoComponent } from '@airral/shared-ui';
 
 type AuthMode = 'login' | 'register';
@@ -18,6 +18,8 @@ type AuthMode = 'login' | 'register';
   styleUrl: './applicant-login.component.css',
 })
 export class ApplicantLoginComponent {
+  /** Companies sign in to the company portal, not here. */
+  readonly companySignInUrl = `${PORTAL_ROUTES.HR}/login`;
   mode: AuthMode = 'login';
   email = '';
   password = '';

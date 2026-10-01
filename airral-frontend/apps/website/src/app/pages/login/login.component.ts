@@ -1,58 +1,32 @@
 // apps/website/src/app/pages/login/login.component.ts
-import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { Component, Inject, OnInit, PLATFORM_ID } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Component } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
-import { PORTAL_ROUTES } from '@airral/shared-utils';
+import { AudienceChoiceComponent } from '../../shared/audience-choice.component';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 
+/**
+ * Sign in. It used to forward everyone to the job seeker portal, so a company
+ * signing in from the website landed in the wrong place. It now asks.
+ */
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, HeaderComponent, FooterComponent],
+  imports: [CommonModule, HeaderComponent, FooterComponent, AudienceChoiceComponent],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent {
   readonly headerLinks = WEBSITE_HEADER_LINKS;
   readonly headerCtas = WEBSITE_HEADER_CTAS;
-  private readonly isBrowser: boolean;
+  /** Anything a link carried (such as returnUrl), passed on to the job seeker sign-in. */
+  readonly seekerParams: Record<string, string>;
 
-  constructor(
-    @Inject(PLATFORM_ID) platformId: object,
-    private readonly route: ActivatedRoute
-  ) {
-    this.isBrowser = isPlatformBrowser(platformId);
-  }
-
-  get applicantLoginUrl(): string {
-    return this.buildApplicantAuthUrl();
-  }
-
-  get applicantRegisterUrl(): string {
-    return this.buildApplicantAuthUrl('register');
-  }
-
-  ngOnInit(): void {
-    if (this.isBrowser) {
-      window.location.replace(this.applicantLoginUrl);
-    }
-  }
-
-  private buildApplicantAuthUrl(mode?: 'register'): string {
-    const url = new URL(`${PORTAL_ROUTES.APPLICANT}/login`);
-    if (mode === 'register') {
-      url.searchParams.set('mode', 'register');
-    }
-
-    const queryParams = this.route.snapshot.queryParamMap;
-    queryParams.keys.forEach((key) => {
-      const value = queryParams.get(key);
-      if (value && key !== 'mode') {
-        url.searchParams.set(key, value);
-      }
-    });
-
-    return url.toString();
+  constructor(route: ActivatedRoute) {
+    const query = route.snapshot.queryParamMap;
+    this.seekerParams = Object.fromEntries(
+      query.keys.filter((key) => key !== 'mode').map((key) => [key, query.get(key) ?? ''])
+    );
   }
 }

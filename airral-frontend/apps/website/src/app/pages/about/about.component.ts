@@ -43,7 +43,7 @@ export class AboutComponent {
       icon: 'M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z M12 9.4a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2z',
       title: 'Do the reading',
       description:
-        'Airral watches for openings so you do not have to sit on job boards. It speaks up when something fits, and stays quiet when nothing does.',
+        'AIRRAL watches for openings so you do not have to sit on job boards. It speaks up when something fits, and stays quiet when nothing does.',
     },
     {
       // stacked layers

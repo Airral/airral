@@ -27,7 +27,7 @@ export interface HeaderCta {
   styleUrls: ['./header.component.css'],
 })
 export class HeaderComponent {
-  @Input() brand = 'Airral';
+  @Input() brand = 'AIRRAL';
   @Input() tagline = 'Job Search OS';
   @Input() links: HeaderNavLink[] = [
     { label: 'Home', path: '/', exact: true },

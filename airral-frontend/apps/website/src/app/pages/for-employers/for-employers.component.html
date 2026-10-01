@@ -19,8 +19,34 @@
       <a class="btn btn--glass" routerLink="/pricing">Compare plans</a>
     </div>
 
-    <p class="fine hero__fine">Quick Hire is free. No card to start.</p>
+    <p class="fine hero__fine">
+      Quick Hire is free. No card to start.
+      Already have a company account? <a class="hero__link" [href]="companySignIn">Company sign in</a>
+    </p>
   </header>
+
+  <!-- ── how a company gets into the company portal ── -->
+  <section class="section container" id="access">
+    <p class="kicker rise">Getting access</p>
+    <h2 class="h2 rise">How your company gets into AIRRAL.</h2>
+    <p class="lede rise">
+      Companies use the AIRRAL company portal, separate from the job seeker side. Your team
+      shares one workspace, and each person signs in with their own account.
+    </p>
+
+    <ol class="grid grid--3 access">
+      <li class="card glass rise" *ngFor="let step of accessSteps; let i = index">
+        <span class="access__n" aria-hidden="true">{{ i + 1 }}</span>
+        <h3 class="h3 access__h">{{ step.title }}</h3>
+        <p class="access__p">{{ step.body }}</p>
+      </li>
+    </ol>
+
+    <p class="fine rise access__fine">
+      Looking for a job instead? You don't need a company account.
+      <a class="hero__link" [href]="seekerRegister">Create a free job seeker account</a>
+    </p>
+  </section>
 
   <!-- ── what you get ── -->
   <section class="section container" id="what">

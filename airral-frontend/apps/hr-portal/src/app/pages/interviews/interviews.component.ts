@@ -284,13 +284,13 @@ export class InterviewsComponent implements OnInit {
     const start = this.toICSDate(this.startOf(interview));
     const end = this.toICSDate(this.endOf(interview));
     const ics = [
-      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Airral HR//Interview//EN',
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//AIRRAL HR//Interview//EN',
       'BEGIN:VEVENT',
       `UID:interview-${interview.id}@airral.com`,
       `DTSTART:${start}`,
       `DTEND:${end}`,
       `SUMMARY:Interview: ${interview.candidateName} — ${interview.jobTitle}`,
-      'DESCRIPTION:Scheduled via Airral HR Portal',
+      'DESCRIPTION:Scheduled via AIRRAL HR Portal',
       'END:VEVENT',
       'END:VCALENDAR'
     ].join('\r\n');

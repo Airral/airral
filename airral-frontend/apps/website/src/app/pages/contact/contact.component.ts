@@ -86,7 +86,7 @@ export class ContactComponent {
     {
       question: 'Can I see it before I buy it?',
       answer:
-        'Yes. Email contact@airral.com and we will walk you through the parts of Airral your team would actually use.',
+        'Yes. Email contact@airral.com and we will walk you through the parts of AIRRAL your team would actually use.',
     },
   ];
 

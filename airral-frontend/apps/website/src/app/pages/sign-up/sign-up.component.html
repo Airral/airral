@@ -13,6 +13,11 @@
           Post a role, see everyone who applied, and keep the whole hire in one place — so
           nobody has to ask where a candidate got to.
         </p>
+        <p class="fine signup__who">
+          This is for companies hiring. Already have a company account?
+          <a class="form__link" [href]="companySignInUrl">Company sign in</a>.
+          Looking for a job? <a class="form__link" [href]="applicantRegisterUrl">Create a free job seeker account</a> instead.
+        </p>
 
         <ul class="grid signup__list">
           <li>
@@ -52,7 +57,7 @@
       <!-- ── the form ── -->
       <div class="pane glass">
         <form class="form" (ngSubmit)="onSubmit()" #employerForm="ngForm" novalidate>
-          <h2 class="h3">Start hiring on Airral</h2>
+          <h2 class="h3">Start hiring on AIRRAL</h2>
 
           <div class="field">
             <label class="field__label" for="companyName">Company name</label>

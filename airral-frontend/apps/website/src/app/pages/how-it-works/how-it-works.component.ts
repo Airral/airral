@@ -37,7 +37,7 @@ export class HowItWorksComponent {
     },
     {
       number: 2,
-      title: 'Airral does the looking',
+      title: 'AIRRAL does the looking',
       description:
         'It keeps watching what’s open and puts a role in front of you when it fits — with the reason it thinks so.',
     },

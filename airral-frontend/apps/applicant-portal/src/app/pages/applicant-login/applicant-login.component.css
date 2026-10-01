@@ -510,3 +510,6 @@ input:focus {
 .forgot-link a:hover {
   text-decoration: underline;
 }
+
+.portal-note a { color: var(--ap-tint-text); font-weight: 700; text-decoration: none; }
+.portal-note a:hover { text-decoration: underline; }
