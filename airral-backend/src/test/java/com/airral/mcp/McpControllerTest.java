@@ -34,6 +34,7 @@ class McpControllerTest {
     private static class RecordingTool implements McpTool {
         boolean called;
         JsonNode receivedArguments;
+        McpCaller receivedCaller;
         private final String scope;
 
         RecordingTool(String scope) {
@@ -46,9 +47,10 @@ class McpControllerTest {
         @Override public String requiredScope() { return scope; }
 
         @Override
-        public Mono<String> call(JsonNode arguments) {
+        public Mono<String> call(McpCaller caller, JsonNode arguments) {
             called = true;
             receivedArguments = arguments;
+            receivedCaller = caller;
             return Mono.just("two postings found");
         }
     }
@@ -59,7 +61,7 @@ class McpControllerTest {
         @Override public String description() { return "List applicants."; }
         @Override public Map<String, Object> inputSchema() { return Map.of("type", "object"); }
         @Override public String requiredScope() { return ApiKeyScopes.PIPELINE_READ; }
-        @Override public Mono<String> call(JsonNode arguments) { return Mono.just("applicants"); }
+        @Override public Mono<String> call(McpCaller caller, JsonNode arguments) { return Mono.just("applicants"); }
     }
 
     private RecordingTool jobsTool;
@@ -261,7 +263,7 @@ class McpControllerTest {
             @Override public String description() { return "x"; }
             @Override public Map<String, Object> inputSchema() { return Map.of(); }
             @Override public String requiredScope() { return ApiKeyScopes.JOBS_READ; }
-            @Override public Mono<String> call(JsonNode arguments) {
+            @Override public Mono<String> call(McpCaller caller, JsonNode arguments) {
                 return Mono.error(new IllegalStateException(
                         "relation \"external_job_postings\" does not exist"));
             }
@@ -297,5 +299,38 @@ class McpControllerTest {
 
         assertNotNull(response);
         assertEquals(400, response.getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("a tool is told who the key belongs to")
+    void toolReceivesTheCaller() {
+        UsernamePasswordAuthenticationToken auth = (UsernamePasswordAuthenticationToken) withScopes(ApiKeyScopes.JOBS_READ);
+        auth.setDetails(new com.airral.security.AuthenticationManager.AuthenticationDetails(
+                91L, 29L, "QUICK_HIRE", "HR_MANAGER", false));
+        send("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"search_jobs\",\"arguments\":{\"query\":\"lead\"}}}", auth);
+
+        assertTrue(jobsTool.called);
+        assertEquals(new McpCaller(91L, 29L, "HR_MANAGER"), jobsTool.receivedCaller);
+    }
+
+    @Test
+    @DisplayName("a refusal from underneath reaches the model in its own words")
+    void clientErrorsAreNotBlamedOnAirral() {
+        McpTool closed = new McpTool() {
+            @Override public String name() { return "get_job"; }
+            @Override public String description() { return "Get one job."; }
+            @Override public Map<String, Object> inputSchema() { return Map.of("type", "object"); }
+            @Override public String requiredScope() { return ApiKeyScopes.JOBS_READ; }
+            @Override public Mono<String> call(McpCaller caller, JsonNode arguments) {
+                return Mono.error(new com.airral.exception.BadRequestException("That job is no longer open."));
+            }
+        };
+        controller = new McpController(List.of(closed));
+        Map<String, Object> body = send("{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\","
+                + "\"params\":{\"name\":\"get_job\",\"arguments\":{}}}", withScopes(ApiKeyScopes.JOBS_READ));
+
+        assertEquals(true, result(body).get("isError"));
+        assertEquals("That job is no longer open.", firstText(body));
     }
 }

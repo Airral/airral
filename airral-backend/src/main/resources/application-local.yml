@@ -31,6 +31,9 @@ airral:
       local-gcloud-token: true
       # Never mail the throwaway addresses local runs sign up; log the link.
       deliver: false
+  mcp:
+    # The address the Connect an AI assistant page shows: this local API.
+    public-url: ${AIRRAL_MCP_PUBLIC_URL:http://localhost:${server.port:8080}/mcp}
   company-logos:
     brandfetch-client-id: ${BRANDFETCH_CLIENT_ID:}
   jobs:

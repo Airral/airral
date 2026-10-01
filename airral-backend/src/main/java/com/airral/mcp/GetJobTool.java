@@ -78,7 +78,7 @@ public class GetJobTool implements McpTool {
     }
 
     @Override
-    public Mono<String> call(JsonNode arguments) {
+    public Mono<String> call(McpCaller caller, JsonNode arguments) {
         String sourceType = text(arguments, "source_type");
         String boardToken = text(arguments, "board_token");
         String jobId = text(arguments, "job_id");
