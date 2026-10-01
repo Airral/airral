@@ -7,10 +7,11 @@ import { AuthService, PORTAL_ID, SessionExpiry, routeAfterAuth, sessionExpiryFro
 import { AuthResponse, User } from '@airral/shared-types';
 import { PORTAL_ROUTES, USER_ROLES } from '@airral/shared-utils';
 
+import { AirralLogoComponent } from '@airral/shared-ui';
 @Component({
   selector: 'app-hr-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, AirralLogoComponent],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
 })

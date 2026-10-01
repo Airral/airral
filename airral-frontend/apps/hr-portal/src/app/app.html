@@ -2,7 +2,7 @@
 	<div class="hr-shell" [class.menu-open]="menuOpen()">
 	<aside class="sidebar" aria-label="Company hiring">
 		<div class="brand">
-			<span class="brand-mark" aria-hidden="true"></span>
+			<airral-logo [size]="32" />
 			<div class="brand-text">
 				<p class="brand-title">{{ organizationName }}</p>
 				<p class="brand-sub">{{ tierLabel }}</p>
@@ -40,7 +40,7 @@
 				<span class="material-icons">menu</span>
 			</button>
 			<span class="topbar-brand">
-				<span class="brand-mark small" aria-hidden="true"></span>
+				<airral-logo [size]="24" />
 				<span>{{ organizationName }}</span>
 			</span>
 		</header>

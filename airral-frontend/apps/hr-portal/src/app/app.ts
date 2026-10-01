@@ -13,10 +13,10 @@ import {
   filterNavByTier,
 } from './feature-config';
 
-import { VerifyEmailBannerComponent } from '@airral/shared-ui';
+import { VerifyEmailBannerComponent, AirralLogoComponent } from '@airral/shared-ui';
 
 @Component({
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, VerifyEmailBannerComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, VerifyEmailBannerComponent, AirralLogoComponent],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.css',
