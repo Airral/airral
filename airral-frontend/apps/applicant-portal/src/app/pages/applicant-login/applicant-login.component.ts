@@ -6,14 +6,14 @@ import { AuthApiService } from '@airral/shared-api';
 import { AuthService, EmailLinkService, PORTAL_ID, PortalId, clearSessionEndReason, noticeForSessionEndReason, readSessionEndReason, routeAfterAuth, sessionExpiryFromResponse, userFromAuthResponse } from '@airral/shared-auth';
 import { AuthResponse, RegisterRequest } from '@airral/shared-types';
 import { USER_ROLES, PORTAL_ROUTES } from '@airral/shared-utils';
-import { GoogleAuthButtonComponent } from '@airral/shared-ui';
+import { GoogleAuthButtonComponent, AirralLogoComponent } from '@airral/shared-ui';
 
 type AuthMode = 'login' | 'register';
 
 @Component({
   selector: 'app-applicant-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, GoogleAuthButtonComponent],
+  imports: [CommonModule, FormsModule, RouterLink, GoogleAuthButtonComponent, AirralLogoComponent],
   templateUrl: './applicant-login.component.html',
   styleUrl: './applicant-login.component.css',
 })

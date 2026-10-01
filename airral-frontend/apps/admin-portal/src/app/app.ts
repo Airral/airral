@@ -5,8 +5,9 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
 import { AuthService } from '@airral/shared-auth';
 
+import { AirralLogoComponent } from '@airral/shared-ui';
 @Component({
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, AirralLogoComponent],
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrl: './app.css',

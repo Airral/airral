@@ -9,6 +9,7 @@ import { timeout } from 'rxjs';
 import { markUserOnboarded } from '../../guards/onboarding.guard';
 import { saveOnboardingJobSearchSeed } from '../../utils/job-search-seed';
 
+import { AirralLogoComponent } from '@airral/shared-ui';
 type OnboardingStep = 1 | 2 | 3;
 
 interface RoleOption {
@@ -21,7 +22,7 @@ interface RoleOption {
 @Component({
   selector: 'app-onboarding',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AirralLogoComponent],
   templateUrl: './onboarding.component.html',
   styleUrl: './onboarding.component.css',
 })

@@ -72,24 +72,7 @@
   gap: 10px;
 }
 
-.brand-mark {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: var(--ap-tint);
-  flex: none;
-}
-
 /* The same mark as the header: a teal tile with an open ring. */
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  inset: 9px;
-  border-radius: 50%;
-  border: 2.5px solid #ffffff;
-  border-right-color: transparent;
-}
 
 .brand-name {
   font-family: 'Sora', 'Manrope', sans-serif;
