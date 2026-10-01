@@ -347,3 +347,25 @@ html, body {
     order: 2;
   }
 }
+
+/* The jobs page fills exactly the space under the nav and anything above it,
+   such as the "Verify your email" banner. It used to be 100vh minus the nav
+   alone, so a banner pushed the page past the bottom of the screen and the
+   apply bar -- Apply, Save, Share -- sat below the fold while the job details
+   scrolled. Desktop only: on phones the list scrolls with the page and a job
+   opens full screen. Browsers without :has keep the old height. */
+@media (min-width: 769px) {
+  .app-main:has(> app-jobs) {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .app-main:has(> app-jobs) > app-jobs {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 0;
+  }
+}

@@ -1395,6 +1395,22 @@
   background: var(--ap-surface);
 }
 
+.bar-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ap-tint-text) !important;
+  font-weight: 650;
+}
+
+.bar-status .material-icons {
+  font-size: 17px;
+}
+
+.bar-status.error {
+  color: var(--ap-red) !important;
+}
+
 .apply-note {
   margin: 0;
   flex: 1;
@@ -1829,6 +1845,10 @@
 
   .apply-note {
     text-align: center;
+  }
+
+  .bar-status {
+    justify-content: center;
   }
 
   .desktop-only {
