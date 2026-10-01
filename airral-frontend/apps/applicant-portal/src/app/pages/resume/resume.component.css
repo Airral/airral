@@ -548,7 +548,7 @@ textarea {
 .field textarea:focus,
 .tag-input-row input:focus {
   border-color: var(--ap-tint);
-  box-shadow: 0 0 0 3px rgba(0, 124, 109, 0.1);
+  box-shadow: 0 0 0 3px rgba(91, 61, 245, 0.12);
 }
 
 .field input::placeholder,
@@ -809,7 +809,7 @@ textarea {
 }
 
 .current-role input:focus-visible + .check-box {
-  box-shadow: 0 0 0 3px rgba(0, 124, 109, 0.13);
+  box-shadow: 0 0 0 3px rgba(91, 61, 245, 0.13);
 }
 
 .education-grid .year-field {

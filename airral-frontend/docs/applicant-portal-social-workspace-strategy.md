@@ -107,7 +107,7 @@ AIRRAL can start without big-company partnerships by using public signal and com
 - **Traceable progress:** every application, event, room, and conversation should connect back to the candidate's job-search record.
 - **Trust through context:** salary, funding, event, and candidate-reported signals should reduce wasted effort.
 - **Calm, work-focused UI:** this is a daily workspace, so the interface should be dense, scannable, and direct rather than a marketing page.
-- **Clear AIRRAL brand color:** AIRRAL's primary product color is teal-green (`#007C6D`). Use deep navy (`#102436`) for authority and readable contrast. Blue (`#3867d6`) is only a supporting signal color. Coral and amber are small semantic accents, not competing brand colors.
+- **Clear AIRRAL brand color:** AIRRAL's primary product color is violet (`#5B3DF5`; it replaced teal-green `#007C6D` in October 2026). Use deep navy (`#102436`) for authority and readable contrast. Blue (`#3867d6`) is only a supporting signal color. Coral and amber are small semantic accents, not competing brand colors.
 - **Welcoming color system:** avoid a gray admin feel. The first viewport should make the teal/navy brand obvious through the topbar, active navigation, primary action, and hero surface. Keep cards warm-white with restrained shadows and clear hover states so the workspace feels alive without becoming noisy.
 
 ## Historical Build Slice

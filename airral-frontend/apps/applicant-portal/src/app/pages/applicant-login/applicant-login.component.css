@@ -141,7 +141,7 @@
 }
 
 .value-list li:nth-child(2) .material-icons {
-  background: var(--ap-purple);
+  background: var(--ap-magenta);
 }
 
 .value-list li:nth-child(3) .material-icons {
@@ -189,7 +189,7 @@
   background: #ffffff;
   color: var(--ap-tint);
   font-weight: 700;
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ap-tint) 35%, #ffffff), 0 1px 4px rgba(0, 124, 109, 0.1);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ap-tint) 35%, #ffffff), 0 1px 4px rgba(91, 61, 245, 0.1);
 }
 
 /* ── Form heading ─────────────────────────────────── */
@@ -283,7 +283,7 @@ input:hover {
 
 input:focus {
   border-color: var(--ap-tint);
-  box-shadow: 0 0 0 3px rgba(0, 124, 109, 0.1);
+  box-shadow: 0 0 0 3px rgba(91, 61, 245, 0.1);
 }
 
 /* ── Password reveal ──────────────────────────────── */
@@ -367,18 +367,18 @@ input:focus {
   font-weight: 700;
   letter-spacing: 0.01em;
   transition: background 0.14s, transform 0.1s, box-shadow 0.14s;
-  box-shadow: 0 2px 8px rgba(0, 124, 109, 0.3);
+  box-shadow: 0 2px 8px rgba(91, 61, 245, 0.3);
 }
 
 .primary-action:hover:not(:disabled) {
   background: var(--ap-tint-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 124, 109, 0.35);
+  box-shadow: 0 4px 16px rgba(91, 61, 245, 0.35);
 }
 
 .primary-action:active:not(:disabled) {
   transform: scale(0.98);
-  box-shadow: 0 1px 4px rgba(0, 124, 109, 0.2);
+  box-shadow: 0 1px 4px rgba(91, 61, 245, 0.2);
 }
 
 /* ── Focus rings ──────────────────────────────────── */
@@ -386,7 +386,7 @@ input:focus {
 .mode-switch button:focus-visible,
 .helper button:focus-visible,
 .password-toggle:focus-visible {
-  outline: 3px solid rgba(0, 124, 109, 0.4);
+  outline: 3px solid rgba(91, 61, 245, 0.4);
   outline-offset: 2px;
 }
 

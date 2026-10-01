@@ -39,7 +39,7 @@
   font-size: 14px;
   font-weight: 600;
   color: #FFFFFF;
-  background: #007C6D;
+  background: var(--ap-tint);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -52,7 +52,7 @@
 
 .unsub-done {
   font-weight: 600;
-  color: #007C6D;
+  color: var(--ap-tint);
 }
 
 .unsub-invalid {
@@ -65,5 +65,5 @@
 }
 
 .unsub-links a {
-  color: #007C6D;
+  color: var(--ap-tint);
 }

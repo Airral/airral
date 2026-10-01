@@ -31,7 +31,7 @@ import { SetupChecklistComponent } from './setup-checklist.component';
         <a routerLink="/candidates" [queryParams]="{ stage: 'SUBMITTED' }" class="tile t-blue">
           <span class="tile-label">New applications</span><strong>{{ newApplications }}</strong><small>Start review</small>
         </a>
-        <a routerLink="/interviews" class="tile t-purple">
+        <a routerLink="/interviews" class="tile t-magenta">
           <span class="tile-label">Interviews</span><strong>{{ interviews }}</strong><small>View schedule</small>
         </a>
         <a routerLink="/offers" class="tile t-green">
@@ -87,7 +87,7 @@ import { SetupChecklistComponent } from './setup-checklist.component';
               <span class="material-icons chevron" aria-hidden="true">chevron_right</span>
             </a>
             <a routerLink="/interviews" class="row action">
-              <span class="icon-tile c-purple material-icons" aria-hidden="true">event</span>
+              <span class="icon-tile c-magenta material-icons" aria-hidden="true">event</span>
               <span class="row-text"><strong>Coordinate interviews</strong><small>{{ interviews }} in progress</small></span>
               <span class="material-icons chevron" aria-hidden="true">chevron_right</span>
             </a>
@@ -119,7 +119,7 @@ import { SetupChecklistComponent } from './setup-checklist.component';
     .tile-label { color: var(--ap-ink-2); font-size: 12.5px; font-weight: 650; }
     .tile strong { color: var(--c); font: 800 32px/1.1 'Sora', 'Manrope', sans-serif; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
     .tile small { color: var(--ap-tint-text); font-size: 12px; font-weight: 700; }
-    .t-blue { --c: var(--ap-blue); } .t-purple { --c: var(--ap-purple); } .t-green { --c: var(--ap-green); } .t-teal { --c: var(--ap-teal); }
+    .t-blue { --c: var(--ap-blue); } .t-magenta { --c: var(--ap-magenta); } .t-green { --c: var(--ap-green); } .t-teal { --c: var(--ap-teal); }
     .error { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; color: var(--ap-red); background: color-mix(in srgb, var(--ap-red) 9%, #fff); font-size: 13px; font-weight: 650; }
     .error .material-icons { font-size: 18px; }
     .home-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, .75fr); gap: 16px; align-items: start; }
@@ -140,7 +140,7 @@ import { SetupChecklistComponent } from './setup-checklist.component';
     .row-text small { color: var(--ap-ink-2); font-size: 12.5px; }
     .chevron { color: var(--ap-ink-3); font-size: 18px; }
     .icon-tile { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; color: #fff; background: var(--c); font-size: 19px; }
-    .c-blue { --c: var(--ap-blue); } .c-purple { --c: var(--ap-purple); } .c-teal { --c: var(--ap-teal); }
+    .c-blue { --c: var(--ap-blue); } .c-magenta { --c: var(--ap-magenta); } .c-teal { --c: var(--ap-teal); }
     .empty { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 28px; color: var(--ap-ink-2); font-size: 13px; text-align: center; }
     .empty-icon { width: 40px; height: 40px; display: grid; place-items: center; margin-bottom: 6px; border-radius: 12px; color: #fff; background: var(--ap-green); font-size: 22px; }
     .empty strong { color: var(--ap-ink); font-size: 15px; }

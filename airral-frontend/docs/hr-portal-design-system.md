@@ -8,10 +8,10 @@ has to answer one question fast: who is waiting on me, and what do I do next.
 - Light only. A light gray page (`--ap-page`), borderless white surfaces with a
   hairline shadow, near-black text. No dark panels, including the sign-in page.
 - Use the `--ap-*` tokens in `apps/hr-portal/src/styles.css`, not hex values.
-- AIRRAL teal (`--ap-tint`) is the brand and the one primary action per screen,
+- AIRRAL violet (`--ap-tint`, `#5B3DF5`) is the brand and the one primary action per screen,
   plus selected states. Everything else is a gray fill button.
 - Fields are soft wells: `--ap-fill-soft` with an inset `--ap-hair-2` ring, and a
-  2px teal ring on focus.
+  2px violet ring on focus.
 
 ## Color means something
 
@@ -22,7 +22,7 @@ Each color below means the same thing on every page. Do not use them to decorate
 | New application (`SUBMITTED`) | blue |
 | In review (`UNDER_REVIEW`) | cyan |
 | Shortlisted | teal |
-| Interview scheduled, and interviews anywhere | purple |
+| Interview scheduled, and interviews anywhere | magenta |
 | Interviewed: needs your decision | orange |
 | Offer extended, hired, accepted, open job | green |
 | Draft job, draft offer | orange / gray |
@@ -36,7 +36,7 @@ restyle buttons or pills themselves:
 
 - Buttons: `.btn` plus `.btn-primary`, `.btn-secondary` (or `.btn-quiet`),
   `.btn-danger` and `.btn-sm`. Round `.icon-btn` for refresh and close.
-- Glance tiles: `.glance` holding `.tile.t-blue` / `.t-purple` / `.t-green` /
+- Glance tiles: `.glance` holding `.tile.t-blue` / `.t-magenta` / `.t-green` /
   `.t-teal` / `.t-orange`, each a label `span` and a number `strong`. Two per row
   on phones.
 - Stage pill: `.stage[data-stage="<ApplicationStatus>"]`.

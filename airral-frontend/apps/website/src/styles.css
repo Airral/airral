@@ -17,9 +17,9 @@
   /* The one accent. Reserved for the brand mark, the "soon"
      badge, the terminal caret and keyboard focus. Do not spend
      it on headings, links, borders or section decoration. */
-  --accent: #6d4aff;
-  --accent-deep: #4a28c4;
-  --accent-lift: #8a6bff;
+  --accent: #5b3df5;
+  --accent-deep: #4a2bd1;
+  --accent-lift: #7b61ff;
 
   /* ── glass, tuned for a light ground ──
      Frost is white; edges are ink, not white. */

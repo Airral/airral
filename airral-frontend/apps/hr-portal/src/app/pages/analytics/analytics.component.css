@@ -63,7 +63,7 @@
 
 .funnel-bar:hover {
   transform: translateX(4px);
-  box-shadow: 0 4px 12px rgba(15, 157, 120, 0.3);
+  box-shadow: 0 4px 12px rgba(91, 61, 245, 0.3);
 }
 
 .stage-label {
@@ -180,7 +180,7 @@
 
 .trend-bar .bar:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(15, 157, 120, 0.3);
+  box-shadow: 0 8px 16px rgba(91, 61, 245, 0.3);
 }
 
 .bar-value {
@@ -269,7 +269,7 @@
 .btn-upgrade:hover {
   background: var(--ap-tint);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(15, 157, 120, 0.3);
+  box-shadow: 0 6px 16px rgba(91, 61, 245, 0.3);
 }
 
 @media (max-width: 900px) { .cards { grid-template-columns: 1fr; } }

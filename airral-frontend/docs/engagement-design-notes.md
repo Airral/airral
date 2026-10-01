@@ -37,7 +37,7 @@ Implemented in the candidate dashboard workspace:
 
 Primary AIRRAL color system:
 
-- `Primary Teal`: `#007C6D`
+- `Primary Violet`: `#5B3DF5` (was teal `#007C6D` until October 2026)
 - `Deep Teal`: `#0b7c61`
 - `Trust Navy`: `#132634`
 - `Signal Blue`: `#3a63d6`

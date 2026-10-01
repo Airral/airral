@@ -442,7 +442,7 @@ Keep:
 - near-black text
 - neutral gray borders
 - white cards
-- teal-green only for primary actions, selected states, success
+- the brand color (violet since October 2026, teal-green before) only for primary actions, selected states
 - blue only for trust/support signals
 - 8px card radius
 
