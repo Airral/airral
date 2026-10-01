@@ -12,15 +12,15 @@
   display: grid;
   gap: 14px;
   padding: 28px;
-  border: 1px solid #e1e5e9;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 12px;
   background: #ffffff;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .icon {
   font-size: 32px;
-  color: #007c6d;
+  color: var(--ap-tint);
 }
 
 h1 {
@@ -30,7 +30,7 @@ h1 {
 
 p {
   margin: 0;
-  color: #4b5563;
+  color: var(--ap-ink-2);
   line-height: 1.5;
 }
 
@@ -53,15 +53,15 @@ button {
 }
 
 .primary {
-  border: 1px solid #007c6d;
-  background: #007c6d;
+  border: 1px solid var(--ap-tint);
+  background: var(--ap-tint);
   color: #ffffff;
 }
 
 .secondary {
   border: 1px solid #d9dee3;
   background: #ffffff;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 button:disabled {
@@ -70,7 +70,7 @@ button:disabled {
 }
 
 .message {
-  color: #111827;
+  color: var(--ap-ink);
   font-weight: 600;
 }
 
@@ -82,6 +82,6 @@ button:disabled {
   padding: 0;
   border: 0;
   background: none;
-  color: #007c6d;
+  color: var(--ap-tint);
   text-decoration: underline;
 }

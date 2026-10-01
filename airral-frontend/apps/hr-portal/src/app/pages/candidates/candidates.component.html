@@ -1,27 +1,26 @@
 <main class="pipeline-page">
   <header class="page-header">
     <div>
-      <p class="eyebrow">Hiring workspace</p>
       <h1>Candidates</h1>
-      <p class="page-copy">Review evidence, coordinate interviews, and move every applicant toward a clear decision.</p>
+      <p class="page-copy">Everyone who applied, what their resume shows, and the next step for each.</p>
     </div>
     <div class="header-actions">
       @if (canAddCandidates) {
-        <button type="button" class="primary-button" [disabled]="addingCandidate" (click)="openAddCandidate()">
+        <button type="button" class="btn btn-primary" [disabled]="addingCandidate" (click)="openAddCandidate()">
           <span class="material-icons" aria-hidden="true">person_add</span>Add candidate
         </button>
       }
-      <button type="button" class="icon-action" title="Refresh candidates" aria-label="Refresh candidates" (click)="load()">
+      <button type="button" class="icon-btn" title="Refresh candidates" aria-label="Refresh candidates" (click)="load()">
         <span class="material-icons" aria-hidden="true">refresh</span>
       </button>
     </div>
   </header>
 
-  <section class="metrics" aria-label="Candidate pipeline summary">
-    <div><span>All candidates</span><strong>{{ applications.length }}</strong></div>
-    <div><span>Active</span><strong>{{ activeCount }}</strong></div>
-    <div><span>Interviews</span><strong>{{ interviewCount }}</strong></div>
-    <div><span>Open offers</span><strong>{{ offerCount }}</strong></div>
+  <section class="glance" aria-label="Candidate pipeline summary">
+    <div class="tile t-teal"><span>All candidates</span><strong>{{ applications.length }}</strong></div>
+    <div class="tile t-blue"><span>In progress</span><strong>{{ activeCount }}</strong></div>
+    <div class="tile t-purple"><span>Interviews</span><strong>{{ interviewCount }}</strong></div>
+    <div class="tile t-green"><span>Open offers</span><strong>{{ offerCount }}</strong></div>
   </section>
 
   @if (error) {
@@ -39,7 +38,7 @@
     <section class="add-candidate" aria-labelledby="add-candidate-title">
       <div class="section-heading">
         <div><p class="eyebrow">Add by hand</p><h3 id="add-candidate-title">Add a candidate</h3></div>
-        <button type="button" class="icon-action compact" title="Close" aria-label="Close" (click)="cancelAddCandidate()">
+        <button type="button" class="icon-btn compact" title="Close" aria-label="Close" (click)="cancelAddCandidate()">
           <span class="material-icons" aria-hidden="true">close</span>
         </button>
       </div>
@@ -63,10 +62,10 @@
           <input name="resumeUrl" type="url" [(ngModel)]="newCandidate.resumeUrl" maxlength="500" placeholder="https://" autocomplete="off" />
         </label>
         <div class="add-actions wide">
-          <button type="submit" class="primary-button" [disabled]="!canSubmitCandidate">
+          <button type="submit" class="btn btn-primary" [disabled]="!canSubmitCandidate">
             <span class="material-icons" aria-hidden="true">person_add</span>{{ saving ? 'Adding…' : 'Add candidate' }}
           </button>
-          <button type="button" class="secondary-button" (click)="cancelAddCandidate()">Cancel</button>
+          <button type="button" class="btn btn-secondary" (click)="cancelAddCandidate()">Cancel</button>
         </div>
       </form>
     </section>
@@ -153,24 +152,24 @@
                 <span>{{ jobTitle(application) }} · Applied {{ application.appliedAt | date: 'mediumDate' }}</span>
               </div>
             </div>
-            <button type="button" class="icon-action compact" title="Close details" aria-label="Close candidate details" (click)="closeDetail()">
+            <button type="button" class="icon-btn compact" title="Close details" aria-label="Close candidate details" (click)="closeDetail()">
               <span class="material-icons" aria-hidden="true">close</span>
             </button>
           </header>
 
           <div class="detail-actions">
             @if (canOpenResume(application)) {
-              <button type="button" class="secondary-button" (click)="openResume(application)">
+              <button type="button" class="btn btn-secondary" (click)="openResume(application)">
                 <span class="material-icons" aria-hidden="true">description</span>View resume
               </button>
             }
             @if (primaryActionLabel(application); as actionLabel) {
-              <button type="button" class="primary-button" [disabled]="saving" (click)="runPrimaryAction(application)">
+              <button type="button" class="btn btn-primary" [disabled]="saving" (click)="runPrimaryAction(application)">
                 {{ actionLabel }}<span class="material-icons" aria-hidden="true">arrow_forward</span>
               </button>
             }
             @if (application.status !== statuses.HIRED && application.status !== statuses.REJECTED && application.status !== statuses.WITHDRAWN) {
-              <button type="button" class="secondary-button danger" [disabled]="saving || confirmingReject" (click)="reject()">Reject</button>
+              <button type="button" class="btn btn-danger" [disabled]="saving || confirmingReject" (click)="reject()">Reject</button>
             }
           </div>
 
@@ -185,8 +184,8 @@
                 <p class="field-help">Emails to candidates start once AIRRAL has verified your company.</p>
               }
               <div class="confirm-actions">
-                <button type="button" class="secondary-button danger" [disabled]="saving" (click)="confirmReject(application)">Reject</button>
-                <button type="button" class="secondary-button" (click)="cancelReject()">Cancel</button>
+                <button type="button" class="btn btn-danger" [disabled]="saving" (click)="confirmReject(application)">Reject</button>
+                <button type="button" class="btn btn-secondary" (click)="cancelReject()">Cancel</button>
               </div>
             </div>
           }
@@ -198,8 +197,8 @@
 
             <section class="detail-section">
               <div class="section-heading">
-                <div><p class="eyebrow">Application evidence</p><h3>Job alignment</h3></div>
-                <span class="evidence-note">Directional evidence, never a visibility gate</span>
+                <div><h3>How they match the job</h3></div>
+                <span class="evidence-note">A guide for you. It never hides a candidate.</span>
               </div>
 
               @if (application.atsMatchedKeywords?.length || application.atsMissingKeywords?.length) {
@@ -217,7 +216,7 @@
                 }
                 <div class="evidence-grid">
                   <div>
-                    <h4><span class="material-icons positive" aria-hidden="true">check_circle</span>Found in {{ readsResume(application) ? 'the resume or note' : 'the note' }}</h4>
+                    <h4><span class="material-icons positive" aria-hidden="true">check_circle</span>Found in {{ readsResume(application) ? 'the resume or note' : 'the note' }} <span class="count">{{ (application.atsMatchedKeywords || []).length }}</span></h4>
                     <div class="keyword-list">
                       @for (keyword of application.atsMatchedKeywords || []; track keyword) {
                         <span class="keyword matched">{{ keyword }}</span>
@@ -225,7 +224,7 @@
                     </div>
                   </div>
                   <div>
-                    <h4><span class="material-icons neutral" aria-hidden="true">help_outline</span>{{ resumeUnreadable(application) ? 'To look for in the resume' : 'Not found: worth asking about' }}</h4>
+                    <h4><span class="material-icons neutral" aria-hidden="true">help</span>{{ resumeUnreadable(application) ? 'To look for in the resume' : 'Not found, worth asking about' }} <span class="count">{{ (application.atsMissingKeywords || []).length }}</span></h4>
                     <div class="keyword-list">
                       @for (keyword of application.atsMissingKeywords || []; track keyword) {
                         <span class="keyword missing">{{ keyword }}</span>
@@ -238,7 +237,7 @@
               }
 
               <div class="cover-letter">
-                <h4>Candidate note</h4>
+                <h4>In their words</h4>
                 <p>{{ application.coverLetter || 'No cover letter was included with this application.' }}</p>
               </div>
             </section>
@@ -264,7 +263,7 @@
                 @if (offersOut(application) > 0) {
                   <p class="field-help">{{ offersOut(application) }} candidate{{ offersOut(application) === 1 ? ' has' : 's have' }} an offer out and {{ offersOut(application) === 1 ? 'is' : 'are' }} left as they are. Withdraw the offer on the Offers page first.</p>
                 }
-                <button type="button" class="primary-button" [disabled]="closingOut || (!(closeOut.markFilled && !jobFilled(application)) && !(closeOut.turnDownOthers && othersInProgress(application) > 0))" (click)="runCloseOut(application)">
+                <button type="button" class="btn btn-primary" [disabled]="closingOut || (!(closeOut.markFilled && !jobFilled(application)) && !(closeOut.turnDownOthers && othersInProgress(application) > 0))" (click)="runCloseOut(application)">
                   <span class="material-icons" aria-hidden="true">task_alt</span>{{ closingOut ? 'Closing out…' : 'Close out' }}
                 </button>
               </section>
@@ -308,7 +307,7 @@
                     <p class="field-help">Emails to candidates start once AIRRAL has verified your company.</p>
                   }
                 </div>
-                <button type="button" class="primary-button" [disabled]="!interviewDate || saving" (click)="scheduleInterview()">
+                <button type="button" class="btn btn-primary" [disabled]="!interviewDate || saving" (click)="scheduleInterview()">
                   <span class="material-icons" aria-hidden="true">event</span>Schedule interview
                 </button>
               </section>
@@ -319,7 +318,7 @@
                 <div class="section-heading"><div><p class="eyebrow">Interview</p><h3>Record feedback</h3></div></div>
                 <label class="rating-control">Rating <strong>{{ rating }}/5</strong><input type="range" min="1" max="5" [(ngModel)]="rating" /></label>
                 <label>Feedback<textarea rows="4" [(ngModel)]="feedback" placeholder="Evidence, concerns, and recommended next step"></textarea></label>
-                <button type="button" class="primary-button" [disabled]="!selectedInterviewId || !feedback.trim() || saving" (click)="submitFeedback()">
+                <button type="button" class="btn btn-primary" [disabled]="!selectedInterviewId || !feedback.trim() || saving" (click)="submitFeedback()">
                   <span class="material-icons" aria-hidden="true">rate_review</span>Save feedback
                 </button>
                 @if (!selectedInterviewId) { <p class="field-help">No scheduled interview was found for this application.</p> }
@@ -354,7 +353,7 @@
               <div class="section-heading"><div><p class="eyebrow">Team context</p><h3>Notes and activity</h3></div></div>
               <div class="note-composer">
                 <textarea rows="3" [(ngModel)]="noteText" placeholder="Add interview prep, evidence, or a decision note"></textarea>
-                <button type="button" class="primary-button" [disabled]="!noteText.trim() || saving" (click)="addNote()">
+                <button type="button" class="btn btn-primary" [disabled]="!noteText.trim() || saving" (click)="addNote()">
                   <span class="material-icons" aria-hidden="true">add_comment</span>Add note
                 </button>
               </div>

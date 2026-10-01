@@ -262,6 +262,10 @@ export class InterviewsComponent implements OnInit {
     return status === 'COMPLETED' ? 'status-completed' : 'status-scheduled';
   }
 
+  statusLabel(status: string): string {
+    return status ? status.charAt(0) + status.slice(1).toLowerCase() : '';
+  }
+
   getGoogleCalendarLink(interview: Interview): string {
     const start = this.toICSDate(this.startOf(interview));
     const end = this.toICSDate(this.endOf(interview));

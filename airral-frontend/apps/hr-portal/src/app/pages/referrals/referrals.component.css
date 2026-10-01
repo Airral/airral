@@ -1,11 +1,11 @@
 .panel { padding: 24px; }
 .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
-.head h1 { margin: 0; font-size: 28px; color: #0f172a; }
-.head p { margin: 8px 0 0; color: #64748b; }
+.head h1 { margin: 0; font-size: 28px; color: var(--ap-ink); }
+.head p { margin: 8px 0 0; color: var(--ap-ink-2); }
 .btn-submit {
   border: 0;
   border-radius: 10px;
-  background: linear-gradient(135deg, #0f9d78, #10b981);
+  background: linear-gradient(135deg, var(--ap-tint), var(--ap-tint));
   color: #fff;
   padding: 12px 20px;
   font-weight: 600;
@@ -27,7 +27,7 @@
 
 .stat-card {
   background: white;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 12px;
   padding: 16px;
   display: flex;
@@ -36,8 +36,8 @@
 }
 
 .stat-card.success {
-  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
-  border-color: #10b981;
+  background: linear-gradient(135deg, var(--ap-tint-soft), var(--ap-tint-soft));
+  border-color: var(--ap-tint);
 }
 
 .stat-card.earnings {
@@ -53,7 +53,7 @@
 .stat-label {
   font-size: 11px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -61,7 +61,7 @@
 .stat-value {
   font-size: 24px;
   font-weight: 800;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .filter-section {
@@ -74,15 +74,15 @@
 .filter-section label {
   font-size: 14px;
   font-weight: 600;
-  color: #374151;
+  color: var(--ap-ink);
 }
 
 .filter-select {
   padding: 8px 12px;
-  border: 1.5px solid #d1d5db;
+  border: 1.5px solid var(--ap-hair-2);
   border-radius: 8px;
   font-size: 14px;
-  color: #111827;
+  color: var(--ap-ink);
   background: white;
   cursor: pointer;
   transition: all 0.2s;
@@ -90,7 +90,7 @@
 
 .filter-select:focus {
   outline: none;
-  border-color: #0f9d78;
+  border-color: var(--ap-tint);
   box-shadow: 0 0 0 3px rgba(15, 157, 120, 0.1);
 }
 
@@ -102,14 +102,14 @@
 
 .referral-card {
   background: #fff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--ap-hair-2);
   border-radius: 12px;
   padding: 16px;
   transition: all 0.2s;
 }
 
 .referral-card:hover {
-  border-color: #0f9d78;
+  border-color: var(--ap-tint);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
@@ -125,12 +125,12 @@
   margin: 0;
   font-size: 16px;
   font-weight: 700;
-  color: #111827;
+  color: var(--ap-ink);
 }
 
 .role {
   margin: 4px 0 0;
-  color: #6b7280;
+  color: var(--ap-ink-2);
   font-size: 14px;
 }
 
@@ -143,18 +143,18 @@
 }
 
 .status-submitted {
-  background: #f3f4f6;
-  color: #4b5563;
+  background: var(--ap-fill-soft);
+  color: var(--ap-ink-2);
 }
 
 .status-review {
   background: #dbeafe;
-  color: #1e40af;
+  color: var(--ap-blue);
 }
 
 .status-interview {
   background: #fef3c7;
-  color: #92400e;
+  color: var(--ap-orange);
 }
 
 .status-offer {
@@ -163,13 +163,13 @@
 }
 
 .status-hired {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--ap-tint-soft);
+  color: var(--ap-tint-hover);
 }
 
 .status-declined {
   background: #fee2e2;
-  color: #991b1b;
+  color: var(--ap-red);
 }
 
 .card-footer {
@@ -177,30 +177,30 @@
   justify-content: space-between;
   align-items: center;
   padding-top: 12px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--ap-fill-soft);
 }
 
 .submitted-date {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--ap-ink-3);
 }
 
 .reward {
   font-size: 14px;
   font-weight: 700;
-  color: #374151;
+  color: var(--ap-ink);
 }
 
 .reward.earned {
-  color: #059669;
+  color: var(--ap-tint);
 }
 
 .empty-state {
   text-align: center;
   padding: 48px 24px;
-  color: #6b7280;
-  background: #f9fafb;
-  border: 1px dashed #d1d5db;
+  color: var(--ap-ink-2);
+  background: var(--ap-fill-soft);
+  border: 1px dashed var(--ap-hair-2);
   border-radius: 12px;
 }
 

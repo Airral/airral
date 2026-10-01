@@ -64,26 +64,27 @@ interface SetupStep {
   `,
   styles: [`
     :host { display: block; }
-    .setup { margin-bottom: 20px; padding: 16px 18px; border: 1px solid #b9ded7; border-radius: 8px; background: #fff; }
+    .setup { padding: 16px 18px 8px; border-radius: 16px; background: var(--ap-surface); box-shadow: 0 1px 2px rgba(16,24,40,.04); }
     header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-    .eyebrow { margin: 0 0 4px; color: #087f70; font-size: 11px; font-weight: 800; text-transform: uppercase; }
-    h2 { margin: 0; font: 700 16px/1.3 'Sora', sans-serif; letter-spacing: 0; }
-    .hide { border: 0; background: none; color: #697371; font-size: 12px; font-weight: 700; cursor: pointer; }
-    .hide:hover { color: #087f70; }
-    .progress { height: 6px; margin: 12px 0 8px; border-radius: 999px; background: #edf0ef; overflow: hidden; }
-    .progress span { display: block; height: 100%; background: #087f70; }
+    .eyebrow { margin: 0 0 3px; color: var(--ap-tint-text); font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    h2 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
+    .hide { border: 0; border-radius: 8px; padding: 4px 8px; background: none; color: var(--ap-ink-3); font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+    .hide:hover { background: var(--ap-fill); color: var(--ap-ink); }
+    .progress { height: 6px; margin: 12px 0 4px; border-radius: 999px; background: var(--ap-fill); overflow: hidden; }
+    .progress span { display: block; height: 100%; border-radius: 999px; background: var(--ap-tint); }
     ol { margin: 0; padding: 0; list-style: none; }
-    li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #edf0ef; }
+    li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--ap-hair); }
     li:first-child { border-top: 0; }
-    .mark { color: #a2aaa8; font-size: 20px; }
-    li.done .mark { color: #087f70; }
+    .mark { color: var(--ap-ink-3); font-size: 22px; }
+    li.done .mark { color: var(--ap-green); }
     .text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .text strong { font-size: 13px; }
-    li.done .text strong { color: #5f6967; }
-    .text em { margin-left: 6px; color: #8a9290; font-size: 11px; font-style: normal; font-weight: 600; }
-    .text small { color: #6e7876; font-size: 12px; }
-    .go { padding: 6px 11px; border: 1px solid #087f70; border-radius: 6px; color: #087f70; font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }
-    .go:hover { color: #fff; background: #087f70; }
+    .text strong { font-size: 14px; }
+    li.done .text strong { color: var(--ap-ink-2); text-decoration: line-through; text-decoration-color: var(--ap-ink-3); }
+    .text em { margin-left: 6px; color: var(--ap-ink-3); font-size: 11.5px; font-style: normal; font-weight: 600; }
+    .text small { color: var(--ap-ink-2); font-size: 12.5px; }
+    .go { height: 32px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 10px; color: var(--ap-ink); background: var(--ap-fill); font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .go:hover { background: var(--ap-tint); color: #fff; }
+    :is(.go, .hide):focus-visible { outline: 3px solid var(--ap-tint); outline-offset: 2px; }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
   `],
 })

@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
 import { AuthService } from '@airral/shared-auth';
 import { OrganizationService } from '@airral/shared-utils';
 import { OrganizationTier } from '@airral/shared-types';
@@ -28,6 +29,19 @@ export class App {
 
   readonly menuOpen = signal(false);
 
+  constructor() {
+    // The organization is read from the stored user once, when the app boots.
+    // Signing in without a page reload (the login form, an accepted invitation)
+    // left the sidebar saying "Organization" until the next refresh, so it is
+    // re-read whenever the signed-in user's company differs from the one shown.
+    this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => {
+      const organizationId = this.authService.getCurrentUser()?.organizationId;
+      if (organizationId && organizationId !== this.orgService.organization.id) {
+        this.orgService.loadOrganizationSettings();
+      }
+    });
+  }
+
   get navItems(): HrNavItem[] {
     const allItems = getNavItemsForRole(this.primaryRole);
     const tier = this.orgService.tier;
@@ -43,6 +57,12 @@ export class App {
     const first = user?.firstName?.charAt(0) || user?.email?.charAt(0) || 'H';
     const last = user?.lastName?.charAt(0) || 'R';
     return `${first}${last}`.toUpperCase();
+  }
+
+  get userName(): string {
+    const user = this.authService.getCurrentUser();
+    const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+    return name || user?.email || 'Signed in';
   }
 
   get tierLabel(): string {

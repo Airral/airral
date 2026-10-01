@@ -3,14 +3,17 @@
   <!-- Page Header -->
   <div class="page-header">
     <div>
-      <h1>Interview Calendar</h1>
+      <h1>Interviews</h1>
       <p class="subtitle">{{ upcomingInterviews.length }} upcoming &nbsp;·&nbsp; {{ completedInterviews.length }} completed</p>
     </div>
     <div class="header-actions">
-      <button class="btn btn-outline" (click)="view = view === 'calendar' ? 'list' : 'calendar'">
-        {{ view === 'calendar' ? '≡ List View' : '⊞ Calendar' }}
+      <button class="btn btn-secondary" (click)="view = view === 'calendar' ? 'list' : 'calendar'">
+        <span class="material-icons" aria-hidden="true">{{ view === 'calendar' ? 'view_list' : 'calendar_month' }}</span>
+        {{ view === 'calendar' ? 'List' : 'Calendar' }}
       </button>
-      <button class="btn btn-primary" (click)="openScheduleForm()">+ Schedule Interview</button>
+      <button class="btn btn-primary" (click)="openScheduleForm()">
+        <span class="material-icons" aria-hidden="true">add</span>Schedule interview
+      </button>
     </div>
   </div>
 
@@ -68,7 +71,7 @@
             <span>{{ inv.jobTitle }}</span>
             <span class="card-time">{{ formatDate(inv) }} · {{ formatTime(inv) }}</span>
           </div>
-          <span class="pill" [class]="getStatusClass(inv.status)">{{ inv.status }}</span>
+          <span class="pill" [class]="getStatusClass(inv.status)">{{ statusLabel(inv.status) }}</span>
         </div>
       </ng-container>
 
@@ -86,7 +89,7 @@
               <strong>{{ inv.candidateName }}</strong>
               <p>{{ inv.jobTitle }}</p>
             </div>
-            <span class="pill ml-auto" [class]="getStatusClass(inv.status)">{{ inv.status }}</span>
+            <span class="pill ml-auto" [class]="getStatusClass(inv.status)">{{ statusLabel(inv.status) }}</span>
           </div>
 
           <div class="detail-meta">
@@ -128,7 +131,7 @@
           <span>{{ formatDate(inv) }}</span>
           <span>{{ formatTime(inv) }}</span>
         </div>
-        <span class="pill" [class]="getStatusClass(inv.status)">{{ inv.status }}</span>
+        <span class="pill" [class]="getStatusClass(inv.status)">{{ statusLabel(inv.status) }}</span>
         <div class="row-sync">
           <a [href]="getGoogleCalendarLink(inv)" target="_blank" rel="noopener" class="cal-btn gcal">Google</a>
           <a [href]="getOutlookLink(inv)" target="_blank" rel="noopener" class="cal-btn outlook">Outlook</a>
@@ -150,7 +153,7 @@
           <span>{{ formatDate(inv) }}</span>
           <span>{{ formatTime(inv) }}</span>
         </div>
-        <span class="pill status-completed">COMPLETED</span>
+        <span class="pill status-completed">Completed</span>
         <div *ngIf="inv.feedback" class="row-feedback">
           {{ inv.feedback }}
           <span *ngIf="inv.rating" class="rating"> ★ {{ inv.rating }}/5</span>
@@ -221,7 +224,7 @@
 
         <div *ngIf="error" class="error-banner" role="alert">{{ error }}</div>
         <div class="form-actions">
-          <button type="button" class="btn btn-outline" (click)="cancelSchedule()">Cancel</button>
+          <button type="button" class="btn btn-secondary" (click)="cancelSchedule()">Cancel</button>
           <button type="submit" class="btn btn-primary" [disabled]="!scheduleForm.valid || scheduling">{{ scheduling ? 'Scheduling…' : 'Schedule' }}</button>
         </div>
       </form>

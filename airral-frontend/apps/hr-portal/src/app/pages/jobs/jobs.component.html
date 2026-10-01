@@ -1,142 +1,82 @@
-<section class="panel">
+<section class="page">
   <header class="head">
     <div>
-      <p class="eyebrow">Requisition Operations</p>
-      <h1>Job Requisitions</h1>
-      <p>Create, calibrate, and monitor every active hiring plan.</p>
+      <h1>Jobs</h1>
+      <p>Post jobs, publish drafts, and see how each one is doing.</p>
     </div>
     <div class="actions">
-      <button type="button" class="ghost" (click)="loadData()" [disabled]="loading || saving">
-        Refresh
+      <button type="button" class="icon-btn" (click)="loadData()" [disabled]="loading || saving" title="Refresh" aria-label="Refresh jobs">
+        <span class="material-icons" aria-hidden="true">refresh</span>
       </button>
-      <button type="button" class="primary" (click)="openCreateForm()" [disabled]="saving">
-        + New Requisition
+      <button type="button" class="btn btn-primary" (click)="openCreateForm()" [disabled]="saving">
+        <span class="material-icons" aria-hidden="true">add</span>New job
       </button>
     </div>
   </header>
 
-  <p *ngIf="error" class="error-banner">{{ error }}</p>
+  <p *ngIf="error" class="alert" role="alert">{{ error }}</p>
 
-  <div class="summary-grid">
-    <article>
-      <p>Open requisitions</p>
-      <h3>{{ openCount }}</h3>
-    </article>
-    <article>
-      <p>Total applicants</p>
-      <h3>{{ totalApplicants }}</h3>
-    </article>
-    <article>
-      <p>Avg time open</p>
-      <h3>{{ avgDaysOpen }} days</h3>
-    </article>
+  <div class="glance" aria-label="Jobs summary">
+    <div class="tile t-green"><span>Open jobs</span><strong>{{ openCount }}</strong></div>
+    <div class="tile t-blue"><span>Applicants</span><strong>{{ totalApplicants }}</strong></div>
+    <div class="tile t-orange"><span>Average days open</span><strong>{{ avgDaysOpen }}</strong></div>
   </div>
 
-  <p *ngIf="jobs.length === 0" class="loading-state">
-    No requisitions yet. Create your first requisition.
-  </p>
-
-  <div class="list">
-    <article class="card" *ngFor="let job of paginatedJobs">
-      <div class="card-main">
-        <div class="title-row">
-          <h3>{{ job.title }}</h3>
-          <span
-            [class.paused]="job.status === jobStatus.DRAFT"
-            [class.closed]="job.status === jobStatus.CLOSED || job.status === jobStatus.FILLED"
-          >
-            {{ job.status }}
-          </span>
-        </div>
-        <p>{{ job.department || 'No department' }} • Owned by {{ job.createdBy }}<ng-container *ngIf="job.hiringManagerName"> • Hiring manager {{ job.hiringManagerName }}</ng-container></p>
-        <small>Created {{ job.createdAt | date: 'mediumDate' }}</small>
-      </div>
-
-      <div class="card-metrics">
-        <div>
-          <span>{{ applicantCount(job.id) }}</span>
-          <small>Applicants</small>
-        </div>
-        <div>
-          <span>{{ interviewCount(job.id) }}</span>
-          <small>Interviews</small>
-        </div>
-        <div>
-          <span>{{ hiredCount(job.id) }}</span>
-          <small>Hired</small>
-        </div>
-        <div>
-          <span>{{ daysOpen(job.createdAt) }}</span>
-          <small>Days open</small>
-        </div>
-      </div>
-
-      <div class="card-actions">
-        <button type="button" (click)="editJob(job)" [disabled]="saving">Edit</button>
-        <button
-          type="button"
-          *ngIf="job.status === jobStatus.DRAFT"
-          (click)="changeJobStatus(job, jobStatus.OPEN)"
-          [disabled]="saving"
-        >
-          Publish
-        </button>
-        <button
-          type="button"
-          *ngIf="job.status === jobStatus.OPEN"
-          (click)="changeJobStatus(job, jobStatus.CLOSED)"
-          [disabled]="saving"
-        >
-          Close
-        </button>
-        <button
-          type="button"
-          *ngIf="job.status === jobStatus.CLOSED || job.status === jobStatus.FILLED"
-          (click)="changeJobStatus(job, jobStatus.OPEN)"
-          [disabled]="saving"
-        >
-          Reopen
-        </button>
-      </div>
-
-      <div class="health-track">
-        <span [style.width.%]="interviewConversion(job.id)"></span>
-      </div>
-
-      <div class="health-caption">
-        <small>Interview conversion</small>
-        <strong>{{ interviewConversion(job.id) }}%</strong>
-      </div>
-    </article>
-  </div>
-
-  <nav class="pagination" *ngIf="totalPages > 1">
-    <button
-      class="page-btn"
-      (click)="prevPage()"
-      [disabled]="currentPage === 1"
-    >
-      ← Previous
+  <div class="empty" *ngIf="jobs.length === 0 && !loading">
+    <span class="empty-icon material-icons" aria-hidden="true">work_outline</span>
+    <h2>No jobs yet</h2>
+    <p>Post your first job. Candidates on AIRRAL see it once your company is verified.</p>
+    <button type="button" class="btn btn-primary" (click)="openCreateForm()" [disabled]="saving">
+      <span class="material-icons" aria-hidden="true">add</span>New job
     </button>
+  </div>
 
+  <div class="list" *ngIf="jobs.length > 0">
+    <article class="job" *ngFor="let job of paginatedJobs">
+      <div class="job-main">
+        <div class="title-row">
+          <h2>{{ job.title }}</h2>
+          <span class="status" [attr.data-status]="job.status">{{ statusLabel(job.status) }}</span>
+        </div>
+        <p class="meta">
+          {{ job.department || 'No department' }}<ng-container *ngIf="job.hiringManagerName"> · Hiring manager {{ job.hiringManagerName }}</ng-container>
+          · Created {{ job.createdAt | date: 'MMM d' }} · {{ daysOpen(job.createdAt) }} {{ daysOpen(job.createdAt) === 1 ? 'day' : 'days' }} open
+        </p>
+      </div>
+
+      <dl class="numbers">
+        <div class="n-blue"><dt>Applicants</dt><dd>{{ applicantCount(job.id) }}</dd></div>
+        <div class="n-purple"><dt>Interviews</dt><dd>{{ interviewCount(job.id) }}</dd></div>
+        <div class="n-green"><dt>Hired</dt><dd>{{ hiredCount(job.id) }}</dd></div>
+        <div class="n-gray"><dt>To interview</dt><dd>{{ interviewConversion(job.id) }}%</dd></div>
+      </dl>
+
+      <div class="job-actions">
+        <button type="button" class="btn btn-primary btn-sm" *ngIf="job.status === jobStatus.DRAFT"
+                (click)="changeJobStatus(job, jobStatus.OPEN)" [disabled]="saving">Publish</button>
+        <button type="button" class="btn btn-secondary btn-sm" (click)="editJob(job)" [disabled]="saving">Edit</button>
+        <button type="button" class="btn btn-secondary btn-sm" *ngIf="job.status === jobStatus.OPEN"
+                (click)="changeJobStatus(job, jobStatus.CLOSED)" [disabled]="saving">Close</button>
+        <button type="button" class="btn btn-secondary btn-sm" *ngIf="job.status === jobStatus.CLOSED || job.status === jobStatus.FILLED"
+                (click)="changeJobStatus(job, jobStatus.OPEN)" [disabled]="saving">Reopen</button>
+      </div>
+    </article>
+  </div>
+
+  <nav class="pagination" *ngIf="totalPages > 1" aria-label="Pages">
+    <button type="button" class="btn btn-secondary btn-sm" (click)="prevPage()" [disabled]="currentPage === 1">Previous</button>
     <div class="page-numbers">
       <button
+        type="button"
         *ngFor="let page of [].constructor(totalPages); let i = index"
         class="page-num"
-        [class.active]="currentPage === i + 1"
+        [attr.aria-current]="currentPage === i + 1 ? 'page' : null"
         (click)="goToPage(i + 1)"
       >
         {{ i + 1 }}
       </button>
     </div>
-
-    <button
-      class="page-btn"
-      (click)="nextPage()"
-      [disabled]="currentPage === totalPages"
-    >
-      Next →
-    </button>
+    <button type="button" class="btn btn-secondary btn-sm" (click)="nextPage()" [disabled]="currentPage === totalPages">Next</button>
   </nav>
 
   <!-- Job Dialog Component -->

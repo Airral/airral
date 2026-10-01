@@ -108,7 +108,7 @@ import { FormsModule } from '@angular/forms';
   styles: [`
     .ats-keywords {
       background: white;
-      border: 1px solid #e5e7eb;
+      border: 1px solid var(--ap-hair-2);
       border-radius: 8px;
       padding: 20px;
       margin-bottom: 20px;
@@ -123,7 +123,7 @@ import { FormsModule } from '@angular/forms';
     .help-text {
       margin: 0 0 16px 0;
       font-size: 14px;
-      color: #6b7280;
+      color: var(--ap-ink-2);
     }
 
     .keyword-input {
@@ -135,20 +135,20 @@ import { FormsModule } from '@angular/forms';
     .keyword-field {
       flex: 1;
       padding: 8px 12px;
-      border: 1px solid #d1d5db;
+      border: 1px solid var(--ap-hair-2);
       border-radius: 6px;
       font-size: 14px;
     }
 
     .keyword-field:focus {
       outline: none;
-      border-color: #3b82f6;
+      border-color: var(--ap-blue);
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
 
     .add-btn {
       padding: 8px 16px;
-      background: #3b82f6;
+      background: var(--ap-blue);
       color: white;
       border: none;
       border-radius: 6px;
@@ -157,7 +157,7 @@ import { FormsModule } from '@angular/forms';
     }
 
     .add-btn:hover:not(:disabled) {
-      background: #2563eb;
+      background: var(--ap-blue);
     }
 
     .add-btn:disabled {
@@ -172,7 +172,7 @@ import { FormsModule } from '@angular/forms';
     .empty-state {
       text-align: center;
       padding: 32px;
-      color: #9ca3af;
+      color: var(--ap-ink-3);
     }
 
     .empty-state small {
@@ -186,10 +186,10 @@ import { FormsModule } from '@angular/forms';
       align-items: center;
       justify-content: space-between;
       padding: 12px;
-      border: 1px solid #e5e7eb;
+      border: 1px solid var(--ap-hair-2);
       border-radius: 6px;
       margin-bottom: 8px;
-      background: #f9fafb;
+      background: var(--ap-fill-soft);
     }
 
     .keyword-content {
@@ -209,19 +209,19 @@ import { FormsModule } from '@angular/forms';
       align-items: center;
       gap: 8px;
       font-size: 13px;
-      color: #6b7280;
+      color: var(--ap-ink-2);
     }
 
     .weight-select {
       padding: 4px 8px;
-      border: 1px solid #d1d5db;
+      border: 1px solid var(--ap-hair-2);
       border-radius: 4px;
       font-size: 13px;
     }
 
     .remove-btn {
       padding: 4px 8px;
-      background: #ef4444;
+      background: var(--ap-red);
       color: white;
       border: none;
       border-radius: 4px;
@@ -233,13 +233,13 @@ import { FormsModule } from '@angular/forms';
     }
 
     .remove-btn:hover {
-      background: #dc2626;
+      background: var(--ap-red);
     }
 
     .threshold-setting {
       margin-top: 20px;
       padding-top: 20px;
-      border-top: 1px solid #e5e7eb;
+      border-top: 1px solid var(--ap-hair-2);
     }
 
     .threshold-setting label {
@@ -274,7 +274,7 @@ import { FormsModule } from '@angular/forms';
       border: 1px solid #bfdbfe;
       border-radius: 6px;
       font-size: 14px;
-      color: #1e40af;
+      color: var(--ap-blue);
     }
   `]
 })

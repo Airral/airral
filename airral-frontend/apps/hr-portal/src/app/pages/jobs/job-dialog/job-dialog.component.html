@@ -2,25 +2,18 @@
   <div class="modal-dialog" (click)="onDialogClick($event)">
     <header class="modal-header">
       <div class="title-section">
-        <div class="icon-badge">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <path d="M3 9h18M9 21V9" />
-          </svg>
-        </div>
-        <h2>{{ editMode ? 'Edit Requisition' : 'New Requisition' }}</h2>
+        <span class="icon-badge material-icons" aria-hidden="true">work_outline</span>
+        <h2>{{ editMode ? 'Edit job' : 'New job' }}</h2>
       </div>
-      <button type="button" class="close-btn" (click)="onCancel()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 6L6 18M6 6l12 12" />
-        </svg>
+      <button type="button" class="close-btn" (click)="onCancel()" aria-label="Close">
+        <span class="material-icons" aria-hidden="true">close</span>
       </button>
     </header>
 
     <div class="modal-body">
       <div class="modal-grid">
         <label>
-          <span class="label-text">Job Title <span class="required">*</span></span>
+          <span class="label-text">Job title <span class="required">*</span></span>
           <input [(ngModel)]="formData.title" placeholder="e.g., Senior Backend Engineer" />
         </label>
         <label>
@@ -58,7 +51,7 @@
           <input [(ngModel)]="formData.location" placeholder="e.g., San Francisco, CA (Remote)" />
         </label>
         <label>
-          <span class="label-text">Employment Type</span>
+          <span class="label-text">Employment type</span>
           <select [(ngModel)]="formData.employmentType">
             <option value="Full-time">Full-time</option>
             <option value="Part-time">Part-time</option>
@@ -67,17 +60,21 @@
           </select>
         </label>
         <label>
-          <span class="label-text">Salary Min ($)</span>
+          <span class="label-text">Pay from ($)</span>
           <input type="number" [(ngModel)]="formData.salaryMin" placeholder="80,000" />
         </label>
         <label>
-          <span class="label-text">Salary Max ($)</span>
+          <span class="label-text">Pay up to ($)</span>
           <input type="number" [(ngModel)]="formData.salaryMax" placeholder="120,000" />
         </label>
       </div>
+      <p class="pay-note" *ngIf="!formData.salaryMin && !formData.salaryMax">
+        <span class="material-icons" aria-hidden="true">payments</span>
+        Add a pay range. Candidates see it first, and many skip jobs that don't show one.
+      </p>
 
       <label class="full-width">
-        <span class="label-text">Job Description <span class="required">*</span></span>
+        <span class="label-text">What the job is <span class="required">*</span></span>
         <textarea
           [(ngModel)]="formData.description"
           rows="4"
@@ -86,7 +83,8 @@
       </label>
 
       <label class="full-width">
-        <span class="label-text">Requirements</span>
+        <span class="label-text">Must-haves</span>
+        <span class="label-hint">What someone has to have. Candidates see these apart from the nice-to-haves, so fewer apply who don't qualify.</span>
         <textarea
           [(ngModel)]="formData.requirements"
           rows="3"
@@ -95,7 +93,7 @@
       </label>
 
       <label class="full-width">
-        <span class="label-text">Nice-to-Have Skills</span>
+        <span class="label-text">Nice to have</span>
         <textarea
           [(ngModel)]="formData.niceToHave"
           rows="2"
@@ -104,44 +102,23 @@
       </label>
 
       <label class="full-width">
-        <span class="label-text">
-          ATS Keywords
-          <span class="label-badge">AI Screening</span>
-        </span>
+        <span class="label-text">Skills to look for</span>
         <input
           [(ngModel)]="formData.atsKeywords"
           placeholder="python, backend, microservices, api, postgresql"
         />
         <small class="hint">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 16v-4M12 8h.01" />
-          </svg>
-          Comma-separated keywords for automatic candidate screening
+          Separated by commas. AIRRAL looks for them in each resume and note and shows you what it found. It is a guide for you, and never hides a candidate.
         </small>
       </label>
     </div>
 
     <footer class="modal-footer">
-      <button type="button" class="btn-secondary" (click)="onCancel()" [disabled]="saving">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 6L6 18M6 6l12 12" />
-        </svg>
-        Cancel
-      </button>
-      <button type="button" class="btn-outline" (click)="onSaveDraft()" [disabled]="saving">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-          <polyline points="17 21 17 13 7 13 7 21" />
-          <polyline points="7 3 7 8 15 8" />
-        </svg>
-        Save Draft
-      </button>
-      <button type="button" class="btn-primary" (click)="onPublish()" [disabled]="saving">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-        </svg>
-        {{ editMode ? 'Update & Publish' : 'Publish Requisition' }}
+      <button type="button" class="btn btn-secondary" (click)="onCancel()" [disabled]="saving">Cancel</button>
+      <button type="button" class="btn btn-secondary" (click)="onSaveDraft()" [disabled]="saving">Save draft</button>
+      <button type="button" class="btn btn-primary" (click)="onPublish()" [disabled]="saving">
+        <span class="material-icons" aria-hidden="true">send</span>
+        {{ editMode ? 'Save and publish' : 'Publish job' }}
       </button>
     </footer>
   </div>
