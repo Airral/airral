@@ -102,3 +102,5 @@
 .form__turnstile:empty {
   display: none;
 }
+
+.signup__who { margin-top: 18px; text-align: left; }

@@ -4,33 +4,15 @@
 
 <main class="above">
   <section class="section container auth">
-    <div class="pane glass auth__pane">
+    <header class="auth__head">
       <p class="kicker">Sign in</p>
-
-      <h1 class="h2 auth__h1">Taking you to the applicant portal.</h1>
-
+      <h1 class="h2 auth__h1">Which AIRRAL are you signing in to?</h1>
       <p class="lede auth__lede">
-        Signing in happens in the applicant portal, so your saved roles, résumé and profile
-        stay in one place.
+        Job seekers and companies have separate accounts. Pick the one that's yours.
       </p>
+    </header>
 
-      <div class="cta-row auth__cta">
-        <a class="btn" [href]="applicantLoginUrl">
-          <span>Open sign in</span>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
-               aria-hidden="true">
-            <path d="M5 12h13" />
-            <path d="M13 6l6 6-6 6" />
-          </svg>
-        </a>
-        <a class="btn btn--glass" [href]="applicantRegisterUrl">Create an account</a>
-      </div>
-
-      <p class="fine auth__fine">
-        This page should move on its own. Use the button if it doesn’t.
-      </p>
-    </div>
+    <app-audience-choice intent="sign-in" [seekerParams]="seekerParams"></app-audience-choice>
   </section>
 </main>
 

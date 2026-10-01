@@ -6,7 +6,8 @@ import {
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
-import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
+import { WEBSITE_HEADER_LINKS, EMPLOYER_HEADER_CTAS } from '../../shared/header-config';
+import { PORTAL_ROUTES } from '@airral/shared-utils';
 
 interface EmployerBenefit {
   /** Path data for the card's inline icon. */
@@ -41,7 +42,25 @@ interface EmployerPlan {
 })
 export class ForEmployersComponent {
   readonly headerLinks = WEBSITE_HEADER_LINKS;
-  readonly headerCtas = WEBSITE_HEADER_CTAS;
+  readonly headerCtas = EMPLOYER_HEADER_CTAS;
+  readonly companySignIn = `${PORTAL_ROUTES.HR}/login`;
+  readonly seekerRegister = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
+
+  /** The three steps from "we want to hire" to a team working in the company portal. */
+  readonly accessSteps = [
+    {
+      title: 'Create your company account',
+      body: 'The first person signs up with their work email and company name, then confirms the email we send.',
+    },
+    {
+      title: 'We verify your company',
+      body: 'AIRRAL checks every new company before its jobs go public, usually within one business day. You can set up while you wait.',
+    },
+    {
+      title: 'Invite your team',
+      body: 'Add HR, hiring managers and interviewers from Settings. Each gets an email invite and their own sign-in.',
+    },
+  ];
 
   readonly benefits: EmployerBenefit[] = [
     {

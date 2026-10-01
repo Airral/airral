@@ -14,6 +14,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
+import { AudienceChoiceComponent } from '../../shared/audience-choice.component';
 import { PORTAL_ROUTES, VisitorSignalService } from '@airral/shared-utils';
 import { inject } from '@angular/core';
 
@@ -35,7 +36,7 @@ const ASK = 'find me a senior backend role, remote, that pays well';
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, HeaderComponent, FooterComponent],
+  imports: [CommonModule, FormsModule, RouterModule, HeaderComponent, FooterComponent, AudienceChoiceComponent],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
 })

@@ -165,3 +165,12 @@
     gap: 32px;
   }
 }
+
+/* ── Getting access ── */
+.hero__link { color: var(--ink); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.access { margin: 36px 0 0; padding: 0; list-style: none; }
+.access > li:hover { transform: none; }
+.access__n { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 800; font-size: 15px; }
+.access__h { margin: 18px 0 0; }
+.access__p { margin: 10px 0 0; color: var(--ink-2); line-height: 1.55; }
+.access__fine { margin-top: 26px; }

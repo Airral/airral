@@ -8,7 +8,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
-import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
+import { WEBSITE_HEADER_LINKS, EMPLOYER_HEADER_CTAS } from '../../shared/header-config';
 
 interface Plan {
   name: string;
@@ -36,7 +36,7 @@ interface Faq {
 })
 export class PricingComponent {
   readonly headerLinks = WEBSITE_HEADER_LINKS;
-  readonly headerCtas = WEBSITE_HEADER_CTAS;
+  readonly headerCtas = EMPLOYER_HEADER_CTAS;
 
   readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 

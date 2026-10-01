@@ -15,12 +15,17 @@
     </p>
 
     <div class="cta-row hero__cta">
-      <a class="btn" [href]="applicantPortal + '/login?mode=register'">Get started — it’s free</a>
+      <a class="btn" [href]="applicantPortal + '/login?mode=register'">Find a job — it’s free</a>
       <a class="btn btn--glass" routerLink="/for-employers">I’m hiring</a>
     </div>
 
     <p class="fine hero__fine">No card. No account needed to look around.</p>
   </header>
+
+  <!-- ── who is who: two portals, two kinds of account ── -->
+  <section class="section--tight container" id="choose" aria-label="Choose how you use AIRRAL">
+    <app-audience-choice intent="start"></app-audience-choice>
+  </section>
 
   <!-- ── the idea ── -->
   <section class="section container" id="idea">

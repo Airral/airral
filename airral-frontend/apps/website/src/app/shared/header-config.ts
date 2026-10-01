@@ -13,7 +13,18 @@ export const WEBSITE_HEADER_LINKS: HeaderNavLink[] = [
   { label: 'For employers', path: '/for-employers' },
 ];
 
+/**
+ * Sign in goes to /login, which asks whether you are looking for a job or
+ * hiring, because the two sign in to different portals. The main button is
+ * for job seekers, who are most of the visitors.
+ */
 export const WEBSITE_HEADER_CTAS: HeaderCta[] = [
-  { label: 'Sign in', path: `${PORTAL_ROUTES.APPLICANT}/login`, variant: 'ghost', external: true },
-  { label: 'Start job search', path: `${PORTAL_ROUTES.APPLICANT}/login?mode=register`, external: true },
+  { label: 'Sign in', path: '/login', variant: 'ghost' },
+  { label: 'Find a job', path: `${PORTAL_ROUTES.APPLICANT}/login?mode=register`, external: true },
+];
+
+/** On pages for companies: their own sign-in, and their first step. */
+export const EMPLOYER_HEADER_CTAS: HeaderCta[] = [
+  { label: 'Company sign in', path: `${PORTAL_ROUTES.HR}/login`, variant: 'ghost', external: true },
+  { label: 'Post a job', path: '/sign-up' },
 ];

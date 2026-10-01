@@ -7,7 +7,7 @@ import { AuthService, routeAfterAuth, sessionExpiryFromResponse, userFromAuthRes
 import { RegisterRequest } from '@airral/shared-types';
 import { FooterComponent, HeaderComponent } from '@airral/shared-ui';
 import { PORTAL_ROUTES } from '@airral/shared-utils';
-import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
+import { WEBSITE_HEADER_LINKS, EMPLOYER_HEADER_CTAS } from '../../shared/header-config';
 import { TurnstileWidgetComponent, turnstileSiteKey } from '../../shared/turnstile-widget.component';
 
 @Component({
@@ -31,8 +31,9 @@ export class SignUpComponent {
   @ViewChild(TurnstileWidgetComponent) private turnstile?: TurnstileWidgetComponent;
 
   readonly headerLinks = WEBSITE_HEADER_LINKS;
-  readonly headerCtas = WEBSITE_HEADER_CTAS;
+  readonly headerCtas = EMPLOYER_HEADER_CTAS;
   readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
+  readonly companySignInUrl = `${PORTAL_ROUTES.HR}/login`;
 
   constructor(
     private readonly authApi: AuthApiService,
