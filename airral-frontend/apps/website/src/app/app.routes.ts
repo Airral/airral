@@ -1,5 +1,6 @@
 import { Route } from '@angular/router';
 import {
+  browseRoleFamiliesResolver,
   externalJobDetailResolver,
   jobDetailResolver,
   openJobsResolver,
@@ -64,7 +65,7 @@ export const appRoutes: Route[] = [
   {
     path: 'jobs',
     data: { seo: PAGE_SEO['jobs'] },
-    resolve: { jobs: openJobsResolver },
+    resolve: { jobs: openJobsResolver, roleFamilies: browseRoleFamiliesResolver },
     loadComponent: () =>
       import('./pages/jobs-browse/jobs-browse.component').then((m) => m.JobsBrowseComponent),
   },
