@@ -48,8 +48,13 @@ public class ResumeParsingService {
     private static final String RESUME_DATE =
             "(?:(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?\\s+)?\\d{4}"
                     + "|\\d{1,2}/\\d{4})";
+    /**
+     * A dash between fields or dates. "--" is a dash typed where Word did not turn it
+     * into one: r18 writes "Sunshine Electronics, Brandon FL -- Sales Associate".
+     */
+    private static final String DASH = "(?:--|[-\\u2013\\u2014])";
     private static final Pattern DATE_RANGE_PATTERN = Pattern.compile(
-            "(?i)\\b(" + RESUME_DATE + ")\\s*(?:-|\\u2013|\\u2014|to)\\s*(" + RESUME_DATE + "|present|current|now)\\b"
+            "(?i)\\b(" + RESUME_DATE + ")\\s*(?:" + DASH + "|to)\\s*(" + RESUME_DATE + "|present|current|now)\\b"
     );
     private static final Pattern NUMERIC_MONTH_YEAR = Pattern.compile("(\\d{1,2})/(\\d{4})");
     /** Ends like a sentence, but not like "Acme Corp." -- an employer can end in a full stop. */
@@ -60,9 +65,54 @@ public class ResumeParsingService {
             new java.time.format.DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("MMMM uuuu").toFormatter(Locale.US),
             new java.time.format.DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("MMM uuuu").toFormatter(Locale.US));
     private static final DateTimeFormatter DISPLAY_MONTH_YEAR = DateTimeFormatter.ofPattern("MMM uuuu", Locale.US);
-    /** "Alamo Wireless, San Antonio, TX" or "Distribution Center - Groveport, OH": employer, then place. */
+    private static final String US_STATE = "(?:AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA"
+            + "|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)";
+    /**
+     * "Alamo Wireless, San Antonio, TX" or "Distribution Center - Groveport, OH": employer, then place.
+     * "Sunshine Electronics, Brandon FL" leaves out the second comma; that form is only
+     * read with a real state code, so "Harbor Logistics, Team QA" keeps its name.
+     */
     private static final Pattern TRAILING_LOCATION = Pattern.compile(
-            "^(.+?)(?:,|\\s[-\\u2013\\u2014])\\s*((?:[A-Za-z .'-]+,\\s*[A-Z]{2})|Remote)$");
+            "^(.+?)(?:,|\\s" + DASH + ")\\s*((?:[A-Za-z .'-]+,\\s*[A-Z]{2})|(?:[A-Za-z .'-]*[A-Za-z]\\s" + US_STATE + ")|Remote)$");
+    /**
+     * The words job titles are built on, singular. Whole words only, so the "Associates"
+     * of a law firm or the "Engineers" of a charity is not read as a title. "Guard" and
+     * "tech" are left out because "US Coast Guard" and "Georgia Tech" are employers.
+     */
+    private static final Set<String> TITLE_WORDS = Set.of(
+            "associate", "analyst", "engineer", "manager", "specialist", "representative", "rep", "driver",
+            "nurse", "rn", "lpn", "cna", "teacher", "cook", "chef", "technician", "coordinator", "assistant",
+            "developer", "designer", "accountant", "operator", "cashier", "clerk", "supervisor", "lead",
+            "intern", "director", "consultant", "administrator", "officer", "executive", "recruiter",
+            "generalist", "electrician", "apprentice", "journeyman", "mechanic", "plumber", "carpenter",
+            "welder", "machinist", "installer", "laborer", "worker", "attendant", "agent", "advisor", "adviser",
+            "aide", "therapist", "pharmacist", "scientist", "architect", "planner", "buyer", "programmer",
+            "writer", "editor", "producer", "instructor", "tutor", "professor", "lecturer", "counselor",
+            "dispatcher", "receptionist", "secretary", "bookkeeper", "auditor", "controller", "paralegal",
+            "attorney", "lawyer", "barista", "server", "bartender", "hostess", "housekeeper", "caregiver",
+            "nanny", "custodian", "janitor", "teller", "banker", "broker", "underwriter", "adjuster",
+            "estimator", "inspector", "strategist", "marketer", "coach", "trainer", "educator", "librarian",
+            "physician", "dentist", "hygienist", "paramedic", "emt", "chair", "president", "vp", "founder",
+            "owner", "researcher", "volunteer", "stocker", "picker", "packer", "loader", "handler",
+            "merchandiser", "salesperson", "courier", "porter", "foreman", "superintendent", "member",
+            "fellow", "scheduler", "processor");
+    /** Words that mark a name as an employer's: legal forms and the nouns businesses are named with. */
+    private static final Set<String> EMPLOYER_WORDS = Set.of(
+            "inc", "llc", "llp", "plc", "corp", "corporation", "co", "company", "ltd", "limited", "group",
+            "holdings", "hospital", "health", "healthcare", "clinic", "clinics", "medical", "bank", "union",
+            "electronics", "retail", "store", "stores", "market", "markets", "foods", "grocers", "grocery",
+            "logistics", "systems", "solutions", "services", "technologies", "software", "labs", "partners",
+            "associates", "agency", "university", "college", "school", "district", "academy", "institute",
+            "restaurant", "cafe", "hotel", "hotels", "resort", "insurance", "financial", "capital",
+            "consulting", "studio", "studios", "industries", "manufacturing", "construction", "transport",
+            "freight", "fulfillment", "distribution", "center", "centre", "brands", "motors", "airlines",
+            "energy", "pharmacy", "county", "department", "network", "enterprises", "international",
+            "global", "outfitters", "supply", "depot", "mart", "firm", "foundation");
+    /** Legal forms. No job title ends in one, so a side naming one is never the title. */
+    private static final Set<String> LEGAL_FORMS = Set.of(
+            "inc", "llc", "llp", "plc", "corp", "corporation", "co", "company", "ltd", "limited", "group", "holdings");
+    /** "Engineer II", "Driver 2", "Accountant Sr": the level after a title is not its head word. */
+    private static final Set<String> TITLE_LEVELS = Set.of("i", "ii", "iii", "iv", "v", "jr", "sr");
     private static final Pattern YEAR_PATTERN = Pattern.compile("\\b(19|20)\\d{2}\\b");
     private static final List<String> SECTION_BREAK_HEADERS = List.of(
             "Professional Summary",
@@ -451,7 +501,8 @@ public class ResumeParsingService {
         String location = null;
         Matcher atMatcher = Pattern.compile("(?i)^(.+?)\\s+(?:at|@)\\s+(.+)$").matcher(beforeDates);
         // Spaced, so "Front-End Developer" stays one title.
-        Matcher dashMatcher = Pattern.compile("^(.+?)\\s+[-\\u2013\\u2014]\\s+(.+)$").matcher(beforeDates);
+        Matcher dashMatcher = Pattern.compile("^(.+?)\\s+" + DASH + "\\s+(.+)$").matcher(beforeDates);
+        boolean titleAtEmployer = false;
         // The dash and comma shapes are loose enough to fit a sentence, so they are
         // only trusted on a line shaped like a job heading: not a bullet, and ending
         // in its dates. "- Managed budgets, forecasts 2019 - 2021" is not a job.
@@ -466,6 +517,7 @@ public class ResumeParsingService {
         } else if (atMatcher.find()) {
             title = atMatcher.group(1).strip();
             company = atMatcher.group(2).strip();
+            titleAtEmployer = true;
         } else if (headingShaped && dashMatcher.find()) {
             // "Customer Service Representative II - Alamo Wireless, San Antonio, TX"
             title = dashMatcher.group(1).strip();
@@ -483,10 +535,28 @@ public class ResumeParsingService {
         }
 
         if (location == null && company != null) {
-            Matcher place = TRAILING_LOCATION.matcher(company);
-            if (place.matches() && isNotBlank(place.group(1))) {
-                company = place.group(1).strip();
-                location = place.group(2).strip();
+            String[] place = splitTrailingLocation(company);
+            if (place != null) {
+                company = place[0];
+                location = place[1];
+            }
+        }
+
+        // Every shape above assumes the title comes first, but many resumes lead with
+        // the employer: r18's "Sunshine Electronics, Brandon FL -- Sales Associate"
+        // stored the employer as the title, so the headline read "Sunshine Electronics
+        // at Brandon FL -- Sales Associate", and a candidate with no target roles had
+        // them guessed from that "title". "At" says which is which, so it is never swapped.
+        if (!titleAtEmployer && readsAsEmployerThenTitle(title, company)) {
+            String employer = title;
+            title = company;
+            company = employer;
+            if (location == null) {
+                String[] place = splitTrailingLocation(company);
+                if (place != null) {
+                    company = place[0];
+                    location = place[1];
+                }
             }
         }
 
@@ -496,6 +566,63 @@ public class ResumeParsingService {
 
         boolean current = "Present".equals(endDate);
         return new ExperienceHeader(title, company, location, startDate, endDate, current);
+    }
+
+    /** "Alamo Wireless, San Antonio, TX" as {"Alamo Wireless", "San Antonio, TX"}, or null with no place. */
+    private String[] splitTrailingLocation(String value) {
+        Matcher place = TRAILING_LOCATION.matcher(value);
+        if (!place.matches() || !isNotBlank(place.group(1))) {
+            return null;
+        }
+        return new String[] {place.group(1).strip(), place.group(2).strip()};
+    }
+
+    /**
+     * Whether a job line put the employer first: "Brightline Retail | Data Analyst".
+     *
+     * <p>Swapping a title-first line would break the common case, so this needs both
+     * sides to agree. The first must have no title word anywhere -- "Kitchen Lead" or
+     * "Store Manager" first is a title whatever follows. The second must end in a title
+     * word ("Sales Associate", "Mechanical Engineer II", "Truck Driver (CDL-A)") and
+     * name no legal form; or, when the first reads as an employer ("Sunshine
+     * Electronics"), have a title word anywhere and no employer word. A side neither
+     * list knows is left as written: a missed swap keeps the old reading, a wrong one
+     * breaks a resume that parsed correctly.
+     */
+    private boolean readsAsEmployerThenTitle(String first, String second) {
+        if (!isNotBlank(first) || !isNotBlank(second)) {
+            return false;
+        }
+        List<String> firstWords = words(first);
+        List<String> secondWords = words(second);
+        if (firstWords.stream().anyMatch(TITLE_WORDS::contains) || secondWords.stream().anyMatch(LEGAL_FORMS::contains)) {
+            return false;
+        }
+        if (TITLE_WORDS.contains(headWord(second))) {
+            return true;
+        }
+        return firstWords.stream().anyMatch(EMPLOYER_WORDS::contains)
+                && secondWords.stream().anyMatch(TITLE_WORDS::contains)
+                && secondWords.stream().noneMatch(EMPLOYER_WORDS::contains);
+    }
+
+    /**
+     * The noun a title is named by: "Registered Nurse, Medical ICU" is a nurse, "Regional
+     * Truck Driver (CDL-A)" a driver, "Mechanical Engineer II" an engineer.
+     */
+    private String headWord(String title) {
+        String head = title.split(",", 2)[0].replaceAll("\\([^)]*\\)", " ");
+        List<String> headWords = new ArrayList<>(words(head));
+        while (!headWords.isEmpty() && TITLE_LEVELS.contains(headWords.get(headWords.size() - 1))) {
+            headWords.remove(headWords.size() - 1);
+        }
+        return headWords.isEmpty() ? "" : headWords.get(headWords.size() - 1);
+    }
+
+    private List<String> words(String value) {
+        return java.util.Arrays.stream(value.toLowerCase(Locale.US).split("[^a-z]+"))
+                .filter(word -> !word.isEmpty())
+                .toList();
     }
 
     /**
