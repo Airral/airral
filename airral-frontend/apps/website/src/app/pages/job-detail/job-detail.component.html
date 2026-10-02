@@ -43,7 +43,7 @@
 
         <ul class="job__meta">
           <li>{{ job.organizationName || 'Confidential employer' }}</li>
-          <li>{{ job.location || 'Location flexible' }}</li>
+          <li>{{ getLocation(job) || 'Location flexible' }}</li>
           <li>{{ getEmploymentType(job) }}</li>
           <li>{{ getSalaryLabel(job) }}</li>
         </ul>

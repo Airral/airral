@@ -161,6 +161,7 @@ Error messages say what actually happened. A failed resume check says whether th
 - `app.html` / `app.css`: shell, segmented top nav, phone tab bar.
 - `components/company-logo.component.ts`: company logo with fallback (API logo, then the domain's icon, then the company's own careers-site icon, then a letter tile). Skips ATS and airral.com hosts.
 - `pages/jobs`: the Jobs browser. The verdict helpers (`getVerdict`, `formatPay`, `getApplyEffort`) live in the component.
+- `libs/shared-utils/src/lib/formatters.ts`: `formatPayLabel` and `cleanLocationLabel`, the pay and location wording on job cards and details here and on the website. Pay gets a unit ("/hr") only when the feed's `salaryPeriod` states one; a board's empty "( )" is dropped. Tested with `nx test shared-utils`.
 - `pages/tracker`: Applications (to-do and board, offers).
 - `pages/resume`, `pages/profile`, `pages/onboarding`, `pages/applicant-login`: same palette, borderless surfaces.
 

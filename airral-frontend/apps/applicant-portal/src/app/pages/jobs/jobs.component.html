@@ -260,7 +260,7 @@
             <p class="detail-eyebrow">
               <app-company-logo [name]="selectedJob.companyName" [logoUrl]="selectedJob.companyLogoUrl" [domain]="selectedJob.companyDomain"
                                 [url]="selectedJob.jobUrl || selectedJob.applyUrl" [size]="30"></app-company-logo>
-              <span>{{ selectedJob.companyName }}<ng-container *ngIf="selectedJob.location"> · {{ selectedJob.location }}</ng-container></span>
+              <span>{{ selectedJob.companyName }}<ng-container *ngIf="getDetailLocation(selectedJob) as place"> · {{ place }}</ng-container></span>
             </p>
             <h1 class="detail-title">{{ selectedJob.title }}</h1>
             <p class="detail-meta">{{ getMetaLine(selectedJob) }}</p>

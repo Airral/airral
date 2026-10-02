@@ -73,7 +73,7 @@
 
         <p class="fine job__meta">
           {{ job.organizationName || 'Confidential employer' }} ·
-          {{ job.location || 'Location flexible' }} ·
+          {{ locationLabel(job) }} ·
           {{ job.employmentType || job.department || 'Open role' }}
         </p>
 

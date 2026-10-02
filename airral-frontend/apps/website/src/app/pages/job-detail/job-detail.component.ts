@@ -4,7 +4,7 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 import { Job } from '@airral/shared-types';
-import { PORTAL_ROUTES } from '@airral/shared-utils';
+import { cleanLocationLabel, PORTAL_ROUTES } from '@airral/shared-utils';
 import { SeoService } from '../../shared/seo.service';
 import { jobDetailPath, ResolvedJob } from '../../shared/job-route.resolvers';
 
@@ -116,6 +116,14 @@ export class JobDetailComponent implements OnInit {
     return `${amount}${SALARY_PERIOD_SUFFIXES[job.salaryPeriod ?? ''] ?? ''}`;
   }
 
+  /**
+   * Where the role is, without the empty "( )" some store boards append.
+   * Empty when the posting names nowhere, so callers choose their own fallback.
+   */
+  getLocation(job: Job): string {
+    return cleanLocationLabel(job.location);
+  }
+
   getEmploymentType(job: Job): string {
     return job.employmentType || 'Full-time';
   }
@@ -212,7 +220,8 @@ export class JobDetailComponent implements OnInit {
   }
 
   private updateJobSeo(job: Job): void {
-    const location = job.location ? ` in ${job.location}` : '';
+    const place = this.getLocation(job);
+    const location = place ? ` in ${place}` : '';
     const department = job.department ? `${job.department} role` : 'open role';
     const jobPosting = this.buildJobPostingSchema(job);
     this.seo.setPage({
@@ -258,12 +267,13 @@ export class JobDetailComponent implements OnInit {
       url: `https://www.airral.com${jobDetailPath(job)}`,
     };
 
-    if (job.location) {
+    const place = this.getLocation(job);
+    if (place) {
       schema['jobLocation'] = {
         '@type': 'Place',
         address: {
           '@type': 'PostalAddress',
-          addressLocality: job.location,
+          addressLocality: place,
           addressCountry: 'US',
         },
       };
