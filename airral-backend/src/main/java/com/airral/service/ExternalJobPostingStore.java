@@ -268,7 +268,7 @@ public class ExternalJobPostingStore {
             String location) {
         if (query == null || query.isBlank()) {
             return findRecommendedJobs(source, boardToken, limit, offset, maxAgeDays, query, company, filters,
-                    location, false);
+                    location, false, null);
         }
         return estimateTextMatches(query)
                 .map(estimate -> estimate < INDEX_FIRST_TEXT_MATCH_CEILING)
@@ -276,7 +276,7 @@ public class ExternalJobPostingStore {
                 .onErrorReturn(false)
                 .defaultIfEmpty(false)
                 .flatMapMany(indexFirst -> findRecommendedJobs(
-                        source, boardToken, limit, offset, maxAgeDays, query, company, filters, location, indexFirst));
+                        source, boardToken, limit, offset, maxAgeDays, query, company, filters, location, indexFirst, null));
     }
 
     /**
@@ -339,6 +339,109 @@ public class ExternalJobPostingStore {
                 });
     }
 
+    /**
+     * These postings, in this order: one page of the diversified feed.
+     *
+     * <p>The ids come from {@link #findDiversifiedFeedIds}; this only turns them
+     * back into cards, with the same columns and fallbacks as every other list.
+     * Postings that have gone inactive since the list was built simply drop out.
+     */
+    public Flux<CandidateJobSummaryResponse> findJobsByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Flux.empty();
+        }
+        return findRecommendedJobs("all", null, ids.size(), 0, null, null, null, ExplicitJobFilters.none(), null,
+                false, ids.toArray(new Long[0]));
+    }
+
+    /**
+     * Postings in feed order, but with no employer taking more than
+     * {@code perRound} places in each round, and exact duplicates removed.
+     *
+     * <p>The feed is ordered newest day first, then quality. The sync stamps every
+     * posting a board lists as updated, so an employer that lists thousands of
+     * jobs fills the front of that order on its own: 49 of the first 50 postings
+     * were Target's (2,853 active), and the first two cards were the same job
+     * twice. So each employer's postings are numbered in feed order, and the list
+     * is ordered by that number in groups of {@code perRound}, then by the feed
+     * order. The first page is every employer's best three, best first.
+     *
+     * <p>Exact duplicates -- same employer, title and location -- keep only the
+     * first. 1,767 such groups existed locally.
+     *
+     * <p>This reads the whole active table: ~17k blocks and ~140 ms on Postgres 16
+     * with production's 128MB of shared buffers, and several seconds on
+     * production's disk. It is therefore built in the background and kept
+     * (see DiverseFeedIndex), never run per visitor.
+     */
+    public Mono<List<Long>> findDiversifiedFeedIds(
+            String source, String boardToken, Integer maxAgeDays, ExplicitJobFilters filters,
+            int perRound, int maxIds) {
+        String normalizedSource = normalizeSource(source);
+        StringBuilder where = new StringBuilder("""
+                WHERE p.is_active = true
+                  AND p.expires_at > CURRENT_TIMESTAMP
+                """);
+        if (!"ALL".equals(normalizedSource)) {
+            where.append(" AND p.source_type = :sourceType");
+        }
+        if (boardToken != null && !boardToken.isBlank()) {
+            where.append(" AND p.source_board_token = :boardToken");
+        }
+        if (maxAgeDays != null && maxAgeDays > 0) {
+            where.append(" AND (p.source_type = 'AIRRAL_INTERNAL' OR p.source_updated_at >= :sourceCutoff)");
+        }
+        appendExplicitFilters(where, filters);
+
+        String feedOrder = "((p.source_updated_at AT TIME ZONE 'UTC')::date) DESC NULLS LAST,"
+                + " p.job_quality_score DESC NULLS LAST,"
+                + " p.source_updated_at DESC NULLS LAST, p.last_seen_at DESC";
+        String sql = """
+                SELECT id FROM (
+                    SELECT id, day, quality, upd, seen,
+                           row_number() OVER (PARTITION BY company_id
+                               ORDER BY day DESC NULLS LAST, quality DESC NULLS LAST,
+                                        upd DESC NULLS LAST, seen DESC) AS company_rank
+                    FROM (
+                        SELECT p.id, p.company_id,
+                               ((p.source_updated_at AT TIME ZONE 'UTC')::date) AS day,
+                               p.job_quality_score AS quality,
+                               p.source_updated_at AS upd,
+                               p.last_seen_at AS seen,
+                               row_number() OVER (
+                                   PARTITION BY p.company_id, LOWER(p.title), COALESCE(p.location, '')
+                                   ORDER BY\s""" + feedOrder + """
+                                   ) AS dup_rank
+                        FROM external_job_postings p
+                        """ + where + """
+                    ) deduped
+                    WHERE dup_rank = 1
+                ) ranked
+                ORDER BY (company_rank - 1) / :perRound,
+                         day DESC NULLS LAST, quality DESC NULLS LAST, upd DESC NULLS LAST, seen DESC
+                LIMIT :maxIds
+                """;
+
+        DatabaseClient.GenericExecuteSpec spec = databaseClient.sql(sql)
+                .bind("perRound", Math.max(1, perRound))
+                .bind("maxIds", Math.max(1, maxIds));
+        if (!"ALL".equals(normalizedSource)) {
+            spec = spec.bind("sourceType", normalizedSource);
+        }
+        if (boardToken != null && !boardToken.isBlank()) {
+            spec = spec.bind("boardToken", boardToken.trim());
+        }
+        if (maxAgeDays != null && maxAgeDays > 0) {
+            spec = spec.bind("sourceCutoff", OffsetDateTime.now(ZoneOffset.UTC).minusDays(maxAgeDays));
+        }
+        if (filters != null && filters.hasWorkMode() && !"REMOTE".equals(filters.normalizedWorkMode())) {
+            spec = spec.bind("filterWorkMode", filters.normalizedWorkMode());
+        }
+        return spec.map((row, metadata) -> row.get("id", Long.class))
+                .all()
+                .collectList();
+    }
+
     private Flux<CandidateJobSummaryResponse> findRecommendedJobs(
             String source,
             String boardToken,
@@ -349,7 +452,8 @@ public class ExternalJobPostingStore {
             String company,
             ExplicitJobFilters filters,
             String location,
-            boolean indexFirstText) {
+            boolean indexFirstText,
+            Long[] onlyIds) {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedOffset = normalizeOffset(offset);
         String normalizedSource = normalizeSource(source);
@@ -479,6 +583,13 @@ public class ExternalJobPostingStore {
             sql.append(" AND LOWER(p.location) LIKE :filterLocation");
         }
 
+        // A page of the diversified feed: exactly these postings, in this order.
+        // See DiverseFeedIndex for why that order is chosen outside this query.
+        boolean byIds = onlyIds != null;
+        if (byIds) {
+            sql.append(" AND p.id = ANY(:onlyIds)");
+        }
+
         // Newest day first, best of that day within it. Recency alone gave quality
         // no say at all, and the tiebreaker it replaces -- match_score -- is a
         // title keyword check with three possible values, computed without a
@@ -495,7 +606,9 @@ public class ExternalJobPostingStore {
         // exactly, checked under UTC and under a New York session. It also stops
         // the local database bucketing into New York days while production buckets
         // into UTC days, which it silently did before.
-        sql.append(" ORDER BY ((p.source_updated_at AT TIME ZONE 'UTC')::date) DESC NULLS LAST,"
+        sql.append(byIds
+                ? " ORDER BY array_position(:onlyIds, p.id) LIMIT :limit OFFSET :offset"
+                : " ORDER BY ((p.source_updated_at AT TIME ZONE 'UTC')::date) DESC NULLS LAST,"
                 + " p.job_quality_score DESC NULLS LAST,"
                 + " p.source_updated_at DESC NULLS LAST, p.last_seen_at DESC LIMIT :limit OFFSET :offset");
 
@@ -525,6 +638,9 @@ public class ExternalJobPostingStore {
         }
         if (narrowLocation) {
             spec = spec.bind("filterLocation", like(location));
+        }
+        if (byIds) {
+            spec = spec.bind("onlyIds", onlyIds);
         }
 
         return spec.map((row, metadata) -> withStoreFallbacks(CandidateJobSummaryResponse.builder()
