@@ -12,6 +12,7 @@ import {
   CandidateResumeReview,
   CandidateSavedJob,
   JobRoleFamilyCatalog,
+  LocationSuggestion,
   SaveCandidateJobRequest,
   UpdateCandidateSavedJobRequest,
   UpdateCandidateProfileRequest,
@@ -92,7 +93,8 @@ export class CandidatePortalService {
     salaryPosted?: boolean,
     experienceLevel?: string,
     visaFriendly?: boolean,
-    ignorePreferences?: boolean
+    ignorePreferences?: boolean,
+    location?: string
   ): Observable<CandidateJobPageResponse> {
     const params = new URLSearchParams({
       source: 'all',
@@ -132,7 +134,20 @@ export class CandidatePortalService {
       params.set('ignorePreferences', 'true');
     }
 
+    if (location?.trim()) {
+      params.set('location', location.trim());
+    }
+
     return this.apiClient.get<CandidateJobPageResponse>(`/candidate/jobs/recommended/page?${params.toString()}`);
+  }
+
+  /** Places with active jobs that start like what was typed, for the Where field. */
+  getLocationSuggestions(query: string, limit = 8): Observable<LocationSuggestion[]> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (query.trim()) {
+      params.set('q', query.trim());
+    }
+    return this.apiClient.get<LocationSuggestion[]>(`/candidate/jobs/locations?${params.toString()}`);
   }
 
   /**

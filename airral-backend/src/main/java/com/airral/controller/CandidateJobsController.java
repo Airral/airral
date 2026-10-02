@@ -6,6 +6,7 @@ import com.airral.dto.response.CandidateJobSummaryResponse;
 import com.airral.security.JwtTokenProvider;
 import com.airral.service.CandidateJobSearchService;
 import com.airral.service.ExternalJobPostingStore;
+import com.airral.service.LocationIndex;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/candidate/jobs")
@@ -26,12 +28,15 @@ public class CandidateJobsController {
 
     private final CandidateJobSearchService candidateJobSearchService;
     private final ExternalJobPostingStore externalJobPostingStore;
+    private final LocationIndex locationIndex;
     private final JwtTokenProvider jwtTokenProvider;
 
     public CandidateJobsController(
             CandidateJobSearchService candidateJobSearchService,
             ExternalJobPostingStore externalJobPostingStore,
+            LocationIndex locationIndex,
             JwtTokenProvider jwtTokenProvider) {
+        this.locationIndex = locationIndex;
         this.candidateJobSearchService = candidateJobSearchService;
         // Straight to the store rather than through CandidateJobSearchService:
         // this reads the shape of the corpus and takes no candidate context, so
@@ -66,6 +71,21 @@ public class CandidateJobsController {
                         .body(catalog));
     }
 
+    /**
+     * Places to suggest as someone types in the Where field: states and
+     * "City, ST" labels that have active jobs, biggest first. Public aggregate
+     * counts, like the role families.
+     */
+    @GetMapping("/locations")
+    public Mono<ResponseEntity<List<LocationIndex.Suggestion>>> getLocationSuggestions(
+            @RequestParam(value = "q", required = false) String query,
+            @RequestParam(value = "limit", defaultValue = "8") Integer limit) {
+        return locationIndex.suggest(query, limit)
+                .map(suggestions -> ResponseEntity.ok()
+                        .cacheControl(CacheControl.maxAge(Duration.ofMinutes(5)).cachePublic())
+                        .body(suggestions));
+    }
+
     @GetMapping("/recommended")
     public Mono<ResponseEntity<Flux<CandidateJobSummaryResponse>>> getRecommendedJobs(
             @RequestParam(value = "source", defaultValue = "all") String source,
@@ -93,12 +113,13 @@ public class CandidateJobsController {
             @RequestParam(value = "experienceLevel", required = false) String experienceLevel,
             @RequestParam(value = "visaFriendly", required = false) Boolean visaFriendly,
             @RequestParam(value = "ignorePreferences", required = false) Boolean ignorePreferences,
+            @RequestParam(value = "location", required = false) String location,
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
         String candidateEmail = candidateEmail(authHeader);
         return candidateJobSearchService.getRecommendedJobsPage(
                         source, boardToken, limit, offset, maxAgeDays, query, company,
                         workMode, salaryPosted, experienceLevel, visaFriendly, candidateEmail,
-                        Boolean.TRUE.equals(ignorePreferences))
+                        Boolean.TRUE.equals(ignorePreferences), location)
                 .map(ResponseEntity::ok);
     }
 

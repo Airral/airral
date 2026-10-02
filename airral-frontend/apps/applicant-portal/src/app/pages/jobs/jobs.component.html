@@ -29,6 +29,41 @@
           <span class="material-icons">close</span>
         </button>
       </label>
+      <div class="where-box" [class.open]="whereOpen && whereOptions.length > 0">
+        <label class="search-box">
+          <span class="material-icons search-icon" aria-hidden="true">place</span>
+          <input
+            type="text"
+            role="combobox"
+            autocomplete="off"
+            [ngModel]="whereQuery"
+            (ngModelChange)="onWhereInput($event)"
+            (focus)="onWhereFocus()"
+            (blur)="onWhereBlur()"
+            (keydown)="onWhereKey($event)"
+            aria-label="Where: city or state"
+            aria-autocomplete="list"
+            aria-controls="where-options"
+            [attr.aria-expanded]="whereOpen && whereOptions.length > 0"
+            [attr.aria-activedescendant]="whereActive >= 0 ? 'where-option-' + whereActive : null"
+            placeholder="City or state">
+          <button class="search-clear" type="button" (click)="clearWhere()" *ngIf="whereQuery" title="Clear location" aria-label="Clear location">
+            <span class="material-icons">close</span>
+          </button>
+        </label>
+        <ul class="where-options" id="where-options" role="listbox" aria-label="Places with jobs" *ngIf="whereOpen && whereOptions.length > 0">
+          <li
+            *ngFor="let option of whereOptions; let i = index"
+            role="option"
+            [id]="'where-option-' + i"
+            [class.active]="i === whereActive"
+            [attr.aria-selected]="i === whereActive"
+            (mousedown)="$event.preventDefault(); selectWhere(option)">
+            <span class="where-label">{{ option.label }}</span>
+            <span class="where-meta">{{ whereOptionMeta(option) }}</span>
+          </li>
+        </ul>
+      </div>
       <button
         class="filter-toggle-btn"
         type="button"

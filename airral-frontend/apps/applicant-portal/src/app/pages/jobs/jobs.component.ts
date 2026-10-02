@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { ApplicationApiService, CandidatePortalService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
-import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, CandidateSavedJob, PreferenceNarrowing, ResumeHealthScore } from '@airral/shared-types';
+import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, CandidateSavedJob, LocationSuggestion, PreferenceNarrowing, ResumeHealthScore } from '@airral/shared-types';
 import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
 import { cleanLocationLabel, formatPayLabel, GoogleAnalyticsService, hasPostedPay, isImplausibleHourlyPay, VisitorSignalService } from '@airral/shared-utils';
 import { getOnboardingJobSearchSeed, OnboardingJobSearchSeed } from '../../utils/job-search-seed';
@@ -130,6 +130,14 @@ export class JobsComponent implements OnInit, OnDestroy {
   barError = false;
   private barTimer: ReturnType<typeof setTimeout> | null = null;
   searchQuery = '';
+  /** The Where field: what is typed, and what the results are narrowed to. */
+  whereQuery = '';
+  private whereApplied = '';
+  whereOptions: LocationSuggestion[] = [];
+  whereOpen = false;
+  whereActive = -1;
+  private whereTimer: ReturnType<typeof setTimeout> | undefined;
+  private whereRequest?: Subscription;
   /** What onboarding just saved, when the visitor arrived straight from it. */
   onboardingSearchSeed: OnboardingJobSearchSeed | null = null;
   hasMore = false;
@@ -208,6 +216,10 @@ export class JobsComponent implements OnInit, OnDestroy {
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
     }
+    if (this.whereTimer) {
+      clearTimeout(this.whereTimer);
+    }
+    this.whereRequest?.unsubscribe();
   }
 
   /**
@@ -285,7 +297,8 @@ export class JobsComponent implements OnInit, OnDestroy {
         this.filterSalaryPosted || undefined,
         this.filterExperience !== 'all' ? this.filterExperience : undefined,
         this.filterVisaFriendly || undefined,
-        this.searchesPastPreferences() || undefined
+        this.searchesPastPreferences() || undefined,
+        this.whereApplied || undefined
       )
       .pipe(
         timeout(this.jobsTimeoutMs),
@@ -485,6 +498,7 @@ export class JobsComponent implements OnInit, OnDestroy {
       this.filterExperience,
       this.filterVisaFriendly,
       this.searchesPastPreferences(),
+      this.whereApplied.toLowerCase(),
     ].join('|');
   }
 
@@ -495,6 +509,108 @@ export class JobsComponent implements OnInit, OnDestroy {
     } catch {
       return 'ask';
     }
+  }
+
+  // ── Where ──────────────────────────────────────────────
+  // Suggestions come from the places jobs are actually in, so every one has results.
+  // Typing only suggests; the search runs on a choice, Enter, or leaving the field.
+
+  onWhereInput(value: string): void {
+    this.whereQuery = value;
+    this.whereOpen = true;
+    this.whereActive = -1;
+    if (this.whereTimer) {
+      clearTimeout(this.whereTimer);
+    }
+    this.whereTimer = setTimeout(() => this.loadWhereOptions(), 150);
+    if (!value.trim() && this.whereApplied) {
+      this.applyWhere('');
+    }
+  }
+
+  onWhereFocus(): void {
+    this.whereOpen = true;
+    this.loadWhereOptions();
+  }
+
+  onWhereBlur(): void {
+    // A moment's delay so a tap on a suggestion lands before the list closes.
+    setTimeout(() => {
+      this.whereOpen = false;
+      this.commitWhere();
+      this.changeDetectorRef.detectChanges();
+    }, 120);
+  }
+
+  onWhereKey(event: KeyboardEvent): void {
+    const count = this.whereOptions.length;
+    if (event.key === 'ArrowDown' && count > 0) {
+      event.preventDefault();
+      this.whereOpen = true;
+      this.whereActive = (this.whereActive + 1) % count;
+    } else if (event.key === 'ArrowUp' && count > 0) {
+      event.preventDefault();
+      this.whereActive = (this.whereActive - 1 + count) % count;
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const picked = this.whereOptions[this.whereActive];
+      this.whereOpen = false;
+      if (picked) {
+        this.selectWhere(picked);
+      } else {
+        this.commitWhere();
+      }
+    } else if (event.key === 'Escape') {
+      this.whereOpen = false;
+    }
+  }
+
+  selectWhere(option: LocationSuggestion): void {
+    this.whereQuery = option.label;
+    this.whereOpen = false;
+    this.applyWhere(option.label);
+  }
+
+  clearWhere(): void {
+    this.whereQuery = '';
+    this.whereOptions = [];
+    this.applyWhere('');
+  }
+
+  private commitWhere(): void {
+    this.applyWhere(this.whereQuery.trim());
+  }
+
+  private applyWhere(value: string): void {
+    if (value === this.whereApplied) {
+      return;
+    }
+    this.whereApplied = value;
+    this.onSearch();
+  }
+
+  whereOptionMeta(option: LocationSuggestion): string {
+    if (option.kind === 'saved') {
+      return 'Your location';
+    }
+    return `${option.jobs.toLocaleString()} ${option.jobs === 1 ? 'job' : 'jobs'}`;
+  }
+
+  private loadWhereOptions(): void {
+    const typed = this.whereQuery.trim();
+    this.whereRequest?.unsubscribe();
+    this.whereRequest = this.candidateApi.getLocationSuggestions(typed, 8)
+      .pipe(timeout(4000), catchError(() => of([] as LocationSuggestion[])))
+      .subscribe(options => {
+        // With nothing typed, the person's own saved location leads, so it can be
+        // seen and chosen here rather than narrowing the feed unseen.
+        const saved: LocationSuggestion[] = !typed && this.profileLocation
+          ? [{ label: this.profileLocation, kind: 'saved', jobs: 0 }]
+          : [];
+        this.whereOptions = [...saved, ...options.filter(o => o.label !== this.profileLocation || typed)];
+        this.whereActive = -1;
+        this.changeDetectorRef.detectChanges();
+      });
   }
 
   clearSearch(): void {
@@ -584,7 +700,8 @@ export class JobsComponent implements OnInit, OnDestroy {
         this.filterSalaryPosted || undefined,
         this.filterExperience !== 'all' ? this.filterExperience : undefined,
         this.filterVisaFriendly || undefined,
-        this.searchesPastPreferences() || undefined
+        this.searchesPastPreferences() || undefined,
+        this.whereApplied || undefined
       )
       .pipe(
         timeout(this.jobsTimeoutMs),

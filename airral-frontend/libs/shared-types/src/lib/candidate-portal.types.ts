@@ -102,6 +102,13 @@ export interface CandidateJobPageResponse {
  * The jobs page uses it to ask before narrowing, rather than silently showing
  * fewer jobs than the search found.
  */
+/** A place to offer in the Where field. `saved` is the profile's own location. */
+export interface LocationSuggestion {
+  label: string;
+  kind: 'state' | 'city' | 'saved';
+  jobs: number;
+}
+
 export interface PreferenceNarrowing {
   /** Postings the search found before preferences narrowed them. */
   matched: number;

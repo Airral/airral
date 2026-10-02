@@ -82,7 +82,7 @@ class SearchContractTest {
          * return.
          */
         private void storeAlwaysHasMore() {
-            when(store.findRecommendedJobs(any(), any(), any(), any(), any(), any(), any(), any()))
+            when(store.findRecommendedJobs(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenAnswer(invocation -> Flux.fromIterable(postings(invocation.getArgument(2, Integer.class))));
         }
 
@@ -115,7 +115,7 @@ class SearchContractTest {
             CandidateJobPageResponse response = page(500, 0);
 
             verify(store).findRecommendedJobs(
-                    any(), any(), queryLimit.capture(), any(), any(), any(), any(), any());
+                    any(), any(), queryLimit.capture(), any(), any(), any(), any(), any(), any());
             // 500 was the bug: the probe row was clamped to the same cap as the
             // page, so the page and the probe were the same rows.
             assertThat(queryLimit.getValue()).isEqualTo(501);
@@ -146,7 +146,7 @@ class SearchContractTest {
             CandidateJobPageResponse response = page(null, 0);
 
             verify(store).findRecommendedJobs(
-                    any(), any(), queryLimit.capture(), any(), any(), any(), any(), any());
+                    any(), any(), queryLimit.capture(), any(), any(), any(), any(), any(), any());
             assertThat(queryLimit.getValue()).isEqualTo(51);
             assertThat(response.getJobs()).hasSize(50);
             assertThat(response.isHasMore()).isTrue();
@@ -155,7 +155,7 @@ class SearchContractTest {
         @Test
         @DisplayName("the last page does not claim a next one")
         void hasMoreIsFalseOnAShortPage() {
-            when(store.findRecommendedJobs(any(), any(), any(), any(), any(), any(), any(), any()))
+            when(store.findRecommendedJobs(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenReturn(Flux.fromIterable(postings(137)));
 
             CandidateJobPageResponse response = page(500, 0);
