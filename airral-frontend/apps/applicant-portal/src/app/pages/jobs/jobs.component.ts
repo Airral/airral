@@ -109,7 +109,7 @@ export class JobsComponent implements OnInit, OnDestroy {
   barError = false;
   private barTimer: ReturnType<typeof setTimeout> | null = null;
   searchQuery = '';
-  onboardingStartPending = false;
+  /** What onboarding just saved, when the visitor arrived straight from it. */
   onboardingSearchSeed: OnboardingJobSearchSeed | null = null;
   hasMore = false;
   offset = 0;
@@ -165,9 +165,9 @@ export class JobsComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // Who the visitor is, and what they have applied to, whether or not the
-    // search waits for them to start it: arriving from onboarding, they are
-    // signed in, and their saves and applications count from the first job.
+    // Who the visitor is, and what they have applied to: arriving from
+    // onboarding, they are signed in, and their saves and applications count
+    // from the first job.
     this.signedIn.set(this.auth.isAuthenticated());
     this.loadMyApplications();
     this.loadSavedJobs();
@@ -175,9 +175,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     this.loadMatchProfile();
     this.checkProfileUpdate();
     this.preparePostOnboardingSearch();
-    if (!this.onboardingStartPending) {
-      this.loadJobs();
-    }
+    this.loadJobs();
   }
 
   ngOnDestroy(): void {
@@ -236,8 +234,7 @@ export class JobsComponent implements OnInit, OnDestroy {
   get showResumeHealthBanner(): boolean {
     return !this.resumeHealthDismissed
       && this.resumeHealth !== null
-      && this.resumeHealth.score < 75
-      && !this.onboardingStartPending;
+      && this.resumeHealth.score < 75;
   }
 
   get resumeHealthTopFix(): string {
@@ -371,7 +368,6 @@ export class JobsComponent implements OnInit, OnDestroy {
       clearTimeout(this.searchDebounceTimer);
       this.searchDebounceTimer = undefined;
     }
-    this.onboardingStartPending = false;
     this.offset = 0;
     this.loadJobs();
   }
@@ -514,15 +510,6 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   readonly trackByJob = (_index: number, job: CandidateJobSummary): string => this.getJobKey(job);
-
-  startSearch(): void {
-    this.onboardingStartPending = false;
-    const seededQuery = this.onboardingSearchSeed?.query?.trim();
-    if (seededQuery && !this.searchQuery.trim()) {
-      this.searchQuery = seededQuery;
-    }
-    this.loadJobs();
-  }
 
   /**
    * The last step AIRRAL can see: the person leaves for the employer's own
@@ -781,14 +768,40 @@ export class JobsComponent implements OnInit, OnDestroy {
     return Boolean(sourceJobKey && this.savedJobKeys.has(sourceJobKey));
   }
 
+  /**
+   * Arriving from onboarding, search with what was just saved.
+   *
+   * <p>This used to stop at a "Profile saved -- Start search" card, so the last
+   * step of setup, "Find my jobs", opened a page with no jobs on it and one more
+   * button to press. The search now starts at once with the first saved role in
+   * the box, as that button did, and one line above the list says what was
+   * saved (onboardingSummary).
+   */
   private preparePostOnboardingSearch(): void {
     if (this.route.snapshot.queryParamMap.get('from') !== 'onboarding') {
       return;
     }
 
     this.onboardingSearchSeed = getOnboardingJobSearchSeed(this.auth.getCurrentUser()?.email);
-    this.searchQuery = this.onboardingSearchSeed?.query ?? '';
-    this.onboardingStartPending = true;
+    this.searchQuery = this.onboardingSearchSeed?.query?.trim() ?? '';
+  }
+
+  /**
+   * The roles, place and work mode onboarding saved, as one line. Empty when
+   * the visitor did not arrive from onboarding, or nothing was chosen.
+   */
+  get onboardingSummary(): string {
+    const seed = this.onboardingSearchSeed;
+    if (!seed) {
+      return '';
+    }
+
+    const workModes: Record<string, string> = { REMOTE: 'Remote', HYBRID: 'Hybrid', ONSITE: 'On-site' };
+    return [
+      ...(seed.roles ?? []),
+      seed.location,
+      seed.workMode ? workModes[seed.workMode] ?? seed.workMode : '',
+    ].map((part) => (part || '').trim()).filter(Boolean).join(' · ');
   }
 
   /**

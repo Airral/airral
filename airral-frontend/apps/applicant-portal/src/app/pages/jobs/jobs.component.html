@@ -44,7 +44,7 @@
     </div>
 
     <!-- Quick filters: the ones people reach for most, one tap each. -->
-    <div class="quick-filters" aria-label="Quick filters" *ngIf="!onboardingStartPending">
+    <div class="quick-filters" aria-label="Quick filters">
       <button type="button" class="chip" [attr.aria-pressed]="filterMaxAgeDays === 1" (click)="setFreshnessFilter(filterMaxAgeDays === 1 ? undefined : 1)">Posted today</button>
       <button type="button" class="chip" [attr.aria-pressed]="filterSalaryPosted" (click)="toggleSalaryFilter()">Pay listed</button>
       <button type="button" class="chip" [attr.aria-pressed]="filterWorkMode === 'REMOTE'" (click)="setWorkModeFilter(filterWorkMode === 'REMOTE' ? 'all' : 'REMOTE')">Remote</button>
@@ -118,6 +118,14 @@
     </p>
   </div>
 
+  <!-- Arriving from onboarding: the list is already searching with what was
+       just saved, so this only confirms it, in one line, where a card used to
+       hold the jobs back until "Start search" was pressed. -->
+  <p class="note setup-saved" *ngIf="onboardingSearchSeed" role="status">
+    <span class="material-icons" aria-hidden="true">check_circle</span>
+    <span>Profile saved<ng-container *ngIf="onboardingSummary">: {{ onboardingSummary }}</ng-container></span>
+  </p>
+
   <!-- Same idiom as the filter caveat above, deliberately outside the filters
        panel: that panel starts collapsed on mobile, and a profile is narrowing
        the feed whether or not the user has opened the filter controls. -->
@@ -143,27 +151,8 @@
     </button>
   </div>
 
-  <section class="search-launch" *ngIf="onboardingStartPending">
-    <div class="search-launch-copy">
-      <p class="eyebrow">Profile saved</p>
-      <h1>Start with roles that match your setup.</h1>
-      <p>
-        AIRRAL saved your role, location, work mode, and sponsorship preferences. Start the search when you are ready.
-      </p>
-      <div class="search-launch-tags" *ngIf="onboardingSearchSeed">
-        <span *ngFor="let role of onboardingSearchSeed.roles">{{ role }}</span>
-        <span *ngIf="onboardingSearchSeed.location">{{ onboardingSearchSeed.location }}</span>
-        <span *ngIf="onboardingSearchSeed.workMode">{{ onboardingSearchSeed.workMode }}</span>
-      </div>
-    </div>
-    <button class="btn btn-primary" type="button" (click)="startSearch()">
-      Start search
-      <span class="material-icons">arrow_forward</span>
-    </button>
-  </section>
-
   <!-- Split view: list + detail -->
-  <div class="jobs-split" [class.mobile-detail-open]="mobileDetailOpen" *ngIf="!onboardingStartPending">
+  <div class="jobs-split" [class.mobile-detail-open]="mobileDetailOpen">
 
     <!-- Job list panel -->
     <aside class="jobs-list-panel" [class.updating]="loading && jobs.length > 0" [attr.aria-busy]="loading">
