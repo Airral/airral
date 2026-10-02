@@ -550,6 +550,65 @@ public class CandidateJobSearchService {
             "level",
             "levels"
     );
+
+    /**
+     * The generic words that name the job, as opposed to its level.
+     *
+     * <p>{@link #meaningfulRoleTokens} drops these, which is right for matching
+     * "Senior Data Analyst" against "Data Analyst II" and wrong as soon as it is
+     * the only check: for a target of "Data analyst" the one word left is
+     * "data", so every title containing it counted as naming the whole target.
+     * Ranking the 51,710 active postings for a data analyst put "Role fit: Data
+     * Analyst" on 904 of them, most not analyst work -- "Senior Data
+     * Scientist", "Software Engineer - Data Platform", "Data Entry Specialist",
+     * and dozens of "Project Manager - Data Center Construction". With the job
+     * noun required it is on 172, every one an analyst title. "Product
+     * manager" ("product"), "Sales associate" ("sales") and "Data engineer"
+     * ("data") broke the same way.
+     */
+    private static final Set<String> ROLE_NOUNS = Set.of(
+            "engineer",
+            "developer",
+            "manager",
+            "specialist",
+            "analyst",
+            "associate"
+    );
+
+    /**
+     * What a seniority gap costs, and the sentence that admits to it.
+     *
+     * <p>Both reasons carry "may not fit" on purpose: the portal sorts reasons
+     * into fits and cautions by their wording ({@code isCautionReasonText}), and
+     * a seniority gap listed under "why this fits" would be the opposite of the
+     * truth.
+     */
+    private static final int SENIORITY_GAP_PENALTY = 10;
+    private static final String ABOVE_YOUR_LEVEL = "Seniority may not fit: more senior than your experience";
+    private static final String BELOW_YOUR_LEVEL = "Seniority may not fit: below your experience level";
+
+    /**
+     * The role words that make "staff" a level rather than a job.
+     *
+     * <p>"Staff Software Engineer" and "Staff Product Designer" are a rung on a
+     * tech ladder; "Staff Accountant", "Staff Nurse", "Staff Pharmacist" and
+     * "Staff Attorney" are the ordinary working title in those professions, and
+     * "Guest Services Staff" is not a level of anything. The bare word was read
+     * as a level everywhere, so a staff accountant with four years was told
+     * every staff accountant job was beyond them. Of the 2,261 active titles
+     * containing "staff", 1,915 carry one of these words; 91 are staff
+     * accountants, nurses, pharmacists or attorneys.
+     */
+    private static final List<String> STAFF_LADDER_ROLES = List.of(
+            "engineer",
+            "developer",
+            "scientist",
+            "designer",
+            "architect",
+            "researcher",
+            "product manager",
+            "program manager"
+    );
             private static final Set<String> SEARCH_STOP_WORDS = Set.of(
                 "and",
                 "or",
@@ -3076,7 +3135,6 @@ public class CandidateJobSearchService {
         return (jobs == null ? List.<CandidateJobSummaryResponse>of() : jobs).stream()
                 .filter(job -> passesTargetRoleFilter(job, context, targets))
                 .filter(job -> passesLocationFilter(job, context))
-                .filter(job -> passesSeniorityFilter(job, context))
                 .map(job -> applyCandidateMatch(job, context, jobMatchText(job), targets))
                 .sorted(personalizedJobComparator())
                 .toList();
@@ -3203,48 +3261,47 @@ public class CandidateJobSearchService {
     }
 
     /**
-     * Hard filter: remove jobs whose seniority level is clearly mismatched for the candidate's
-     * years of experience. With ~4 years, filter out director/VP/principal and intern/new-grad.
+     * A title whose level is clearly off the candidate's years of experience
+     * ranks lower and says why. It is not removed.
+     *
+     * <p>This was a hard filter, and it hid by title keyword against years
+     * computed from resume entries: "staff" below 7 years, any "manager" below
+     * 8, director/VP/chief below 10, junior/"I" at 5 and up, intern at 2 and
+     * up. A hidden job leaves no trace, so nobody could tell that "Staff
+     * Accountant" had vanished for a staff accountant, or "Staff Nurse" for a
+     * nurse. Ranked against the 51,710 active postings, it hid 12,962 (25%)
+     * from a warehouse associate with six years and 5,762 from a staff
+     * accountant with four. It applied to every candidate whose resume yields
+     * years, a group the resume parser has just made much larger.
+     *
+     * <p>Two signals that disagree assert nothing, the same rule
+     * {@link #roleIsKnownMismatch} follows: a title that reads as both above and
+     * below the candidate ("Crew Chief I", a live posting) takes no penalty.
      */
-    private boolean passesSeniorityFilter(CandidateJobSummaryResponse job, CandidateMatchContext context) {
+    private MatchComponent scoreSeniorityFit(CandidateJobSummaryResponse job, CandidateMatchContext context) {
         Integer years = context.yearsOfExperience();
-        if (years == null || years < 0) {
-            return true; // no experience data, can't filter
+        if (years == null || years < 0 || job == null || job.getTitle() == null || job.getTitle().isBlank()) {
+            return MatchComponent.empty();
         }
 
-        String title = job.getTitle();
-        if (title == null || title.isBlank()) {
-            return true;
+        String title = normalizedTermText(job.getTitle());
+        boolean below = (years >= 2 && isInternOrNewGrad(title))
+                || (years >= 5 && isEntryLevel(title));
+        // Manager at 5, not the 8 it was. Measured over the 3,312 active
+        // non-product/project/program "manager" postings that state a minimum,
+        // the median asks for 5 years, the 75th percentile for 6, and 13% for 8
+        // or more -- so "more senior than your experience" at 6 or 7 years
+        // would have been false for most of the postings it was printed on.
+        // Assistant managers are not counted at all: the 249 that state a
+        // minimum have a median of 2 years.
+        boolean above = (years < 5 && isPeopleManagerTitle(title) && !containsTerm(title, "assistant"))
+                || (years < 10 && isDirectorOrAbove(title))
+                || (years < 7 && isPrincipalOrStaff(title));
+
+        if (above == below) {
+            return MatchComponent.empty();
         }
-
-        String normalizedTitle = normalizedTermText(title);
-
-        // Filter out intern/new-grad roles for candidates with 2+ years
-        if (years >= 2 && isInternOrNewGrad(normalizedTitle)) {
-            return false;
-        }
-
-        // Filter out people-management tracks unless the candidate is already senior enough
-        if (years < 8 && isPeopleManagerTitle(normalizedTitle)) {
-            return false;
-        }
-
-        // Filter out director/VP/C-level for candidates with < 10 years
-        if (years < 10 && isDirectorOrAbove(normalizedTitle)) {
-            return false;
-        }
-
-        // Filter out principal/staff for candidates with < 7 years
-        if (years < 7 && isPrincipalOrStaff(normalizedTitle)) {
-            return false;
-        }
-
-        // Filter out entry-level/junior for candidates with 5+ years
-        if (years >= 5 && isEntryLevel(normalizedTitle)) {
-            return false;
-        }
-
-        return true;
+        return new MatchComponent(SENIORITY_GAP_PENALTY, List.of(above ? ABOVE_YOUR_LEVEL : BELOW_YOUR_LEVEL));
     }
 
     private boolean isInternOrNewGrad(String title) {
@@ -3276,8 +3333,21 @@ public class CandidateJobSearchService {
     }
 
     private boolean isPrincipalOrStaff(String title) {
-        return containsTerm(title, "principal") || containsTerm(title, "staff")
-                || containsTerm(title, "distinguished");
+        return containsTerm(title, "principal") || containsTerm(title, "distinguished")
+                || isStaffLevel(title);
+    }
+
+    /**
+     * "Staff" as a rung on a tech ladder, not as a job title of its own.
+     *
+     * <p>"Member of Technical Staff" is excluded because it is the flat title
+     * some labs give every engineer, junior or not.
+     */
+    private boolean isStaffLevel(String title) {
+        if (!containsTerm(title, "staff") || containsTerm(title, "technical staff")) {
+            return false;
+        }
+        return STAFF_LADDER_ROLES.stream().anyMatch(role -> containsTerm(title, role));
     }
 
     private boolean isEntryLevel(String title) {
@@ -3481,6 +3551,7 @@ public class CandidateJobSearchService {
         List<String> reasons = new ArrayList<>();
 
         RoleFit roleFit = scoreRoleFit(job, context, haystack, targets);
+        MatchComponent seniorityGap = scoreSeniorityFit(job, context);
         MatchComponent skillFit = scoreSkillFit(context, haystack);
         MatchComponent preferenceFit = scorePreferenceFit(job, context, haystack);
         MatchComponent qualityFit = scoreQualityFit(job);
@@ -3489,6 +3560,7 @@ public class CandidateJobSearchService {
 
         int score = 42
                 + roleFit.score()
+                - seniorityGap.score()
                 + skillFit.score()
                 + preferenceFit.score()
                 + qualityFit.score()
@@ -3496,6 +3568,9 @@ public class CandidateJobSearchService {
                 - avoidPenalty.score();
 
         reasons.addAll(roleFit.reasons());
+        // Straight after role fit, because the list is cut at six and this is
+        // the one reason that explains why an on-target posting sits low.
+        reasons.addAll(seniorityGap.reasons());
         reasons.addAll(skillFit.reasons());
         reasons.addAll(preferenceFit.reasons());
         reasons.addAll(qualityFit.reasons());
@@ -3592,22 +3667,71 @@ public class CandidateJobSearchService {
             }
 
             List<String> tokens = meaningfulRoleTokens(normalizedRole);
+            List<String> roleNouns = roleNouns(normalizedRole);
+            // "analyst" in "Data analyst": the word that says what the job is.
+            // True when the target has no such word, so a target like
+            // "Registered nurse" is read exactly as before.
+            boolean titleNamesTheJob = titleNamesRoleNouns(titleText, roleNouns);
+            String roleFamily = targets.familyOf(role);
+            boolean familyAgrees = roleFamily != null && roleFamily.equals(jobFamily);
+
             int score = 0;
+            boolean speaks = true;
             if (containsTerm(titleText, normalizedRole)) {
                 score = 24;
             } else if (!tokens.isEmpty() && tokens.stream().allMatch(token -> containsTerm(titleText, token))) {
                 score = 21;
+                // Every token matched, but the job noun was never a token, so
+                // the title shares only the qualifier: "Software Engineer, Data
+                // Access" for a data analyst. Handled the way the known-mismatch
+                // branch below handles a coincidence of vocabulary: clamp, never
+                // zero, say nothing. If the family does agree, the family tier
+                // further down lifts it back, and names it when the family is a
+                // label the candidate picked.
+                //
+                // Clamped rather than zeroed because a zero drops the posting
+                // past passesTargetRoleFilter's "scored well enough" check onto
+                // the compatibility vote, and that vote hides a software
+                // posting from an analyst. Measured over the 51,710 active
+                // postings, no posting is hidden that was shown before.
+                if (!titleNamesTheJob) {
+                    score = MISMATCHED_TERM_FIT;
+                    speaks = false;
+                }
             } else if (containsTerm(roleText, normalizedRole)) {
                 score = 18;
             } else if (!tokens.isEmpty()) {
                 long titleHits = tokens.stream().filter(token -> containsTerm(titleText, token)).count();
                 long anyHits = tokens.stream().filter(token -> containsTerm(roleText, token)).count();
                 score = Math.max((int) Math.min(14, titleHits * 7), (int) Math.min(10, anyHits * 5));
+                // Some of the candidate's words, not their role. The score still
+                // ranks, but "Role fit: Data Analyst" on a posting that matched
+                // "data" in a tag, or "Role fit: Registered Nurse" on "Registered
+                // Ultrasound Technologist", states something the title does not.
+                speaks = false;
+            }
+
+            // The other direction: an analyst title in the target's own family
+            // names the same job without repeating the qualifier. "Business
+            // Intelligence Analyst" and "Senior Analyst, Sales Analytics" share
+            // no token with "data analyst", so the rules above scored them 0 and
+            // the family tier ranked them silently, below "Data Center
+            // Deployment Technician" and its "Role fit: Data Analyst". Scored at
+            // the picked-label tier, below the candidate's own words.
+            //
+            // Analyst only, because the qualifier is what separates the other
+            // nouns' jobs. Tried for every noun, it put "Role fit: Data
+            // Engineer" on 23 "Senior Machine Learning Engineer" postings (both
+            // sit in Data science) and "Role fit: Sales Associate" on 394
+            // "Merchandising Service Associate" postings (both Retail).
+            if (score < 20 && familyAgrees && roleNouns.contains("analyst") && titleNamesTheJob) {
+                score = 20;
+                speaks = true;
             }
 
             if (score > bestScore) {
                 bestScore = score;
-                bestRole = role;
+                bestRole = speaks ? role : null;
             }
         }
 
@@ -4238,6 +4362,33 @@ public class CandidateJobSearchService {
                 .toList();
     }
 
+    private List<String> roleNouns(String role) {
+        return List.of(normalizedTermText(role).split(" ")).stream()
+                .filter(ROLE_NOUNS::contains)
+                .distinct()
+                .toList();
+    }
+
+    /**
+     * Whether the title carries every job noun of the target.
+     *
+     * <p>Engineer and developer are read as one noun. Titles use them
+     * interchangeably for the same work, and without that "Java Engineer"
+     * would stop naming the job for someone who typed "Java developer".
+     */
+    private boolean titleNamesRoleNouns(String titleText, List<String> roleNouns) {
+        for (String noun : roleNouns) {
+            boolean named = containsTerm(titleText, noun);
+            if (!named && ("engineer".equals(noun) || "developer".equals(noun))) {
+                named = containsTerm(titleText, "engineer") || containsTerm(titleText, "developer");
+            }
+            if (!named) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Only the arrangement the candidate asked for fits.
      *
@@ -4690,11 +4841,15 @@ public class CandidateJobSearchService {
      * titles". {@code all} additionally holds families inferred from free text,
      * which may raise a score and may not speak. Hoisted out of the per-job path because it depends only on the
      * candidate, and the inferred half costs a keyword scan per target role.
+     *
+     * <p>{@code familyByRole} is the same reading kept per role, because the
+     * token rules in {@code scoreRoleFit} ask whether one particular role's
+     * family agrees with the posting, not whether any of them does.
      */
-    private record RoleTargets(Set<String> picked, Set<String> all) {
+    private record RoleTargets(Set<String> picked, Set<String> all, Map<String, String> familyByRole) {
         private static RoleTargets from(CandidateMatchContext context) {
             if (context == null) {
-                return new RoleTargets(Set.of(), Set.of());
+                return new RoleTargets(Set.of(), Set.of(), Map.of());
             }
             // Only stated roles can be picked labels. A resume-derived set
             // contains past job titles, and one of those matching an offered
@@ -4703,7 +4858,20 @@ public class CandidateJobSearchService {
             Set<String> picked = context.targetRolesStated()
                     ? RoleFamilyTaxonomy.pickedLabels(context.targetRoles())
                     : Set.of();
-            return new RoleTargets(picked, RoleFamilyTaxonomy.classifyTerms(context.targetRoles()));
+            Map<String, String> familyByRole = new LinkedHashMap<>();
+            Set<String> all = new LinkedHashSet<>();
+            for (String role : context.targetRoles() == null ? Set.<String>of() : context.targetRoles()) {
+                String family = RoleFamilyTaxonomy.classifyTerm(role);
+                familyByRole.put(role, family);
+                if (family != null) {
+                    all.add(family);
+                }
+            }
+            return new RoleTargets(picked, all, familyByRole);
+        }
+
+        private String familyOf(String role) {
+            return familyByRole.get(role);
         }
     }
 

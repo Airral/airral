@@ -160,7 +160,10 @@ final class RoleFamilyTaxonomy {
                     "data platform", "data infrastructure")),
             new RoleFamilyRule("Analytics", List.of(
                     "data analyst", "business analyst", "analytics", "business intelligence",
-                    "reporting analyst", "insights analyst")),
+                    // "product analyst" because without it "Senior Product
+                    // Analyst" placed nowhere, or in Finance on a "Payroll"
+                    // suffix, and so could never be a role fit for an analyst.
+                    "reporting analyst", "insights analyst", "product analyst")),
             new RoleFamilyRule("Security engineer", List.of(
                     "security engineer", "application security", "cloud security", "cybersecurity",
                     "infosec", "security architect")),
