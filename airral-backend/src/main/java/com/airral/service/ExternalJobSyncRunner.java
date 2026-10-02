@@ -2,9 +2,12 @@ package com.airral.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +16,7 @@ import com.airral.security.LoginThrottle;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.function.IntConsumer;
 
 /**
  * One-shot sync entry point for the {@code sync} profile.
@@ -44,26 +48,69 @@ public class ExternalJobSyncRunner implements ApplicationRunner {
     private final ApiKeyStore apiKeyStore;
     private final LoginThrottle loginThrottle;
     private final Duration timeout;
+    private final ApplicationContext context;
+    private final IntConsumer exit;
 
+    @Autowired
     public ExternalJobSyncRunner(
             ExternalJobSyncService externalJobSyncService,
             ApiKeyStore apiKeyStore,
             LoginThrottle loginThrottle,
-            @Value("${airral.jobs.sync.cli-timeout-minutes:90}") int timeoutMinutes) {
+            @Value("${airral.jobs.sync.cli-timeout-minutes:90}") int timeoutMinutes,
+            ApplicationContext context) {
+        this(externalJobSyncService, apiKeyStore, loginThrottle, timeoutMinutes, context, System::exit);
+    }
+
+    ExternalJobSyncRunner(
+            ExternalJobSyncService externalJobSyncService,
+            ApiKeyStore apiKeyStore,
+            LoginThrottle loginThrottle,
+            int timeoutMinutes,
+            ApplicationContext context,
+            IntConsumer exit) {
         this.externalJobSyncService = externalJobSyncService;
         this.apiKeyStore = apiKeyStore;
         this.loginThrottle = loginThrottle;
         this.timeout = Duration.ofMinutes(Math.max(1, timeoutMinutes));
+        this.context = context;
+        this.exit = exit;
     }
 
+    /**
+     * Runs the sync, then ends the process with its result: 0 for a run that
+     * finished or lost the lease to another one, 1 for one that did not.
+     *
+     * <p>Returning from here does not end the process. Any {@code @Scheduled}
+     * bean the sync profile does not switch off starts Spring's task scheduler,
+     * and its worker thread is not a daemon. The company sign-up clean-up
+     * ({@code CompanyVerificationService.closeUnverifiedSignups}), added on
+     * 2026-09-30, was the first such bean, and from then on every scheduled run
+     * logged "One-shot sync finished", then sat idle until the workflow's
+     * 120-minute limit cancelled it. A thread dump of an idle run showed
+     * {@code main} gone and {@code scheduling-1} as the only non-daemon thread
+     * left. So the context is closed and the process exits here, with the code
+     * the workflow reads, however many such threads exist.
+     */
     @Override
     public void run(ApplicationArguments args) {
+        int exitCode = syncOnce();
+        exit.accept(SpringApplication.exit(context, () -> exitCode));
+    }
+
+    private int syncOnce() {
         log.info("Starting one-shot external job sync (timeout {})", timeout);
 
-        ExternalJobSyncResult result = externalJobSyncService.syncActiveSources().block(timeout);
+        ExternalJobSyncResult result;
+        try {
+            result = externalJobSyncService.syncActiveSources().block(timeout);
+        } catch (RuntimeException e) {
+            log.error("External job sync failed", e);
+            return 1;
+        }
 
         if (result == null) {
-            throw new IllegalStateException("External job sync returned no result");
+            log.error("External job sync failed: the sync returned no result");
+            return 1;
         }
 
         log.info(
@@ -84,8 +131,10 @@ public class ExternalJobSyncRunner implements ApplicationRunner {
         // postings are going stale. A board that only missed this run, and its
         // retry, is PARTIAL_SUCCESS: green, with a warning on the run page.
         if ("FAILED".equals(result.status()) || "DEGRADED".equals(result.status())) {
-            throw new IllegalStateException("External job sync failed: " + result.status());
+            log.error("External job sync failed: {}", result.status());
+            return 1;
         }
+        return 0;
     }
 
     /**
