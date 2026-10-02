@@ -237,8 +237,38 @@ public class ExternalJobPostingStore {
             String query,
             String company,
             ExplicitJobFilters filters) {
+        return findRecommendedJobs(source, boardToken, limit, offset, maxAgeDays, query, company, filters, null);
+    }
+
+    /**
+     * The same search narrowed to postings whose location contains
+     * {@code location}, for the MCP search_jobs tool. The website has no
+     * location filter and never calls this; with a null location the SQL and
+     * its bindings are exactly the overload above's.
+     *
+     * <p>A predicate, because filtering in Java after the limit answers "which
+     * of the newest rows are there": the first of 19 "engineer" postings in
+     * London is about 3,150th of 17,446 matches. Measured in buffers on 51.7k
+     * local postings (Postgres 14): "engineer" in TX walks the feed index for
+     * 3,386; a rarer place -- London, Denver, Seattle, or one matching nothing
+     * -- has the planner scan the 11,756-page heap once instead, 11.8k to
+     * 16.4k, testing the location column before the search vector. Paging the
+     * service's 500-row pages and filtering them cost 3,881, 12,101, 16,773 and
+     * 22,078 for the four pages to 2,000 rows, and still found no London.
+     */
+    public Flux<CandidateJobSummaryResponse> findRecommendedJobs(
+            String source,
+            String boardToken,
+            Integer limit,
+            Integer offset,
+            Integer maxAgeDays,
+            String query,
+            String company,
+            ExplicitJobFilters filters,
+            String location) {
         if (query == null || query.isBlank()) {
-            return findRecommendedJobs(source, boardToken, limit, offset, maxAgeDays, query, company, filters, false);
+            return findRecommendedJobs(source, boardToken, limit, offset, maxAgeDays, query, company, filters,
+                    location, false);
         }
         return estimateTextMatches(query)
                 .map(estimate -> estimate < INDEX_FIRST_TEXT_MATCH_CEILING)
@@ -246,7 +276,7 @@ public class ExternalJobPostingStore {
                 .onErrorReturn(false)
                 .defaultIfEmpty(false)
                 .flatMapMany(indexFirst -> findRecommendedJobs(
-                        source, boardToken, limit, offset, maxAgeDays, query, company, filters, indexFirst));
+                        source, boardToken, limit, offset, maxAgeDays, query, company, filters, location, indexFirst));
     }
 
     /**
@@ -318,6 +348,7 @@ public class ExternalJobPostingStore {
             String query,
             String company,
             ExplicitJobFilters filters,
+            String location,
             boolean indexFirstText) {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedOffset = normalizeOffset(offset);
@@ -441,6 +472,12 @@ public class ExternalJobPostingStore {
         }
 
         appendExplicitFilters(sql, filters);
+        // NULL LIKE is not true, so a posting with no location never satisfies
+        // a request for one.
+        boolean narrowLocation = location != null && !location.isBlank();
+        if (narrowLocation) {
+            sql.append(" AND LOWER(p.location) LIKE :filterLocation");
+        }
 
         // Newest day first, best of that day within it. Recency alone gave quality
         // no say at all, and the tiebreaker it replaces -- match_score -- is a
@@ -485,6 +522,9 @@ public class ExternalJobPostingStore {
         if (query != null && !query.isBlank()) {
             spec = spec.bind("query", query.trim());
             spec = spec.bind("queryLike", like(query));
+        }
+        if (narrowLocation) {
+            spec = spec.bind("filterLocation", like(location));
         }
 
         return spec.map((row, metadata) -> withStoreFallbacks(CandidateJobSummaryResponse.builder()

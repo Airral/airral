@@ -315,6 +315,44 @@ class McpControllerTest {
     }
 
     @Test
+    @DisplayName("search_jobs advertises salary_listed and passes it, with work_mode, to the catalog")
+    void searchJobsFiltersSurviveTheProtocol() {
+        List<Object[]> asked = new java.util.ArrayList<>();
+        JobCatalogPort catalog = new JobCatalogPort() {
+            @Override
+            public Mono<List<com.airral.dto.response.CandidateJobSummaryResponse>> search(
+                    String query, String location, String workMode, String company, boolean salaryListed, int limit) {
+                asked.add(new Object[] {query, workMode, salaryListed, limit});
+                return Mono.just(List.of());
+            }
+
+            @Override
+            public Mono<com.airral.dto.response.CandidateJobDetailResponse> detail(
+                    String sourceType, String boardToken, String externalJobId) {
+                return Mono.empty();
+            }
+        };
+        controller = new McpController(List.of(new SearchJobsTool(catalog)));
+
+        Map<String, Object> listed = send("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
+                withScopes(ApiKeyScopes.JOBS_READ));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> schema = (Map<String, Object>) ((List<Map<String, Object>>) result(listed)
+                .get("tools")).get(0).get("inputSchema");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+        assertTrue(properties.containsKey("salary_listed"), "the model only sends what the schema offers");
+
+        send("""
+                {"jsonrpc":"2.0","id":2,"method":"tools/call",
+                 "params":{"name":"search_jobs","arguments":
+                   {"query":"data analyst","work_mode":"REMOTE","salary_listed":true,"limit":25}}}
+                """, withScopes(ApiKeyScopes.JOBS_READ));
+
+        assertEquals(List.of("data analyst", "REMOTE", true, 25), List.of(asked.get(0)));
+    }
+
+    @Test
     @DisplayName("a refusal from underneath reaches the model in its own words")
     void clientErrorsAreNotBlamedOnAirral() {
         McpTool closed = new McpTool() {

@@ -33,13 +33,14 @@ public interface JobCatalogPort {
     /**
      * Free-text search over active postings.
      *
-     * @param query    words to match against title, tags and description
-     * @param location optional substring filter, null for anywhere
-     * @param workMode REMOTE / HYBRID / ONSITE, null for any
-     * @param limit    hard cap on results, so a tool call cannot return a corpus
+     * @param query        words to match against title, tags and description
+     * @param location     optional substring filter, null for anywhere
+     * @param workMode     REMOTE / HYBRID / ONSITE, null for any
+     * @param salaryListed true to keep only postings that state their pay
+     * @param limit        hard cap on results, so a tool call cannot return a corpus
      */
     Mono<List<CandidateJobSummaryResponse>> search(
-            String query, String location, String workMode, String company, int limit);
+            String query, String location, String workMode, String company, boolean salaryListed, int limit);
 
     /** One posting in full, addressed the way external jobs are keyed. */
     Mono<CandidateJobDetailResponse> detail(String sourceType, String boardToken, String externalJobId);

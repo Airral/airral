@@ -41,10 +41,11 @@ public class SearchJobsTool implements McpTool {
     public String description() {
         return """
                 Search live job postings on AIRRAL by keyword, and optionally narrow \
-                by location or work mode. Use this to find roles matching what \
-                someone is looking for. Returns a compact summary of each match; \
-                call get_job for the full description of one. Postings come from \
-                company career sites and are refreshed every few hours.""";
+                by location, work mode or whether the pay is listed. Use this to \
+                find roles matching what someone is looking for. Returns a compact \
+                summary of each match; call get_job for the full description of \
+                one. Postings come from company career sites and are refreshed \
+                every few hours.""";
     }
 
     @Override
@@ -70,6 +71,12 @@ public class SearchJobsTool implements McpTool {
         company.put("type", "string");
         company.put("description", "Optional. Restrict to one company by name.");
 
+        Map<String, Object> salaryListed = new LinkedHashMap<>();
+        salaryListed.put("type", "boolean");
+        salaryListed.put("description",
+                "Optional. Set to true for only postings that state their pay. "
+                        + "Omit to include postings that do not.");
+
         Map<String, Object> limit = new LinkedHashMap<>();
         limit.put("type", "integer");
         limit.put("minimum", 1);
@@ -82,6 +89,7 @@ public class SearchJobsTool implements McpTool {
         properties.put("location", location);
         properties.put("work_mode", workMode);
         properties.put("company", company);
+        properties.put("salary_listed", salaryListed);
         properties.put("limit", limit);
 
         Map<String, Object> schema = new LinkedHashMap<>();
@@ -112,6 +120,7 @@ public class SearchJobsTool implements McpTool {
                         text(arguments, "location"),
                         text(arguments, "work_mode"),
                         text(arguments, "company"),
+                        flag(arguments, "salary_listed"),
                         limit)
                 .map(jobs -> render(query, jobs));
     }
@@ -129,7 +138,7 @@ public class SearchJobsTool implements McpTool {
             // Distinguishes "nothing matched" from "something broke", and
             // suggests the recovery rather than leaving the model to guess.
             return "No live postings matched \"" + query + "\". Try broader wording, "
-                    + "or drop the location or work mode filter.";
+                    + "or drop the location, work mode or salary filter.";
         }
 
         StringBuilder out = new StringBuilder();
@@ -163,6 +172,11 @@ public class SearchJobsTool implements McpTool {
             }
         }
         return out.toString();
+    }
+
+    private static boolean flag(JsonNode node, String field) {
+        // asBoolean also reads "true" sent as a string, which models do.
+        return node != null && node.path(field).asBoolean(false);
     }
 
     private static void appendField(StringBuilder out, String label, String value) {
