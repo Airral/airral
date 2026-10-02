@@ -311,7 +311,7 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--ap-teal) 13%, transparent);
   color: var(--ap-teal);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -333,7 +333,7 @@
   display: grid;
   gap: 4px;
   color: var(--ap-ink-3);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -480,7 +480,7 @@
 
 .offer-terms dt {
   color: var(--ap-ink-3);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 650;
 }
 

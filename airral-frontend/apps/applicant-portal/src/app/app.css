@@ -32,6 +32,7 @@
 .nav-brand {
   display: flex;
   align-items: center;
+  min-height: 40px;
   gap: 9px;
   text-decoration: none;
   color: var(--ap-ink);
@@ -154,7 +155,7 @@
 .nav-signup {
   display: inline-flex;
   align-items: center;
-  height: 34px;
+  height: 40px;
   padding: 0 14px;
   border-radius: 10px;
   font-size: 13px;
@@ -221,7 +222,7 @@
 
   .nav-signin,
   .nav-signup {
-    height: 32px;
+    height: 40px;
     padding: 0 12px;
     font-size: 12.5px;
   }

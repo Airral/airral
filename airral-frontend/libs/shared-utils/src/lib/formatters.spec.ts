@@ -4,7 +4,7 @@
 // need no browser and no test framework in the dependency tree.
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { cleanLocationLabel, formatPayLabel, hasPostedPay } from './formatters';
+import { cleanLocationLabel, formatPayLabel, hasPostedPay, isImplausibleHourlyPay } from './formatters';
 
 describe('formatPayLabel', () => {
   it('adds /hr to an hourly figure whose label has no unit', () => {
@@ -71,6 +71,33 @@ describe('hasPostedPay', () => {
     assert.equal(hasPostedPay('N/A'), false);
     assert.equal(hasPostedPay('USD $0k'), false);
     assert.equal(hasPostedPay(undefined), false);
+  });
+});
+
+describe('hourly pay under the minimum wage', () => {
+  it('is not treated as posted pay', () => {
+    // The Target truck-driver posting: a per-mile rate or bonus in the pay field.
+    assert.equal(isImplausibleHourlyPay('USD $2-$3.5/hr'), true);
+    assert.equal(hasPostedPay('USD $2-$3.5/hr'), false);
+    assert.equal(formatPayLabel('USD $2-$3.5/hr', 'HOUR'), '');
+    assert.equal(hasPostedPay('$6.50 per hour'), false);
+  });
+
+  it('leaves real hourly pay, and the minimum itself, alone', () => {
+    assert.equal(hasPostedPay('USD $7.25/hr'), true);
+    assert.equal(hasPostedPay('USD $20.82-$37.45/hr'), true);
+    assert.equal(formatPayLabel('USD $20.82-$37.45/hr', 'HOUR'), '$20.82–$37.45/hr');
+  });
+
+  it('leaves a tipped cash wage alone', () => {
+    assert.equal(hasPostedPay('$2.13/hr + tips'), true);
+  });
+
+  it('never applies to a yearly figure, however small the digits', () => {
+    assert.equal(hasPostedPay('USD $5k'), true);
+    assert.equal(hasPostedPay('USD $5k-$6k/yr'), true);
+    assert.equal(isImplausibleHourlyPay('USD $150k-$190k'), false);
+    assert.equal(isImplausibleHourlyPay(undefined), false);
   });
 });
 

@@ -82,8 +82,10 @@
   --ap-fill: #eceef2;
   --ap-fill-soft: #f6f7f9;
   --ap-ink: #16181d;
-  --ap-ink-2: #5f6570;
-  --ap-ink-3: #8b919b;
+  /* Text colors checked against WCAG AA (4.5:1) on white, the page gray and the
+     verdict tints. ink-2 moved darker so ink-3 can pass and still read as quieter. */
+  --ap-ink-2: #4d535e;
+  --ap-ink-3: #666c77;
   --ap-hair: rgba(16, 24, 40, 0.09);
   --ap-hair-2: rgba(16, 24, 40, 0.16);
   --ap-tint: #5b3df5;
@@ -91,15 +93,15 @@
   --ap-tint-soft: #eeebff;
   --ap-tint-text: #4a2bd1;
   --ap-red: #d93a30;
-  --ap-orange: #c8680a;
-  --ap-green: #248a45;
+  --ap-orange: #a65700;
+  --ap-green: #1f7a3c;
   --ap-cyan: #1a82b8;
-  --ap-blue: #2f6feb;
+  --ap-blue: #1f5bd1;
   --ap-indigo: #5856d6;
   --ap-magenta: #b0278f;
   --ap-pink: #d12f67;
   --ap-teal: #0f8479;
-  --ap-gray: #8b919b;
+  --ap-gray: #666c77;
   --ap-radius: 14px;
   --ap-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 14px 40px rgba(16, 24, 40, 0.12);
   --ap-tabbar-height: 64px;
