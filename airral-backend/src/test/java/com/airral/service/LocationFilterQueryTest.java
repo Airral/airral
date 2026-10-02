@@ -71,22 +71,35 @@ class LocationFilterQueryTest {
                 "all", null, 51, 0, 60, "engineer", null, REMOTE_WITH_PAY, "  "));
 
         assertThat(web.search()).doesNotContain("p.location) LIKE");
-        assertThat(web.bindings()).noneMatch(binding -> binding.startsWith("filterLocation="));
+        assertThat(web.bindings()).noneMatch(binding -> binding.startsWith("loc"));
         assertThat(noLocation).isEqualTo(web);
         assertThat(blankLocation).isEqualTo(web);
     }
 
     @Test
-    @DisplayName("a location narrows in SQL, before the limit is taken")
+    @DisplayName("a city narrows in SQL, before the limit is taken")
     void locationIsAPredicate() {
         Captured captured = run(store -> store.findRecommendedJobs(
                 "all", null, 25, 0, 60, "engineer", null, REMOTE_WITH_PAY, "  London "));
 
         String search = captured.search();
-        assertThat(search).contains(" AND LOWER(p.location) LIKE :filterLocation");
+        assertThat(search).contains(" AND LOWER(p.location) LIKE :locCity");
         // In the WHERE clause, with the other filters -- not after the page.
-        assertThat(search.indexOf(":filterLocation")).isLessThan(search.indexOf("ORDER BY"));
-        assertThat(search.indexOf("p.work_mode = 'REMOTE'")).isLessThan(search.indexOf(":filterLocation"));
-        assertThat(captured.bindings()).contains("filterLocation=%london%", "limit=25");
+        assertThat(search.indexOf(":locCity")).isLessThan(search.indexOf("ORDER BY"));
+        assertThat(search.indexOf("p.work_mode = 'REMOTE'")).isLessThan(search.indexOf(":locCity"));
+        assertThat(captured.bindings()).contains("locCity=%london%", "limit=25");
+    }
+
+    @Test
+    @DisplayName("a state is its name or its abbreviation in capitals, never a word inside another")
+    void stateIsNameOrAbbreviation() {
+        Captured captured = run(store -> store.findRecommendedJobs(
+                "all", null, 25, 0, 60, "nurse", null, ExplicitJobFilters.none(), "Denver, CO"));
+
+        String search = captured.search();
+        assertThat(search).contains("LOWER(p.location) LIKE :locCity");
+        assertThat(search).contains("LOWER(p.location) LIKE :locStateName");
+        assertThat(search).contains("p.location ~ :locStateAbbr");
+        assertThat(captured.bindings()).contains("locCity=%denver%", "locStateName=%colorado%");
     }
 }

@@ -93,6 +93,26 @@ public class ExternalJobPostingStore {
                         () -> Duration.ZERO);
     }
 
+    /**
+     * Every distinct location of an active posting, with how many postings have it,
+     * for the Where field's suggestions. ~7,500 rows over 52k postings.
+     */
+    public Flux<LocationCount> findActiveLocationCounts() {
+        return databaseClient.sql("""
+                        SELECT location, COUNT(*) AS jobs
+                        FROM external_job_postings
+                        WHERE is_active = true AND location IS NOT NULL AND location <> ''
+                        GROUP BY location
+                        """)
+                .map((row, meta) -> new LocationCount(
+                        row.get("location", String.class),
+                        row.get("jobs", Long.class) == null ? 0 : row.get("jobs", Long.class)))
+                .all();
+    }
+
+    public record LocationCount(String location, long jobs) {
+    }
+
     public Flux<ExternalJobSourceRecord> findActiveSources() {
         return databaseClient.sql("""
                         SELECT
@@ -578,9 +598,14 @@ public class ExternalJobPostingStore {
         appendExplicitFilters(sql, filters);
         // NULL LIKE is not true, so a posting with no location never satisfies
         // a request for one.
-        boolean narrowLocation = location != null && !location.isBlank();
-        if (narrowLocation) {
-            sql.append(" AND LOWER(p.location) LIKE :filterLocation");
+        // A place, read as a city and/or a state (see LocationFilter), matched on the
+        // location column only. It was a plain LIKE on whatever was typed, so "co"
+        // and "tx" matched inside other words and "colorado" missed "Denver, CO".
+        LocationFilter.Sql locationFilter = LocationFilter.parse(location)
+                .map(filter -> filter.toSql("LOWER(p.location)", "p.location", "loc"))
+                .orElse(null);
+        if (locationFilter != null) {
+            sql.append(locationFilter.condition());
         }
 
         // A page of the diversified feed: exactly these postings, in this order.
@@ -636,8 +661,10 @@ public class ExternalJobPostingStore {
             spec = spec.bind("query", query.trim());
             spec = spec.bind("queryLike", like(query));
         }
-        if (narrowLocation) {
-            spec = spec.bind("filterLocation", like(location));
+        if (locationFilter != null) {
+            for (Map.Entry<String, Object> bound : locationFilter.binds().entrySet()) {
+                spec = spec.bind(bound.getKey(), bound.getValue());
+            }
         }
         if (byIds) {
             spec = spec.bind("onlyIds", onlyIds);

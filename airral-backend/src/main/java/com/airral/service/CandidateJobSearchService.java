@@ -822,6 +822,31 @@ public class CandidateJobSearchService {
             Boolean visaFriendly,
             String candidateEmail,
             boolean ignorePreferences) {
+        return getRecommendedJobsPage(source, boardToken, limit, offset, maxAgeDays, query, company,
+                workMode, salaryPosted, experienceLevel, visaFriendly, candidateEmail, ignorePreferences, null);
+    }
+
+    /**
+     * @param location a place typed in the Where field: a city, a state, or both.
+     *                 It is searched on the posting's location alone, and it
+     *                 replaces the candidate's saved location for this request
+     *                 -- asking for Denver is not narrowed to Austin.
+     */
+    public Mono<CandidateJobPageResponse> getRecommendedJobsPage(
+            String source,
+            String boardToken,
+            Integer limit,
+            Integer offset,
+            Integer maxAgeDays,
+            String query,
+            String company,
+            String workMode,
+            Boolean salaryPosted,
+            String experienceLevel,
+            Boolean visaFriendly,
+            String candidateEmail,
+            boolean ignorePreferences,
+            String location) {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedOffset = normalizeOffset(offset);
         int resolvedMaxAgeDays = normalizeMaxAgeDays(maxAgeDays);
@@ -860,18 +885,21 @@ public class CandidateJobSearchService {
                     experienceLevel,
                     visaFriendly,
                     candidateEmail,
-                    ignorePreferences);
+                    ignorePreferences,
+                    location);
         }
 
         Mono<CandidateJobPageResponse> diversified =
-                diversifiedFeedPage(source, boardToken, resolvedMaxAgeDays, query, company, filters,
+                diversifiedFeedPage(source, boardToken, resolvedMaxAgeDays, query, company, location, filters,
                         resolvedLimit, resolvedOffset);
 
+        boolean placeTyped = LocationFilter.parse(location).isPresent();
         return diversified.switchIfEmpty(Mono.defer(() -> externalJobPostingStore
                 .findRecommendedJobs(source, boardToken, queryLimit, queryOffset,
-                        resolvedMaxAgeDays, query, company, filters)
+                        resolvedMaxAgeDays, query, company, filters, location)
                 .collectList()
-                .flatMap(cachedJobs -> cachedJobs.isEmpty()
+                // The live fallback knows nothing of places, so it only serves a search without one.
+                .flatMap(cachedJobs -> cachedJobs.isEmpty() && !placeTyped
                         ? getLiveFallbackJobs(source, boardToken, queryLimit, resolvedMaxAgeDays, query, company)
                                 .skip(queryOffset)
                                 .take(queryLimit)
@@ -896,9 +924,10 @@ public class CandidateJobSearchService {
      * missing list is never an error and never slower than before.
      */
     private Mono<CandidateJobPageResponse> diversifiedFeedPage(
-            String source, String boardToken, int maxAgeDays, String query, String company,
+            String source, String boardToken, int maxAgeDays, String query, String company, String location,
             ExplicitJobFilters filters, int limit, int offset) {
-        boolean plainFeed = (query == null || query.isBlank()) && (company == null || company.isBlank());
+        boolean plainFeed = (query == null || query.isBlank()) && (company == null || company.isBlank())
+                && LocationFilter.parse(location).isEmpty();
         if (diverseFeedIndex == null || !plainFeed) {
             return Mono.empty();
         }
@@ -934,7 +963,8 @@ public class CandidateJobSearchService {
             String experienceLevel,
             Boolean visaFriendly,
             String candidateEmail,
-            boolean ignorePreferences) {
+            boolean ignorePreferences,
+            String location) {
         int rankingLimit = Math.min(
                 PERSONALIZED_RANKING_LIMIT,
                 Math.max(resolvedOffset + resolvedLimit + 1, PERSONALIZED_RANKING_WINDOW));
@@ -953,12 +983,13 @@ public class CandidateJobSearchService {
                                 visaFriendly,
                                 candidateEmail,
                                 context,
-                                ignorePreferences)
+                                ignorePreferences,
+                                location)
                         .map(ranked -> withPreferenceNarrowing(
                                 toRankedJobPage(ranked.jobs(), resolvedLimit, resolvedOffset),
                                 ranked, context, query, rankingLimit, ignorePreferences)))
                 .switchIfEmpty(loadRankingCandidates(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company,
-                                new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly))
+                                new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly), location)
                         .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
                         .map(this::dedupeAndSort)
                         .map(jobs -> toRankedJobPage(jobs, resolvedLimit, resolvedOffset)));
@@ -977,7 +1008,8 @@ public class CandidateJobSearchService {
             Boolean visaFriendly,
             String candidateEmail,
             CandidateMatchContext context,
-            boolean ignorePreferences) {
+            boolean ignorePreferences,
+            String location) {
         String cacheKey = personalizedRankingCacheKey(
                 source,
                 boardToken,
@@ -989,7 +1021,8 @@ public class CandidateJobSearchService {
                 experienceLevel,
                 visaFriendly,
                 candidateEmail,
-                context) + "|ignorePrefs=" + ignorePreferences;
+                context) + "|ignorePrefs=" + ignorePreferences
+                + "|where=" + LocationFilter.parse(location).map(LocationFilter::toString).orElse("");
 
         RankedJobsCacheEntry cachedEntry = personalizedRankingCache.get(cacheKey);
         Instant now = Instant.now();
@@ -1005,9 +1038,10 @@ public class CandidateJobSearchService {
                         query,
                         company,
                         new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly),
-                        context)
+                        context,
+                        location)
                 .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
-                .map(jobs -> rankPersonalizedJobs(jobs, context, query, ignorePreferences))
+                .map(jobs -> rankPersonalizedJobs(jobs, context, query, ignorePreferences, location))
                 .doOnNext(rankedJobs -> putPersonalizedRankingCache(cacheKey, rankingLimit, rankedJobs));
     }
 
@@ -1122,7 +1156,8 @@ public class CandidateJobSearchService {
             String query,
             String company,
             ExplicitJobFilters filters,
-            CandidateMatchContext context) {
+            CandidateMatchContext context,
+            String location) {
         // Every batch narrows in SQL before its window is taken. Filtering after
         // retrieval meant the window held the newest rows rather than matching
         // ones, so the same filter answered differently depending on whether the
@@ -1131,7 +1166,7 @@ public class CandidateJobSearchService {
         // signed-out path until now.
         List<Mono<List<CandidateJobSummaryResponse>>> batches = new ArrayList<>();
         batches.add(loadRankingCandidates(
-                source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company, filters));
+                source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company, filters, location));
 
         // A typed search is searched for what was typed, and nothing else. The
         // target-role and skill retrieval below used to run for every request,
@@ -1144,7 +1179,7 @@ public class CandidateJobSearchService {
             if (joined != null) {
                 batches.add(externalJobPostingStore.findRecommendedJobs(
                                 source, boardToken, Math.max(75, rankingLimit / 2), 0,
-                                resolvedMaxAgeDays, joined, company, filters)
+                                resolvedMaxAgeDays, joined, company, filters, location)
                         .collectList());
             }
             return Flux.fromIterable(batches)
@@ -1166,7 +1201,8 @@ public class CandidateJobSearchService {
                         resolvedMaxAgeDays,
                         retrievalQuery,
                         company,
-                        filters)
+                        filters,
+                        location)
                     .collectList()));
 
             // Skill-based retrieval: search DB for jobs matching candidate/profile skills and query signals.
@@ -1305,11 +1341,12 @@ public class CandidateJobSearchService {
             int resolvedMaxAgeDays,
             String query,
             String company,
-            ExplicitJobFilters filters) {
+            ExplicitJobFilters filters,
+            String location) {
         return externalJobPostingStore.findRecommendedJobs(
-                        source, boardToken, rankingLimit, 0, resolvedMaxAgeDays, query, company, filters)
+                        source, boardToken, rankingLimit, 0, resolvedMaxAgeDays, query, company, filters, location)
                 .collectList()
-                .flatMap(cachedJobs -> cachedJobs.isEmpty()
+                .flatMap(cachedJobs -> cachedJobs.isEmpty() && LocationFilter.parse(location).isEmpty()
                         ? getLiveFallbackJobs(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company)
                                 .take(rankingLimit)
                                 .collectList()
@@ -3260,19 +3297,27 @@ public class CandidateJobSearchService {
     }
 
     private List<CandidateJobSummaryResponse> rankPersonalizedJobs(List<CandidateJobSummaryResponse> jobs, CandidateMatchContext context) {
-        return rankPersonalizedJobs(jobs, context, null, false).jobs();
+        return rankPersonalizedJobs(jobs, context, null, false, null).jobs();
     }
 
     private RankedJobs rankPersonalizedJobs(
             List<CandidateJobSummaryResponse> jobs,
             CandidateMatchContext context,
             String query,
-            boolean ignorePreferences) {
+            boolean ignorePreferences,
+            String location) {
+        // A place typed in the Where field replaces the saved location: it is what
+        // was asked for. Postings are narrowed to it here as well as in SQL, since
+        // the skill-based batch cannot take a place.
+        LocationFilter typedPlace = LocationFilter.parse(location).orElse(null);
         // Read once for the request, not once per posting: the candidate's
         // targets do not vary by job, and the inferred half costs a 297-keyword
         // scan per target role.
         RoleTargets targets = RoleTargets.from(context);
         List<CandidateJobSummaryResponse> candidates = jobs == null ? List.of() : jobs;
+        if (typedPlace != null) {
+            candidates = candidates.stream().filter(job -> typedPlace.matches(job.getLocation())).toList();
+        }
 
         // Counted whether or not they are applied, so the portal can say what the
         // saved preferences hide and offer to search past them.
@@ -3282,7 +3327,7 @@ public class CandidateJobSearchService {
         List<CandidateJobSummaryResponse> kept = new ArrayList<>(candidates.size());
         for (CandidateJobSummaryResponse job : candidates) {
             boolean roleOk = passesTargetRoleFilter(job, context, targets);
-            boolean locationOk = passesLocationFilter(job, context);
+            boolean locationOk = typedPlace != null || passesLocationFilter(job, context);
             if (!roleOk) {
                 hiddenByRoles++;
             }

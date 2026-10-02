@@ -73,8 +73,12 @@ class DiversifiedFeedPageTest {
     }
 
     private CandidateJobPageResponse page(String query, String company, int limit, int offset) {
+        return page(query, company, null, limit, offset);
+    }
+
+    private CandidateJobPageResponse page(String query, String company, String location, int limit, int offset) {
         Mono<CandidateJobPageResponse> page = ReflectionTestUtils.invokeMethod(
-                service, "diversifiedFeedPage", "all", null, 60, query, company, ExplicitJobFilters.none(), limit, offset);
+                service, "diversifiedFeedPage", "all", null, 60, query, company, location, ExplicitJobFilters.none(), limit, offset);
         return page.block(Duration.ofSeconds(5));
     }
 
@@ -141,6 +145,16 @@ class DiversifiedFeedPageTest {
         assertThat(page("target", null, 50, 0)).isNull();
         assertThat(page(null, "Target", 50, 0)).isNull();
         verify(index, never()).idsOrNull(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("a place is searched, not served from the list; a country alone is no place")
+    void placesBypassTheList() {
+        when(index.idsOrNull(any(), any(), anyInt(), any())).thenReturn(new DiverseFeedIndex.Feed(ids(500), true));
+
+        assertThat(page(null, null, "Denver, CO", 50, 0)).isNull();
+        verify(index, never()).idsOrNull(any(), any(), anyInt(), any());
+        assertThat(page(null, null, "United States", 50, 0)).isNotNull();
     }
 
     @Test

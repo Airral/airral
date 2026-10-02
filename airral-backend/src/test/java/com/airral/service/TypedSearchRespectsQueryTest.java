@@ -53,7 +53,7 @@ class TypedSearchRespectsQueryTest {
                 mock(CareerPageJobBoardClient.class), mock(CandidateProfileRepository.class),
                 mock(UserRepository.class), new ObjectMapper(),
                 "airbnb", "", "", "", "", "", "", "", "", "", "", "US", 45, 2000, 0, 1);
-        when(store.findRecommendedJobs(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(store.findRecommendedJobs(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(Flux.empty());
         when(store.findJobsBySkills(any(), anyInt(), anyInt(), any())).thenReturn(Flux.empty());
     }
@@ -69,11 +69,11 @@ class TypedSearchRespectsQueryTest {
     private List<String> retrievedQueriesFor(String query) {
         Mono<List<CandidateJobSummaryResponse>> candidates = ReflectionTestUtils.invokeMethod(
                 service, "loadPersonalizedRankingCandidates",
-                "all", null, 500, 60, query, null, ExplicitJobFilters.none(), dataAnalyst());
+                "all", null, 500, 60, query, null, ExplicitJobFilters.none(), dataAnalyst(), null);
         candidates.block(Duration.ofSeconds(5));
         ArgumentCaptor<String> queries = ArgumentCaptor.forClass(String.class);
         verify(store, atLeastOnce()).findRecommendedJobs(
-                any(), any(), any(), any(), any(), queries.capture(), any(), any());
+                any(), any(), any(), any(), any(), queries.capture(), any(), any(), any());
         return queries.getAllValues();
     }
 
@@ -89,7 +89,7 @@ class TypedSearchRespectsQueryTest {
 
     private Object rank(String query, boolean ignorePreferences, CandidateJobSummaryResponse... jobs) {
         return ReflectionTestUtils.invokeMethod(
-                service, "rankPersonalizedJobs", List.of(jobs), dataAnalyst(), query, ignorePreferences);
+                service, "rankPersonalizedJobs", List.of(jobs), dataAnalyst(), query, ignorePreferences, null);
     }
 
     @SuppressWarnings("unchecked")
