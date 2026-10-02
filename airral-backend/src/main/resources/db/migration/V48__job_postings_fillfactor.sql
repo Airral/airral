@@ -1,0 +1,35 @@
+-- V48: Leave room on each page of external_job_postings for HOT updates.
+--
+-- Every four hours the sync upserts every posting a board still lists -- about
+-- 44,000 rows, nearly all of them unchanged. An update whose indexed columns do
+-- not change can be HOT: the new row version goes on the same page and none of
+-- the table's nineteen indexes is touched. It can only do that if the page has
+-- room. At the default fillfactor of 100 pages are packed full, so almost no
+-- update fitted, and every re-sighting inserted fresh entries into every index,
+-- including the two GINs (~116 lexemes for search_vector, ~30 trigrams for the
+-- title). That is what kept production's database busy for the hour each sync
+-- runs -- disk reads went from ~1/s to 75-170/s -- and why a search during that
+-- hour took 3-49 seconds. The same searches measured 0.2-1.9 seconds with no
+-- sync running (2026-10-02, ten terms), so search itself was never the problem.
+--
+-- Measured by replaying the real upsert over 10,000 unchanged postings on
+-- Postgres 16 with production's 128MB of shared buffers, after a full sync had
+-- settled the table:
+--
+--   fillfactor   HOT     buffers/row   WAL/row
+--   100          0-3%    ~640          ~33 KB
+--   70           81%     ~151          ~20 KB
+--   70 + the companion change in upsertJob (keep an unchanged body):
+--                85%     ~106          ~6 KB
+--
+-- A full sync's worth (52,000 postings) went from 30.4M buffers and 2.6 GB of
+-- WAL to 7.8M buffers and 386 MB once the table had settled.
+--
+-- Only metadata changes here. ALTER TABLE ... SET (fillfactor) takes a SHARE
+-- UPDATE EXCLUSIVE lock, which blocks neither reads nor writes, and rewrites
+-- nothing. Existing pages keep their current packing until their rows move --
+-- and the first sync after this deploys moves all of them, because at
+-- fillfactor 100 none of its updates can be HOT. The table settles after that
+-- one run, with no VACUUM FULL. The heap grows by about 1/0.7 for the slack;
+-- search reads were measured unchanged within a few percent.
+ALTER TABLE external_job_postings SET (fillfactor = 70);

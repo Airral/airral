@@ -34,6 +34,13 @@
 #   rescore  : after a rescore, re-syncing an unchanged posting keeps the
 #              rescored score, and the next rescore leaves the row alone
 #
+# The last two cover what the sync costs, which is what search pays for: while
+# a sync ran, a search took 3-49 seconds against 0.2-1.9 with none running.
+#
+#   body       : an unchanged payload keeps the stored body (rewriting it
+#                re-TOASTs ~3.7 KB per posting per run); a changed one replaces it
+#   fillfactor : the table leaves room on each page so re-sightings can be HOT
+#
 # Requires a migrated local database. Run scripts/verify-local.sh, which boots
 # the jar (and so runs Flyway) before calling this.
 set -uo pipefail
@@ -240,6 +247,35 @@ print(f"""SELECT 'rescore' AS direction,
         AND (SELECT ctid FROM external_job_postings {C}) = (SELECT row_version FROM resynced)
        THEN 'PASS' ELSE 'FAIL' END AS result;""")
 
+# --- body ---------------------------------------------------------------
+# An unchanged payload must hand back the stored body rather than the bound one,
+# or Postgres re-TOASTs every body on every run. The stored text is changed
+# behind the sync's back so the two arms are distinguishable: a re-sync of the
+# same payload must leave it alone, an empty stored body must still be filled,
+# and a changed payload must still replace it.
+print(f"DELETE FROM external_job_postings {C};")
+print(rich + ";")
+print(f"UPDATE external_job_postings SET description_text = 'Stored body' {C};")
+print(rich + ";")
+print(f"CREATE TEMP TABLE kept_body AS SELECT description_text AS body FROM external_job_postings {C};")
+print(f"UPDATE external_job_postings SET description_text = '' {C};")
+print(rich + ";")
+print(f"CREATE TEMP TABLE filled_body AS SELECT description_text AS body FROM external_job_postings {C};")
+print(fresh + ";")
+print(f"""SELECT 'body' AS direction,
+  CASE WHEN (SELECT body FROM kept_body) = 'Stored body'
+        AND (SELECT body FROM filled_body) LIKE 'Compensation is%'
+        AND (SELECT description_text FROM external_job_postings {C}) LIKE 'Updated%'
+       THEN 'PASS' ELSE 'FAIL' END AS result;""")
+
+# --- fillfactor -----------------------------------------------------------
+# Without slack on the page no re-sighting can be HOT, and every one re-indexes
+# the row in all nineteen indexes. See V48.
+print("""SELECT 'fillfactor' AS direction,
+  CASE WHEN COALESCE((SELECT (regexp_match(array_to_string(reloptions, ','), 'fillfactor=([0-9]+)'))[1]::int
+                      FROM pg_class WHERE oid = 'external_job_postings'::regclass), 100) < 100
+       THEN 'PASS' ELSE 'FAIL' END AS result;""")
+
 print("ROLLBACK;")
 PY
 ) || { echo "  [FAIL] could not build the check"; exit 1; }
@@ -248,7 +284,7 @@ OUT=$(printf '%s' "$SQL" | psql -d "$DB" -tA -F'|' -v ON_ERROR_STOP=1 2>&1) || {
   echo "  [FAIL] the upsert did not execute:"; printf '%s\n' "$OUT" | sed 's/^/         /'; exit 1; }
 
 RC=0
-for d in preserve update sweep rescore; do
+for d in preserve update sweep rescore body fillfactor; do
   line=$(printf '%s\n' "$OUT" | grep "^$d|" || true)
   case "$line" in
     "$d|PASS")
@@ -257,6 +293,8 @@ for d in preserve update sweep rescore; do
         update)   echo "  [ok]   update — a re-sync with a body refreshes derived values" ;;
         sweep)    echo "  [ok]   sweep — retires only unseen rows, sparing fresh and employer postings" ;;
         rescore)  echo "  [ok]   rescore — a re-sync keeps the rescored score, and an unchanged row is not rewritten" ;;
+        body)     echo "  [ok]   body — an unchanged payload keeps the stored body; an empty or changed one is replaced" ;;
+        fillfactor) echo "  [ok]   fillfactor — job pages keep room for HOT updates" ;;
       esac ;;
     "$d|FAIL") echo "  [FAIL] $d — the guard took the wrong arm"; RC=1 ;;
     *)         echo "  [FAIL] $d — no result (got: ${line:-none})"; RC=1 ;;
