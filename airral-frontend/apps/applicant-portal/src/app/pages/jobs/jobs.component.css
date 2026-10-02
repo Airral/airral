@@ -11,6 +11,9 @@
 }
 
 .jobs-page {
+  width: 100%;
+  max-width: var(--ap-shell-max);
+  margin-inline: auto;
   height: 100%;
   min-height: 0;
   display: flex;
@@ -973,6 +976,10 @@
 }
 
 .detail-scroll {
+  /* Layout below follows this panel's width, not the window's: the panel is a
+     different width with the list at 420px than at 540px, and on a phone it is
+     the whole screen. */
+  container: detail / inline-size;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -985,8 +992,15 @@
   gap: 20px;
   align-content: start;
   width: min(100%, 860px);
+  margin-inline: auto;
   box-sizing: border-box;
   padding: 28px 36px 28px;
+}
+
+/* Resume fit and "Before you apply". Transparent on a narrow panel, where they
+   stay in the one column in their usual place. */
+.detail-rail {
+  display: contents;
 }
 
 .detail-header {
@@ -1393,7 +1407,9 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 36px calc(12px + env(safe-area-inset-bottom, 0px));
+  /* The buttons line up with the content column above, which is centered and
+     capped at 1,400px on a wide panel (see the container query on .detail-scroll). */
+  padding: 12px max(36px, calc((100% - 1400px) / 2 + 36px)) calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--ap-hair);
   background: var(--ap-surface);
 }
@@ -1639,6 +1655,61 @@
 }
 
 /* ── Responsive ───────────────────────────────────── */
+/* ── A wide job panel ────────────────────────────────
+   Above ~1,180px (a screen of about 1,750px or more) the single column leaves
+   most of the panel empty. The description gets a readable column and the two
+   things to act on -- resume fit and the checklist -- sit beside it in a rail
+   that stays in view while the description scrolls. Rows carry no gap and the
+   items a margin instead: the rail spans more rows than there are, and an
+   empty implicit row would otherwise add its gap to the bottom of the panel. */
+@container detail (min-width: 1180px) {
+  .detail-content {
+    width: 100%;
+    max-width: 1400px;
+    grid-template-columns: minmax(0, 1fr) clamp(340px, 30cqi, 440px);
+    column-gap: clamp(32px, 3cqi, 56px);
+    row-gap: 0;
+  }
+
+  .detail-content > * {
+    grid-column: 1;
+    margin-bottom: 20px;
+  }
+
+  .detail-content > :last-child {
+    margin-bottom: 0;
+  }
+
+  .detail-content > .detail-rail {
+    grid-column: 2;
+    grid-row: 2 / span 12;
+    display: grid;
+    gap: 20px;
+    align-content: start;
+    align-self: start;
+    position: sticky;
+    top: 28px;
+  }
+
+  /* A line of prose is easiest to read at 65-80 characters. */
+  .detail-description .description-section p,
+  .detail-description .description-section li,
+  .detail-description .quick-read p {
+    max-width: 78ch;
+  }
+
+  /* Reading size follows the panel up, to a ceiling. */
+  .description-section p,
+  .description-section li {
+    font-size: clamp(14px, 0.5cqi + 8px, 16px);
+    line-height: 1.62;
+  }
+
+  .detail-title {
+    font-size: clamp(28px, 1.2cqi + 14px, 36px);
+  }
+}
+
 @media (max-width: 1200px) {
   .filters-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
