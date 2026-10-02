@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { CandidatePortalService, JobApiService } from '@airral/shared-api';
+import { JobRoleFamily } from '@airral/shared-types';
 import { cleanLocationLabel, formatPayLabel, PORTAL_ROUTES } from '@airral/shared-utils';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 import { PAGE_SEO } from '../../shared/seo-pages';
@@ -18,10 +19,16 @@ import {
   JobsBrowseData,
   JOBS_BROWSE_PAGE_SIZE,
 } from '../../shared/job-route.resolvers';
-import { Subject, Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Subject, Subscription, debounce, distinctUntilChanged, map, skip, startWith, timer } from 'rxjs';
 
 /** Long enough that a normal typing speed sends one request, not eight. */
 const SEARCH_DEBOUNCE_MS = 350;
+
+/** A search to run: typed ones wait for the typing to stop, a tapped chip does not. */
+interface BrowseSearch {
+  query: string;
+  now: boolean;
+}
 
 @Component({
   selector: 'app-jobs-browse',
@@ -32,9 +39,9 @@ const SEARCH_DEBOUNCE_MS = 350;
 })
 export class JobsBrowseComponent implements OnInit, OnDestroy {
   jobs: BrowseJob[] = [];
-  filteredJobs: BrowseJob[] = [];
+  /** The kinds of work offered as one-tap searches, largest first. */
+  roleFamilies: JobRoleFamily[] = [];
   searchQuery = '';
-  activeDepartment = 'All';
   loading = false;
   loadingMore = false;
   hasMore = false;
@@ -46,7 +53,7 @@ export class JobsBrowseComponent implements OnInit, OnDestroy {
   readonly applicantRegisterUrl = `${PORTAL_ROUTES.APPLICANT}/login?mode=register`;
 
   private nextOffset = JOBS_BROWSE_PAGE_SIZE;
-  private readonly typed = new Subject<string>();
+  private readonly searches = new Subject<BrowseSearch>();
   private readonly subscriptions = new Subscription();
   private reloadRequest?: Subscription;
   private moreRequest?: Subscription;
@@ -73,12 +80,13 @@ export class JobsBrowseComponent implements OnInit, OnDestroy {
     this.subscriptions.add(
       this.route.queryParamMap.subscribe((params) => {
         this.searchQuery = params.get('q') || params.get('search') || '';
-        this.applyFilters();
+        this.updateJobsSeo();
       })
     );
 
     this.subscriptions.add(
       this.route.data.subscribe((data) => {
+        this.roleFamilies = (data['roleFamilies'] as JobRoleFamily[] | undefined) ?? [];
         this.applyResult(data['jobs'] as JobsBrowseData | undefined);
       })
     );
@@ -86,10 +94,20 @@ export class JobsBrowseComponent implements OnInit, OnDestroy {
     // Typing re-queries the feed rather than filtering what is on screen. This
     // page holds twenty-four rows of a fifteen-thousand-row catalogue, so a
     // client-side filter answered "nothing matches that yet" to nearly every
-    // real search.
+    // real search. A chip is the same search, run at once: debounce rather than
+    // debounceTime so that tapping one also drops a half-typed query still
+    // waiting out its timer, instead of letting it land a moment later.
     this.subscriptions.add(
-      this.typed
-        .pipe(debounceTime(SEARCH_DEBOUNCE_MS), distinctUntilChanged())
+      this.searches
+        .pipe(
+          debounce((search) => timer(search.now ? 0 : SEARCH_DEBOUNCE_MS)),
+          map((search) => search.query.trim()),
+          // Seeded with the search the resolver already ran, so tapping the
+          // chip for the list already on screen does not fetch it again.
+          startWith(this.searchQuery.trim()),
+          distinctUntilChanged(),
+          skip(1)
+        )
         .subscribe((query) => this.reload(query))
     );
   }
@@ -101,21 +119,33 @@ export class JobsBrowseComponent implements OnInit, OnDestroy {
   }
 
   onSearchChange() {
-    this.typed.next(this.searchQuery);
+    this.searches.next({ query: this.searchQuery, now: false });
   }
 
-  selectDepartment(dept: string) {
-    this.activeDepartment = dept;
-    this.applyFilters();
+  /**
+   * A role chip searches for that kind of work, and tapping the chip already on
+   * clears it again. It fills the box rather than sitting beside it, so the
+   * address bar, the page title and the box all say the one search that
+   * produced the list.
+   */
+  pickRole(family: JobRoleFamily) {
+    this.searchQuery = this.isActiveRole(family) ? '' : family.label;
+    this.searches.next({ query: this.searchQuery, now: true });
   }
 
-  clearFilters() {
-    this.activeDepartment = 'All';
+  isActiveRole(family: JobRoleFamily): boolean {
+    return this.searchQuery.trim().toLowerCase() === family.label.trim().toLowerCase();
+  }
+
+  get allRolesActive(): boolean {
+    return !this.searchQuery.trim();
+  }
+
+  showAllRoles() {
     this.searchQuery = '';
-    this.applyFilters();
     // Through the same subject the box uses, so a later retype of the query
     // just cleared is not swallowed as a duplicate.
-    this.typed.next('');
+    this.searches.next({ query: '', now: true });
   }
 
   loadMore() {
@@ -139,7 +169,7 @@ export class JobsBrowseComponent implements OnInit, OnDestroy {
       this.nextOffset = result.failed ? this.nextOffset : result.nextOffset;
       this.hasMore = result.failed ? this.hasMore : result.hasMore;
       this.loadingMore = false;
-      this.applyFilters();
+      this.updateJobsSeo();
       this.repaint();
     });
   }
@@ -178,30 +208,15 @@ export class JobsBrowseComponent implements OnInit, OnDestroy {
     return cleanLocationLabel(job.location) || 'Location flexible';
   }
 
-  get departments(): string[] {
-    const depts = new Set(this.jobs.map((j) => j.department).filter(Boolean) as string[]);
-    return ['All', ...Array.from(depts)];
-  }
-
-  /** A search or a filter is hiding an otherwise stocked catalogue. */
+  /** A search is hiding an otherwise stocked catalogue. */
   get noMatches(): boolean {
-    return !this.loading && !this.error && this.filteredJobs.length === 0
-      && (Boolean(this.searchQuery.trim()) || this.activeDepartment !== 'All');
+    return !this.loading && !this.error && this.jobs.length === 0
+      && Boolean(this.searchQuery.trim());
   }
 
   /** Nothing is posted at all, which is a different thing to say. */
   get noRoles(): boolean {
-    return !this.loading && !this.error && this.filteredJobs.length === 0 && !this.noMatches;
-  }
-
-  private applyFilters(): void {
-    // Department only. The text side of this filter is gone now that the feed
-    // answers the search: a list row carries no description to match against,
-    // so re-filtering the feed's own results here threw most of them away.
-    this.filteredJobs = this.activeDepartment === 'All'
-      ? this.jobs
-      : this.jobs.filter((job) => job.department === this.activeDepartment);
-    this.updateJobsSeo();
+    return !this.loading && !this.error && this.jobs.length === 0 && !this.noMatches;
   }
 
   private applyResult(result: JobsBrowseData | undefined): void {
@@ -212,7 +227,7 @@ export class JobsBrowseComponent implements OnInit, OnDestroy {
       ? 'We could not load the roles just now. Try again in a moment.'
       : null;
     this.loading = false;
-    this.applyFilters();
+    this.updateJobsSeo();
   }
 
   private reload(query: string): void {
@@ -276,7 +291,7 @@ export class JobsBrowseComponent implements OnInit, OnDestroy {
           description,
           mainEntity: {
             '@type': 'ItemList',
-            itemListElement: this.filteredJobs.slice(0, 20).map((job, index) => ({
+            itemListElement: this.jobs.slice(0, 20).map((job, index) => ({
               '@type': 'ListItem',
               position: index + 1,
               // Built from the same helper the cards link through. The job id

@@ -6,6 +6,7 @@ import {
   CandidateJobPageResponse,
   CandidateJobSummary,
   Job,
+  JobRoleFamily,
 } from '@airral/shared-types';
 import { catchError, forkJoin, map, Observable, of, timeout, TimeoutError } from 'rxjs';
 
@@ -25,6 +26,19 @@ const JOB_ROUTE_TIMEOUT_MS = 20000;
 
 /** How many synced postings the browse page asks for before the first paint. */
 export const JOBS_BROWSE_PAGE_SIZE = 24;
+
+/**
+ * How long the role chips may hold up the first paint.
+ *
+ * <p>Shorter than the job feed's on purpose. The chips are a shortcut into the
+ * search box, not the page: they resolve alongside the feed, so on a warm API
+ * they cost nothing, and if they are slow the page renders without them rather
+ * than waiting on them.
+ */
+const ROLE_FAMILIES_TIMEOUT_MS = 5000;
+
+/** How many role chips the browse page offers, largest families first. */
+export const BROWSE_ROLE_FAMILY_LIMIT = 7;
 
 /** What the catalogue calls a row that is really one of our own employer's jobs. */
 const INTERNAL_SOURCE_TYPE = 'AIRRAL_INTERNAL';
@@ -167,6 +181,29 @@ function fetchSyncedPage(
       catchError(() => of(null))
     );
 }
+
+/**
+ * The role families the browse page offers as chips.
+ *
+ * <p>The chips used to be every distinct department string on the page --
+ * "2245 Neutron - LC3", "Sales and Marketing : Business Development : Air
+ * Defense Capture" -- which is how an employer files a requisition, not how a
+ * visitor looks for work, and which only filtered the twenty-four rows already
+ * loaded. The families come from the same endpoint onboarding asks a new
+ * applicant to choose from, counted out of the live catalogue, so a chip names
+ * work we actually hold. An empty list just means no chips; the search box
+ * still works.
+ */
+export const browseRoleFamiliesResolver: ResolveFn<JobRoleFamily[]> = () =>
+  inject(CandidatePortalService)
+    .getJobRoleFamilies()
+    .pipe(
+      timeout(ROLE_FAMILIES_TIMEOUT_MS),
+      map((catalog) => (catalog?.families ?? [])
+        .filter((family) => family.label?.trim() && family.jobCount > 0)
+        .slice(0, BROWSE_ROLE_FAMILY_LIMIT)),
+      catchError(() => of([]))
+    );
 
 export const openJobsResolver: ResolveFn<JobsBrowseData> = (route) =>
   fetchBrowseJobs(inject(JobApiService), inject(CandidatePortalService), {

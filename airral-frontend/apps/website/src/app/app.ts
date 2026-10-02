@@ -25,6 +25,8 @@ export class App implements OnInit, OnDestroy {
 
   private revealObserver?: IntersectionObserver;
   private failsafe?: ReturnType<typeof setTimeout>;
+  /** The path of the last page navigated to, without its query. */
+  private lastPath = '';
 
   constructor(
     private visitorSignals: VisitorSignalService,
@@ -45,9 +47,15 @@ export class App implements OnInit, OnDestroy {
     this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe((event) => {
-        if (typeof window !== 'undefined') {
+        // A new page starts at the top; a new query on the same page does not.
+        // /jobs writes each search into ?q= with a navigation of its own, so
+        // scrolling on every NavigationEnd threw a visitor back up to the hero
+        // each time they typed a search or tapped a role chip.
+        const path = (event as NavigationEnd).urlAfterRedirects.split(/[?#]/)[0];
+        if (typeof window !== 'undefined' && path !== this.lastPath) {
           window.scrollTo(0, 0);
         }
+        this.lastPath = path;
         this.setRouteSeo(event as NavigationEnd);
         // Each route brings its own elements, so re-scan after navigation.
         this.scanReveals();

@@ -43,16 +43,26 @@
       />
     </div>
 
-    <div class="chips" role="group" aria-label="Filter by team">
+    <!-- Kinds of work we hold live jobs for, as one-tap searches. -->
+    <div class="chips" role="group" aria-label="Browse by kind of work" *ngIf="roleFamilies.length">
       <button
         type="button"
-        *ngFor="let dept of departments"
         class="btn btn--sm"
-        [class.btn--glass]="dept !== activeDepartment"
-        [attr.aria-pressed]="dept === activeDepartment"
-        (click)="selectDepartment(dept)"
+        [class.btn--glass]="!allRolesActive"
+        [attr.aria-pressed]="allRolesActive"
+        (click)="showAllRoles()"
       >
-        {{ dept }}
+        All roles
+      </button>
+      <button
+        type="button"
+        *ngFor="let family of roleFamilies"
+        class="btn btn--sm"
+        [class.btn--glass]="!isActiveRole(family)"
+        [attr.aria-pressed]="isActiveRole(family)"
+        (click)="pickRole(family)"
+      >
+        {{ family.label }}
       </button>
     </div>
 
@@ -60,12 +70,9 @@
 
     <p class="notice glass" *ngIf="error">{{ error }}</p>
 
-    <div class="jobs" *ngIf="!loading && !error && filteredJobs.length">
-      <article class="card glass job" *ngFor="let job of filteredJobs">
-        <div class="job__top">
-          <h3 class="h3">{{ job.title }}</h3>
-          <span class="tag" *ngIf="job.department">{{ job.department }}</span>
-        </div>
+    <div class="jobs" *ngIf="!loading && !error && jobs.length">
+      <article class="card glass job" *ngFor="let job of jobs">
+        <h3 class="h3">{{ job.title }}</h3>
 
         <p class="body-2 job__blurb" *ngIf="job.description">
           {{ (job.description || '') | slice: 0:100 }}{{ (job.description || '').length > 100 ? '…' : '' }}
@@ -74,7 +81,7 @@
         <p class="fine job__meta">
           {{ job.organizationName || 'Confidential employer' }} ·
           {{ locationLabel(job) }} ·
-          {{ job.employmentType || job.department || 'Open role' }}
+          {{ job.employmentType || 'Open role' }}
         </p>
 
         <p class="fine job__pay" *ngIf="payLabel(job) as pay">{{ pay }}</p>
@@ -107,12 +114,12 @@
       </button>
     </div>
 
-    <!-- the search or the filter matched nothing -->
+    <!-- the search matched nothing -->
     <div class="notice glass" *ngIf="noMatches">
       <p class="body-2">Nothing matches that yet.</p>
       <div class="cta-row notice__cta">
-        <button type="button" class="btn btn--glass btn--sm" (click)="clearFilters()">
-          Clear filters
+        <button type="button" class="btn btn--glass btn--sm" (click)="showAllRoles()">
+          Show all roles
         </button>
       </div>
     </div>
