@@ -167,7 +167,30 @@
 
       <p class="jobs-error" *ngIf="jobsError">{{ jobsError }}</p>
 
-      <div class="jobs-list" *ngIf="!loading || jobs.length > 0">
+      <!-- Asked before narrowing: a typed search whose matches the saved roles or
+           location would hide. The answer holds for the session. -->
+      <section class="preference-choice" *ngIf="awaitingPreferenceChoice as narrowing" aria-labelledby="preference-choice-title">
+        <h3 id="preference-choice-title">{{ matchedLabel(narrowing) }} jobs match “{{ searchQuery.trim() }}”</h3>
+        <p>{{ preferenceHideSentence(narrowing) }} Search everything, or keep your preferences?</p>
+        <div class="preference-choice-actions">
+          <button type="button" class="btn btn-primary btn-sm" (click)="choosePreferenceScope('all')">
+            Show all {{ matchedLabel(narrowing) }}
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="choosePreferenceScope('mine')">
+            Keep my preferences ({{ narrowing.shown }})
+          </button>
+        </div>
+      </section>
+
+      <p class="note preference-note" *ngIf="searchingPastPreferences" aria-live="polite">
+        <span class="material-icons" aria-hidden="true">travel_explore</span>
+        <span>
+          Showing every role and location for “{{ searchQuery.trim() }}”.
+          <button type="button" class="link-button" (click)="choosePreferenceScope('mine')">Use my saved preferences</button>
+        </span>
+      </p>
+
+      <div class="jobs-list" *ngIf="(!loading || jobs.length > 0) && !awaitingPreferenceChoice">
         <button
           class="job-card"
           type="button"
@@ -196,7 +219,7 @@
         </button>
       </div>
 
-      <div class="jobs-empty" *ngIf="!loading && jobs.length === 0">
+      <div class="jobs-empty" *ngIf="!loading && jobs.length === 0 && !awaitingPreferenceChoice">
         <h3>{{ hasActiveFilters ? 'No jobs match these filters' : 'No jobs loaded yet' }}</h3>
         <p *ngIf="hasActiveFilters">Try removing a filter, or clear them all.</p>
         <button type="button" class="btn btn-primary btn-sm" *ngIf="hasActiveFilters" (click)="clearFilters()">Clear filters</button>

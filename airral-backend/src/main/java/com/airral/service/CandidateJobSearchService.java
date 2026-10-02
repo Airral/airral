@@ -504,6 +504,8 @@ public class CandidateJobSearchService {
     private static final int SYNC_SOURCE_LIMIT_CEILING = 20000;
     private static final int PERSONALIZED_RANKING_WINDOW = 500;
     private static final int PERSONALIZED_RANKING_LIMIT = 2000;
+    /** The feed's retrieval queries in flight at once. A typed search runs one or two. */
+    private static final int FEED_RETRIEVAL_CONCURRENCY = 3;
     private static final int PERSONALIZED_RANKING_CACHE_MAX_ENTRIES = 256;
     private static final Duration PERSONALIZED_RANKING_CACHE_TTL = Duration.ofMinutes(5);
     private static final RoleMatchClassifier ROLE_MATCH_CLASSIFIER = new RoleMatchClassifier();
@@ -783,6 +785,31 @@ public class CandidateJobSearchService {
             String experienceLevel,
             Boolean visaFriendly,
             String candidateEmail) {
+        return getRecommendedJobsPage(source, boardToken, limit, offset, maxAgeDays, query, company,
+                workMode, salaryPosted, experienceLevel, visaFriendly, candidateEmail, false);
+    }
+
+    /**
+     * @param ignorePreferences search every role family and location for this request,
+     *                          instead of narrowing to the candidate's saved target roles
+     *                          and location. The portal sends it after asking the person,
+     *                          when {@link CandidateJobPageResponse.PreferenceNarrowing}
+     *                          showed their preferences hiding matches for what they typed.
+     */
+    public Mono<CandidateJobPageResponse> getRecommendedJobsPage(
+            String source,
+            String boardToken,
+            Integer limit,
+            Integer offset,
+            Integer maxAgeDays,
+            String query,
+            String company,
+            String workMode,
+            Boolean salaryPosted,
+            String experienceLevel,
+            Boolean visaFriendly,
+            String candidateEmail,
+            boolean ignorePreferences) {
         int resolvedLimit = normalizeLimit(limit);
         int resolvedOffset = normalizeOffset(offset);
         int resolvedMaxAgeDays = normalizeMaxAgeDays(maxAgeDays);
@@ -820,7 +847,8 @@ public class CandidateJobSearchService {
                     salaryPosted,
                     experienceLevel,
                     visaFriendly,
-                    candidateEmail);
+                    candidateEmail,
+                    ignorePreferences);
         }
 
         return externalJobPostingStore
@@ -855,7 +883,8 @@ public class CandidateJobSearchService {
             Boolean salaryPosted,
             String experienceLevel,
             Boolean visaFriendly,
-            String candidateEmail) {
+            String candidateEmail,
+            boolean ignorePreferences) {
         int rankingLimit = Math.min(
                 PERSONALIZED_RANKING_LIMIT,
                 Math.max(resolvedOffset + resolvedLimit + 1, PERSONALIZED_RANKING_WINDOW));
@@ -873,8 +902,11 @@ public class CandidateJobSearchService {
                                 experienceLevel,
                                 visaFriendly,
                                 candidateEmail,
-                                context)
-                        .map(jobs -> toRankedJobPage(jobs, resolvedLimit, resolvedOffset)))
+                                context,
+                                ignorePreferences)
+                        .map(ranked -> withPreferenceNarrowing(
+                                toRankedJobPage(ranked.jobs(), resolvedLimit, resolvedOffset),
+                                ranked, context, query, rankingLimit, ignorePreferences)))
                 .switchIfEmpty(loadRankingCandidates(source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company,
                                 new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly))
                         .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
@@ -882,7 +914,7 @@ public class CandidateJobSearchService {
                         .map(jobs -> toRankedJobPage(jobs, resolvedLimit, resolvedOffset)));
     }
 
-    private Mono<List<CandidateJobSummaryResponse>> getOrBuildPersonalizedRanking(
+    private Mono<RankedJobs> getOrBuildPersonalizedRanking(
             String source,
             String boardToken,
             int rankingLimit,
@@ -894,7 +926,8 @@ public class CandidateJobSearchService {
             String experienceLevel,
             Boolean visaFriendly,
             String candidateEmail,
-            CandidateMatchContext context) {
+            CandidateMatchContext context,
+            boolean ignorePreferences) {
         String cacheKey = personalizedRankingCacheKey(
                 source,
                 boardToken,
@@ -906,12 +939,12 @@ public class CandidateJobSearchService {
                 experienceLevel,
                 visaFriendly,
                 candidateEmail,
-                context);
+                context) + "|ignorePrefs=" + ignorePreferences;
 
         RankedJobsCacheEntry cachedEntry = personalizedRankingCache.get(cacheKey);
         Instant now = Instant.now();
         if (cachedEntry != null && !cachedEntry.isExpired(now) && cachedEntry.rankingLimit() >= rankingLimit) {
-            return Mono.just(cachedEntry.jobs());
+            return Mono.just(cachedEntry.ranked());
         }
 
         return loadPersonalizedRankingCandidates(
@@ -924,7 +957,7 @@ public class CandidateJobSearchService {
                         new ExplicitJobFilters(workMode, salaryPosted, experienceLevel, visaFriendly),
                         context)
                 .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
-                .map(jobs -> rankPersonalizedJobs(jobs, context))
+                .map(jobs -> rankPersonalizedJobs(jobs, context, query, ignorePreferences))
                 .doOnNext(rankedJobs -> putPersonalizedRankingCache(cacheKey, rankingLimit, rankedJobs));
     }
 
@@ -1003,13 +1036,15 @@ public class CandidateJobSearchService {
                 .orElse("");
     }
 
-    private void putPersonalizedRankingCache(String cacheKey, int rankingLimit, List<CandidateJobSummaryResponse> rankedJobs) {
+    private void putPersonalizedRankingCache(String cacheKey, int rankingLimit, RankedJobs ranked) {
         if (cacheKey == null || cacheKey.isBlank()) {
             return;
         }
 
         Instant expiresAt = Instant.now().plus(PERSONALIZED_RANKING_CACHE_TTL);
-        personalizedRankingCache.put(cacheKey, new RankedJobsCacheEntry(rankingLimit, List.copyOf(rankedJobs), expiresAt));
+        RankedJobs frozen = new RankedJobs(List.copyOf(ranked.jobs()), ranked.matched(),
+                ranked.hiddenByRoles(), ranked.hiddenByLocation(), ranked.hidden());
+        personalizedRankingCache.put(cacheKey, new RankedJobsCacheEntry(rankingLimit, frozen, expiresAt));
         compactPersonalizedRankingCache();
     }
 
@@ -1048,7 +1083,30 @@ public class CandidateJobSearchService {
         batches.add(loadRankingCandidates(
                 source, boardToken, rankingLimit, resolvedMaxAgeDays, query, company, filters));
 
-            // Keep expansion retrieval active even when a query is present so search remains personalized.
+        // A typed search is searched for what was typed, and nothing else. The
+        // target-role and skill retrieval below used to run for every request,
+        // so "nurse" for a data analyst came back as their usual feed -- 0 of the
+        // top 10 named nursing, measured on the local corpus -- and every typed
+        // search cost five sequential queries instead of one. The profile still
+        // ranks what the search finds; it no longer adds to it.
+        if (isTypedQuery(query)) {
+            String joined = joinedQueryVariant(query);
+            if (joined != null) {
+                batches.add(externalJobPostingStore.findRecommendedJobs(
+                                source, boardToken, Math.max(75, rankingLimit / 2), 0,
+                                resolvedMaxAgeDays, joined, company, filters)
+                        .collectList());
+            }
+            return Flux.fromIterable(batches)
+                    .flatMap(mono -> mono, batches.size())
+                    .flatMapIterable(batch -> batch)
+                    .collectList()
+                    .map(this::dedupeAndSort)
+                    .map(jobs -> enforceRetrievalConstraints(jobs, source, boardToken, company));
+        }
+
+            // The feed -- nothing typed -- is built from what the profile says the
+            // person wants: their target roles, then their skills.
             retrievalQueriesFor(context, query).forEach(retrievalQuery -> batches.add(
                 externalJobPostingStore.findRecommendedJobs(
                         source,
@@ -1072,12 +1130,37 @@ public class CandidateJobSearchService {
                     .collectList());
         }
 
+        // Concurrently, not one after another. These were run in sequence, so the
+        // feed's time was the sum of five queries -- 7.2 seconds for one signed-in
+        // load in production on 2026-10-02 against 0.05-0.4 for a signed-out
+        // search. They are independent, and dedupeAndSort orders the union
+        // afterwards, so the order they finish in does not matter.
         return Flux.fromIterable(batches)
-                .concatMap(mono -> mono)
+                .flatMap(mono -> mono, FEED_RETRIEVAL_CONCURRENCY)
                 .flatMapIterable(batch -> batch)
                 .collectList()
                 .map(this::dedupeAndSort)
                 .map(jobs -> enforceRetrievalConstraints(jobs, source, boardToken, company));
+    }
+
+    private boolean isTypedQuery(String query) {
+        return !normalizedTermText(query).isBlank();
+    }
+
+    /**
+     * "bio tech" as one word, which is how postings write it.
+     *
+     * <p>plainto_tsquery reads "bio tech" as 'bio' &amp; 'tech': two words that both
+     * have to appear. In the local corpus that matched 2 postings, against 197 for
+     * 'biotech'. Only two-word queries are joined -- "health care", "front end",
+     * "e commerce" -- because a longer phrase run together is never a word.
+     */
+    private String joinedQueryVariant(String query) {
+        String[] words = normalizedTermText(query).split(" ");
+        if (words.length != 2 || words[0].isBlank() || words[1].isBlank()) {
+            return null;
+        }
+        return words[0] + words[1];
     }
 
     /**
@@ -3127,17 +3210,119 @@ public class CandidateJobSearchService {
     }
 
     private List<CandidateJobSummaryResponse> rankPersonalizedJobs(List<CandidateJobSummaryResponse> jobs, CandidateMatchContext context) {
+        return rankPersonalizedJobs(jobs, context, null, false).jobs();
+    }
+
+    private RankedJobs rankPersonalizedJobs(
+            List<CandidateJobSummaryResponse> jobs,
+            CandidateMatchContext context,
+            String query,
+            boolean ignorePreferences) {
         // Read once for the request, not once per posting: the candidate's
         // targets do not vary by job, and the inferred half costs a 297-keyword
         // scan per target role.
         RoleTargets targets = RoleTargets.from(context);
+        List<CandidateJobSummaryResponse> candidates = jobs == null ? List.of() : jobs;
 
-        return (jobs == null ? List.<CandidateJobSummaryResponse>of() : jobs).stream()
-                .filter(job -> passesTargetRoleFilter(job, context, targets))
-                .filter(job -> passesLocationFilter(job, context))
+        // Counted whether or not they are applied, so the portal can say what the
+        // saved preferences hide and offer to search past them.
+        int hiddenByRoles = 0;
+        int hiddenByLocation = 0;
+        int hidden = 0;
+        List<CandidateJobSummaryResponse> kept = new ArrayList<>(candidates.size());
+        for (CandidateJobSummaryResponse job : candidates) {
+            boolean roleOk = passesTargetRoleFilter(job, context, targets);
+            boolean locationOk = passesLocationFilter(job, context);
+            if (!roleOk) {
+                hiddenByRoles++;
+            }
+            if (!locationOk) {
+                hiddenByLocation++;
+            }
+            if (!roleOk || !locationOk) {
+                hidden++;
+                if (!ignorePreferences) {
+                    continue;
+                }
+            }
+            kept.add(job);
+        }
+
+        Comparator<CandidateJobSummaryResponse> order = personalizedJobComparator();
+        if (isTypedQuery(query)) {
+            // What was typed comes first: a posting whose title says it, then one
+            // whose employer is it, then one that only mentions it. Within each,
+            // the profile's ranking. Ranking by profile alone put a data analyst's
+            // usual roles above every nursing job for "nurse".
+            QueryTerms terms = QueryTerms.of(query, joinedQueryVariant(query), this::normalizedTermText);
+            order = Comparator.<CandidateJobSummaryResponse>comparingInt(job -> queryRelevanceTier(job, terms))
+                    .thenComparing(order);
+        }
+
+        List<CandidateJobSummaryResponse> ranked = kept.stream()
                 .map(job -> applyCandidateMatch(job, context, jobMatchText(job), targets))
-                .sorted(personalizedJobComparator())
+                .sorted(order)
                 .toList();
+        return new RankedJobs(ranked, candidates.size(), hiddenByRoles, hiddenByLocation, hidden);
+    }
+
+    /** 0: the title says it. 1: the employer is it. 2: the posting only mentions it. */
+    private int queryRelevanceTier(CandidateJobSummaryResponse job, QueryTerms terms) {
+        if (terms.matches(job.getTitle(), this::containsTerm)) {
+            return 0;
+        }
+        if (terms.matches(job.getCompanyName(), this::containsTerm)) {
+            return 1;
+        }
+        return 2;
+    }
+
+    /** The typed phrase, its joined form, and its words, for matching against one field. */
+    private record QueryTerms(String phrase, String joined, List<String> words) {
+        static QueryTerms of(String query, String joined, java.util.function.UnaryOperator<String> normalize) {
+            String phrase = normalize.apply(query);
+            List<String> words = List.of(phrase.split(" ")).stream().filter(word -> !word.isBlank()).toList();
+            return new QueryTerms(phrase, joined, words);
+        }
+
+        boolean matches(String field, java.util.function.BiPredicate<String, String> contains) {
+            if (field == null || field.isBlank() || words.isEmpty()) {
+                return false;
+            }
+            if (contains.test(field, phrase) || (joined != null && contains.test(field, joined))) {
+                return true;
+            }
+            return words.stream().allMatch(word -> contains.test(field, word));
+        }
+    }
+
+    private CandidateJobPageResponse withPreferenceNarrowing(
+            CandidateJobPageResponse page,
+            RankedJobs ranked,
+            CandidateMatchContext context,
+            String query,
+            int rankingLimit,
+            boolean ignorePreferences) {
+        // Only for something typed. The feed is the preferences by design; a
+        // typed search is a question the preferences may not have anticipated.
+        if (!isTypedQuery(query) || ranked.hidden() == 0) {
+            return page;
+        }
+        List<String> roles = context == null || context.targetRoles() == null
+                ? List.of()
+                : context.targetRoles().stream().filter(role -> role != null && !role.isBlank()).sorted().toList();
+        page.setPreferenceNarrowing(CandidateJobPageResponse.PreferenceNarrowing.builder()
+                .matched(ranked.matched())
+                .matchedIsLowerBound(ranked.matched() >= rankingLimit)
+                .shown(ranked.matched() - ranked.hidden())
+                .hidden(ranked.hidden())
+                .hiddenByRoles(ranked.hiddenByRoles())
+                .hiddenByLocation(ranked.hiddenByLocation())
+                .targetRoles(ranked.hiddenByRoles() > 0 ? roles : List.of())
+                .location(ranked.hiddenByLocation() > 0 && context != null ? context.location() : null)
+                .ignored(ignorePreferences)
+                .build());
+        return page;
     }
 
     /**
@@ -4791,9 +4976,25 @@ public class CandidateJobSearchService {
         }
     }
 
+    /**
+     * A ranked list and what the candidate's preferences took out of it.
+     *
+     * @param matched          postings the search found, before preferences narrowed them
+     * @param hiddenByRoles    of those, outside the saved target roles
+     * @param hiddenByLocation of those, outside the saved location
+     * @param hidden           removed by either; a posting outside both counts once
+     */
+    private record RankedJobs(
+            List<CandidateJobSummaryResponse> jobs,
+            int matched,
+            int hiddenByRoles,
+            int hiddenByLocation,
+            int hidden) {
+    }
+
     private record RankedJobsCacheEntry(
             int rankingLimit,
-            List<CandidateJobSummaryResponse> jobs,
+            RankedJobs ranked,
             Instant expiresAt) {
         private boolean isExpired(Instant now) {
             return expiresAt == null || now == null || !expiresAt.isAfter(now);

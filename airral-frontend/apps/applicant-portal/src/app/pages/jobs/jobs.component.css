@@ -836,6 +836,47 @@
 .v-review { --c: var(--ap-orange); }
 .v-skip { --c: var(--ap-gray); }
 
+/* The saved-preferences question. Asked in the list's place, on the list's own
+   surface: one filled button (search everything) and one quiet one. */
+.preference-choice {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 24px 22px;
+}
+
+.preference-choice h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.preference-choice p {
+  margin: 0;
+  color: var(--ap-ink-2);
+  line-height: 1.45;
+}
+
+.preference-choice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.preference-note {
+  padding: 10px 16px 0;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ap-tint);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .jobs-empty {
   display: grid;
   gap: 8px;

@@ -93,6 +93,30 @@ export interface CandidateJobPageResponse {
   offset: number;
   hasMore: boolean;
   nextOffset?: number | null;
+  /** Present for a signed-in, typed search whose matches the saved roles or location narrowed. */
+  preferenceNarrowing?: PreferenceNarrowing | null;
+}
+
+/**
+ * What a candidate's saved target roles and location did to one typed search.
+ * The jobs page uses it to ask before narrowing, rather than silently showing
+ * fewer jobs than the search found.
+ */
+export interface PreferenceNarrowing {
+  /** Postings the search found before preferences narrowed them. */
+  matched: number;
+  /** True when `matched` hit the ranking window, so the real count is higher. */
+  matchedIsLowerBound: boolean;
+  /** Postings left once the preferences are applied. */
+  shown: number;
+  /** Postings the preferences remove. */
+  hidden: number;
+  hiddenByRoles: number;
+  hiddenByLocation: number;
+  targetRoles: string[];
+  location?: string | null;
+  /** True when this response already searched past the preferences. */
+  ignored: boolean;
 }
 
 /**

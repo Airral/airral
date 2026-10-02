@@ -92,11 +92,13 @@ public class CandidateJobsController {
             @RequestParam(value = "salaryPosted", required = false) Boolean salaryPosted,
             @RequestParam(value = "experienceLevel", required = false) String experienceLevel,
             @RequestParam(value = "visaFriendly", required = false) Boolean visaFriendly,
+            @RequestParam(value = "ignorePreferences", required = false) Boolean ignorePreferences,
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
         String candidateEmail = candidateEmail(authHeader);
         return candidateJobSearchService.getRecommendedJobsPage(
                         source, boardToken, limit, offset, maxAgeDays, query, company,
-                        workMode, salaryPosted, experienceLevel, visaFriendly, candidateEmail)
+                        workMode, salaryPosted, experienceLevel, visaFriendly, candidateEmail,
+                        Boolean.TRUE.equals(ignorePreferences))
                 .map(ResponseEntity::ok);
     }
 
