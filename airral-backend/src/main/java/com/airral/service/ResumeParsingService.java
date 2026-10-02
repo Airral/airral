@@ -216,57 +216,71 @@ public class ResumeParsingService {
             } else {
                 throw new IllegalArgumentException("Unsupported resume file type");
             }
-
-            String extractedText = cap(normalizeText(rawText));
-            if (wordCount(extractedText) < 20) {
-                throw new IllegalArgumentException(
-                        "The resume contains too little readable text. Upload a text-based PDF or DOCX instead of a scanned image.");
-            }
-            List<Map<String, Object>> experience = extractExperience(extractedText);
-            List<Map<String, Object>> education = extractEducation(extractedText);
-            List<String> skills = extractSkills(extractedText);
-            String summary = extractSummary(extractedText);
-            String headline = deriveHeadline(extractedText, experience);
-            Map<String, Object> parsedProfile = new LinkedHashMap<>();
-            putIfPresent(parsedProfile, "name", firstLikelyName(extractedText));
-            putIfPresent(parsedProfile, "email", firstMatch(EMAIL_PATTERN, extractedText));
-            putIfPresent(parsedProfile, "phone", firstMatch(PHONE_PATTERN, extractedText));
-            putIfPresent(parsedProfile, "headline", headline);
-            putIfPresent(parsedProfile, "summary", summary);
-            putIfPresent(parsedProfile, "location", extractHeaderLocation(extractedText));
-            parsedProfile.put("wordCount", wordCount(extractedText));
-            parsedProfile.put("detectedSections", detectedSections(extractedText));
-            // Absent, not zero, when no job has dates we can read. A zero here reached
-            // the job fit as "2+ years requested; 0 years shown" -- a claim that the
-            // person has no experience, when the parser simply could not tell. Absent,
-            // the fit says the years were not confidently parsed.
-            Integer experienceMonths = estimateExperienceMonths(experience);
-            if (experienceMonths != null) {
-                parsedProfile.put("totalExperienceMonths", experienceMonths);
-                parsedProfile.put("experienceYears", Math.round((experienceMonths / 12.0) * 10.0) / 10.0);
-            }
-            parsedProfile.put("recentTitles", experience.stream()
-                    .map(entry -> entry.get("title"))
-                    .filter(java.util.Objects::nonNull)
-                    .map(Object::toString)
-                    .filter(value -> !value.isBlank())
-                    .limit(5)
-                    .toList());
-            parsedProfile.put("skillEvidence", buildSkillEvidence(extractedText, skills));
-            List<String> warnings = parseWarnings(extractedText, skills, experience, education);
-            parsedProfile.put("parseWarnings", warnings);
-            parsedProfile.put("parseConfidenceScore", parseConfidence(extractedText, skills, experience, education));
-            parsedProfile.put("parserVersion", "resume-parser-v3");
-            parsedProfile.put("parsedAt", LocalDateTime.now().toString());
-
-            return new ParsedResume(
-                    extractedText,
-                    skills,
-                    experience,
-                    education,
-                    parsedProfile
-            );
+            return parseRawText(rawText);
         }).subscribeOn(Schedulers.boundedElastic());
+    }
+
+    /**
+     * Parses text already taken out of a resume, such as a document's stored
+     * extracted_text. The re-parse reads that when the file itself is gone: a LOCAL
+     * file written on Cloud Run went with the container. Stored text was normalized
+     * and capped on the way in, and both are idempotent, so this reads it exactly as
+     * {@link #parse} read the file.
+     */
+    public Mono<ParsedResume> parseText(String text) {
+        return Mono.fromCallable(() -> parseRawText(text)).subscribeOn(Schedulers.boundedElastic());
+    }
+
+    private ParsedResume parseRawText(String rawText) {
+        String extractedText = cap(normalizeText(rawText));
+        if (wordCount(extractedText) < 20) {
+            throw new IllegalArgumentException(
+                    "The resume contains too little readable text. Upload a text-based PDF or DOCX instead of a scanned image.");
+        }
+        List<Map<String, Object>> experience = extractExperience(extractedText);
+        List<Map<String, Object>> education = extractEducation(extractedText);
+        List<String> skills = extractSkills(extractedText);
+        String summary = extractSummary(extractedText);
+        String headline = deriveHeadline(extractedText, experience);
+        Map<String, Object> parsedProfile = new LinkedHashMap<>();
+        putIfPresent(parsedProfile, "name", firstLikelyName(extractedText));
+        putIfPresent(parsedProfile, "email", firstMatch(EMAIL_PATTERN, extractedText));
+        putIfPresent(parsedProfile, "phone", firstMatch(PHONE_PATTERN, extractedText));
+        putIfPresent(parsedProfile, "headline", headline);
+        putIfPresent(parsedProfile, "summary", summary);
+        putIfPresent(parsedProfile, "location", extractHeaderLocation(extractedText));
+        parsedProfile.put("wordCount", wordCount(extractedText));
+        parsedProfile.put("detectedSections", detectedSections(extractedText));
+        // Absent, not zero, when no job has dates we can read. A zero here reached
+        // the job fit as "2+ years requested; 0 years shown" -- a claim that the
+        // person has no experience, when the parser simply could not tell. Absent,
+        // the fit says the years were not confidently parsed.
+        Integer experienceMonths = estimateExperienceMonths(experience);
+        if (experienceMonths != null) {
+            parsedProfile.put("totalExperienceMonths", experienceMonths);
+            parsedProfile.put("experienceYears", Math.round((experienceMonths / 12.0) * 10.0) / 10.0);
+        }
+        parsedProfile.put("recentTitles", experience.stream()
+                .map(entry -> entry.get("title"))
+                .filter(java.util.Objects::nonNull)
+                .map(Object::toString)
+                .filter(value -> !value.isBlank())
+                .limit(5)
+                .toList());
+        parsedProfile.put("skillEvidence", buildSkillEvidence(extractedText, skills));
+        List<String> warnings = parseWarnings(extractedText, skills, experience, education);
+        parsedProfile.put("parseWarnings", warnings);
+        parsedProfile.put("parseConfidenceScore", parseConfidence(extractedText, skills, experience, education));
+        parsedProfile.put("parserVersion", "resume-parser-v3");
+        parsedProfile.put("parsedAt", LocalDateTime.now().toString());
+
+        return new ParsedResume(
+                extractedText,
+                skills,
+                experience,
+                education,
+                parsedProfile
+        );
     }
 
     private String extractPdf(Resource resource) throws Exception {

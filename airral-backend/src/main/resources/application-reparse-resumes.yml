@@ -1,0 +1,30 @@
+# One-shot re-parse of stored resumes: re-parse each profile's active resume, exit.
+# A dry run unless airral.resume-reparse.apply=true is passed. ResumeReparseRunner
+# documents how to run it against production; nothing schedules it.
+#
+# Run with: java -jar app.jar --spring.profiles.active=reparse-resumes
+spring:
+  config:
+    activate:
+      on-profile: reparse-resumes
+  main:
+    # No HTTP listener: this is a batch run, not a service.
+    web-application-type: none
+
+airral:
+  jobs:
+    sync:
+      # The in-process sync starts 30 seconds after startup by default. It must not
+      # ride along with a resume batch.
+      enabled: false
+      run-on-startup: false
+    internal-reconcile:
+      enabled: false
+  notifications:
+    scheduler:
+      enabled: false
+
+logging:
+  level:
+    com.airral.service.ResumeReparseRunner: INFO
+    com.airral.service.ResumeReparseService: INFO

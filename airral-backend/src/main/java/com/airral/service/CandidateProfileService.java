@@ -400,10 +400,9 @@ public class CandidateProfileService {
             String contentType,
             String extension,
             Tuple2<String, ResumeParseOutcome> result) {
-        ResumeParseOutcome parseOutcome = result.getT2();
         LocalDateTime now = LocalDateTime.now();
 
-        return CandidateResumeDocument.builder()
+        CandidateResumeDocument document = CandidateResumeDocument.builder()
                 .userId(user.getId())
                 .candidateProfileId(profile.getId())
                 .storageProvider(storedResume.storageProvider())
@@ -414,21 +413,38 @@ public class CandidateProfileService {
                 .fileExtension(extension)
                 .fileSizeBytes(storedResume.sizeBytes())
                 .sha256(result.getT1())
-                .parseStatus(parseOutcome.status())
-                .parseError(parseOutcome.errorMessage())
-                .extractedText(storeExtractedResumeText ? parseOutcome.extractedText() : null)
-                .parsedSkills(toJson(parseOutcome.skills(), "[]"))
-                .parsedExperience(toJson(parseOutcome.experience(), "[]"))
-                .parsedEducation(toJson(parseOutcome.education(), "[]"))
-                .parsedProfile(toJson(parseOutcome.parsedProfile(), "{}"))
-                .parsedAt(parseOutcome.parsedAt())
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
+        applyParseOutcome(document, result.getT2());
+        return document;
     }
 
-    private Mono<ResumeParseOutcome> parseResume(Resource resource, String extension) {
+    /**
+     * Writes a parse onto a document's parse columns. The upload and
+     * ResumeReparseService both write through here, so a re-parsed document holds
+     * exactly what uploading the same file today would store.
+     */
+    void applyParseOutcome(CandidateResumeDocument document, ResumeParseOutcome parseOutcome) {
+        document.setParseStatus(parseOutcome.status());
+        document.setParseError(parseOutcome.errorMessage());
+        document.setExtractedText(storeExtractedResumeText ? parseOutcome.extractedText() : null);
+        document.setParsedSkills(toJson(parseOutcome.skills(), "[]"));
+        document.setParsedExperience(toJson(parseOutcome.experience(), "[]"));
+        document.setParsedEducation(toJson(parseOutcome.education(), "[]"));
+        document.setParsedProfile(toJson(parseOutcome.parsedProfile(), "{}"));
+        document.setParsedAt(parseOutcome.parsedAt());
+    }
+
+    Mono<ResumeParseOutcome> parseResume(Resource resource, String extension) {
         return resumeParsingService.parse(resource, extension)
+                .map(ResumeParseOutcome::parsed)
+                .onErrorResume(error -> Mono.just(ResumeParseOutcome.failed(error)));
+    }
+
+    /** The same parse from a document's stored extracted_text, for when its file cannot be read. */
+    Mono<ResumeParseOutcome> parseResumeText(String extractedText) {
+        return resumeParsingService.parseText(extractedText)
                 .map(ResumeParseOutcome::parsed)
                 .onErrorResume(error -> Mono.just(ResumeParseOutcome.failed(error)));
     }
@@ -792,7 +808,7 @@ public class CandidateProfileService {
         return originalFileName + document.getFileExtension();
     }
 
-    private record ResumeParseOutcome(
+    record ResumeParseOutcome(
             String status,
             String errorMessage,
             String extractedText,
