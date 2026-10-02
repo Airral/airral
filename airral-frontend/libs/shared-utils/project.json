@@ -8,6 +8,15 @@
   "targets": {
     "lint": {
       "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node --require @swc-node/register --test libs/shared-utils/src/lib/formatters.spec.ts",
+        "env": {
+          "SWC_NODE_PROJECT": "libs/shared-utils/tsconfig.lib.json"
+        }
+      }
     }
   }
 }

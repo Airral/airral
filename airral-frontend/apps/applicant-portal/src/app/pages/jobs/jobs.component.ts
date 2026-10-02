@@ -6,7 +6,7 @@ import { ApplicationApiService, CandidatePortalService } from '@airral/shared-ap
 import { AuthService } from '@airral/shared-auth';
 import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, CandidateSavedJob, ResumeHealthScore } from '@airral/shared-types';
 import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
-import { GoogleAnalyticsService, VisitorSignalService } from '@airral/shared-utils';
+import { cleanLocationLabel, formatPayLabel, GoogleAnalyticsService, hasPostedPay, VisitorSignalService } from '@airral/shared-utils';
 import { getOnboardingJobSearchSeed, OnboardingJobSearchSeed } from '../../utils/job-search-seed';
 import { CompanyLogoComponent } from '../../components/company-logo.component';
 
@@ -925,32 +925,14 @@ export class JobsComponent implements OnInit, OnDestroy {
     return job.postedLabel || this.getTimeAgo(job.sourceUpdatedAt) || 'Recent';
   }
 
-  getSalaryLabel(job: CandidateJobSummary): string {
-    const label = job.salaryLabel?.trim();
-    // Dropping the chip was not enough on its own: the card still printed the
-    // label beside it, so a rounding failure stayed on screen as "USD $0k-$0k"
-    // and read as an employer saying the job pays nothing.
-    return !label || this.isZeroSalary(label) ? 'Salary not listed' : label;
-  }
-
-  hasPostedSalary(job: CandidateJobSummary): boolean {
-    const salary = job.salaryLabel?.trim().toLowerCase();
-    return Boolean(
-      salary
-      && !salary.includes('not listed')
-      && !salary.includes('benchmark needed')
-      && salary !== 'n/a'
-      && !this.isZeroSalary(salary)
-    );
-  }
-
   /**
-   * A label whose only digits are zeros is a formatting failure, not an
-   * employer saying the job pays nothing. Treating it as posted pay is what
-   * put an "Employer posted" chip under "USD $0k-$0k".
+   * Whether the employer posted a figure. A label whose only digits are zeros
+   * is a formatting failure, not an employer saying the job pays nothing;
+   * treating it as posted pay is what put an "Employer posted" chip under
+   * "USD $0k-$0k". The rule lives in hasPostedPay, shared with the website.
    */
-  private isZeroSalary(salary: string): boolean {
-    return /[0-9]/.test(salary) && !/[1-9]/.test(salary);
+  hasPostedSalary(job: CandidateJobSummary): boolean {
+    return hasPostedPay(job.salaryLabel);
   }
 
   getExperienceLabel(job: CandidateJobSummary): string {
@@ -965,6 +947,11 @@ export class JobsComponent implements OnInit, OnDestroy {
 
   getLocationLabel(job: CandidateJobSummary): string {
     return this.compactLocation(job.location) || 'Location not listed';
+  }
+
+  /** The full location for the detail header, without a board's empty "( )". */
+  getDetailLocation(job: CandidateJobSummary): string {
+    return cleanLocationLabel(job.location);
   }
 
   getWorkModeLabel(job: CandidateJobSummary): string {
@@ -1249,20 +1236,12 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Pay as a figure worth reading at a glance: the currency prefix is dropped
-   * for US dollars, where the dollar sign already says it, and ranges get an en
-   * dash. Anything else passes through untouched.
+   * Pay as a figure worth reading at a glance: "$20–$33/hr" for "USD $20-$33"
+   * on an hourly job. formatPayLabel holds the rules, shared with the website,
+   * and adds a unit only when the feed's salaryPeriod states one.
    */
   formatPay(job: CandidateJobSummary | null): string {
-    if (!job || !this.hasPostedSalary(job)) {
-      return 'Pay not listed';
-    }
-    const label = this.getSalaryLabel(job).replace(/^USD\s+/i, '');
-    // "$21.3" is a rounding artifact; money is written with two decimals.
-    const cents = label.replace(/(\d)\.(\d)(?![\dkKmM])/g, '$1.$20');
-    return cents.startsWith('$')
-      ? cents.replace(/\s*-\s*\$?/g, '–$')
-      : cents.replace(/\s*-\s*/g, '–');
+    return formatPayLabel(job?.salaryLabel, job?.salaryPeriod) || 'Pay not listed';
   }
 
   /**
@@ -2086,7 +2065,7 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   private compactLocation(location: string | undefined): string {
-    return (location || '')
+    return cleanLocationLabel(location)
       .replace(/,\s*United States(?: of America)?$/i, '')
       .replace(/\s*\(HQ\)/i, '')
       .trim();

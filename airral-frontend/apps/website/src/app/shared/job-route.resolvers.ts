@@ -366,6 +366,8 @@ function summaryToBrowseJob(summary: CandidateJobSummary): BrowseJob {
     externalBoardToken: internalId ? undefined : summary.sourceBoardToken,
     externalJobId: internalId ? undefined : summary.externalJobId,
     salaryLabel: summary.salaryLabel,
+    // The label's interval, so a card can say "/hr" when the label does not.
+    salaryPeriod: summary.salaryPeriod,
     postedLabel: summary.postedLabel,
   } as BrowseJob;
 }

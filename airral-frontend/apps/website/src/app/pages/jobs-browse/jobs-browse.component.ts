@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HeaderComponent, FooterComponent } from '@airral/shared-ui';
 import { CandidatePortalService, JobApiService } from '@airral/shared-api';
-import { PORTAL_ROUTES } from '@airral/shared-utils';
+import { cleanLocationLabel, formatPayLabel, PORTAL_ROUTES } from '@airral/shared-utils';
 import { WEBSITE_HEADER_LINKS, WEBSITE_HEADER_CTAS } from '../../shared/header-config';
 import { PAGE_SEO } from '../../shared/seo-pages';
 import { SeoService } from '../../shared/seo.service';
@@ -164,20 +164,18 @@ export class JobsBrowseComponent implements OnInit, OnDestroy {
   /**
    * The pay line, when there is one worth printing.
    *
-   * <p>The feed fills salaryLabel with "Salary not listed" rather than leaving
-   * it blank, and a card that says that about itself is noise on every row.
-   *
-   * <p>A label whose only digits are zeros is dropped too. The feed rounds to
-   * thousands whenever the board stated no interval, so an amount that was
-   * really a rate comes back as "USD $0k" -- which reads on a public card as an
-   * employer saying the job pays nothing.
+   * <p>A card that says "Salary not listed" about itself is noise on every
+   * row, so a label with no posted figure prints nothing (see hasPostedPay for
+   * what counts). An hourly figure gets its "/hr" here when the label left it
+   * off, and only when the feed says the figure is hourly.
    */
   payLabel(job: BrowseJob): string | null {
-    const label = (job.salaryLabel || '').trim();
-    if (!label || /not listed/i.test(label)) {
-      return null;
-    }
-    return /[0-9]/.test(label) && !/[1-9]/.test(label) ? null : label;
+    return formatPayLabel(job.salaryLabel, job.salaryPeriod) || null;
+  }
+
+  /** Where the role is, without the empty "( )" some store boards append. */
+  locationLabel(job: BrowseJob): string {
+    return cleanLocationLabel(job.location) || 'Location flexible';
   }
 
   get departments(): string[] {
