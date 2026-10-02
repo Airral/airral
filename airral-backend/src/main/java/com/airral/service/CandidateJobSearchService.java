@@ -4238,6 +4238,14 @@ public class CandidateJobSearchService {
                 .toList();
     }
 
+    /**
+     * Only the arrangement the candidate asked for fits.
+     *
+     * <p>This used to count a hybrid job as fitting a remote preference, so a
+     * candidate who picked Remote was shown hybrid roles in San Carlos with a
+     * green "Work mode fits" and ranked as if they matched. Hybrid means an
+     * office some days, which is what a remote preference rules out.
+     */
     private boolean workModeCompatible(String preferredWorkMode, String jobWorkMode) {
         String preferred = normalizedTermText(preferredWorkMode);
         String actual = normalizedTermText(jobWorkMode);
@@ -4245,11 +4253,7 @@ public class CandidateJobSearchService {
             return false;
         }
 
-        if (preferred.equals(actual)) {
-            return true;
-        }
-
-        return "remote".equals(preferred) && "hybrid".equals(actual);
+        return preferred.equals(actual);
     }
 
     /**
