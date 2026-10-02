@@ -9,3 +9,25 @@
 .admin-nav a { color: #55555f; text-decoration: none; padding: 6px 10px; border-radius: 6px; }
 .admin-nav a:hover { background: #f6f6f8; }
 .admin-nav a.active { color: #14141c; background: #f0f0f3; font-weight: 600; }
+
+/* Who is signed in, and the way out. Pushed to the right of the links. */
+.admin-nav .session { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.admin-nav .session-email {
+  color: #55555f; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.admin-nav .session-button {
+  font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(20, 20, 28, 0.14); background: #ffffff; color: #14141c;
+}
+.admin-nav .session-button:hover { background: #f6f6f8; }
+.admin-nav .session-button:disabled { opacity: 0.6; cursor: default; }
+.admin-nav .session-button.primary { background: #14141c; border-color: #14141c; color: #ffffff; }
+.admin-nav .session-button.primary:hover { background: #2a2a35; }
+.session-error {
+  margin: 0; padding: 8px 16px; background: #fff1f0; color: #b42318;
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; font-size: 13px;
+}
+@media (max-width: 640px) {
+  .admin-nav .session { margin-left: 0; width: 100%; justify-content: flex-end; }
+  .admin-nav .session-email { display: none; }
+}

@@ -4,5 +4,13 @@
   <a routerLink="/companies" routerLinkActive="active">Companies</a>
   <a routerLink="/users" routerLinkActive="active">Users</a>
   <a routerLink="/api-keys" routerLinkActive="active">API keys</a>
+  <span class="session">
+    <span class="session-email" *ngIf="signedInEmail()" [title]="signedInEmail()">{{ signedInEmail() }}</span>
+    <button type="button" class="session-button" (click)="signOutEverywhere()" [disabled]="signingOutEverywhere()">
+      {{ signingOutEverywhere() ? 'Signing out…' : 'Sign out everywhere' }}
+    </button>
+    <button type="button" class="session-button primary" (click)="signOut()">Sign out</button>
+  </span>
 </nav>
+<p class="session-error" *ngIf="signOutError()" role="alert">{{ signOutError() }}</p>
 <router-outlet></router-outlet>
