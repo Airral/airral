@@ -99,9 +99,12 @@ export class CompanyLogoComponent implements OnChanges {
   }
 }
 
+// Every color keeps at least 4.5:1 against the white initial drawn on it. The
+// orange, green, blue, teal and amber were lighter (3.0-4.0:1) and are darkened
+// to the same hue; the order is unchanged, so a company keeps its color's family.
 const TILE_COLORS = [
-  '#d93a30', '#e07b12', '#2e9e4f', '#1a8fc7', '#2f6feb', '#5856d6',
-  '#9b4dca', '#d6336c', '#8c6a4a', '#0f8f84', '#c28a00', '#4a5568',
+  '#d93a30', '#b1610e', '#278643', '#177dae', '#2f6feb', '#5856d6',
+  '#9b4dca', '#d6336c', '#8c6a4a', '#0e8379', '#996d00', '#4a5568',
 ];
 
 export function tileColor(name: string): string {

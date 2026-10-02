@@ -6,7 +6,7 @@ import { ApplicationApiService, CandidatePortalService } from '@airral/shared-ap
 import { AuthService } from '@airral/shared-auth';
 import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, CandidateSavedJob, PreferenceNarrowing, ResumeHealthScore } from '@airral/shared-types';
 import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
-import { cleanLocationLabel, formatPayLabel, GoogleAnalyticsService, hasPostedPay, VisitorSignalService } from '@airral/shared-utils';
+import { cleanLocationLabel, formatPayLabel, GoogleAnalyticsService, hasPostedPay, isImplausibleHourlyPay, VisitorSignalService } from '@airral/shared-utils';
 import { getOnboardingJobSearchSeed, OnboardingJobSearchSeed } from '../../utils/job-search-seed';
 import { CompanyLogoComponent } from '../../components/company-logo.component';
 
@@ -1378,7 +1378,10 @@ export class JobsComponent implements OnInit, OnDestroy {
    * and adds a unit only when the feed's salaryPeriod states one.
    */
   formatPay(job: CandidateJobSummary | null): string {
-    return formatPayLabel(job?.salaryLabel, job?.salaryPeriod) || 'Pay not listed';
+    // An implausible hourly rate is not "not listed": the employer posted
+    // something, and it cannot be read as a wage. Say that, not nothing.
+    return formatPayLabel(job?.salaryLabel, job?.salaryPeriod)
+      || (isImplausibleHourlyPay(job?.salaryLabel) ? 'Pay unclear' : 'Pay not listed');
   }
 
   /**

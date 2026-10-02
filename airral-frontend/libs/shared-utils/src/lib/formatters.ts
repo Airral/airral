@@ -49,13 +49,40 @@ const STATED_PAY_UNIT =
   /\/\s*(?:hr|hour|h|yr|year|mo|month|wk|week|day)\b|\b(?:per|an?|each)\s+(?:hour|year|annum|month|week|day)\b|\b(?:hourly|annually|annual|yearly|monthly|weekly|daily|total)\b/i;
 
 /**
+ * An hourly rate below the US minimum wage, which no employer posts as a wage.
+ *
+ * <p>A Target truck-driver posting arrived as "USD $2-$3.5/hr" and was shown as
+ * the pay -- a driver's pay of two dollars an hour. It is not a wage: boards put
+ * a per-mile rate or a bonus in the pay field. Showing it as fact tells a
+ * candidate something false they will act on, so it is treated as no usable pay.
+ *
+ * <p>Only hourly labels, and only below $7.25. "$2.13/hr + tips" is a real
+ * tipped cash wage, so a label that mentions tips is left alone.
+ */
+export function isImplausibleHourlyPay(label: string | null | undefined): boolean {
+  const salary = (label || '').toLowerCase();
+  if (!/\/\s*h(ou)?r\b|\bper hour\b|\bhourly\b/.test(salary) || /\btips?\b/.test(salary)) {
+    return false;
+  }
+  // A "k" or "m" after a figure makes it an annual amount, whatever else the label says.
+  if (/\d\s*[km]\b/.test(salary)) {
+    return false;
+  }
+  const figures = (salary.match(/\d+(?:\.\d+)?/g) || []).map(Number).filter((n) => n > 0);
+  return figures.length > 0 && Math.max(...figures) < MINIMUM_HOURLY_WAGE;
+}
+
+const MINIMUM_HOURLY_WAGE = 7.25;
+
+/**
  * Whether a salary label is a figure an employer posted.
  *
  * <p>The feed fills salaryLabel with "Salary not listed" rather than leaving it
  * blank. A label whose only digits are zeros is dropped too: the feed rounds to
  * thousands whenever the board stated no interval, so an amount that was really
  * a rate came back as "USD $0k-$0k" -- which reads as an employer saying the
- * job pays nothing.
+ * job pays nothing. An hourly rate under the minimum wage is dropped for the
+ * same reason; see {@link isImplausibleHourlyPay}.
  */
 export function hasPostedPay(label: string | null | undefined): boolean {
   const salary = (label || '').trim().toLowerCase();
@@ -66,6 +93,7 @@ export function hasPostedPay(label: string | null | undefined): boolean {
     && !salary.includes('not listed')
     && !salary.includes('benchmark needed')
     && salary !== 'n/a'
+    && !isImplausibleHourlyPay(salary)
   );
 }
 
