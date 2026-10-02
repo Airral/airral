@@ -91,7 +91,8 @@ export class CandidatePortalService {
     workMode?: string,
     salaryPosted?: boolean,
     experienceLevel?: string,
-    visaFriendly?: boolean
+    visaFriendly?: boolean,
+    ignorePreferences?: boolean
   ): Observable<CandidateJobPageResponse> {
     const params = new URLSearchParams({
       source: 'all',
@@ -125,6 +126,10 @@ export class CandidatePortalService {
 
     if (visaFriendly) {
       params.set('visaFriendly', 'true');
+    }
+
+    if (ignorePreferences) {
+      params.set('ignorePreferences', 'true');
     }
 
     return this.apiClient.get<CandidateJobPageResponse>(`/candidate/jobs/recommended/page?${params.toString()}`);

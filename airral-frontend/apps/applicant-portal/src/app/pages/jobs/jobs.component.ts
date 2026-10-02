@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { ApplicationApiService, CandidatePortalService } from '@airral/shared-api';
 import { AuthService } from '@airral/shared-auth';
-import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, CandidateSavedJob, ResumeHealthScore } from '@airral/shared-types';
+import { CandidateJobSummary, CandidateJobDetail, CandidateJobFitResult, CandidateJobPageResponse, CandidateSavedJob, PreferenceNarrowing, ResumeHealthScore } from '@airral/shared-types';
 import { catchError, finalize, of, retry, Subscription, timeout } from 'rxjs';
 import { cleanLocationLabel, formatPayLabel, GoogleAnalyticsService, hasPostedPay, VisitorSignalService } from '@airral/shared-utils';
 import { getOnboardingJobSearchSeed, OnboardingJobSearchSeed } from '../../utils/job-search-seed';
@@ -71,11 +71,32 @@ export class JobsComponent implements OnInit, OnDestroy {
    */
   private readonly jobsTimeoutMs = 30000;
   private readonly detailTimeoutMs = 12000;
-  private readonly searchDebounceMs = 350;
+  /**
+   * Long enough to cover the gap between keys. At 350ms, typing "bio tech" at an
+   * ordinary pace sent "b", "bio", "bio te" and "bio tech" to the server, and the
+   * server finishes a search the browser has abandoned: four signed-in searches
+   * ran at once, each 3.4-6.2s, measured in production on 2026-10-02.
+   */
+  private readonly searchDebounceMs = 500;
   private readonly detailCache = new Map<string, CandidateJobDetail>();
   private jobsRequestId = 0;
   private jobsRequest?: Subscription;
   private searchDebounceTimer?: ReturnType<typeof setTimeout>;
+  /** The search in flight, so the same one is not sent twice (debounce, then Enter). */
+  private activeRequestKey = '';
+  private static readonly PREFERENCE_SCOPE_KEY = 'airral.jobs.preferenceScope';
+
+  /**
+   * What saved roles and location did to the last typed search, from the API.
+   * When they hid matches and the person has not yet said what they want, the
+   * list waits for an answer instead of silently showing fewer jobs.
+   */
+  preferenceNarrowing: PreferenceNarrowing | null = null;
+  /**
+   * The answer, kept for the session: 'all' searches past the saved roles and
+   * location for typed searches, 'mine' keeps them, 'ask' has not been answered.
+   */
+  preferenceScope: 'ask' | 'all' | 'mine' = 'ask';
 
   jobs: CandidateJobSummary[] = [];
   selectedJob: CandidateJobDetail | null = null;
@@ -165,6 +186,7 @@ export class JobsComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.preferenceScope = this.readPreferenceScope();
     // Who the visitor is, and what they have applied to: arriving from
     // onboarding, they are signed in, and their saves and applications count
     // from the first job.
@@ -242,6 +264,11 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   loadJobs(): void {
+    const requestKey = this.jobsRequestKey();
+    if (this.loading && requestKey === this.activeRequestKey) {
+      return;
+    }
+    this.activeRequestKey = requestKey;
     const requestId = ++this.jobsRequestId;
     this.jobsRequest?.unsubscribe();
     this.loading = true;
@@ -257,7 +284,8 @@ export class JobsComponent implements OnInit, OnDestroy {
         this.filterWorkMode !== 'all' ? this.filterWorkMode : undefined,
         this.filterSalaryPosted || undefined,
         this.filterExperience !== 'all' ? this.filterExperience : undefined,
-        this.filterVisaFriendly || undefined
+        this.filterVisaFriendly || undefined,
+        this.searchesPastPreferences() || undefined
       )
       .pipe(
         timeout(this.jobsTimeoutMs),
@@ -276,6 +304,7 @@ export class JobsComponent implements OnInit, OnDestroy {
         finalize(() => {
           if (requestId === this.jobsRequestId) {
             this.loading = false;
+            this.activeRequestKey = '';
             this.changeDetectorRef.detectChanges();
           }
         })
@@ -289,6 +318,7 @@ export class JobsComponent implements OnInit, OnDestroy {
           const page = this.normalizeJobPage(response);
           this.jobs = page.jobs;
           this.hasMore = page.hasMore;
+          this.preferenceNarrowing = page.preferenceNarrowing ?? null;
           this.computeNewSinceLastVisit(this.jobs);
           this.reconcileSelectedJob();
           this.changeDetectorRef.detectChanges();
@@ -377,7 +407,94 @@ export class JobsComponent implements OnInit, OnDestroy {
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
     }
+    // One letter is not a search yet. Clearing the box still reloads the feed.
+    if (query.trim().length === 1) {
+      return;
+    }
     this.searchDebounceTimer = setTimeout(() => this.onSearch(), this.searchDebounceMs);
+  }
+
+  /**
+   * The saved-preferences question, when there is one to ask: a typed search
+   * whose matches the saved roles or location narrowed, before the person has
+   * chosen for this session. The list waits for the answer.
+   */
+  get awaitingPreferenceChoice(): PreferenceNarrowing | null {
+    const narrowing = this.preferenceNarrowing;
+    if (!narrowing || narrowing.ignored || narrowing.hidden <= 0 || this.preferenceScope !== 'ask') {
+      return null;
+    }
+    return this.searchQuery.trim() ? narrowing : null;
+  }
+
+  /** Shown above the list while a typed search is searching past the saved preferences. */
+  get searchingPastPreferences(): boolean {
+    return !!this.preferenceNarrowing?.ignored && !!this.searchQuery.trim();
+  }
+
+  choosePreferenceScope(scope: 'all' | 'mine'): void {
+    this.preferenceScope = scope;
+    try {
+      sessionStorage.setItem(JobsComponent.PREFERENCE_SCOPE_KEY, scope);
+    } catch {
+      // Private mode or blocked storage: the choice still holds for this page.
+    }
+    if (scope === 'all' || this.preferenceNarrowing?.ignored) {
+      this.offset = 0;
+      this.loadJobs();
+    } else {
+      this.changeDetectorRef.detectChanges();
+    }
+  }
+
+  matchedLabel(narrowing: PreferenceNarrowing): string {
+    return narrowing.matchedIsLowerBound ? `${narrowing.matched}+` : String(narrowing.matched);
+  }
+
+  /** "Your saved role (Data analyst) and location (Denver, CO) hide 110 of them." */
+  preferenceHideSentence(narrowing: PreferenceNarrowing): string {
+    const roles = this.savedTargetRoles.length > 0 ? this.savedTargetRoles : narrowing.targetRoles;
+    const location = this.profileLocation || narrowing.location || '';
+    const roleHides = narrowing.hiddenByRoles > 0 && roles.length > 0;
+    const locationHides = narrowing.hiddenByLocation > 0 && !!location;
+
+    const parts: string[] = [];
+    if (roleHides) {
+      parts.push(`${roles.length === 1 ? 'role' : 'roles'} (${roles.join(', ')})`);
+    }
+    if (locationHides) {
+      parts.push(`location (${location})`);
+    }
+    // One role, or the location alone, is a singular subject.
+    const singular = parts.length === 1 && (!roleHides || roles.length === 1);
+    const subject = parts.length > 0 ? parts.join(' and ') : 'preferences';
+    return `Your saved ${subject} ${singular ? 'hides' : 'hide'} ${narrowing.hidden} of them.`;
+  }
+
+  private searchesPastPreferences(): boolean {
+    return this.preferenceScope === 'all' && this.signedIn() && !!this.searchQuery.trim();
+  }
+
+  private jobsRequestKey(): string {
+    return [
+      this.offset,
+      this.searchQuery.trim().toLowerCase(),
+      this.filterMaxAgeDays ?? '',
+      this.filterWorkMode,
+      this.filterSalaryPosted,
+      this.filterExperience,
+      this.filterVisaFriendly,
+      this.searchesPastPreferences(),
+    ].join('|');
+  }
+
+  private readPreferenceScope(): 'ask' | 'all' | 'mine' {
+    try {
+      const saved = sessionStorage.getItem(JobsComponent.PREFERENCE_SCOPE_KEY);
+      return saved === 'all' || saved === 'mine' ? saved : 'ask';
+    } catch {
+      return 'ask';
+    }
   }
 
   clearSearch(): void {
@@ -466,7 +583,8 @@ export class JobsComponent implements OnInit, OnDestroy {
         this.filterWorkMode !== 'all' ? this.filterWorkMode : undefined,
         this.filterSalaryPosted || undefined,
         this.filterExperience !== 'all' ? this.filterExperience : undefined,
-        this.filterVisaFriendly || undefined
+        this.filterVisaFriendly || undefined,
+        this.searchesPastPreferences() || undefined
       )
       .pipe(
         timeout(this.jobsTimeoutMs),
@@ -883,6 +1001,7 @@ export class JobsComponent implements OnInit, OnDestroy {
       offset: response?.offset ?? this.offset,
       hasMore: response?.hasMore ?? false,
       nextOffset: response?.nextOffset,
+      preferenceNarrowing: response?.preferenceNarrowing ?? null,
     };
   }
 
@@ -1081,6 +1200,11 @@ export class JobsComponent implements OnInit, OnDestroy {
    */
   feedShapingCaveat(): string {
     if (!this.signedIn() || !this.matchProfileLoaded) {
+      return '';
+    }
+    // A typed search that is asking, or has been told to search past the saved
+    // preferences, says so itself; the general caveat would contradict it.
+    if (this.awaitingPreferenceChoice || this.searchingPastPreferences) {
       return '';
     }
 
