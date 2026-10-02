@@ -331,6 +331,9 @@
             </div>
           </div>
 
+          <!-- The two things to act on. One column on a narrow panel, in this order;
+               a side rail beside the description on a wide one (see .detail-rail). -->
+          <div class="detail-rail">
           <!-- Resume fit: the upgrade, in one box. -->
           <section class="card-box fit-box" aria-labelledby="fit-heading">
             <div class="box-head">
@@ -393,6 +396,7 @@
               <li *ngFor="let item of getFitChecklist()"><span class="bullet" aria-hidden="true"></span>{{ item }}</li>
             </ul>
           </section>
+          </div>
 
           <ng-container *ngIf="descriptionView.hasContent; else descriptionLoading">
             <section class="detail-description">

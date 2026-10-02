@@ -15,7 +15,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 20px;
+  /* Lines up with the centered workspace below on a screen wider than its cap. */
+  padding: 0 max(20px, calc((100vw - var(--ap-shell-max)) / 2 + 20px));
   background: color-mix(in srgb, var(--ap-page) 86%, transparent);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);

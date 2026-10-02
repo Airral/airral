@@ -105,6 +105,9 @@
   --ap-radius: 14px;
   --ap-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 14px 40px rgba(16, 24, 40, 0.12);
   --ap-tabbar-height: 64px;
+  /* The widest the workspace gets. Past this it stays centered rather than stretching:
+     a 2560px monitor had a 1,980px job panel with its content stuck at the left edge. */
+  --ap-shell-max: 1880px;
 }
 
 html, body {
