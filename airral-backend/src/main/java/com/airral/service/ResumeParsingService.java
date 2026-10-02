@@ -38,9 +38,31 @@ public class ResumeParsingService {
     private static final int MAX_DESCRIPTION_CHARS = 2_000;
     private static final Pattern EMAIL_PATTERN = Pattern.compile("(?i)\\b[\\w.%+-]+@[\\w.-]+\\.[a-z]{2,}\\b");
     private static final Pattern PHONE_PATTERN = Pattern.compile("(?i)(?:\\+?1[-.\\s]?)?\\(?\\d{3}\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}");
+    /**
+     * One date on a resume: "June 2024", "Sept 2021", "Feb. 2025", "03/2022" or "2022".
+     *
+     * <p>The numeric form was missing, and it is how most US resumes write a date on
+     * its own line under the employer ("04/2022 – Present"). Of 22 sample resumes, ten
+     * parsed to zero jobs, and five of those were written that way.
+     */
+    private static final String RESUME_DATE =
+            "(?:(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?\\s+)?\\d{4}"
+                    + "|\\d{1,2}/\\d{4})";
     private static final Pattern DATE_RANGE_PATTERN = Pattern.compile(
-            "(?i)\\b((?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\s+)?\\d{4})\\s*(?:-|\\u2013|\\u2014|to)\\s*((?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\s+)?\\d{4}|present|current|now)\\b"
+            "(?i)\\b(" + RESUME_DATE + ")\\s*(?:-|\\u2013|\\u2014|to)\\s*(" + RESUME_DATE + "|present|current|now)\\b"
     );
+    private static final Pattern NUMERIC_MONTH_YEAR = Pattern.compile("(\\d{1,2})/(\\d{4})");
+    /** Ends like a sentence, but not like "Acme Corp." -- an employer can end in a full stop. */
+    private static final Pattern SENTENCE_END = Pattern.compile(
+            "(?i)(?:[;!?]|(?<!\\b(?:inc|corp|co|ltd|llc|jr|sr|st|bros))\\.)$");
+    /** Month-name dates in any case: "June 2024", "JAN 2022", "sep 2021". */
+    private static final List<DateTimeFormatter> MONTH_YEAR_FORMATS = List.of(
+            new java.time.format.DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("MMMM uuuu").toFormatter(Locale.US),
+            new java.time.format.DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("MMM uuuu").toFormatter(Locale.US));
+    private static final DateTimeFormatter DISPLAY_MONTH_YEAR = DateTimeFormatter.ofPattern("MMM uuuu", Locale.US);
+    /** "Alamo Wireless, San Antonio, TX" or "Distribution Center - Groveport, OH": employer, then place. */
+    private static final Pattern TRAILING_LOCATION = Pattern.compile(
+            "^(.+?)(?:,|\\s[-\\u2013\\u2014])\\s*((?:[A-Za-z .'-]+,\\s*[A-Z]{2})|Remote)$");
     private static final Pattern YEAR_PATTERN = Pattern.compile("\\b(19|20)\\d{2}\\b");
     private static final List<String> SECTION_BREAK_HEADERS = List.of(
             "Professional Summary",
@@ -58,8 +80,20 @@ public class ResumeParsingService {
             "Objective",
             "Awards"
     );
+    /**
+     * Splits a heading out of the line it was run into, as PDF text often does.
+     *
+     * <p>Matched as a heading is written -- Title Case or ALL CAPS -- not in any case.
+     * Case-insensitive, "Led projects across three teams" became "Led" / "projects" /
+     * "across three teams", the bare "projects" line ended the experience section,
+     * and every job listed after that bullet was dropped: a 7.3-year resume read as
+     * 4.8. "education", "leadership" and "summary" did the same inside bullets.
+     */
     private static final Pattern SECTION_BREAK_PATTERN = Pattern.compile(
-            "(?i)\\b(" + SECTION_BREAK_HEADERS.stream().map(Pattern::quote).collect(Collectors.joining("|")) + ")\\b"
+            "\\b(" + SECTION_BREAK_HEADERS.stream()
+                    .flatMap(header -> java.util.stream.Stream.of(header, header.toUpperCase(Locale.US)))
+                    .map(Pattern::quote)
+                    .collect(Collectors.joining("|")) + ")\\b"
     );
     private static final Set<String> SECTION_HEADERS = Set.of(
             "summary",
@@ -84,7 +118,26 @@ public class ResumeParsingService {
     private static final Set<String> SUMMARY_HEADERS = Set.of("summary", "professional summary", "profile", "objective");
     private static final Set<String> SKILL_HEADERS = Set.of("core skills", "technical skills", "skills");
     private static final Set<String> EXPERIENCE_HEADERS = Set.of("professional experience", "experience", "work experience", "employment history");
+    /**
+     * Other ways resumes title the experience section. Each reads as "experience"
+     * everywhere a heading is compared, so it starts that section and ends the others.
+     */
+    private static final Set<String> EXPERIENCE_HEADING_SYNONYMS = Set.of(
+            "work history", "career history", "employment", "relevant experience", "professional background");
+    /**
+     * "Driving Experience", "Teaching Experience", "Clinical Experience": a qualifier
+     * and the word. A closed list rather than any "... experience", because a skills
+     * list can have "Customer Experience" or "User Experience" on a line of its own.
+     */
+    private static final Set<String> EXPERIENCE_HEADING_QUALIFIERS = Set.of(
+            "professional", "work", "relevant", "related", "teaching", "driving", "clinical", "industry",
+            "military", "research", "career", "employment", "additional", "other", "selected", "technical",
+            "nursing", "sales", "management", "internship", "engineering", "healthcare", "retail");
     private static final Set<String> EDUCATION_HEADERS = Set.of("education");
+    /** A line about schooling, which must not be counted as a job when there is no experience heading. */
+    private static final Pattern EDUCATION_LINE = Pattern.compile(
+            "(?i)(\\b(bachelor|masters?|mba|ph\\.?d|diploma|university|college|school|academy|bootcamp|degree|gpa"
+                    + "|certificate|certification)\\b|\\b[bm]\\.[sa]\\.)");
     private static final Set<String> SUMMARY_END_HEADERS = Set.of(
             "core skills", "technical skills", "skills", "professional experience", "experience", "work experience",
             "employment history", "education", "projects", "leadership", "awards", "certifications"
@@ -133,9 +186,15 @@ public class ResumeParsingService {
             putIfPresent(parsedProfile, "location", extractHeaderLocation(extractedText));
             parsedProfile.put("wordCount", wordCount(extractedText));
             parsedProfile.put("detectedSections", detectedSections(extractedText));
-            int experienceMonths = estimateExperienceMonths(experience);
-            parsedProfile.put("totalExperienceMonths", experienceMonths);
-            parsedProfile.put("experienceYears", Math.round((experienceMonths / 12.0) * 10.0) / 10.0);
+            // Absent, not zero, when no job has dates we can read. A zero here reached
+            // the job fit as "2+ years requested; 0 years shown" -- a claim that the
+            // person has no experience, when the parser simply could not tell. Absent,
+            // the fit says the years were not confidently parsed.
+            Integer experienceMonths = estimateExperienceMonths(experience);
+            if (experienceMonths != null) {
+                parsedProfile.put("totalExperienceMonths", experienceMonths);
+                parsedProfile.put("experienceYears", Math.round((experienceMonths / 12.0) * 10.0) / 10.0);
+            }
             parsedProfile.put("recentTitles", experience.stream()
                     .map(entry -> entry.get("title"))
                     .filter(java.util.Objects::nonNull)
@@ -244,7 +303,7 @@ public class ResumeParsingService {
     private List<Map<String, Object>> extractExperience(String text) {
         String body = sectionBody(text, EXPERIENCE_HEADERS, EXPERIENCE_END_HEADERS);
         if (body.isBlank()) {
-            return List.of();
+            return extractExperienceWithoutHeading(text);
         }
 
         List<Map<String, Object>> entries = new ArrayList<>();
@@ -264,7 +323,13 @@ public class ResumeParsingService {
                 header = parseExperienceHeader(line + " " + lines.get(index + 1));
                 consumedLines = header == null ? 0 : 1;
             }
-            if (header == null && index + 2 < lines.size() && isDateOnlyLine(lines.get(index + 2))) {
+            // Title / employer / dates on three lines. Not when the first line is a
+            // sentence: a Word bullet carries no bullet character, so the last bullet
+            // of one job looked like the title of the next -- "Picked by my team lead
+            // to help train two new hiring classes." became a job title and the real
+            // title was pushed into the employer.
+            if (header == null && index + 2 < lines.size() && isDateOnlyLine(lines.get(index + 2))
+                    && !SENTENCE_END.matcher(line.strip()).find()) {
                 String companyAndLocation = lines.get(index + 1);
                 header = parseExperienceHeader(line + " | " + companyAndLocation + " " + lines.get(index + 2));
                 consumedLines = header == null ? 0 : 2;
@@ -282,6 +347,57 @@ public class ResumeParsingService {
                 }
                 current.put("current", header.current());
                 index += consumedLines;
+            } else if (current != null) {
+                appendDescription(description, line);
+            }
+        }
+
+        flushExperience(entries, current, description);
+        return entries;
+    }
+
+    /**
+     * Jobs on a resume that never says "Experience".
+     *
+     * <p>Short resumes often go straight from the name to the jobs: "Warehouse
+     * Associate, Midwest Grocers Distribution Center, Jan 2022 to Present". With no
+     * heading there was no section to read, so the person had no jobs and zero years.
+     *
+     * <p>Without a section to bound it, this only takes single lines shaped like a
+     * job heading, and never from the education section or from a line that names a
+     * school or a qualification -- "B.S. Economics, University of Arizona, 2017 - 2021"
+     * has the same shape as a job and would add four years that were not work.
+     */
+    private List<Map<String, Object>> extractExperienceWithoutHeading(String text) {
+        List<Map<String, Object>> entries = new ArrayList<>();
+        Map<String, Object> current = null;
+        StringBuilder description = new StringBuilder();
+        boolean inEducation = false;
+
+        for (String line : nonBlankLines(addSectionBreaks(text))) {
+            if (isSectionHeader(line)) {
+                inEducation = EDUCATION_HEADERS.contains(canonicalHeader(line));
+                current = flushExperience(entries, current, description);
+                description.setLength(0);
+                continue;
+            }
+            if (inEducation) {
+                continue;
+            }
+
+            ExperienceHeader header = EDUCATION_LINE.matcher(line).find() ? null : parseExperienceHeader(line);
+            if (header != null) {
+                current = flushExperience(entries, current, description);
+                description.setLength(0);
+                current = new LinkedHashMap<>();
+                current.put("company", header.company());
+                current.put("title", header.title());
+                current.put("startDate", header.startDate());
+                current.put("endDate", header.endDate());
+                if (isNotBlank(header.location())) {
+                    current.put("location", header.location());
+                }
+                current.put("current", header.current());
             } else if (current != null) {
                 appendDescription(description, line);
             }
@@ -316,40 +432,98 @@ public class ResumeParsingService {
             return null;
         }
 
-        String beforeDates = cleanedLine.substring(0, matcher.start()).strip();
-        String startDate = matcher.group(1).strip();
-        String endDate = matcher.group(2).strip();
+        // "Data Analyst, Brightline Retail (2022 - Present)" leaves "... Retail (" before
+        // the dates; the bracket or separator belongs to the dates, not the employer.
+        String beforeDates = cleanedLine.substring(0, matcher.start())
+                .replaceAll("[\\s,(\\[|:\\-\\u2013\\u2014]+$", "")
+                .strip();
+        String startDate = displayDate(matcher.group(1).strip());
+        String endDate = displayDate(matcher.group(2).strip());
         if (beforeDates.isBlank()) {
             return null;
         }
 
-        String[] parts = beforeDates.split("\\|");
+        // A middle dot or a bullet between fields is a pipe by another name:
+        // "Marketing Manager · Harpeth Home Goods · Nashville, TN".
+        String[] parts = beforeDates.split("\\||\\s[\\u00B7\\u2022]\\s");
         String title;
         String company = null;
         String location = null;
+        Matcher atMatcher = Pattern.compile("(?i)^(.+?)\\s+(?:at|@)\\s+(.+)$").matcher(beforeDates);
+        // Spaced, so "Front-End Developer" stays one title.
+        Matcher dashMatcher = Pattern.compile("^(.+?)\\s+[-\\u2013\\u2014]\\s+(.+)$").matcher(beforeDates);
+        // The dash and comma shapes are loose enough to fit a sentence, so they are
+        // only trusted on a line shaped like a job heading: not a bullet, and ending
+        // in its dates. "- Managed budgets, forecasts 2019 - 2021" is not a job.
+        boolean headingShaped = cleanedLine.equals(line.strip())
+                && cleanedLine.substring(matcher.end()).replaceAll("[\\s)\\].]", "").isEmpty();
         if (parts.length >= 2) {
             title = parts[0].strip();
             company = parts[1].strip();
             if (parts.length >= 3) {
                 location = parts[2].strip();
             }
-        } else {
-            Matcher atMatcher = Pattern.compile("(?i)^(.+?)\\s+(?:at|@)\\s+(.+)$").matcher(beforeDates);
-            if (!atMatcher.find()) {
-                return null;
-            }
+        } else if (atMatcher.find()) {
             title = atMatcher.group(1).strip();
             company = atMatcher.group(2).strip();
+        } else if (headingShaped && dashMatcher.find()) {
+            // "Customer Service Representative II - Alamo Wireless, San Antonio, TX"
+            title = dashMatcher.group(1).strip();
+            company = dashMatcher.group(2).strip();
+        } else if (headingShaped && beforeDates.contains(",")) {
+            // "Warehouse Associate, Midwest Grocers Distribution Center". A title that
+            // itself has a comma ("Senior Analyst, Sales Analytics") splits early here,
+            // but the dates -- which are what experience years are counted from -- are
+            // read the same either way.
+            int comma = beforeDates.indexOf(',');
+            title = beforeDates.substring(0, comma).strip();
+            company = beforeDates.substring(comma + 1).strip();
+        } else {
+            return null;
+        }
+
+        if (location == null && company != null) {
+            Matcher place = TRAILING_LOCATION.matcher(company);
+            if (place.matches() && isNotBlank(place.group(1))) {
+                company = place.group(1).strip();
+                location = place.group(2).strip();
+            }
         }
 
         if (!isNotBlank(title) || !isNotBlank(company) || title.length() > 100 || company.length() > 100) {
             return null;
         }
 
-        boolean current = endDate.equalsIgnoreCase("present")
-                || endDate.equalsIgnoreCase("current")
-                || endDate.equalsIgnoreCase("now");
+        boolean current = "Present".equals(endDate);
         return new ExperienceHeader(title, company, location, startDate, endDate, current);
+    }
+
+    /**
+     * A resume date in a form every reader of the stored entry understands.
+     *
+     * <p>Month-name and year-only dates are kept as written. "Present", "current" and
+     * "now" in any case become "Present". Anything else that is still a real date --
+     * "03/2022", "Sept 2021", "JAN 2022", "Feb. 2025" -- is rewritten as "Mar 2022".
+     * That matters beyond this class: the job ranking reads these strings again to
+     * count years for its seniority filter, and could not read the numeric form.
+     */
+    private String displayDate(String raw) {
+        if (raw.equalsIgnoreCase("present") || raw.equalsIgnoreCase("current") || raw.equalsIgnoreCase("now")) {
+            return "Present";
+        }
+        if (raw.matches("\\d{4}")) {
+            return raw;
+        }
+        for (String pattern : List.of("MMMM uuuu", "MMM uuuu")) {
+            try {
+                YearMonth.parse(raw, DateTimeFormatter.ofPattern(pattern, Locale.US));
+                return raw;
+            } catch (DateTimeParseException ignored) {
+                // Not already in a form the ranking reads; normalized below.
+            }
+        }
+        YearMonth parsed = parseResumeDate(raw, false);
+        return parsed == null ? raw : parsed.format(DISPLAY_MONTH_YEAR);
     }
 
     private boolean isDateOnlyLine(String value) {
@@ -501,7 +675,7 @@ public class ResumeParsingService {
         StringBuilder builder = new StringBuilder();
         boolean collecting = false;
         for (String line : nonBlankLines(addSectionBreaks(text))) {
-            String normalizedHeader = normalizeHeader(line);
+            String normalizedHeader = canonicalHeader(line);
             if (!collecting) {
                 String remainder = headerRemainder(line, startHeaders);
                 if (remainder != null) {
@@ -556,7 +730,20 @@ public class ResumeParsingService {
     }
 
     private boolean isSectionHeader(String line) {
-        return SECTION_HEADERS.contains(normalizeHeader(line));
+        return SECTION_HEADERS.contains(canonicalHeader(line));
+    }
+
+    /** The heading a line is, with every name for the experience section read as "experience". */
+    private String canonicalHeader(String line) {
+        String normalized = normalizeHeader(line);
+        if (EXPERIENCE_HEADING_SYNONYMS.contains(normalized)) {
+            return "experience";
+        }
+        String[] words = normalized.split(" ");
+        if (words.length == 2 && "experience".equals(words[1]) && EXPERIENCE_HEADING_QUALIFIERS.contains(words[0])) {
+            return "experience";
+        }
+        return normalized;
     }
 
     private String normalizeHeader(String line) {
@@ -852,7 +1039,7 @@ public class ResumeParsingService {
         return Math.min(100, score);
     }
 
-    private int estimateExperienceMonths(List<Map<String, Object>> experience) {
+    private Integer estimateExperienceMonths(List<Map<String, Object>> experience) {
         List<ExperiencePeriod> periods = new ArrayList<>();
         YearMonth now = YearMonth.now();
         for (Map<String, Object> entry : experience) {
@@ -864,7 +1051,7 @@ public class ResumeParsingService {
         }
         periods.sort(java.util.Comparator.comparing(ExperiencePeriod::start));
         if (periods.isEmpty()) {
-            return 0;
+            return null;
         }
 
         int months = 0;
@@ -899,13 +1086,22 @@ public class ResumeParsingService {
                 || normalized.equalsIgnoreCase("now"))) {
             return YearMonth.now();
         }
-        for (String pattern : List.of("MMMM uuuu", "MMM uuuu", "uuuu")) {
+        if (normalized.matches("\\d{4}")) {
+            return YearMonth.of(Integer.parseInt(normalized), 1);
+        }
+        Matcher numeric = NUMERIC_MONTH_YEAR.matcher(normalized);
+        if (numeric.matches()) {
+            int month = Integer.parseInt(numeric.group(1));
+            return month >= 1 && month <= 12 ? YearMonth.of(Integer.parseInt(numeric.group(2)), month) : null;
+        }
+        // "Feb. 2025" and "Sept 2021": Java's short September is "Sep", so the common
+        // "Sept" failed to parse and the whole job counted for nothing.
+        String monthName = normalized.replaceFirst("^([A-Za-z]+)\\.", "$1")
+                .replaceFirst("(?i)^sept\\b", "Sep");
+        for (DateTimeFormatter format : MONTH_YEAR_FORMATS) {
             try {
-                if (pattern.equals("uuuu")) {
-                    return YearMonth.of(Integer.parseInt(normalized), 1);
-                }
-                return YearMonth.parse(normalized, DateTimeFormatter.ofPattern(pattern, Locale.US));
-            } catch (DateTimeParseException | NumberFormatException ignored) {
+                return YearMonth.parse(monthName, format);
+            } catch (DateTimeParseException ignored) {
                 // Try the next supported resume date format.
             }
         }
