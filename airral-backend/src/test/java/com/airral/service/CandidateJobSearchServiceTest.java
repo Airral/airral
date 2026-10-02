@@ -96,8 +96,17 @@ class CandidateJobSearchServiceTest {
         assertThat(ranked.get(0).getMatchReasons()).noneMatch(reason -> reason.contains("outside your target"));
     }
 
+    /**
+     * This used to assert that only the senior IC posting survived, with the
+     * engineering-manager and staff postings removed by the seniority filter
+     * (four years: under 8 for a manager, under 7 for staff). They are kept
+     * now, below the senior role and carrying the reason; four years is short
+     * of those levels, not disqualifying. "Senior Manager, Thought Leadership"
+     * is still removed, by the career-track check, because it is outside the
+     * candidate's software family.
+     */
     @Test
-    void softwareIcProfileDoesNotRankPeopleManagementOrStaffRoles() {
+    void softwareIcProfileRanksStaffAndManagerRolesBelowSenior() {
         Object context = ReflectionTestUtils.invokeMethod(service, "toCandidateMatchContext", parsedResumeProfile());
         List<CandidateJobSummaryResponse> ranked = ReflectionTestUtils.invokeMethod(
                 service,
@@ -113,8 +122,16 @@ class CandidateJobSearchServiceTest {
         );
 
         assertThat(ranked).extracting(CandidateJobSummaryResponse::getTitle)
-                .containsExactly("Senior Software Engineer - Blockchain Network");
+                .containsExactlyInAnyOrder(
+                        "Senior Software Engineer - Blockchain Network",
+                        "Site Reliability Engineer (Senior or Staff)",
+                        "Engineering Manager, Data Foundations",
+                        "Engineering Manager, Growth");
+        assertThat(ranked.get(0).getTitle()).isEqualTo("Senior Software Engineer - Blockchain Network");
         assertThat(ranked.get(0).getMatchScore()).isGreaterThanOrEqualTo(75);
+        assertThat(ranked.subList(1, ranked.size()))
+                .allSatisfy(job -> assertThat(job.getMatchReasons())
+                        .contains("Seniority may not fit: more senior than your experience"));
     }
 
     @Test
