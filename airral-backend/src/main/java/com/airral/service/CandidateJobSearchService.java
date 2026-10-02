@@ -663,6 +663,18 @@ public class CandidateJobSearchService {
     private final int maxLiveFallbackSources;
     private final int liveFallbackSourceConcurrency;
     private final Map<String, RankedJobsCacheEntry> personalizedRankingCache = new ConcurrentHashMap<>();
+
+    /**
+     * Orders the public feed so no one employer fills it. Optional on purpose:
+     * absent (the sync and re-parse profiles, and tests), or not yet built, the
+     * feed is simply the plain one.
+     */
+    private DiverseFeedIndex diverseFeedIndex;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setDiverseFeedIndex(DiverseFeedIndex diverseFeedIndex) {
+        this.diverseFeedIndex = diverseFeedIndex;
+    }
     // Refusing a board token is the interesting event, and it is also the one an
     // outsider controls the rate of. One WARN per interval carries the running
     // total, so a scan is visible in the log without being able to bury the rest
@@ -851,7 +863,11 @@ public class CandidateJobSearchService {
                     ignorePreferences);
         }
 
-        return externalJobPostingStore
+        Mono<CandidateJobPageResponse> diversified =
+                diversifiedFeedPage(source, boardToken, resolvedMaxAgeDays, query, company, filters,
+                        resolvedLimit, resolvedOffset);
+
+        return diversified.switchIfEmpty(Mono.defer(() -> externalJobPostingStore
                 .findRecommendedJobs(source, boardToken, queryLimit, queryOffset,
                         resolvedMaxAgeDays, query, company, filters)
                 .collectList()
@@ -868,7 +884,41 @@ public class CandidateJobSearchService {
                 // obey the same filters as the primary path.
                 .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
                 .map(jobs -> toJobPage(jobs, resolvedLimit, resolvedOffset))
-                .flatMap(page -> personalizePage(candidateEmail, page));
+                .flatMap(page -> personalizePage(candidateEmail, page))));
+    }
+
+    /**
+     * A page of the public feed in which no employer fills the front, or empty
+     * when this request is not that feed or the ordered list is not ready.
+     *
+     * <p>Only for nothing typed and no employer named: a search for "target"
+     * should return Target's jobs. Empty means "serve the ordinary feed", so a
+     * missing list is never an error and never slower than before.
+     */
+    private Mono<CandidateJobPageResponse> diversifiedFeedPage(
+            String source, String boardToken, int maxAgeDays, String query, String company,
+            ExplicitJobFilters filters, int limit, int offset) {
+        boolean plainFeed = (query == null || query.isBlank()) && (company == null || company.isBlank());
+        if (diverseFeedIndex == null || !plainFeed) {
+            return Mono.empty();
+        }
+        DiverseFeedIndex.Feed feed = diverseFeedIndex.idsOrNull(source, boardToken, maxAgeDays, filters);
+        if (feed == null) {
+            return Mono.empty();
+        }
+        List<Long> ids = feed.ids();
+        if (offset >= ids.size()) {
+            // The end of a complete list is the end of the feed. A truncated one
+            // may have more behind it, which only the ordinary feed can reach.
+            return feed.complete()
+                    ? Mono.just(toJobPage(List.of(), limit, offset))
+                    : Mono.empty();
+        }
+        // One more than the page, to learn whether there is a next one.
+        List<Long> slice = ids.subList(offset, Math.min(ids.size(), offset + limit + 1));
+        return externalJobPostingStore.findJobsByIds(slice)
+                .collectList()
+                .map(jobs -> toJobPage(jobs, limit, offset));
     }
 
     private Mono<CandidateJobPageResponse> getPersonalizedRecommendedJobsPage(
