@@ -561,6 +561,16 @@
   padding: 8px 20px 0;
 }
 
+/* Arrival from onboarding: one line saying what was saved. Green because it
+   is a done thing, like the checks in the answer block. */
+.setup-saved {
+  padding: 8px 20px 0;
+}
+
+.setup-saved .material-icons {
+  color: var(--ap-green);
+}
+
 /* ── Banners ──────────────────────────────────────── */
 .banner {
   --c: var(--ap-orange);
@@ -597,54 +607,6 @@
 
 .banner-text strong {
   color: var(--ap-ink);
-}
-
-/* ── Post-onboarding search handoff ───────────────── */
-.search-launch {
-  margin: 24px auto;
-  width: min(720px, calc(100% - 40px));
-  padding: 28px;
-  border-radius: 20px;
-  background: var(--ap-surface);
-  display: grid;
-  gap: 18px;
-  justify-items: start;
-}
-
-.search-launch .eyebrow {
-  margin: 0;
-  color: var(--ap-tint-text);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.search-launch h1 {
-  margin: 4px 0 6px;
-  font-size: 28px;
-  letter-spacing: -0.02em;
-}
-
-.search-launch p {
-  margin: 0;
-  color: var(--ap-ink-2);
-}
-
-.search-launch-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 12px;
-}
-
-.search-launch-tags span {
-  border-radius: 999px;
-  padding: 4px 11px;
-  background: var(--ap-tint-soft);
-  color: var(--ap-tint-text);
-  font-size: 12.5px;
-  font-weight: 700;
 }
 
 /* ── Split layout ─────────────────────────────────── */
