@@ -904,7 +904,9 @@ public class CandidateJobSearchService {
     // one page share one query. A failed load is not kept.
 
     static final Duration PUBLIC_PAGE_TTL = Duration.ofMinutes(10);
-    static final int PUBLIC_PAGE_MAX = 500;
+    // A 50-job page is ~70 KB as JSON, so ~200 KB on the heap: 200 pages is at most ~40 MB of
+    // the ~770 MB heap (1 GiB at 75%), of which the warmer holds about 50.
+    static final int PUBLIC_PAGE_MAX = 200;
 
     private final com.github.benmanes.caffeine.cache.AsyncCache<String, CandidateJobPageResponse> publicPages =
             com.github.benmanes.caffeine.cache.Caffeine.newBuilder()
