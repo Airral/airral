@@ -68,6 +68,16 @@ public class LocationIndex {
         return snapshot().map(snap -> match(snap, typed, max));
     }
 
+    /** The biggest places, states first, for the page warmer. */
+    public Mono<List<String>> topPlaces(int states, int cities) {
+        return snapshot().map(snap -> {
+            List<String> labels = new ArrayList<>();
+            snap.states().stream().limit(states).forEach(state -> labels.add(state.label()));
+            snap.cities().stream().limit(cities).forEach(city -> labels.add(city.label()));
+            return labels;
+        });
+    }
+
     private Mono<Snapshot> snapshot() {
         Snapshot current = snapshot.get();
         if (current != null) {
