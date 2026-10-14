@@ -108,6 +108,8 @@ dependencies {
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 
     // Reactor Extensions
+    // Bounded, expiring cache for public search pages (version managed by Spring Boot).
+    implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation 'io.projectreactor:reactor-core'
     implementation 'io.projectreactor.addons:reactor-extra'
 

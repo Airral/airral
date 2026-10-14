@@ -54,10 +54,88 @@
         "serve",
         "hr-portal",
         "--host=localhost",
-        "--port=4202"
+        "--port=4205",
+        "--proxy-config=/private/tmp/claude-501/-Users-harjit-Downloads-airral/0c763c6f-0b5e-4b13-be20-37d1a1c24816/scratchpad/proxy.hr-local-api.json"
+      ],
+      "port": 4205,
+      "cwd": "airral-frontend",
+      "autoPort": false
+    },
+    {
+      "name": "applicant-portal-live",
+      "runtimeExecutable": "node_modules/.bin/nx",
+      "runtimeArgs": [
+        "serve",
+        "applicant-portal",
+        "--host=localhost",
+        "--port=4205",
+        "--proxy-config=/private/tmp/claude-501/-Users-harjit-Downloads-airral/0c763c6f-0b5e-4b13-be20-37d1a1c24816/scratchpad/proxy.live-api.json"
+      ],
+      "port": 4205,
+      "cwd": "airral-frontend"
+    },
+    {
+      "name": "api-local-nosync",
+      "runtimeExecutable": "/opt/homebrew/opt/openjdk@21/bin/java",
+      "runtimeArgs": [
+        "-jar",
+        "/private/tmp/claude-501/-Users-harjit-Downloads-airral/0c763c6f-0b5e-4b13-be20-37d1a1c24816/scratchpad/airral-backend.jar",
+        "--spring.profiles.active=local",
+        "--server.port=8081",
+        "--spring.r2dbc.username=harjit",
+        "--spring.datasource.username=harjit",
+        "--spring.flyway.user=harjit",
+        "--airral.jobs.sync.enabled=false",
+        "--airral.jobs.sync.run-on-startup=false"
+      ],
+      "port": 8081,
+      "cwd": "airral-frontend"
+    },
+    {
+      "name": "applicant-portal-localapi",
+      "runtimeExecutable": "node_modules/.bin/nx",
+      "runtimeArgs": [
+        "serve",
+        "applicant-portal",
+        "--host=localhost",
+        "--port=4205",
+        "--proxy-config=/private/tmp/claude-501/-Users-harjit-Downloads-airral/0c763c6f-0b5e-4b13-be20-37d1a1c24816/scratchpad/proxy.local-api.json"
+      ],
+      "port": 4205,
+      "cwd": "airral-frontend"
+    },
+    {
+      "name": "api-local-ai",
+      "runtimeExecutable": "/opt/homebrew/opt/openjdk@21/bin/java",
+      "runtimeArgs": [
+        "-jar",
+        "/private/tmp/claude-501/-Users-harjit-Downloads-airral/0c763c6f-0b5e-4b13-be20-37d1a1c24816/scratchpad/airral-backend-ai.jar",
+        "--spring.profiles.active=local",
+        "--server.port=8081",
+        "--spring.r2dbc.username=harjit",
+        "--spring.datasource.username=harjit",
+        "--spring.flyway.user=harjit",
+        "--airral.jobs.sync.enabled=false",
+        "--airral.jobs.sync.run-on-startup=false",
+        "--airral.ai-access.allowed-emails=ui-refresh-test@airral.test,hr-refresh-test@fieldline.test",
+        "--airral.mcp.public-url=http://localhost:8081/mcp"
+      ],
+      "port": 8081,
+      "cwd": "airral-frontend"
+    },
+    {
+      "name": "hr-portal-4202",
+      "runtimeExecutable": "node_modules/.bin/nx",
+      "runtimeArgs": [
+        "serve",
+        "hr-portal",
+        "--host=localhost",
+        "--port=4202",
+        "--proxy-config=/private/tmp/claude-501/-Users-harjit-Downloads-airral/0c763c6f-0b5e-4b13-be20-37d1a1c24816/scratchpad/proxy.hr-local-api.json"
       ],
       "port": 4202,
-      "cwd": "airral-frontend"
+      "cwd": "airral-frontend",
+      "autoPort": false
     }
   ]
 }

@@ -889,6 +889,75 @@ public class CandidateJobSearchService {
                     location);
         }
 
+        String cacheKey = publicPageKey(source, boardToken, resolvedMaxAgeDays, query, company, location, filters,
+                resolvedLimit, resolvedOffset);
+        return cachedPublicPage(cacheKey, () -> loadPublicPage(
+                source, boardToken, resolvedMaxAgeDays, query, company, workMode, salaryPosted, experienceLevel,
+                visaFriendly, location, filters, resolvedLimit, resolvedOffset, queryLimit, queryOffset));
+    }
+
+    // ── Public pages ────────────────────────────────────────
+    // A signed-out search is the same for everyone, so its page is kept for a few
+    // minutes. A place search reads ~600 postings and, while the sync is writing to
+    // the small database, took 2-28 s; a repeat of the same place should not.
+    // Caffeine bounds the size, expires entries, and lets concurrent requests for
+    // one page share one query. A failed load is not kept.
+
+    static final Duration PUBLIC_PAGE_TTL = Duration.ofMinutes(10);
+    // A 50-job page is ~70 KB as JSON, so ~200 KB on the heap: 200 pages is at most ~40 MB of
+    // the ~770 MB heap (1 GiB at 75%), of which the warmer holds about 50.
+    static final int PUBLIC_PAGE_MAX = 200;
+
+    private final com.github.benmanes.caffeine.cache.AsyncCache<String, CandidateJobPageResponse> publicPages =
+            com.github.benmanes.caffeine.cache.Caffeine.newBuilder()
+                    .maximumSize(PUBLIC_PAGE_MAX)
+                    .expireAfterWrite(PUBLIC_PAGE_TTL)
+                    .buildAsync();
+
+    static String publicPageKey(
+            String source, String boardToken, int maxAgeDays, String query, String company, String location,
+            ExplicitJobFilters filters, int limit, int offset) {
+        ExplicitJobFilters f = filters == null ? ExplicitJobFilters.none() : filters;
+        return String.join("|",
+                source == null ? "all" : source.trim().toLowerCase(Locale.US),
+                boardToken == null ? "" : boardToken.trim(),
+                String.valueOf(maxAgeDays),
+                query == null ? "" : query.trim().toLowerCase(Locale.US),
+                company == null ? "" : company.trim().toLowerCase(Locale.US),
+                LocationFilter.parse(location).map(LocationFilter::toString).orElse(""),
+                f.hasWorkMode() ? f.normalizedWorkMode() : "",
+                String.valueOf(f.wantsPostedSalary()),
+                f.hasExperienceLevel() ? f.normalizedExperienceLevel() : "",
+                String.valueOf(f.wantsVisaFriendly()),
+                String.valueOf(limit),
+                String.valueOf(offset));
+    }
+
+    private Mono<CandidateJobPageResponse> cachedPublicPage(
+            String key, java.util.function.Supplier<Mono<CandidateJobPageResponse>> load) {
+        return Mono.fromFuture(() -> publicPages.get(key, (k, executor) -> load.get().toFuture()));
+    }
+
+    /**
+     * Builds and keeps the public first page for a place, so the portal's first
+     * request for it is answered from memory. Used by the background warmer.
+     */
+    public Mono<Void> warmPublicPlacePage(String location, int limit) {
+        int resolvedLimit = normalizeLimit(limit);
+        int maxAge = normalizeMaxAgeDays(60);
+        ExplicitJobFilters none = ExplicitJobFilters.none();
+        String key = publicPageKey("all", null, maxAge, null, null, location, none, resolvedLimit, 0);
+        return loadPublicPage("all", null, maxAge, null, null, null, null, null, null, location, none,
+                        resolvedLimit, 0, resolvedLimit + 1, 0)
+                .doOnNext(page -> publicPages.put(key, java.util.concurrent.CompletableFuture.completedFuture(page)))
+                .then();
+    }
+
+    private Mono<CandidateJobPageResponse> loadPublicPage(
+            String source, String boardToken, int resolvedMaxAgeDays, String query, String company,
+            String workMode, Boolean salaryPosted, String experienceLevel, Boolean visaFriendly,
+            String location, ExplicitJobFilters filters, int resolvedLimit, int resolvedOffset,
+            int queryLimit, int queryOffset) {
         Mono<CandidateJobPageResponse> diversified =
                 diversifiedFeedPage(source, boardToken, resolvedMaxAgeDays, query, company, location, filters,
                         resolvedLimit, resolvedOffset);
@@ -911,8 +980,7 @@ public class CandidateJobSearchService {
                 // to be worth keeping as the thing that makes the fallback
                 // obey the same filters as the primary path.
                 .map(jobs -> applyExplicitFilters(jobs, workMode, salaryPosted, experienceLevel, visaFriendly))
-                .map(jobs -> toJobPage(jobs, resolvedLimit, resolvedOffset))
-                .flatMap(page -> personalizePage(candidateEmail, page))));
+                .map(jobs -> toJobPage(jobs, resolvedLimit, resolvedOffset))));
     }
 
     /**
@@ -3270,20 +3338,6 @@ public class CandidateJobSearchService {
                 .map(context -> rankPersonalizedJobs(jobs, context))
                 .defaultIfEmpty(jobs)
                 .flatMapMany(Flux::fromIterable);
-    }
-
-    private Mono<CandidateJobPageResponse> personalizePage(String candidateEmail, CandidateJobPageResponse page) {
-        if (page == null || page.getJobs() == null || page.getJobs().isEmpty() || candidateEmail == null || candidateEmail.isBlank()) {
-            return Mono.just(page);
-        }
-
-        return resolveCandidateMatchContext(candidateEmail)
-                .map(context -> {
-                    List<CandidateJobSummaryResponse> personalizedJobs = rankPersonalizedJobs(page.getJobs(), context);
-                    page.setJobs(personalizedJobs);
-                    return page;
-                })
-                .defaultIfEmpty(page);
     }
 
     private Mono<CandidateJobDetailResponse> personalizeDetail(String candidateEmail, CandidateJobDetailResponse detail) {
