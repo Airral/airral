@@ -15,6 +15,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
+
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
 import reactor.netty.http.client.HttpClient;
 
 import javax.net.ssl.SSLException;
@@ -26,9 +30,30 @@ public class WorkdayJobBoardClient {
 
     private final WebClient webClient;
 
+    /**
+     * Workday answers 429 when its tenants are read faster than it likes. With 42 tenants
+     * on wd1/wd5 and six boards synced at once, ~26 were refused within four minutes.
+     * Requests are therefore spaced across the whole process, and a refused page is retried
+     * with a backoff instead of failing the whole board.
+     */
+    private final long minIntervalMillis;
+    private final AtomicLong nextSlot = new AtomicLong();
+
+    /** A response worth retrying: rate limited or briefly unavailable. */
+    static final class RetryableWorkdayException extends RuntimeException {
+        final int status;
+
+        RetryableWorkdayException(int status, String message) {
+            super(message);
+            this.status = status;
+        }
+    }
+
     public WorkdayJobBoardClient(
             WebClient.Builder webClientBuilder,
-            @Value("${airral.jobs.workday.insecure-ssl:false}") boolean insecureSsl) {
+            @Value("${airral.jobs.workday.insecure-ssl:false}") boolean insecureSsl,
+            @Value("${airral.jobs.workday.min-interval-ms:200}") long minIntervalMillis) {
+        this.minIntervalMillis = Math.max(0, minIntervalMillis);
         WebClient.Builder builder = webClientBuilder.clone()
                 .exchangeStrategies(jobBoardExchangeStrategies())
                 .defaultHeader("Accept", "application/json");
@@ -50,14 +75,39 @@ public class WorkdayJobBoardClient {
                 .searchText(searchText == null ? "" : searchText.trim())
                 .build();
 
-        return webClient.post()
-                .uri(source.searchUrl())
-                .bodyValue(request)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
-                        .defaultIfEmpty("")
-                        .map(body -> new BadRequestException("Unable to load Workday jobs for source: " + source.sourceKey() + " (HTTP " + response.statusCode().value() + ")")))
-                .bodyToMono(WorkdayJobSearchResponse.class);
+        return Mono.defer(() -> Mono.delay(Duration.ofMillis(reserveSlot()))
+                        .then(webClient.post()
+                                .uri(source.searchUrl())
+                                .bodyValue(request)
+                                .retrieve()
+                                .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
+                                        .defaultIfEmpty("")
+                                        .map(body -> isRetryable(response.statusCode().value())
+                                                ? new RetryableWorkdayException(response.statusCode().value(), failureMessage(source, response.statusCode().value()))
+                                                : new BadRequestException(failureMessage(source, response.statusCode().value()))))
+                                .bodyToMono(WorkdayJobSearchResponse.class)))
+                .retryWhen(Retry.backoff(5, Duration.ofSeconds(3))
+                        .maxBackoff(Duration.ofSeconds(45))
+                        .filter(error -> error instanceof RetryableWorkdayException)
+                        .onRetryExhaustedThrow((spec, signal) -> new BadRequestException(signal.failure().getMessage())));
+    }
+
+    /** Milliseconds this request must wait so requests start at least minIntervalMillis apart. */
+    long reserveSlot() {
+        if (minIntervalMillis == 0) {
+            return 0;
+        }
+        long now = System.currentTimeMillis();
+        long slot = nextSlot.updateAndGet(previous -> Math.max(previous, now) + minIntervalMillis);
+        return Math.max(0, slot - minIntervalMillis - now);
+    }
+
+    static boolean isRetryable(int status) {
+        return status == 429 || status == 502 || status == 503 || status == 504;
+    }
+
+    private static String failureMessage(WorkdaySource source, int status) {
+        return "Unable to load Workday jobs for source: " + source.sourceKey() + " (HTTP " + status + ")";
     }
 
     public Mono<WorkdayJobDetailResponse> retrieveJob(WorkdaySource source, String externalPath) {
