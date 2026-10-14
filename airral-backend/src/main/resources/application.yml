@@ -268,10 +268,10 @@ airral:
       limit-per-source: ${AIRRAL_JOBS_SYNC_LIMIT_PER_SOURCE:4000}
       # Three limits bound one sync run, and they only work in this order:
       #
-      #   runner timeout (cli-timeout-minutes)  100  the process gives up here
-      #   lease-minutes                          110  > runner, so the lock never
+      #   runner timeout (cli-timeout-minutes)  140  the process gives up here
+      #   lease-minutes                          150  > runner, so the lock never
       #                                               lapses while a run is alive
-      #   GitHub job timeout-minutes             120  > runner + ~3 min of build,
+      #   GitHub job timeout-minutes             160  > runner + ~3 min of build,
       #                                               so the runner, not GitHub,
       #                                               ends a slow run cleanly
       #
@@ -281,7 +281,10 @@ airral:
       # minutes from killing the job outright, which leaves the lease held and the
       # run unlogged. The cron is every 240 minutes, so none of this can overlap
       # the next scheduled run.
-      lease-minutes: ${AIRRAL_JOBS_SYNC_LEASE_MINUTES:110}
+      #
+      # Raised from 100/110/120 after V50 added 42 Workday boards (~24k postings):
+      # the main pass took 93 minutes and its retry pass hit the 100-minute cap.
+      lease-minutes: ${AIRRAL_JOBS_SYNC_LEASE_MINUTES:150}
       source-concurrency: ${AIRRAL_JOBS_SYNC_SOURCE_CONCURRENCY:6}
       # Raised with V31, which took the source list from 128 to 508. At 500 the
       # run would have silently dropped the tail of the list every time -- the
